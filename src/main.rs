@@ -1,11 +1,16 @@
-extern crate bincode;
+// extern crate memsocket;
 extern crate serde;
+extern crate serde_json;
 extern crate uuid;
 
 mod execution;
+mod executor;
 
 use execution::*;
+use executor::ExecutorTrait;
 use std::rc::Rc;
+use std::sync::mpsc::channel;
+use std::thread;
 
 fn main() {
     let mut dag = ExecutionDAG::new();
@@ -30,8 +35,18 @@ fn main() {
     dag.provide_file(file.clone());
     dag.add_execution(exec.clone());
 
-    println!("dag: {:#?}\n", dag);
-    println!("stdout: {:#?}\n", stdout);
-    println!("output: {:#?}\n", output);
-    dag.execute();
+    // println!("dag: {:#?}\n", dag);
+    // println!("stdout: {:#?}\n", stdout);
+    // println!("output: {:#?}\n", output);
+
+    let (tx, rx_remote) = channel();
+    let (tx_remote, rx) = channel();
+
+    let mut executor = executor::LocalExecutor::new(4);
+    let server = thread::spawn(move || {
+        println!("Running in thread");
+        executor.evaluate(tx_remote, rx_remote).unwrap();
+    });
+    executor::ExecutorClient::evaluate(dag, tx, rx).unwrap();
+    server.join().unwrap();
 }
