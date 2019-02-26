@@ -1,0 +1,10 @@
+[package]
+name = "task-maker-rust"
+version = "0.1.0"
+authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+serde = { version = "1.0.88", features = ["derive", "rc"] }
+bincode = "1.1.2"
+uuid = { version = "0.7", features = ["v4", "serde"] }
