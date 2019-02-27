@@ -1,18 +1,20 @@
-// extern crate memsocket;
 extern crate serde;
 extern crate serde_json;
 extern crate uuid;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 
 mod execution;
 mod executor;
 
 use execution::*;
 use executor::ExecutorTrait;
-use std::rc::Rc;
 use std::sync::mpsc::channel;
 use std::thread;
 
 fn main() {
+    env_logger::init();
     let mut dag = ExecutionDAG::new();
     let file = File::new("Source file of generator.cpp");
     let lib = File::new("Library for generator.cpp");
@@ -20,31 +22,23 @@ fn main() {
         "Compilation of generator.cpp",
         ExecutionCommand::System("/usr/bin/g++".to_owned()),
     );
-    exec.stdin(file.clone())
-        .input(lib, "lib.h", false)
-        .on_start(&|| println!("Started!"));
+    exec.stdin(&file).input(&lib, "lib.h", false);
 
-    let stdout = exec.stdout();
-    let output = exec.output("a.out");
+    dag.provide_file(file);
+    dag.add_execution(exec)
+        .on_start(&|w| warn!("Started on {}!", w))
+        .write_stderr_to("/tmp/stderr")
+        .write_output_to("a.out", "/tmp/output")
+        .get_output_content("a.out", 100, &|content| println!("Content: {:?}", content))
+        .get_stderr_content(100, &|content| println!("Content: {:?}", content));
 
-    output
-        .lock()
-        .expect("Cannot lock2")
-        .get_content(10000, &|data| println!("data: {:?}", data));
-    let exec = Rc::new(exec);
-    dag.provide_file(file.clone());
-    dag.add_execution(exec.clone());
-
-    // println!("dag: {:#?}\n", dag);
-    // println!("stdout: {:#?}\n", stdout);
-    // println!("output: {:#?}\n", output);
+    println!("{:#?}", dag);
 
     let (tx, rx_remote) = channel();
     let (tx_remote, rx) = channel();
 
-    let mut executor = executor::LocalExecutor::new(4);
     let server = thread::spawn(move || {
-        println!("Running in thread");
+        let mut executor = executor::LocalExecutor::new(4);
         executor.evaluate(tx_remote, rx_remote).unwrap();
     });
     executor::ExecutorClient::evaluate(dag, tx, rx).unwrap();
