@@ -1,11 +1,15 @@
 use crate::execution::*;
+use crate::executor::scheduler::schedule;
 use crate::executor::*;
 use failure::Error;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use uuid::Uuid;
+
+pub type Work = String;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ExecutorClientMessage {
@@ -34,15 +38,17 @@ pub enum WorkerClientMessage {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum WorkerServerMessage {
-    Work(String),
+    Work(Work),
 }
 
-struct ExecutorData {
-    dag: Option<ExecutionDAGData>,
+#[derive(Debug)]
+pub struct ExecutorData {
+    pub dag: Option<ExecutionDAGData>,
+    pub waiting_workers: HashMap<Uuid, Arc<(Mutex<Option<Work>>, Condvar)>>,
 }
 
 pub struct Executor {
-    data: Arc<Mutex<ExecutorData>>,
+    pub data: Arc<Mutex<ExecutorData>>,
 }
 
 pub trait ExecutorTrait {
@@ -59,6 +65,11 @@ impl Executor {
 
     pub fn add_worker(&mut self, worker: WorkerConn) {
         let data = self.data.clone();
+        self.data
+            .lock()
+            .unwrap()
+            .waiting_workers
+            .insert(worker.uuid, Arc::new((Mutex::new(None), Condvar::new())));
         thread::Builder::new()
             .name(format!("Executor worker thread for {}", worker))
             .spawn(move || {
@@ -72,13 +83,13 @@ impl Executor {
         sender: Sender<String>,
         receiver: Receiver<String>,
     ) -> Result<(), Error> {
-        info!("Executor started");
         loop {
             let message = deserialize_from::<ExecutorClientMessage>(&receiver);
             match message {
                 Ok(ExecutorClientMessage::Evaluate(d)) => {
                     info!("Want to evaluate a DAG!");
                     self.data.lock().unwrap().dag = Some(d);
+                    schedule(self.data.clone());
                 }
                 Ok(ExecutorClientMessage::ProvideFile(uuid)) => {
                     info!("Client sent: {}", uuid);
@@ -111,7 +122,10 @@ impl Executor {
 
 impl ExecutorData {
     fn new() -> ExecutorData {
-        ExecutorData { dag: None }
+        ExecutorData {
+            dag: None,
+            waiting_workers: HashMap::new(),
+        }
     }
 }
 
@@ -122,20 +136,47 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
         match message {
             Ok(WorkerClientMessage::GetWork) => {
                 info!("Worker {} ready for work", conn);
+                schedule(executor.clone());
+                let job = wait_for_work(executor.clone(), &conn.uuid);
+                serialize_into(&WorkerServerMessage::Work(job), &conn.sender).unwrap();
             }
             Ok(WorkerClientMessage::WorkerError(error)) => {
                 info!("Worker {} failed with error: {}", conn, error);
+                // TODO update job state
+                schedule(executor.clone());
             }
             Ok(WorkerClientMessage::WorkerSuccess(result)) => {
                 info!("Worker {} succeded with: {}", conn, result);
+                // TODO update job state
+                schedule(executor.clone());
             }
             Err(e) => {
                 let cause = e.find_root_cause().to_string();
                 info!("Connection error: {}", cause);
                 if cause == "receiving on a closed channel" {
+                    executor.lock().unwrap().waiting_workers.remove(&conn.uuid);
+                    info!("Removed worker {} from pool", conn);
+                    schedule(executor.clone());
                     break;
                 }
             }
         }
     }
+}
+
+fn wait_for_work(executor: Arc<Mutex<ExecutorData>>, uuid: &Uuid) -> Work {
+    let (lock, cv) = &*executor
+        .lock()
+        .unwrap()
+        .waiting_workers
+        .get(&uuid)
+        .unwrap()
+        .clone();
+    let mut job = lock.lock().unwrap();
+    while job.is_none() {
+        job = cv.wait(job).unwrap();
+    }
+    let content = job.clone().unwrap();
+    *job = None;
+    content
 }

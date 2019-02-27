@@ -1,5 +1,6 @@
 use crate::execution::file::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 pub type OnStartCallback = Fn(Uuid) -> ();
@@ -16,12 +17,6 @@ pub struct ExecutionInput {
     pub path: String,
     pub file: Uuid,
     pub executable: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ExecutionOutput {
-    pub path: String,
-    pub file: File,
 }
 
 pub struct ExecutionCallbacks {
@@ -41,7 +36,7 @@ pub struct Execution {
     pub stdout: Option<File>,
     pub stderr: Option<File>,
     pub inputs: Vec<ExecutionInput>,
-    pub outputs: Vec<ExecutionOutput>,
+    pub outputs: HashMap<String, File>,
 }
 
 impl Execution {
@@ -57,7 +52,7 @@ impl Execution {
             stdout: None,
             stderr: None,
             inputs: vec![],
-            outputs: vec![],
+            outputs: HashMap::new(),
         }
     }
 
@@ -93,11 +88,8 @@ impl Execution {
 
     pub fn output(&mut self, path: &str) -> &File {
         let file = File::new(&format!("Output of '{}' at '{}'", self.description, path));
-        self.outputs.push(ExecutionOutput {
-            path: path.to_owned(),
-            file: file,
-        });
-        &self.outputs.last().unwrap().file
+        self.outputs.insert(path.to_owned(), file);
+        self.outputs.get(path).unwrap()
     }
 }
 

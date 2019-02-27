@@ -20,7 +20,7 @@ fn main() {
     let lib = File::new("Library for generator.cpp");
     let mut exec = Execution::new(
         "Compilation of generator.cpp",
-        ExecutionCommand::System("/usr/bin/g++".to_owned()),
+        ExecutionCommand::System("g++".to_owned()),
     );
     exec.stdin(&file).input(&lib, "lib.h", false);
 

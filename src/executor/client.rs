@@ -13,11 +13,6 @@ impl ExecutorClient {
     ) -> Result<(), Error> {
         info!("ExecutorClient started");
         serialize_into(&ExecutorClientMessage::Evaluate(dag.data), &sender)?;
-        serialize_into(&ExecutorClientMessage::Status, &sender)?;
-        info!("{} callbacks", dag.execution_callbacks.len());
-        for x in dag.execution_callbacks.iter() {
-            x.1.on_start.as_ref().unwrap()(*x.0);
-        }
         loop {
             match deserialize_from::<ExecutorServerMessage>(&receiver) {
                 Ok(ExecutorServerMessage::AskFile(uuid)) => {
@@ -26,15 +21,27 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::NotifyStart(uuid, worker)) => {
                     info!("Execution {} started on {}", uuid, worker);
-                    // TODO call callback
+                    if let Some(callbacks) = dag.execution_callbacks.get(&uuid) {
+                        if let Some(callback) = &callbacks.on_start {
+                            callback(worker);
+                        }
+                    }
                 }
                 Ok(ExecutorServerMessage::NotifyDone(uuid, result)) => {
                     info!("Execution {} completed with {}", uuid, result);
-                    // TODO call callback
+                    if let Some(callbacks) = dag.execution_callbacks.get(&uuid) {
+                        if let Some(callback) = &callbacks.on_done {
+                            callback(result);
+                        }
+                    }
                 }
                 Ok(ExecutorServerMessage::NotifySkip(uuid)) => {
                     info!("Execution {} skipped", uuid);
-                    // TODO call callback
+                    if let Some(callbacks) = dag.execution_callbacks.get(&uuid) {
+                        if let Some(callback) = &callbacks.on_skip {
+                            callback();
+                        }
+                    }
                 }
                 Ok(ExecutorServerMessage::Error(error)) => {
                     info!("Error occurred: {}", error);

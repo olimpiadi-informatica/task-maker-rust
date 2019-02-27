@@ -1,15 +1,16 @@
+mod client;
 mod executor;
 mod local_executor;
+mod scheduler;
 mod worker;
-mod client;
 
 use failure::Error;
 use std::sync::mpsc::{Receiver, Sender};
 
+pub use client::*;
 pub use executor::*;
 pub use local_executor::*;
 pub use worker::*;
-pub use client::*;
 
 fn serialize_into<T>(what: &T, sender: &Sender<String>) -> Result<(), Error>
 where

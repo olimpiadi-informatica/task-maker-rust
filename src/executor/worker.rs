@@ -38,17 +38,18 @@ impl Worker {
     }
 
     pub fn work(self) -> Result<(), Error> {
-        info!("Worker {} ready", self);
+        info!("Worker {} ready, asking for work", self);
         serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
         loop {
             let message = deserialize_from::<WorkerServerMessage>(&self.receiver);
             match message {
                 Ok(WorkerServerMessage::Work(what)) => {
                     info!("Worker {} got job: {}", self, what);
+                    break;
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();
-                    info!("Connection error: {}", cause);
+                    error!("Connection error: {}", cause);
                     if cause == "receiving on a closed channel" {
                         break;
                     }
