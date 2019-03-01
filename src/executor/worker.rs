@@ -41,7 +41,7 @@ impl Worker {
     }
 
     pub fn work(self) -> Result<(), Error> {
-        info!("Worker {} ready, asking for work", self);
+        trace!("Worker {} ready, asking for work", self);
         serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
         loop {
             let message = deserialize_from::<WorkerServerMessage>(&self.receiver);
@@ -50,9 +50,13 @@ impl Worker {
                     info!("Worker {} got job: {}", self, what);
                     thread::sleep(std::time::Duration::from_secs(3));
                     serialize_into(
-                        &WorkerClientMessage::WorkerSuccess("Done! :P".to_owned()),
+                        &WorkerClientMessage::WorkerDone((
+                            true,
+                            format!("Just completed: '{}'", what),
+                        )),
                         &self.sender,
                     )?;
+                    serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();

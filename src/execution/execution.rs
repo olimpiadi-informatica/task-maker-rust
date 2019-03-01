@@ -1,12 +1,12 @@
 use crate::execution::file::*;
-use crate::executor::WorkerUuid;
+use crate::executor::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
 pub type ExecutionUuid = Uuid;
 pub type OnStartCallback = Fn(WorkerUuid) -> ();
-pub type OnDoneCallback = Fn(String) -> ();
+pub type OnDoneCallback = Fn(WorkerResult) -> ();
 pub type OnSkipCallback = Fn() -> ();
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,6 +56,31 @@ impl Execution {
             inputs: vec![],
             outputs: HashMap::new(),
         }
+    }
+
+    pub fn dependencies(&self) -> Vec<FileUuid> {
+        let mut deps = vec![];
+        if let Some(stdin) = self.stdin {
+            deps.push(stdin);
+        }
+        for input in self.inputs.iter() {
+            deps.push(input.file);
+        }
+        deps
+    }
+
+    pub fn outputs(&self) -> Vec<FileUuid> {
+        let mut outs = vec![];
+        if let Some(stdout) = &self.stdout {
+            outs.push(stdout.uuid.clone());
+        }
+        if let Some(stderr) = &self.stderr {
+            outs.push(stderr.uuid.clone());
+        }
+        for output in self.outputs.values() {
+            outs.push(output.uuid.clone());
+        }
+        outs
     }
 
     pub fn stdin(&mut self, stdin: &File) -> &mut Self {

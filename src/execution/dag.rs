@@ -183,40 +183,14 @@ pub fn check_dag(dag: &ExecutionDAGData) -> Result<(), DAGError> {
         }
     };
 
-    let exec_dependencies = |exec: &ExecutionUuid| {
-        let mut deps = vec![];
-        let exec = dag.executions.get(exec).expect("No such exec");
-        if let Some(stdin) = exec.stdin {
-            deps.push(stdin);
-        }
-        for input in exec.inputs.iter() {
-            deps.push(input.file);
-        }
-        deps
-    };
-
-    let exec_outputs = |exec: &ExecutionUuid| {
-        let mut outs = vec![];
-        let exec = dag.executions.get(exec).expect("No such exec");
-        if let Some(stdout) = &exec.stdout {
-            outs.push(stdout.uuid.clone());
-        }
-        if let Some(stderr) = &exec.stderr {
-            outs.push(stderr.uuid.clone());
-        }
-        for output in exec.outputs.values() {
-            outs.push(output.uuid.clone());
-        }
-        outs
-    };
-
     for exec_uuid in dag.executions.keys() {
-        let deps = exec_dependencies(&exec_uuid);
+        let exec = dag.executions.get(exec_uuid).expect("No such exec");
+        let deps = exec.dependencies();
         let count = deps.len();
         for dep in deps.into_iter() {
             add_dependency(dep, exec_uuid.clone());
         }
-        for out in exec_outputs(&exec_uuid).into_iter() {
+        for out in exec.outputs().into_iter() {
             if !known_files.insert(out) {
                 return Err(DAGError::DuplicateFileUUID { uuid: out });
             }
@@ -256,8 +230,9 @@ pub fn check_dag(dag: &ExecutionDAGData) -> Result<(), DAGError> {
                 }
             }
         }
-        for exec in ready_execs.drain(..) {
-            for file in exec_outputs(&exec).into_iter() {
+        for exec_uuid in ready_execs.drain(..) {
+            let exec = dag.executions.get(&exec_uuid).expect("No such exec");
+            for file in exec.outputs().into_iter() {
                 ready_files.push_back(file);
             }
         }
@@ -267,7 +242,7 @@ pub fn check_dag(dag: &ExecutionDAGData) -> Result<(), DAGError> {
             continue;
         }
         let exec = dag.executions.get(&exec_uuid).unwrap();
-        for dep in exec_dependencies(exec_uuid).iter() {
+        for dep in exec.dependencies().iter() {
             if !known_files.contains(dep) {
                 return Err(DAGError::MissingFile {
                     uuid: *dep,

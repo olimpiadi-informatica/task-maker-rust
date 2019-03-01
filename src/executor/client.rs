@@ -28,7 +28,7 @@ impl ExecutorClient {
                     }
                 }
                 Ok(ExecutorServerMessage::NotifyDone(uuid, result)) => {
-                    info!("Execution {} completed with {}", uuid, result);
+                    info!("Execution {} completed with {:?}", uuid, result);
                     if let Some(callbacks) = dag.execution_callbacks.get(&uuid) {
                         if let Some(callback) = &callbacks.on_done {
                             callback(result);
@@ -51,6 +51,11 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::Status(status)) => {
                     info!("Server status: {}", status);
+                }
+                Ok(ExecutorServerMessage::Done) => {
+                    info!("Execution completed!");
+                    drop(receiver);
+                    break;
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();
