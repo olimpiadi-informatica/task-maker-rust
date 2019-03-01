@@ -46,6 +46,8 @@ impl ExecutorClient {
                 Ok(ExecutorServerMessage::Error(error)) => {
                     info!("Error occurred: {}", error);
                     // TODO abort
+                    drop(receiver);
+                    break;
                 }
                 Ok(ExecutorServerMessage::Status(status)) => {
                     info!("Server status: {}", status);

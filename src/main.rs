@@ -16,6 +16,7 @@ use std::thread;
 fn main() {
     env_logger::init();
     let mut dag = ExecutionDAG::new();
+
     let file = File::new("Source file of generator.cpp");
     let lib = File::new("Library for generator.cpp");
     let mut exec = Execution::new(
@@ -24,6 +25,14 @@ fn main() {
     );
     exec.stdin(&file).input(&lib, "lib.h", false);
 
+    // let out = exec.stdout();
+    // let mut exec2 = Execution::new("Loop!!", ExecutionCommand::System("g++".to_owned()));
+    // exec2.stdin(&out);
+    // let out2 = exec2.stdout();
+    // exec.input(&out2, "lalala", false);
+    // dag.add_execution(exec2);
+
+    dag.provide_file(lib);
     dag.provide_file(file);
     dag.add_execution(exec)
         .on_start(&|w| warn!("Started on {}!", w))

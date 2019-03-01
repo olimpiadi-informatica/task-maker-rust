@@ -1,7 +1,7 @@
 use crate::execution::*;
 use crate::executor::scheduler::schedule;
 use crate::executor::*;
-use failure::Error;
+use failure::{Error, Fail};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
@@ -88,6 +88,14 @@ impl Executor {
             match message {
                 Ok(ExecutorClientMessage::Evaluate(d)) => {
                     info!("Want to evaluate a DAG!");
+                    if let Err(e) = check_dag(&d) {
+                        warn!("Invalid DAG: {:?}", e);
+                        serialize_into(&ExecutorServerMessage::Error(e.to_string()), &sender)?;
+                        drop(receiver);
+                        break;
+                    } else {
+                        info!("DAG looks valid!");
+                    }
                     self.data.lock().unwrap().dag = Some(d);
                     schedule(self.data.clone());
                 }
