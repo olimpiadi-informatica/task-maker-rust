@@ -1,9 +1,11 @@
 use crate::execution::file::*;
+use crate::executor::WorkerUuid;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-pub type OnStartCallback = Fn(Uuid) -> ();
+pub type ExecutionUuid = Uuid;
+pub type OnStartCallback = Fn(WorkerUuid) -> ();
 pub type OnDoneCallback = Fn(String) -> ();
 pub type OnSkipCallback = Fn() -> ();
 
@@ -15,7 +17,7 @@ pub enum ExecutionCommand {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExecutionInput {
     pub path: String,
-    pub file: Uuid,
+    pub file: FileUuid,
     pub executable: bool,
 }
 
@@ -27,12 +29,12 @@ pub struct ExecutionCallbacks {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Execution {
-    pub uuid: Uuid,
+    pub uuid: ExecutionUuid,
     pub description: String,
     pub command: ExecutionCommand,
     pub args: Vec<String>,
 
-    pub stdin: Option<Uuid>,
+    pub stdin: Option<FileUuid>,
     pub stdout: Option<File>,
     pub stderr: Option<File>,
     pub inputs: Vec<ExecutionInput>,

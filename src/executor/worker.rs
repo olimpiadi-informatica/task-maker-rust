@@ -1,16 +1,19 @@
 use crate::executor::*;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::thread;
 use uuid::Uuid;
 
+pub type WorkerUuid = Uuid;
+
 pub struct Worker {
-    pub uuid: Uuid,
+    pub uuid: WorkerUuid,
     pub name: String,
     pub sender: Sender<String>,
     pub receiver: Receiver<String>,
 }
 
 pub struct WorkerConn {
-    pub uuid: Uuid,
+    pub uuid: WorkerUuid,
     pub name: String,
     pub sender: Sender<String>,
     pub receiver: Receiver<String>,
@@ -45,7 +48,11 @@ impl Worker {
             match message {
                 Ok(WorkerServerMessage::Work(what)) => {
                     info!("Worker {} got job: {}", self, what);
-                    break;
+                    thread::sleep(std::time::Duration::from_secs(3));
+                    serialize_into(
+                        &WorkerClientMessage::WorkerSuccess("Done! :P".to_owned()),
+                        &self.sender,
+                    )?;
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();

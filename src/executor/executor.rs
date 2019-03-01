@@ -1,5 +1,5 @@
 use crate::execution::*;
-use crate::executor::scheduler::schedule;
+use crate::executor::scheduler::Scheduler;
 use crate::executor::*;
 use failure::{Error, Fail};
 use serde::{Deserialize, Serialize};
@@ -7,24 +7,23 @@ use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use uuid::Uuid;
 
 pub type Work = String;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ExecutorClientMessage {
     Evaluate(ExecutionDAGData),
-    ProvideFile(Uuid),
+    ProvideFile(FileUuid),
     Stop,
     Status,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ExecutorServerMessage {
-    AskFile(Uuid),
-    NotifyStart(Uuid, Uuid),
-    NotifyDone(Uuid, String),
-    NotifySkip(Uuid),
+    AskFile(FileUuid),
+    NotifyStart(ExecutionUuid, WorkerUuid),
+    NotifyDone(ExecutionUuid, String),
+    NotifySkip(ExecutionUuid),
     Error(String),
     Status(String),
 }
@@ -44,7 +43,7 @@ pub enum WorkerServerMessage {
 #[derive(Debug)]
 pub struct ExecutorData {
     pub dag: Option<ExecutionDAGData>,
-    pub waiting_workers: HashMap<Uuid, Arc<(Mutex<Option<Work>>, Condvar)>>,
+    pub waiting_workers: HashMap<WorkerUuid, Arc<(Mutex<Option<Work>>, Condvar)>>,
 }
 
 pub struct Executor {
@@ -97,7 +96,8 @@ impl Executor {
                         info!("DAG looks valid!");
                     }
                     self.data.lock().unwrap().dag = Some(d);
-                    schedule(self.data.clone());
+                    Scheduler::setup(self.data.clone());
+                    Scheduler::schedule(self.data.clone());
                 }
                 Ok(ExecutorClientMessage::ProvideFile(uuid)) => {
                     info!("Client sent: {}", uuid);
@@ -144,19 +144,19 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
         match message {
             Ok(WorkerClientMessage::GetWork) => {
                 info!("Worker {} ready for work", conn);
-                schedule(executor.clone());
+                Scheduler::schedule(executor.clone());
                 let job = wait_for_work(executor.clone(), &conn.uuid);
                 serialize_into(&WorkerServerMessage::Work(job), &conn.sender).unwrap();
             }
             Ok(WorkerClientMessage::WorkerError(error)) => {
                 info!("Worker {} failed with error: {}", conn, error);
                 // TODO update job state
-                schedule(executor.clone());
+                Scheduler::schedule(executor.clone());
             }
             Ok(WorkerClientMessage::WorkerSuccess(result)) => {
                 info!("Worker {} succeded with: {}", conn, result);
                 // TODO update job state
-                schedule(executor.clone());
+                Scheduler::schedule(executor.clone());
             }
             Err(e) => {
                 let cause = e.find_root_cause().to_string();
@@ -164,7 +164,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
                 if cause == "receiving on a closed channel" {
                     executor.lock().unwrap().waiting_workers.remove(&conn.uuid);
                     info!("Removed worker {} from pool", conn);
-                    schedule(executor.clone());
+                    Scheduler::schedule(executor.clone());
                     break;
                 }
             }
@@ -172,7 +172,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
     }
 }
 
-fn wait_for_work(executor: Arc<Mutex<ExecutorData>>, uuid: &Uuid) -> Work {
+fn wait_for_work(executor: Arc<Mutex<ExecutorData>>, uuid: &WorkerUuid) -> Work {
     let (lock, cv) = &*executor
         .lock()
         .unwrap()

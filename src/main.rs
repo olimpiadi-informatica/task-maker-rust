@@ -51,5 +51,5 @@ fn main() {
         executor.evaluate(tx_remote, rx_remote).unwrap();
     });
     executor::ExecutorClient::evaluate(dag, tx, rx).unwrap();
-    server.join().unwrap();
+    server.join().expect("Server paniced");
 }

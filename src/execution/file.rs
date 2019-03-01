@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub type FileUuid = Uuid;
 pub type GetContentCallback = Fn(Vec<u8>) -> ();
 
 pub struct FileCallbacks {
@@ -10,7 +11,7 @@ pub struct FileCallbacks {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct File {
-    pub uuid: Uuid,
+    pub uuid: FileUuid,
     pub description: String,
     pub executable: bool,
 }

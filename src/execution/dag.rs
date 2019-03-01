@@ -1,40 +1,39 @@
 use crate::execution::execution::*;
 use crate::execution::file::*;
-use failure::{Error, Fail};
+use failure::Fail;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
-use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExecutionDAGData {
-    pub provided_files: HashMap<Uuid, File>,
-    pub executions: HashMap<Uuid, Execution>,
+    pub provided_files: HashMap<FileUuid, File>,
+    pub executions: HashMap<ExecutionUuid, Execution>,
 }
 
 #[derive(Debug)]
 pub struct ExecutionDAG {
     pub data: ExecutionDAGData,
-    pub execution_callbacks: HashMap<Uuid, ExecutionCallbacks>,
-    pub file_callbacks: HashMap<Uuid, FileCallbacks>,
+    pub execution_callbacks: HashMap<ExecutionUuid, ExecutionCallbacks>,
+    pub file_callbacks: HashMap<FileUuid, FileCallbacks>,
 }
 
 #[derive(Debug, Fail)]
 pub enum DAGError {
     #[fail(display = "missing file {} ({})", description, uuid)]
-    MissingFile { uuid: Uuid, description: String },
+    MissingFile { uuid: FileUuid, description: String },
     #[fail(
         display = "detected dependency cycle, '{}' is in the cycle",
         description
     )]
     CycleDetected { description: String },
     #[fail(display = "duplicate execution UUID {}", uuid)]
-    DuplicateExecutionUUID { uuid: Uuid },
+    DuplicateExecutionUUID { uuid: ExecutionUuid },
     #[fail(display = "duplicate file UUID {}", uuid)]
-    DuplicateFileUUID { uuid: Uuid },
+    DuplicateFileUUID { uuid: FileUuid },
 }
 
 pub struct AddExecutionWrapper<'a> {
-    uuid: Uuid,
+    uuid: ExecutionUuid,
     dag: &'a mut ExecutionDAG,
 }
 
@@ -131,7 +130,7 @@ impl<'a> AddExecutionWrapper<'a> {
         self
     }
 
-    fn write_file_to(&mut self, path: &str, uuid: Uuid) {
+    fn write_file_to(&mut self, path: &str, uuid: FileUuid) {
         self.ensure_file_callback(&uuid);
         self.dag.file_callbacks.get_mut(&uuid).unwrap().write_to = Some(path.to_owned());
     }
@@ -140,14 +139,14 @@ impl<'a> AddExecutionWrapper<'a> {
         &mut self,
         limit: usize,
         callback: &'static GetContentCallback,
-        uuid: Uuid,
+        uuid: FileUuid,
     ) {
         self.ensure_file_callback(&uuid);
         self.dag.file_callbacks.get_mut(&uuid).unwrap().get_content =
             Some((limit, Box::new(callback)));
     }
 
-    fn ensure_file_callback(&mut self, uuid: &Uuid) {
+    fn ensure_file_callback(&mut self, uuid: &FileUuid) {
         if !self.dag.file_callbacks.contains_key(&uuid) {
             self.dag
                 .file_callbacks
@@ -170,13 +169,13 @@ impl<'a> AddExecutionWrapper<'a> {
 }
 
 pub fn check_dag(dag: &ExecutionDAGData) -> Result<(), DAGError> {
-    let mut dependencies: HashMap<Uuid, Vec<Uuid>> = HashMap::new(); // FileUuid -> [ExecUuid]
-    let mut num_dependencies: HashMap<Uuid, usize> = HashMap::new(); // ExecUuid -> count
-    let mut known_files: HashSet<Uuid> = HashSet::new();
-    let mut ready_execs: VecDeque<Uuid> = VecDeque::new();
-    let mut ready_files: VecDeque<Uuid> = VecDeque::new();
+    let mut dependencies: HashMap<FileUuid, Vec<ExecutionUuid>> = HashMap::new();
+    let mut num_dependencies: HashMap<ExecutionUuid, usize> = HashMap::new();
+    let mut known_files: HashSet<FileUuid> = HashSet::new();
+    let mut ready_execs: VecDeque<ExecutionUuid> = VecDeque::new();
+    let mut ready_files: VecDeque<FileUuid> = VecDeque::new();
 
-    let mut add_dependency = |file: Uuid, exec: Uuid| {
+    let mut add_dependency = |file: FileUuid, exec: ExecutionUuid| {
         if !dependencies.contains_key(&file) {
             dependencies.insert(file, vec![exec]);
         } else {
@@ -184,7 +183,7 @@ pub fn check_dag(dag: &ExecutionDAGData) -> Result<(), DAGError> {
         }
     };
 
-    let exec_dependencies = |exec: &Uuid| {
+    let exec_dependencies = |exec: &ExecutionUuid| {
         let mut deps = vec![];
         let exec = dag.executions.get(exec).expect("No such exec");
         if let Some(stdin) = exec.stdin {
@@ -196,7 +195,7 @@ pub fn check_dag(dag: &ExecutionDAGData) -> Result<(), DAGError> {
         deps
     };
 
-    let exec_outputs = |exec: &Uuid| {
+    let exec_outputs = |exec: &ExecutionUuid| {
         let mut outs = vec![];
         let exec = dag.executions.get(exec).expect("No such exec");
         if let Some(stdout) = &exec.stdout {
