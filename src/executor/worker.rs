@@ -48,7 +48,7 @@ impl Worker {
             match message {
                 Ok(WorkerServerMessage::Work(what)) => {
                     info!("Worker {} got job: {}", self, what);
-                    thread::sleep(std::time::Duration::from_secs(3));
+                    thread::sleep(std::time::Duration::from_secs(1));
                     serialize_into(
                         &WorkerClientMessage::WorkerDone((
                             true,

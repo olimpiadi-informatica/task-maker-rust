@@ -9,7 +9,7 @@ pub struct FileCallbacks {
     pub get_content: Option<(usize, Box<GetContentCallback>)>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct File {
     pub uuid: FileUuid,
     pub description: String,

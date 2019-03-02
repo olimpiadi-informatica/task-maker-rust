@@ -38,9 +38,12 @@ impl Scheduler {
         info!("Schedule in progress");
         let mut data = executor_data.lock().unwrap();
         let mut free_workers = vec![];
+        let mut doing_workers = 0;
         for (worker_uuid, job) in data.waiting_workers.iter() {
             if job.0.lock().unwrap().is_none() {
                 free_workers.push(worker_uuid);
+            } else {
+                doing_workers += 1;
             }
         }
         let mut assigned = vec![];
@@ -52,8 +55,16 @@ impl Scheduler {
                 break;
             }
         }
+        trace!(
+            "{} doing workers, {} free workers, {} ready jobs, {} non-ready jobs",
+            doing_workers,
+            free_workers.len(),
+            data.ready_execs.len(),
+            data.missing_deps.len()
+        );
 
         for (worker, exec) in free_workers.into_iter().zip(assigned.into_iter()) {
+            doing_workers += 1;
             Scheduler::assign_job(
                 data.waiting_workers
                     .get(&worker)
@@ -68,7 +79,11 @@ impl Scheduler {
             )
             .expect("Cannot send message to client");
         }
-        if ready_execs.is_empty() && data.missing_deps.is_empty() && data.client_sender.is_some() {
+        if ready_execs.is_empty()
+            && data.missing_deps.is_empty()
+            && doing_workers == 0
+            && data.client_sender.is_some()
+        {
             serialize_into(
                 &ExecutorServerMessage::Done,
                 data.client_sender.as_ref().unwrap(),
@@ -172,7 +187,7 @@ impl Scheduler {
         work: Work,
         worker_uuid: WorkerUuid,
     ) {
-        warn!("Assigning job {:?} to worker {}", work, worker_uuid);
+        trace!("Assigning job {:?} to worker {}", work, worker_uuid);
         let (lock, cv) = &*worker;
         let mut lock = lock.lock().unwrap();
         *lock = Some(work);

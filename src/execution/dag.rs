@@ -49,11 +49,11 @@ impl ExecutionDAG {
         }
     }
 
-    pub fn provide_file(self: &mut Self, file: File) {
+    pub fn provide_file(&mut self, file: File) {
         self.data.provided_files.insert(file.uuid.clone(), file);
     }
 
-    pub fn add_execution(self: &mut Self, execution: Execution) -> AddExecutionWrapper {
+    pub fn add_execution(&mut self, execution: Execution) -> AddExecutionWrapper {
         let uuid = execution.uuid.clone();
         self.data
             .executions

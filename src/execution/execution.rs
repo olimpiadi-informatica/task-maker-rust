@@ -88,20 +88,20 @@ impl Execution {
         self
     }
 
-    pub fn stdout(&mut self) -> &File {
+    pub fn stdout(&mut self) -> File {
         if self.stdout.is_none() {
             let file = File::new(&format!("Stdout of '{}'", self.description));
             self.stdout = Some(file);
         }
-        self.stdout.as_ref().unwrap()
+        self.stdout.as_ref().unwrap().clone()
     }
 
-    pub fn stderr(&mut self) -> &File {
+    pub fn stderr(&mut self) -> File {
         if self.stderr.is_none() {
             let file = File::new(&format!("Stderr of '{}'", self.description));
             self.stderr = Some(file);
         }
-        self.stderr.as_ref().unwrap()
+        self.stderr.as_ref().unwrap().clone()
     }
 
     pub fn input(&mut self, file: &File, path: &str, executable: bool) -> &mut Self {
@@ -113,10 +113,10 @@ impl Execution {
         self
     }
 
-    pub fn output(&mut self, path: &str) -> &File {
+    pub fn output(&mut self, path: &str) -> File {
         let file = File::new(&format!("Output of '{}' at '{}'", self.description, path));
         self.outputs.insert(path.to_owned(), file);
-        self.outputs.get(path).unwrap()
+        self.outputs.get(path).unwrap().clone()
     }
 }
 
