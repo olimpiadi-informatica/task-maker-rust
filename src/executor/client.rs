@@ -16,6 +16,7 @@ impl ExecutorClient {
             executions: dag.execution_callbacks.keys().map(|k| k.clone()).collect(),
             files: dag.file_callbacks.keys().map(|k| k.clone()).collect(),
         };
+        let provided_files = dag.data.provided_files.clone();
         serialize_into(
             &ExecutorClientMessage::Evaluate {
                 dag: dag.data,
@@ -23,6 +24,9 @@ impl ExecutorClient {
             },
             &sender,
         )?;
+        for (uuid, _file) in provided_files.iter() {
+            serialize_into(&ExecutorClientMessage::ProvideFile(*uuid), &sender)?;
+        }
         loop {
             match deserialize_from::<ExecutorServerMessage>(&receiver) {
                 Ok(ExecutorServerMessage::AskFile(uuid)) => {

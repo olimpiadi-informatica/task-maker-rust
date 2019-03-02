@@ -119,8 +119,6 @@ impl Executor {
                     } else {
                         info!("DAG looks valid!");
                     }
-                    let files: Vec<FileUuid> =
-                        dag.provided_files.keys().map(|k| k.clone()).collect();
                     {
                         let mut data = self.data.lock().unwrap();
                         data.dag = Some(dag);
@@ -128,16 +126,16 @@ impl Executor {
                         data.client_sender = Some(sender.clone());
                     }
                     Scheduler::setup(self.data.clone());
-                    // TODO: this is just a mock
-                    for file in files.iter() {
-                        Scheduler::file_ready(self.data.clone(), *file);
-                    }
                     Scheduler::schedule(self.data.clone());
                 }
                 Ok(ExecutorClientMessage::ProvideFile(uuid)) => {
                     info!("Client sent: {}", uuid);
-                    Scheduler::schedule(self.data.clone());
-                    break;
+                    if self.data.lock().unwrap().dag.is_none() {
+                        warn!("Provided file before the DAG!");
+                        drop(receiver);
+                        break;
+                    }
+                    Scheduler::file_ready(self.data.clone(), uuid);
                 }
                 Ok(ExecutorClientMessage::Status) => {
                     info!("Client asking for the status");
