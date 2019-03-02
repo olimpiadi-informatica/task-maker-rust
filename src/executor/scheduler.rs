@@ -70,16 +70,16 @@ impl Scheduler {
                     .get(&worker)
                     .expect(&format!("Assigning to unknown worker {}", worker))
                     .clone(),
-                (
-                    exec,
-                    data.dag
+                WorkerJob {
+                    execution: data
+                        .dag
                         .as_ref()
                         .unwrap()
                         .executions
                         .get(&exec)
                         .unwrap()
-                        .outputs(),
-                ),
+                        .clone(),
+                },
                 worker.clone(),
             );
             if data.callbacks.as_ref().unwrap().executions.contains(&exec) {
@@ -181,8 +181,8 @@ impl Scheduler {
     }
 
     fn assign_job(
-        worker: Arc<(Mutex<Option<Work>>, Condvar)>,
-        work: Work,
+        worker: Arc<(Mutex<Option<WorkerJob>>, Condvar)>,
+        work: WorkerJob,
         worker_uuid: WorkerUuid,
     ) {
         trace!("Assigning job {:?} to worker {}", work, worker_uuid);

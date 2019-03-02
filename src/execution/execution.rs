@@ -9,12 +9,12 @@ pub type OnStartCallback = Fn(WorkerUuid) -> ();
 pub type OnDoneCallback = Fn(WorkerResult) -> ();
 pub type OnSkipCallback = Fn() -> ();
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExecutionCommand {
     System(String),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionInput {
     pub path: String,
     pub file: FileUuid,
@@ -27,7 +27,7 @@ pub struct ExecutionCallbacks {
     pub on_skip: Option<Box<OnSkipCallback>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Execution {
     pub uuid: ExecutionUuid,
     pub description: String,
@@ -39,6 +39,22 @@ pub struct Execution {
     pub stderr: Option<File>,
     pub inputs: Vec<ExecutionInput>,
     pub outputs: HashMap<String, File>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ExecutionStatus {
+    Success,
+    ReturnCode(i32),
+    Signal(i32, String),
+    TimeLimitExceeded,
+    MemoryLimitExceeded,
+    InternalError,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionResult {
+    pub uuid: ExecutionUuid,
+    pub status: ExecutionStatus,
 }
 
 impl Execution {

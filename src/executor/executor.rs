@@ -8,8 +8,15 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
-pub type Work = (ExecutionUuid, Vec<FileUuid>);
-pub type WorkerResult = (bool, String);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkerJob {
+    pub execution: Execution,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkerResult {
+    pub result: ExecutionResult,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ExecutorClientMessage {
@@ -44,7 +51,7 @@ pub enum WorkerClientMessage {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum WorkerServerMessage {
-    Work(Work),
+    Work(WorkerJob),
     ProvideFile(FileUuid),
 }
 
@@ -53,7 +60,7 @@ pub struct ExecutorData {
     pub dag: Option<ExecutionDAGData>,
     pub callbacks: Option<ExecutionDAGCallbacks>,
     pub client_sender: Option<Sender<String>>,
-    pub waiting_workers: HashMap<WorkerUuid, Arc<(Mutex<Option<Work>>, Condvar)>>,
+    pub waiting_workers: HashMap<WorkerUuid, Arc<(Mutex<Option<WorkerJob>>, Condvar)>>,
     pub ready_execs: BinaryHeap<ExecutionUuid>,
     pub missing_deps: HashMap<ExecutionUuid, usize>,
     pub dependents: HashMap<FileUuid, Vec<ExecutionUuid>>,
@@ -196,7 +203,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
                         .unwrap()
                         .clone();
                     assert!(exec.is_some(), "Worker job disappeared");
-                    let exec_uuid = exec.unwrap().clone().0;
+                    let exec_uuid = exec.unwrap().clone().execution.uuid;
                     data.waiting_workers.remove(&conn.uuid);
                     if data
                         .callbacks
@@ -213,8 +220,9 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
                     }
                     exec_uuid
                 };
-                if result.0 == false {
-                    Scheduler::exec_failed(executor.clone(), exec_uuid);
+                match result.result.status {
+                    ExecutionStatus::Success => {}
+                    _ => Scheduler::exec_failed(executor.clone(), exec_uuid),
                 }
             }
             Ok(WorkerClientMessage::ProvideFile(uuid)) => {
@@ -246,7 +254,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
     }
 }
 
-fn wait_for_work(executor: Arc<Mutex<ExecutorData>>, uuid: &WorkerUuid) -> Work {
+fn wait_for_work(executor: Arc<Mutex<ExecutorData>>, uuid: &WorkerUuid) -> WorkerJob {
     let (lock, cv) = &*executor
         .lock()
         .unwrap()

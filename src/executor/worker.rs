@@ -1,3 +1,4 @@
+use crate::execution::*;
 use crate::executor::*;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
@@ -46,17 +47,19 @@ impl Worker {
         loop {
             let message = deserialize_from::<WorkerServerMessage>(&self.receiver);
             match message {
-                Ok(WorkerServerMessage::Work(what)) => {
-                    info!("Worker {} got job: {:?}", self, what);
+                Ok(WorkerServerMessage::Work(job)) => {
+                    info!("Worker {} got job: {:?}", self, job);
                     thread::sleep(std::time::Duration::from_secs(1));
                     serialize_into(
-                        &WorkerClientMessage::WorkerDone((
-                            true,
-                            format!("Just completed: '{:?}'", what),
-                        )),
+                        &WorkerClientMessage::WorkerDone(WorkerResult {
+                            result: ExecutionResult {
+                                uuid: job.execution.uuid.clone(),
+                                status: ExecutionStatus::Success,
+                            },
+                        }),
                         &self.sender,
                     )?;
-                    for out in what.1.iter() {
+                    for out in job.execution.outputs() {
                         serialize_into(
                             &WorkerClientMessage::ProvideFile(out.clone()),
                             &self.sender,
