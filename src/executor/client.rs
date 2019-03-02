@@ -12,12 +12,33 @@ impl ExecutorClient {
         receiver: Receiver<String>,
     ) -> Result<(), Error> {
         info!("ExecutorClient started");
-        serialize_into(&ExecutorClientMessage::Evaluate(dag.data), &sender)?;
+        let dag_callbacks = ExecutionDAGCallbacks {
+            executions: dag.execution_callbacks.keys().map(|k| k.clone()).collect(),
+            files: dag.file_callbacks.keys().map(|k| k.clone()).collect(),
+        };
+        serialize_into(
+            &ExecutorClientMessage::Evaluate {
+                dag: dag.data,
+                callbacks: dag_callbacks,
+            },
+            &sender,
+        )?;
         loop {
             match deserialize_from::<ExecutorServerMessage>(&receiver) {
                 Ok(ExecutorServerMessage::AskFile(uuid)) => {
                     info!("Server is asking for {}", uuid);
                     serialize_into(&ExecutorClientMessage::ProvideFile(uuid), &sender)?;
+                }
+                Ok(ExecutorServerMessage::ProvideFile(uuid)) => {
+                    info!("Server sent the file {}", uuid);
+                    if let Some(callback) = dag.file_callbacks.get(&uuid) {
+                        if let Some(write_to) = callback.write_to.as_ref() {
+                            info!("Writing {} to {}", uuid, write_to);
+                        }
+                        if let Some((_limit, get_content)) = callback.get_content.as_ref() {
+                            get_content(vec![1, 2, 3, 42]);
+                        }
+                    }
                 }
                 Ok(ExecutorServerMessage::NotifyStart(uuid, worker)) => {
                     info!("Execution {} started on {}", uuid, worker);

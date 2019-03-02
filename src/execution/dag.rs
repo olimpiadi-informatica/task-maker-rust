@@ -10,6 +10,12 @@ pub struct ExecutionDAGData {
     pub executions: HashMap<ExecutionUuid, Execution>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExecutionDAGCallbacks {
+    pub executions: HashSet<ExecutionUuid>,
+    pub files: HashSet<FileUuid>,
+}
+
 #[derive(Debug)]
 pub struct ExecutionDAG {
     pub data: ExecutionDAGData,
@@ -21,6 +27,8 @@ pub struct ExecutionDAG {
 pub enum DAGError {
     #[fail(display = "missing file {} ({})", description, uuid)]
     MissingFile { uuid: FileUuid, description: String },
+    #[fail(display = "missing execution {}", uuid)]
+    MissingExecution { uuid: FileUuid },
     #[fail(
         display = "detected dependency cycle, '{}' is in the cycle",
         description
@@ -168,7 +176,10 @@ impl<'a> AddExecutionWrapper<'a> {
     }
 }
 
-pub fn check_dag(dag: &ExecutionDAGData) -> Result<(), DAGError> {
+pub fn check_dag(
+    dag: &ExecutionDAGData,
+    callbacks: &ExecutionDAGCallbacks,
+) -> Result<(), DAGError> {
     let mut dependencies: HashMap<FileUuid, Vec<ExecutionUuid>> = HashMap::new();
     let mut num_dependencies: HashMap<ExecutionUuid, usize> = HashMap::new();
     let mut known_files: HashSet<FileUuid> = HashSet::new();
@@ -183,6 +194,7 @@ pub fn check_dag(dag: &ExecutionDAGData) -> Result<(), DAGError> {
         }
     };
 
+    // add the exectutions and check for duplicated UUIDs
     for exec_uuid in dag.executions.keys() {
         let exec = dag.executions.get(exec_uuid).expect("No such exec");
         let deps = exec.dependencies();
@@ -204,12 +216,14 @@ pub fn check_dag(dag: &ExecutionDAGData) -> Result<(), DAGError> {
             ready_execs.push_back(exec_uuid.clone());
         }
     }
+    // add the provided files
     for uuid in dag.provided_files.keys() {
         ready_files.push_back(uuid.clone());
         if !known_files.insert(uuid.clone()) {
             return Err(DAGError::DuplicateFileUUID { uuid: uuid.clone() });
         }
     }
+    // visit the DAG for finding the unreachable executions / cycles
     while !ready_execs.is_empty() || !ready_files.is_empty() {
         for file in ready_files.drain(..) {
             if !dependencies.contains_key(&file) {
@@ -237,6 +251,7 @@ pub fn check_dag(dag: &ExecutionDAGData) -> Result<(), DAGError> {
             }
         }
     }
+    // search for unreachable execution / cycles
     for (exec_uuid, count) in num_dependencies.iter() {
         if *count == 0 {
             continue;
@@ -253,6 +268,21 @@ pub fn check_dag(dag: &ExecutionDAGData) -> Result<(), DAGError> {
         return Err(DAGError::CycleDetected {
             description: exec.description.clone(),
         });
+    }
+    // check the file callbacks
+    for file in callbacks.files.iter() {
+        if !known_files.contains(&file) {
+            return Err(DAGError::MissingFile {
+                uuid: *file,
+                description: format!("File required by a callback"),
+            });
+        }
+    }
+    // check the execution callbacks
+    for exec in callbacks.executions.iter() {
+        if !num_dependencies.contains_key(&exec) {
+            return Err(DAGError::MissingExecution { uuid: *exec });
+        }
     }
     Ok(())
 }

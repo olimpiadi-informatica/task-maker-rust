@@ -18,7 +18,6 @@ fn main() {
         .default_format_timestamp_nanos(true)
         .init();
 
-    // env_logger::init();
     let mut dag = ExecutionDAG::new();
 
     let file = File::new("Source file of generator.cpp");
@@ -36,10 +35,10 @@ fn main() {
         .on_done(&|res| warn!("Exec result {:?}", res))
         .write_stderr_to("/tmp/stderr")
         .write_output_to("a.out", "/tmp/output")
-        .get_output_content("a.out", 100, &|content| println!("Content: {:?}", content))
-        .get_stderr_content(100, &|content| println!("Content: {:?}", content));
+        .get_output_content("a.out", 100, &|content| warn!("Content: {:?}", content))
+        .get_stderr_content(100, &|content| warn!("Content: {:?}", content));
 
-    for i in 0..4 {
+    for i in 0..1 {
         let mut exec = Execution::new(
             &format!("Execution {}", i),
             ExecutionCommand::System("g++".to_owned()),

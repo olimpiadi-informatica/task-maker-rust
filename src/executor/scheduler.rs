@@ -35,7 +35,7 @@ impl Scheduler {
     }
 
     pub fn schedule(executor_data: Arc<Mutex<ExecutorData>>) {
-        info!("Schedule in progress");
+        trace!("Schedule in progress");
         let mut data = executor_data.lock().unwrap();
         let mut free_workers = vec![];
         let mut doing_workers = 0;
@@ -73,12 +73,15 @@ impl Scheduler {
                 exec,
                 worker.clone(),
             );
-            serialize_into(
-                &ExecutorServerMessage::NotifyStart(exec.clone(), worker.clone()),
-                data.client_sender.as_ref().unwrap(),
-            )
-            .expect("Cannot send message to client");
+            if data.callbacks.as_ref().unwrap().executions.contains(&exec) {
+                serialize_into(
+                    &ExecutorServerMessage::NotifyStart(exec.clone(), worker.clone()),
+                    data.client_sender.as_ref().unwrap(),
+                )
+                .expect("Cannot send message to client");
+            }
         }
+
         if ready_execs.is_empty()
             && data.missing_deps.is_empty()
             && doing_workers == 0
@@ -99,7 +102,7 @@ impl Scheduler {
         {
             let mut data = executor_data.lock().unwrap();
             if !data.dependents.contains_key(&file) {
-                info!("Leaf file is ready");
+                trace!("Leaf file is ready");
                 return;
             }
             let dependents = data.dependents.get(&file).unwrap().clone(); // TODO: maybe this clone is not necessary
@@ -114,7 +117,7 @@ impl Scheduler {
                     data.ready_execs.push(exec.clone());
                     data.missing_deps.remove(&exec);
                     needs_reshed = true;
-                    info!("Execution {} is now ready", exec);
+                    trace!("Execution {} is now ready", exec);
                 }
             }
         }
@@ -129,17 +132,19 @@ impl Scheduler {
         let execs = {
             let mut data = executor_data.lock().unwrap();
             if !data.dependents.contains_key(&file) {
-                info!("Leaf file has failed");
+                trace!("Leaf file has failed");
                 return;
             }
             let dependents = data.dependents.get(&file).unwrap().clone(); // TODO: maybe this clone is not necessary
             for exec in dependents.iter() {
                 data.missing_deps.remove(&exec);
-                serialize_into(
-                    &ExecutorServerMessage::NotifySkip(exec.clone()),
-                    data.client_sender.as_ref().unwrap(),
-                )
-                .expect("Cannot send message to client");
+                if data.callbacks.as_ref().unwrap().executions.contains(&exec) {
+                    serialize_into(
+                        &ExecutorServerMessage::NotifySkip(exec.clone()),
+                        data.client_sender.as_ref().unwrap(),
+                    )
+                    .expect("Cannot send message to client");
+                }
             }
             dependents
         };
@@ -163,6 +168,14 @@ impl Scheduler {
         };
         for output in outputs.into_iter() {
             Scheduler::file_ready(executor_data.clone(), output);
+            let data = executor_data.lock().unwrap();
+            if data.callbacks.as_ref().unwrap().files.contains(&output) {
+                serialize_into(
+                    &ExecutorServerMessage::ProvideFile(output),
+                    &data.client_sender.as_ref().unwrap(),
+                )
+                .expect("Cannot send message to client");
+            }
         }
     }
 

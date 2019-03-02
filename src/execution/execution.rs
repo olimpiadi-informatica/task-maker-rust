@@ -114,6 +114,9 @@ impl Execution {
     }
 
     pub fn output(&mut self, path: &str) -> File {
+        if self.outputs.contains_key(path) {
+            return self.outputs.get(path).unwrap().clone();
+        }
         let file = File::new(&format!("Output of '{}' at '{}'", self.description, path));
         self.outputs.insert(path.to_owned(), file);
         self.outputs.get(path).unwrap().clone()

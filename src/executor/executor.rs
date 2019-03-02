@@ -13,7 +13,10 @@ pub type WorkerResult = (bool, String);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ExecutorClientMessage {
-    Evaluate(ExecutionDAGData),
+    Evaluate {
+        dag: ExecutionDAGData,
+        callbacks: ExecutionDAGCallbacks,
+    },
     ProvideFile(FileUuid),
     Stop,
     Status,
@@ -22,6 +25,7 @@ pub enum ExecutorClientMessage {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ExecutorServerMessage {
     AskFile(FileUuid),
+    ProvideFile(FileUuid),
     NotifyStart(ExecutionUuid, WorkerUuid),
     NotifyDone(ExecutionUuid, WorkerResult),
     NotifySkip(ExecutionUuid),
@@ -44,6 +48,7 @@ pub enum WorkerServerMessage {
 #[derive(Debug)]
 pub struct ExecutorData {
     pub dag: Option<ExecutionDAGData>,
+    pub callbacks: Option<ExecutionDAGCallbacks>,
     pub client_sender: Option<Sender<String>>,
     pub waiting_workers: HashMap<WorkerUuid, Arc<(Mutex<Option<Work>>, Condvar)>>,
     pub ready_execs: BinaryHeap<ExecutionUuid>,
@@ -85,9 +90,9 @@ impl Executor {
         loop {
             let message = deserialize_from::<ExecutorClientMessage>(&receiver);
             match message {
-                Ok(ExecutorClientMessage::Evaluate(d)) => {
+                Ok(ExecutorClientMessage::Evaluate { dag, callbacks }) => {
                     info!("Want to evaluate a DAG!");
-                    if let Err(e) = check_dag(&d) {
+                    if let Err(e) = check_dag(&dag, &callbacks) {
                         warn!("Invalid DAG: {:?}", e);
                         serialize_into(&ExecutorServerMessage::Error(e.to_string()), &sender)?;
                         drop(receiver);
@@ -95,10 +100,12 @@ impl Executor {
                     } else {
                         info!("DAG looks valid!");
                     }
-                    let files: Vec<FileUuid> = d.provided_files.keys().map(|k| k.clone()).collect();
+                    let files: Vec<FileUuid> =
+                        dag.provided_files.keys().map(|k| k.clone()).collect();
                     {
                         let mut data = self.data.lock().unwrap();
-                        data.dag = Some(d);
+                        data.dag = Some(dag);
+                        data.callbacks = Some(callbacks);
                         data.client_sender = Some(sender.clone());
                     }
                     Scheduler::setup(self.data.clone());
@@ -142,6 +149,7 @@ impl ExecutorData {
     fn new() -> ExecutorData {
         ExecutorData {
             dag: None,
+            callbacks: None,
             client_sender: None,
             waiting_workers: HashMap::new(),
             ready_execs: BinaryHeap::new(),
@@ -187,11 +195,19 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
                     assert!(exec.is_some(), "Worker job disappeared");
                     let exec_uuid = exec.unwrap().clone();
                     data.waiting_workers.remove(&conn.uuid);
-                    serialize_into(
-                        &ExecutorServerMessage::NotifyDone(exec_uuid.clone(), result.clone()),
-                        data.client_sender.as_ref().unwrap(),
-                    )
-                    .expect("Cannot send message to client");
+                    if data
+                        .callbacks
+                        .as_ref()
+                        .unwrap()
+                        .executions
+                        .contains(&exec_uuid)
+                    {
+                        serialize_into(
+                            &ExecutorServerMessage::NotifyDone(exec_uuid.clone(), result.clone()),
+                            data.client_sender.as_ref().unwrap(),
+                        )
+                        .expect("Cannot send message to client");
+                    }
                     exec_uuid
                 };
                 if result.0 == false {
