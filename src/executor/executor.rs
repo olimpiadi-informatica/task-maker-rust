@@ -8,7 +8,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
-pub type Work = ExecutionUuid;
+pub type Work = (ExecutionUuid, Vec<FileUuid>);
 pub type WorkerResult = (bool, String);
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -38,11 +38,14 @@ pub enum ExecutorServerMessage {
 pub enum WorkerClientMessage {
     GetWork,
     WorkerDone(WorkerResult),
+    ProvideFile(FileUuid),
+    AskFile(FileUuid),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum WorkerServerMessage {
     Work(Work),
+    ProvideFile(FileUuid),
 }
 
 #[derive(Debug)]
@@ -193,7 +196,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
                         .unwrap()
                         .clone();
                     assert!(exec.is_some(), "Worker job disappeared");
-                    let exec_uuid = exec.unwrap().clone();
+                    let exec_uuid = exec.unwrap().clone().0;
                     data.waiting_workers.remove(&conn.uuid);
                     if data
                         .callbacks
@@ -212,9 +215,22 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
                 };
                 if result.0 == false {
                     Scheduler::exec_failed(executor.clone(), exec_uuid);
-                } else {
-                    Scheduler::exec_succeded(executor.clone(), exec_uuid);
                 }
+            }
+            Ok(WorkerClientMessage::ProvideFile(uuid)) => {
+                info!("Worker provided file {}", uuid);
+                Scheduler::file_ready(executor.clone(), uuid);
+                let data = executor.lock().unwrap();
+                if data.callbacks.as_ref().unwrap().files.contains(&uuid) {
+                    serialize_into(
+                        &ExecutorServerMessage::ProvideFile(uuid),
+                        &data.client_sender.as_ref().unwrap(),
+                    )
+                    .expect("Cannot send message to client");
+                }
+            }
+            Ok(WorkerClientMessage::AskFile(uuid)) => {
+                serialize_into(&ExecutorServerMessage::ProvideFile(uuid), &conn.sender).unwrap();
             }
             Err(e) => {
                 let cause = e.find_root_cause().to_string();

@@ -47,16 +47,26 @@ impl Worker {
             let message = deserialize_from::<WorkerServerMessage>(&self.receiver);
             match message {
                 Ok(WorkerServerMessage::Work(what)) => {
-                    info!("Worker {} got job: {}", self, what);
+                    info!("Worker {} got job: {:?}", self, what);
                     thread::sleep(std::time::Duration::from_secs(1));
                     serialize_into(
                         &WorkerClientMessage::WorkerDone((
                             true,
-                            format!("Just completed: '{}'", what),
+                            format!("Just completed: '{:?}'", what),
                         )),
                         &self.sender,
                     )?;
+                    for out in what.1.iter() {
+                        serialize_into(
+                            &WorkerClientMessage::ProvideFile(out.clone()),
+                            &self.sender,
+                        )
+                        .unwrap();
+                    }
                     serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
+                }
+                Ok(WorkerServerMessage::ProvideFile(uuid)) => {
+                    info!("Server sent file {}", uuid);
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();

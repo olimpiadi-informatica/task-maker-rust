@@ -33,10 +33,12 @@ fn main() {
     dag.add_execution(exec)
         .on_start(&|w| warn!("Started on {}!", w))
         .on_done(&|res| warn!("Exec result {:?}", res))
+        .write_stdout_to("/tmp/stdout")
         .write_stderr_to("/tmp/stderr")
         .write_output_to("a.out", "/tmp/output")
-        .get_output_content("a.out", 100, &|content| warn!("Content: {:?}", content))
-        .get_stderr_content(100, &|content| warn!("Content: {:?}", content));
+        .get_output_content("a.out", 100, &|content| warn!("a.out: {:?}", content))
+        .get_stdout_content(100, &|content| warn!("stdout: {:?}", content))
+        .get_stderr_content(100, &|content| warn!("stderr: {:?}", content));
 
     for i in 0..1 {
         let mut exec = Execution::new(

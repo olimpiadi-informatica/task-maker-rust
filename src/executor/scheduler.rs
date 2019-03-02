@@ -70,7 +70,16 @@ impl Scheduler {
                     .get(&worker)
                     .expect(&format!("Assigning to unknown worker {}", worker))
                     .clone(),
-                exec,
+                (
+                    exec,
+                    data.dag
+                        .as_ref()
+                        .unwrap()
+                        .executions
+                        .get(&exec)
+                        .unwrap()
+                        .outputs(),
+                ),
                 worker.clone(),
             );
             if data.callbacks.as_ref().unwrap().executions.contains(&exec) {
@@ -151,31 +160,6 @@ impl Scheduler {
         for exec in execs.iter() {
             trace!("Execution {} has been skipped", exec);
             Scheduler::exec_failed(executor_data.clone(), *exec);
-        }
-    }
-
-    pub fn exec_succeded(executor_data: Arc<Mutex<ExecutorData>>, exec: ExecutionUuid) {
-        let outputs = {
-            let data = executor_data.lock().unwrap();
-            let exec = data
-                .dag
-                .as_ref()
-                .unwrap()
-                .executions
-                .get(&exec)
-                .expect("Unknown execution completed");
-            exec.outputs()
-        };
-        for output in outputs.into_iter() {
-            Scheduler::file_ready(executor_data.clone(), output);
-            let data = executor_data.lock().unwrap();
-            if data.callbacks.as_ref().unwrap().files.contains(&output) {
-                serialize_into(
-                    &ExecutorServerMessage::ProvideFile(output),
-                    &data.client_sender.as_ref().unwrap(),
-                )
-                .expect("Cannot send message to client");
-            }
         }
     }
 
