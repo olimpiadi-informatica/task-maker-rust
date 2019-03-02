@@ -71,7 +71,7 @@ impl ExecutorClient {
                     break;
                 }
                 Ok(ExecutorServerMessage::Status(status)) => {
-                    info!("Server status: {}", status);
+                    info!("Server status: {:#?}", status);
                 }
                 Ok(ExecutorServerMessage::Done) => {
                     info!("Execution completed!");

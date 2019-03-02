@@ -37,7 +37,7 @@ pub enum ExecutorServerMessage {
     NotifyDone(ExecutionUuid, WorkerResult),
     NotifySkip(ExecutionUuid),
     Error(String),
-    Status(String),
+    Status(ExecutorStatus),
     Done,
 }
 
@@ -61,9 +61,18 @@ pub struct ExecutorData {
     pub callbacks: Option<ExecutionDAGCallbacks>,
     pub client_sender: Option<Sender<String>>,
     pub waiting_workers: HashMap<WorkerUuid, Arc<(Mutex<Option<WorkerJob>>, Condvar)>>,
+    pub worker_names: HashMap<WorkerUuid, String>,
     pub ready_execs: BinaryHeap<ExecutionUuid>,
     pub missing_deps: HashMap<ExecutionUuid, usize>,
     pub dependents: HashMap<FileUuid, Vec<ExecutionUuid>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExecutorStatus {
+    pub connected_workers: Vec<(WorkerUuid, String, bool)>,
+    pub running_dags: usize,
+    pub ready_execs: usize,
+    pub waiting_execs: usize,
 }
 
 pub struct Executor {
@@ -132,9 +141,27 @@ impl Executor {
                 }
                 Ok(ExecutorClientMessage::Status) => {
                     info!("Client asking for the status");
-                    // TODO real status
+                    let data = self.data.lock().unwrap();
                     serialize_into(
-                        &ExecutorServerMessage::Status("Good, thanks".to_owned()),
+                        &ExecutorServerMessage::Status(ExecutorStatus {
+                            connected_workers: data
+                                .waiting_workers
+                                .iter()
+                                .map(|(uuid, job)| {
+                                    (
+                                        uuid.clone(),
+                                        data.worker_names
+                                            .get(&uuid)
+                                            .unwrap_or(&"unknown".to_owned())
+                                            .clone(),
+                                        job.0.lock().unwrap().is_some(),
+                                    )
+                                })
+                                .collect(),
+                            running_dags: data.dag.is_some() as usize,
+                            ready_execs: data.ready_execs.len(),
+                            waiting_execs: data.missing_deps.len(),
+                        }),
                         &sender,
                     )?;
                 }
@@ -143,6 +170,7 @@ impl Executor {
                     break;
                 }
                 Err(e) => {
+                    // TODO stop all the workers
                     let cause = e.find_root_cause().to_string();
                     info!("Connection error: {}", cause);
                     if cause == "receiving on a closed channel" {
@@ -162,6 +190,7 @@ impl ExecutorData {
             callbacks: None,
             client_sender: None,
             waiting_workers: HashMap::new(),
+            worker_names: HashMap::new(),
             ready_execs: BinaryHeap::new(),
             missing_deps: HashMap::new(),
             dependents: HashMap::new(),
@@ -182,10 +211,17 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
                     .unwrap()
                     .waiting_workers
                     .contains_key(&conn.uuid));
-                executor.lock().unwrap().waiting_workers.insert(
-                    conn.uuid.clone(),
-                    Arc::new((Mutex::new(None), Condvar::new())),
-                );
+                {
+                    let mut executor = executor.lock().unwrap();
+                    executor.waiting_workers.insert(
+                        conn.uuid.clone(),
+                        Arc::new((Mutex::new(None), Condvar::new())),
+                    );
+                    executor
+                        .worker_names
+                        .insert(conn.uuid.clone(), conn.name.clone());
+                }
+
                 Scheduler::schedule(executor.clone());
                 let job = wait_for_work(executor.clone(), &conn.uuid);
                 serialize_into(&WorkerServerMessage::Work(job), &conn.sender).unwrap();
@@ -205,6 +241,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
                     assert!(exec.is_some(), "Worker job disappeared");
                     let exec_uuid = exec.unwrap().clone().execution.uuid;
                     data.waiting_workers.remove(&conn.uuid);
+                    data.worker_names.remove(&conn.uuid);
                     if data
                         .callbacks
                         .as_ref()
