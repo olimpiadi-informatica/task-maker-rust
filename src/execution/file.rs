@@ -28,11 +28,11 @@ impl File {
 
 impl std::fmt::Debug for FileCallbacks {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        formatter.write_fmt(format_args!(
-            "get_content: {}, write_to: {:?}",
-            self.get_content.is_some(),
-            self.write_to
-        ))?;
+        formatter
+            .debug_struct("FileCallbacks")
+            .field("get_content", &self.get_content.is_some())
+            .field("write_to", &self.write_to)
+            .finish()?;
         Ok(())
     }
 }

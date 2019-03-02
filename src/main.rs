@@ -14,7 +14,11 @@ use std::sync::mpsc::channel;
 use std::thread;
 
 fn main() {
-    env_logger::init();
+    env_logger::Builder::from_default_env()
+        .default_format_timestamp_nanos(true)
+        .init();
+
+    // env_logger::init();
     let mut dag = ExecutionDAG::new();
 
     let file = File::new("Source file of generator.cpp");
@@ -35,20 +39,27 @@ fn main() {
         .get_output_content("a.out", 100, &|content| println!("Content: {:?}", content))
         .get_stderr_content(100, &|content| println!("Content: {:?}", content));
 
-    for i in 0..10 {
+    for i in 0..4 {
         let mut exec = Execution::new(
             &format!("Execution {}", i),
             ExecutionCommand::System("g++".to_owned()),
         );
         exec.stdin(&stdout);
-        dag.add_execution(exec).on_done(&|_res| warn!("Done!"));
+        dag.add_execution(exec)
+            .on_done(&|_res| warn!("Done!"))
+            .on_skip(&|| warn!("Skipped!"));
     }
 
     let mut exec2 = Execution::new("Loop!!", ExecutionCommand::System("g++".to_owned()));
     exec2.stdin(&stdout);
+    let stdout2 = exec2.stdout();
     dag.add_execution(exec2)
         .on_done(&|res| warn!("exec2 completed {:?}", res))
         .on_skip(&|| warn!("Skipped execution!!!!"));
+
+    let mut exec3 = Execution::new("lalal", ExecutionCommand::System("kakak".to_owned()));
+    exec3.stdin(&stdout2);
+    dag.add_execution(exec3);
 
     dag.provide_file(lib);
     dag.provide_file(file);

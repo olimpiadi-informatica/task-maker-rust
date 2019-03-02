@@ -144,6 +144,7 @@ impl Scheduler {
             dependents
         };
         for exec in execs.iter() {
+            trace!("Execution {} has been skipped", exec);
             Scheduler::exec_failed(executor_data.clone(), *exec);
         }
     }

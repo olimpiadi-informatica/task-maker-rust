@@ -122,7 +122,12 @@ impl Execution {
 
 impl std::fmt::Debug for ExecutionCallbacks {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        formatter.write_fmt(format_args!("on_start: {}", self.on_start.is_some()))?;
+        formatter
+            .debug_struct("ExecutionCallbacks")
+            .field("on_start", &self.on_start.is_some())
+            .field("on_done", &self.on_done.is_some())
+            .field("on_skip", &self.on_skip.is_some())
+            .finish()?;
         Ok(())
     }
 }
