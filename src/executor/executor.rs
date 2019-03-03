@@ -5,78 +5,129 @@ use crate::store::*;
 use failure::Error;
 use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashMap};
-use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
+/// A job that is sent to a worker, this should include all the information
+/// the worker needs to start the evaluation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerJob {
+    /// What the worker should do
     pub execution: Execution,
+    /// The FileStoreKeys the worker has to know to start the evaluation
     pub dep_keys: HashMap<FileUuid, FileStoreKey>,
 }
 
+/// The result of a worker job
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerResult {
+    /// The result of the evaluation
     pub result: ExecutionResult,
 }
 
+/// Messages that the client sends to the server
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ExecutorClientMessage {
+    /// The client is asking to evaluate a DAG
     Evaluate {
         dag: ExecutionDAGData,
         callbacks: ExecutionDAGCallbacks,
     },
+    /// The client is providing a file. After this message there is a protocol
+    /// switch for the file transmission
     ProvideFile(FileUuid, FileStoreKey),
+    /// The client is asking to stop the evaluation
     Stop,
+    /// The client is asking for the server status
     Status,
 }
 
+/// Messages that the server sends to the client
 #[derive(Debug, Serialize, Deserialize)]
 pub enum ExecutorServerMessage {
+    /// The server needs the file with that Uuid
     AskFile(FileUuid),
+    /// The server is sending a file. After this message there is a protocol
+    /// switch for the file transmission
     ProvideFile(FileUuid),
+    /// The execution has started on a worker
     NotifyStart(ExecutionUuid, WorkerUuid),
+    /// The execution has completed with that result
     NotifyDone(ExecutionUuid, WorkerResult),
+    /// The execution has been skipped
     NotifySkip(ExecutionUuid),
+    /// There was an error during the evaluation
     Error(String),
+    /// The server status as asked by the client
     Status(ExecutorStatus),
+    /// The evaluation of the DAG is complete, this message will close the
+    /// connection
     Done,
 }
 
+/// Messages sent by the workers to the server
 #[derive(Debug, Serialize, Deserialize)]
 pub enum WorkerClientMessage {
+    /// The worker is ready for some job
     GetWork,
+    /// The worker completed the job with this result
     WorkerDone(WorkerResult),
+    /// The worker is sending a file to the server. After this message there
+    /// is a protocol switch for the file transmission
     ProvideFile(FileUuid, FileStoreKey),
+    /// The worker needs a file from the server
     AskFile(FileUuid),
 }
 
+/// Messages sent by the server to the worker
 #[derive(Debug, Serialize, Deserialize)]
 pub enum WorkerServerMessage {
+    /// The job the worker should do
     Work(WorkerJob),
+    /// The file the workers as asked After this message there is a protocol
+    /// switch for the file transmission
     ProvideFile(FileUuid, FileStoreKey),
 }
 
+/// State of a worker as seen by the server
 #[derive(Debug)]
 pub struct WorkerState {
+    /// Name of the worker
     pub name: String,
+    /// Current job of the worker, None if the worker is waiting for some job
     pub job: Mutex<Option<WorkerJob>>,
+    /// Conditional variable the worker thread on the server is waiting for
+    /// some work to be ready
     pub cv: Condvar,
 }
 
+/// Internal state of the Executor
 #[derive(Debug)]
 pub struct ExecutorData {
+    /// The current DAG which is being evaluated
     pub dag: Option<ExecutionDAGData>,
+    /// The sets of callbaks the client is interested in
     pub callbacks: Option<ExecutionDAGCallbacks>,
-    pub client_sender: Option<Sender<String>>,
+    /// A channel to the client
+    pub client_sender: Option<ChannelSender>,
+    /// The state of the connected workers
     pub workers: HashMap<WorkerUuid, Arc<WorkerState>>,
+    /// The priority queue of the ready tasks, waiting for the workers
     pub ready_execs: BinaryHeap<ExecutionUuid>,
+    /// The list of tasks waiting for some dependencies, each value here is
+    /// positive, when a task is ready it's removed from here
     pub missing_deps: HashMap<ExecutionUuid, usize>,
+    /// The list of tasks that depends on a file, this is a lookup table for
+    /// when the files become ready
     pub dependents: HashMap<FileUuid, Vec<ExecutionUuid>>,
+    /// A reference to the server's FileStore
     pub file_store: Arc<Mutex<FileStore>>,
+    /// The list of known FileStoreKeys for the current DAG
     pub file_keys: HashMap<FileUuid, FileStoreKey>,
 }
 
+/// The current status of the Executor, this is sent to the user when the
+/// status is asked
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExecutorStatus {
     pub connected_workers: Vec<(WorkerUuid, String, bool)>,
@@ -85,22 +136,24 @@ pub struct ExecutorStatus {
     pub waiting_execs: usize,
 }
 
+/// The Executor is the main component of the server, this will receive the DAG
+/// to evaluate and will schedule the tasks to the workers, sending to the
+/// client the responses
 pub struct Executor {
+    /// The internals of the executor
     pub data: Arc<Mutex<ExecutorData>>,
 }
 
-pub trait ExecutorTrait {
-    fn evaluate(&mut self, sender: Sender<String>, receiver: Receiver<String>)
-        -> Result<(), Error>;
-}
-
 impl Executor {
+    /// Prepare a new Executor based on the specified FileStore
     pub fn new(file_store: Arc<Mutex<FileStore>>) -> Executor {
         Executor {
             data: Arc::new(Mutex::new(ExecutorData::new(file_store))),
         }
     }
 
+    /// Connect a new worker to the server, this will spawn a new thread that
+    /// will manage the connection with the worker
     pub fn add_worker(&mut self, worker: WorkerConn) {
         let data = self.data.clone();
         thread::Builder::new()
@@ -111,10 +164,15 @@ impl Executor {
             .expect("Failed to spawn executor worker thread");
     }
 
+    /// Starts the Executor for a client, this will block and will manage the
+    /// communication with the client.
+    ///
+    /// * `sender` - A channel that sends messages to the client
+    /// * `receiver` - A channel that receives messages from the client
     pub fn evaluate(
         &mut self,
-        sender: Sender<String>,
-        receiver: Receiver<String>,
+        sender: ChannelSender,
+        receiver: ChannelReceiver,
     ) -> Result<(), Error> {
         loop {
             let message = deserialize_from::<ExecutorClientMessage>(&receiver);
@@ -127,7 +185,7 @@ impl Executor {
                         drop(receiver);
                         break;
                     } else {
-                        info!("DAG looks valid!");
+                        trace!("DAG looks valid!");
                     }
                     {
                         let mut data = self.data.lock().unwrap();
@@ -202,6 +260,7 @@ impl Executor {
                 }
                 Ok(ExecutorClientMessage::Stop) => {
                     drop(receiver);
+                    // TODO stop all the workers
                     break;
                 }
                 Err(e) => {
@@ -221,6 +280,7 @@ impl Executor {
 }
 
 impl ExecutorData {
+    /// Make a new ExecutorData based on the specified FileStore
     fn new(file_store: Arc<Mutex<FileStore>>) -> ExecutorData {
         ExecutorData {
             dag: None,
@@ -236,6 +296,9 @@ impl ExecutorData {
     }
 }
 
+/// Thread function that manages the connection with a worker. This function is
+/// intended to be called in a thread, this will block the thread until the
+/// worker disconnects.
 fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result<(), Error> {
     trace!("Server connected to worker {}", conn);
 
@@ -347,6 +410,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
     Ok(())
 }
 
+/// Block the thread until there is something to do for this worker
 fn wait_for_work(executor: Arc<Mutex<ExecutorData>>, uuid: &WorkerUuid) -> WorkerJob {
     let worker = &*executor.lock().unwrap().workers.get(&uuid).unwrap().clone();
     let mut job = worker.job.lock().unwrap();

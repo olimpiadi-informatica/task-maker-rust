@@ -2,17 +2,27 @@ use crate::execution::*;
 use crate::executor::*;
 use crate::store::*;
 use failure::Error;
-use std::sync::mpsc::{Receiver, Sender};
 
+/// This is a client of the Executor, the client is who sends a DAG for an
+/// evaluation, provides some files and receives the callbacks from the server.
+/// When the server notifies a callback function is called by the client.
 pub struct ExecutorClient;
 
 impl ExecutorClient {
+    /// Begin the evaluation sending the DAG to the server, sending the files
+    /// as needed and storing the files from the server. This method is
+    /// blocking until the server ends the computation.
+    ///
+    /// * `dag` - The ExecutionDAG to evaluate
+    /// * `sender` - A channel that sends messages to the server
+    /// * `receiver` - A channel that receives messages from the server
     pub fn evaluate(
         dag: ExecutionDAG,
-        sender: Sender<String>,
-        receiver: Receiver<String>,
+        sender: ChannelSender,
+        receiver: ChannelReceiver,
     ) -> Result<(), Error> {
-        info!("ExecutorClient started");
+        trace!("ExecutorClient started");
+        // list all the files/executions that want callbacks
         let dag_callbacks = ExecutionDAGCallbacks {
             executions: dag.execution_callbacks.keys().map(|k| k.clone()).collect(),
             files: dag.file_callbacks.keys().map(|k| k.clone()).collect(),
@@ -42,9 +52,11 @@ impl ExecutorClient {
                     if let Some(callback) = dag.file_callbacks.get(&uuid) {
                         if let Some(write_to) = callback.write_to.as_ref() {
                             info!("Writing {} to {}", uuid, write_to);
+                            // TODO write file
                         }
                         if let Some((_limit, get_content)) = callback.get_content.as_ref() {
                             get_content(vec![1, 2, 3, 42]);
+                            // TODO send file
                         }
                     }
                 }

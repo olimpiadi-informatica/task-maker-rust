@@ -3,11 +3,16 @@ use crate::executor::*;
 use std::collections::{BinaryHeap, HashMap};
 use std::sync::{Arc, Mutex};
 
+/// A set of utilites to schedule tasks between workers
 pub struct Scheduler;
 
 impl Scheduler {
-    pub fn setup(data: Arc<Mutex<ExecutorData>>) {
-        let mut data = data.lock().unwrap();
+    /// Setup the scheduler for the evaluation of a DAG.
+    ///
+    /// This function will lock `executor_data`, the mutex must not be held by
+    /// this thread.
+    pub fn setup(executor_data: Arc<Mutex<ExecutorData>>) {
+        let mut data = executor_data.lock().unwrap();
         let dag = data
             .dag
             .as_ref()
@@ -34,6 +39,10 @@ impl Scheduler {
         data.ready_execs = ready_execs;
     }
 
+    /// Assign the most important ready jobs to the free workers.
+    ///
+    /// This function will lock `executor_data`, the mutex must not be held by
+    /// this thread.
     pub fn schedule(executor_data: Arc<Mutex<ExecutorData>>) {
         trace!("Schedule in progress");
         let mut data = executor_data.lock().unwrap();
@@ -120,6 +129,12 @@ impl Scheduler {
         data.ready_execs = ready_execs;
     }
 
+    /// Mark a file as ready: ready means that the file has been correctly
+    /// generated and it's present in the FileStore and all the executions that
+    /// depend on the file may start if they are ready.
+    ///
+    /// This function will lock `executor_data`, the mutex must not be held by
+    /// this thread.
     pub fn file_ready(executor_data: Arc<Mutex<ExecutorData>>, file: FileUuid) {
         trace!("File {} ready", file);
         let mut needs_reshed = false;
@@ -129,7 +144,7 @@ impl Scheduler {
                 trace!("Leaf file is ready");
                 return;
             }
-            let dependents = data.dependents.get(&file).unwrap().clone(); // TODO: maybe this clone is not necessary
+            let dependents = data.dependents.get(&file).unwrap().clone();
             for exec in dependents.iter() {
                 if !data.missing_deps.contains_key(&exec) {
                     warn!("Invalid dependents {} of {}", exec, file);
@@ -153,6 +168,11 @@ impl Scheduler {
         }
     }
 
+    /// Mark a file as failed, the generation of the file failed so all the
+    /// executions that depend on this file will be skipped.
+    ///
+    /// This function will lock `executor_data`, the mutex must not be held by
+    /// this thread.
     pub fn file_failed(executor_data: Arc<Mutex<ExecutorData>>, file: FileUuid) {
         trace!("File {} failed", file);
         let execs = {
@@ -180,6 +200,10 @@ impl Scheduler {
         }
     }
 
+    /// The execution failed so all its output files will not be generated.
+    ///
+    /// This function will lock `executor_data`, the mutex must not be held by
+    /// this thread.
     pub fn exec_failed(executor_data: Arc<Mutex<ExecutorData>>, exec: ExecutionUuid) {
         let outputs = {
             let data = executor_data.lock().unwrap();
@@ -197,6 +221,8 @@ impl Scheduler {
         }
     }
 
+    /// Assign a job to the worker, waking up the thread of the executor that
+    /// sends the job to the worker
     fn assign_job(worker: Arc<WorkerState>, work: WorkerJob, worker_uuid: WorkerUuid) {
         trace!("Assigning job {:?} to worker {}", work, worker_uuid);
         let mut lock = worker.job.lock().unwrap();

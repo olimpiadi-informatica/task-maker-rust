@@ -13,7 +13,6 @@ pub mod executor;
 pub mod store;
 
 use execution::*;
-use executor::ExecutorTrait;
 use std::path::Path;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};

@@ -1,17 +1,22 @@
 use crate::executor::*;
 use crate::store::*;
 use failure::Error;
-use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+/// An Executor that runs locally
 pub struct LocalExecutor {
+    /// The real Executor that does the work
     executor: Executor,
+    /// A reference to the FileStore
     file_store: Arc<Mutex<FileStore>>,
+    /// The number of local workers to spawn
     pub num_workers: usize,
 }
 
 impl LocalExecutor {
+    /// Make a new LocalExecutor based on a FileStore and ready to spawn that
+    /// number of workers
     pub fn new(file_store: Arc<Mutex<FileStore>>, num_workers: usize) -> LocalExecutor {
         LocalExecutor {
             executor: Executor::new(file_store.clone()),
@@ -19,13 +24,16 @@ impl LocalExecutor {
             num_workers,
         }
     }
-}
 
-impl ExecutorTrait for LocalExecutor {
-    fn evaluate(
+    /// Starts the Executor spawning the workers on new threads and blocking on
+    /// the Executor thread.
+    ///
+    /// * `sender` - Channel that sends messages to the client
+    /// * `receiver` - Channel that receives messages from the client
+    pub fn evaluate(
         &mut self,
-        sender: Sender<String>,
-        receiver: Receiver<String>,
+        sender: ChannelSender,
+        receiver: ChannelReceiver,
     ) -> Result<(), Error> {
         info!("Spawning {} workers", self.num_workers);
         for i in 0..self.num_workers {

@@ -14,7 +14,13 @@ pub use file_transmission::*;
 pub use local_executor::*;
 pub use worker::*;
 
-fn serialize_into<T>(what: &T, sender: &Sender<String>) -> Result<(), Error>
+/// The channel part that sends data.
+pub type ChannelSender = Sender<String>;
+/// The channel part that receives data.
+pub type ChannelReceiver = Receiver<String>;
+
+/// Serialize a message into the sender serializing it.
+pub fn serialize_into<T>(what: &T, sender: &ChannelSender) -> Result<(), Error>
 where
     T: serde::Serialize,
 {
@@ -23,7 +29,8 @@ where
         .map_err(|e| e.into())
 }
 
-fn deserialize_from<T>(reader: &Receiver<String>) -> Result<T, Error>
+/// Deserialize a message from the channel and return it.
+pub fn deserialize_from<T>(reader: &ChannelReceiver) -> Result<T, Error>
 where
     for<'de> T: serde::Deserialize<'de>,
 {
