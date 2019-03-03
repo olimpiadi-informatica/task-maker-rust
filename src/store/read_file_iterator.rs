@@ -3,15 +3,22 @@ use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
 
+/// Buffer size when reading a file
 const READ_FILE_BUFFER_SIZE: usize = 8 * 1024;
+/// Type of the reading buffer
 type ReadFileBuffer = [u8; READ_FILE_BUFFER_SIZE];
 
+/// Struct implementing the Iterator trait which will iterate over the content
+/// of a file
 pub struct ReadFileIterator {
+    /// Reader used to read the file
     buf_reader: BufReader<File>,
+    /// Current read buffer
     buf: ReadFileBuffer,
 }
 
 impl ReadFileIterator {
+    /// Make a new iterator reading the file at that path
     pub fn new(path: &Path) -> Result<ReadFileIterator, Error> {
         let file = std::fs::File::open(path)?;
         Ok(ReadFileIterator {
