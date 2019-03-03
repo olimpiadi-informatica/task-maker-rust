@@ -61,7 +61,7 @@ impl Worker {
                 Ok(WorkerServerMessage::Work(job)) => {
                     trace!("Worker {} got job: {:?}", self, job);
                     for input in job.execution.dependencies().iter() {
-                        let store = self.file_store.lock().unwrap();
+                        let mut store = self.file_store.lock().unwrap();
                         let key =
                             job.dep_keys
                                 .get(&input)

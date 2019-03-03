@@ -170,8 +170,20 @@ impl FileStore {
         Ok(Some(path))
     }
 
-    pub fn has_key(&self, key: &FileStoreKey) -> bool {
-        self.key_to_path(key).exists()
+    pub fn has_key(&mut self, key: &FileStoreKey) -> bool {
+        let path = self.key_to_path(key);
+        if !path.exists() {
+            return false;
+        }
+        if CHECK_INTEGRITY {
+            if !self.check_integrity(&key) {
+                warn!("File {:?} failed the integrity check", path);
+                self.data.remove(key);
+                FileStore::remove_file(&path).expect("Cannot remove corrupted file");
+                return false;
+            }
+        }
+        true
     }
 
     pub fn persist(&mut self, key: &FileStoreKey) -> Result<(), Error> {
