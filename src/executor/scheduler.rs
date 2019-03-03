@@ -1,7 +1,7 @@
 use crate::execution::*;
 use crate::executor::*;
 use std::collections::{BinaryHeap, HashMap};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Mutex};
 
 pub struct Scheduler;
 
@@ -39,8 +39,8 @@ impl Scheduler {
         let mut data = executor_data.lock().unwrap();
         let mut free_workers = vec![];
         let mut doing_workers = 0;
-        for (worker_uuid, job) in data.waiting_workers.iter() {
-            if job.0.lock().unwrap().is_none() {
+        for (worker_uuid, worker) in data.workers.iter() {
+            if worker.job.lock().unwrap().is_none() {
                 free_workers.push(worker_uuid);
             } else {
                 doing_workers += 1;
@@ -87,7 +87,7 @@ impl Scheduler {
                 })
                 .collect();
             Scheduler::assign_job(
-                data.waiting_workers
+                data.workers
                     .get(&worker)
                     .expect(&format!("Assigning to unknown worker {}", worker))
                     .clone(),
@@ -197,15 +197,10 @@ impl Scheduler {
         }
     }
 
-    fn assign_job(
-        worker: Arc<(Mutex<Option<WorkerJob>>, Condvar)>,
-        work: WorkerJob,
-        worker_uuid: WorkerUuid,
-    ) {
+    fn assign_job(worker: Arc<WorkerState>, work: WorkerJob, worker_uuid: WorkerUuid) {
         trace!("Assigning job {:?} to worker {}", work, worker_uuid);
-        let (lock, cv) = &*worker;
-        let mut lock = lock.lock().unwrap();
+        let mut lock = worker.job.lock().unwrap();
         *lock = Some(work);
-        cv.notify_one();
+        worker.cv.notify_one();
     }
 }
