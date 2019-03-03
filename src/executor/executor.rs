@@ -130,9 +130,13 @@ pub struct ExecutorData {
 /// status is asked
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExecutorStatus {
+    /// List of the connected workers with their name
     pub connected_workers: Vec<(WorkerUuid, String, bool)>,
+    /// Number of running DAGs by the server
     pub running_dags: usize,
+    /// Number of executions waiting for workers
     pub ready_execs: usize,
+    /// Number of executions waiting for dependencies
     pub waiting_execs: usize,
 }
 
