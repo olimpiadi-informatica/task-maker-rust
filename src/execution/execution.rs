@@ -4,60 +4,105 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+/// The identifier of an execution, it's globally unique and it identifies an
+/// execution only during a single evaluation.
 pub type ExecutionUuid = Uuid;
+
+/// Type of the callback called when an Execution starts
 pub type OnStartCallback = Fn(WorkerUuid) -> ();
+
+/// Type of the callback called when an Execution ends
 pub type OnDoneCallback = Fn(WorkerResult) -> ();
+
+/// Type of the callback called when an Execution is skipped
 pub type OnSkipCallback = Fn() -> ();
 
+/// Command of an Execution to execute
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExecutionCommand {
+    /// A system command, the workers will search in their PATH for the
+    /// executable if it's relative
     System(String),
+    /// A command relative to the sandbox directory
+    Local(String),
 }
 
+/// An input of an Execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionInput {
+    /// Path relative to the sandbox directory
     pub path: String,
+    /// Uuid of the file
     pub file: FileUuid,
+    /// Whether this file should be marked as executable
     pub executable: bool,
 }
 
+/// The supported callbacks of an execution
 pub struct ExecutionCallbacks {
     pub on_start: Option<Box<OnStartCallback>>,
     pub on_done: Option<Box<OnDoneCallback>>,
     pub on_skip: Option<Box<OnSkipCallback>>,
 }
 
+/// An Execution is a process that will be executed by a worker inside a
+/// sandbox
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Execution {
+    /// Uuid of the execution
     pub uuid: ExecutionUuid,
+    /// Description of the execution
     pub description: String,
+    /// Which command to execute
     pub command: ExecutionCommand,
+    /// The list of command line arguments
     pub args: Vec<String>,
 
+    /// Optional standard input to pass to the program
     pub stdin: Option<FileUuid>,
+    /// Optional standard output to capture
     pub stdout: Option<File>,
+    /// Optional standard error to capture
     pub stderr: Option<File>,
-    pub inputs: Vec<ExecutionInput>,
+    /// List of input files that should be put inside the sandbox
+    pub inputs: Vec<ExecutionInput>, // TODO change to HashMap
+    /// List of the output files that should be capture from the sandbox
     pub outputs: HashMap<String, File>,
 }
 
+/// Status of a completed Execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExecutionStatus {
+    /// The program exited with 0 within the limits
     Success,
+    /// The program exited with a non-zero status code
     ReturnCode(i32),
+    /// The program stopped due to a signal
     Signal(i32, String),
+    /// The program hasn't produced all the required files
+    MissingFile(String),
+    /// The program hasn't exited within the time limit constraint
     TimeLimitExceeded,
+    /// The program hasn't exited within the wall time limit constraint
+    WallTimeLimitExceeded,
+    /// The program has exceeded the memory limit
     MemoryLimitExceeded,
+    /// The sandbox failed to execute the program
     InternalError,
 }
 
+/// The result of an execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionResult {
+    /// Uuid of the completed execution
     pub uuid: ExecutionUuid,
+    /// Status of the completed execution
     pub status: ExecutionStatus,
+    // TODO add the missing fields like cpu time, used memory, ...
 }
 
 impl Execution {
+    /// Create a basic Execution
     pub fn new(description: &str, command: ExecutionCommand) -> Execution {
         Execution {
             uuid: Uuid::new_v4(),
@@ -74,6 +119,7 @@ impl Execution {
         }
     }
 
+    /// List of all the File dependencies of the execution
     pub fn dependencies(&self) -> Vec<FileUuid> {
         let mut deps = vec![];
         if let Some(stdin) = self.stdin {
@@ -85,6 +131,7 @@ impl Execution {
         deps
     }
 
+    /// List of all the File produced by the execution
     pub fn outputs(&self) -> Vec<FileUuid> {
         let mut outs = vec![];
         if let Some(stdout) = &self.stdout {
@@ -99,11 +146,15 @@ impl Execution {
         outs
     }
 
+    /// Bind the standard input to the specified file. Calling again this
+    /// method will overwrite the previous value
     pub fn stdin(&mut self, stdin: &File) -> &mut Self {
         self.stdin = Some(stdin.uuid.clone());
         self
     }
 
+    /// Handle to the standard output of the execution. This should be called
+    /// at least once before the evaluation starts in order to track the file
     pub fn stdout(&mut self) -> File {
         if self.stdout.is_none() {
             let file = File::new(&format!("Stdout of '{}'", self.description));
@@ -112,6 +163,8 @@ impl Execution {
         self.stdout.as_ref().unwrap().clone()
     }
 
+    /// Handle to the standard error of the execution. This should be called
+    /// at least once before the evaluation starts in order to track the file
     pub fn stderr(&mut self) -> File {
         if self.stderr.is_none() {
             let file = File::new(&format!("Stderr of '{}'", self.description));
@@ -120,6 +173,8 @@ impl Execution {
         self.stderr.as_ref().unwrap().clone()
     }
 
+    /// Bind a file inside the sandbox to the specified file. Calling again this
+    /// method will overwrite the previous value
     pub fn input(&mut self, file: &File, path: &str, executable: bool) -> &mut Self {
         self.inputs.push(ExecutionInput {
             path: path.to_owned(),
@@ -129,6 +184,8 @@ impl Execution {
         self
     }
 
+    /// Handle to a file produced by the execution. This should be called at
+    /// least once before the evaluation starts in order to track the file
     pub fn output(&mut self, path: &str) -> File {
         if self.outputs.contains_key(path) {
             return self.outputs.get(path).unwrap().clone();

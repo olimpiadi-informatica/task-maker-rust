@@ -1,34 +1,53 @@
 use crate::execution::execution::*;
 use crate::execution::file::*;
+use crate::executor::*;
 use crate::store::*;
 use failure::Fail;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 
+/// A wrapper around a File provided by the client, this means that the client
+/// knows the FileStoreKey and the path to that file
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProvidedFile {
+    /// The file handle
     pub file: File,
+    /// The key in the FileStore
     pub key: FileStoreKey,
+    /// Path to the file in the client
     pub local_path: PathBuf,
 }
 
+/// Serializable part of the execution DAG, this is sent to the server.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExecutionDAGData {
+    /// List of the files provided by the client
     pub provided_files: HashMap<FileUuid, ProvidedFile>,
+    /// List of the executions to run
     pub executions: HashMap<ExecutionUuid, Execution>,
 }
 
+/// List of the "interesting" files and executions, only the callbacks listed
+/// here will be called by the server
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExecutionDAGCallbacks {
+    /// Set of the handles of the executions that have at least a callback
+    /// bound
     pub executions: HashSet<ExecutionUuid>,
+    /// Set of the handles of the files that have at least a callback bound
     pub files: HashSet<FileUuid>,
 }
 
+/// A computation DAG, this is not serializable because it contains the
+/// callbacks of the client
 #[derive(Debug)]
 pub struct ExecutionDAG {
+    /// Serializable part of the DAG with all the exections and files
     pub data: ExecutionDAGData,
+    /// Actual callbacks of the executions
     pub execution_callbacks: HashMap<ExecutionUuid, ExecutionCallbacks>,
+    /// Actual callbacks of the files
     pub file_callbacks: HashMap<FileUuid, FileCallbacks>,
 }
 
@@ -49,12 +68,16 @@ pub enum DAGError {
     DuplicateFileUUID { uuid: FileUuid },
 }
 
+/// Value returned by [ExecutionDAG](struct.ExecutionDAG.html).[add_execution](
+/// struct.ExecutionDAG.html#method.add_execution) to make a
+/// Builder for setting the callbacks
 pub struct AddExecutionWrapper<'a> {
     uuid: ExecutionUuid,
     dag: &'a mut ExecutionDAG,
 }
 
 impl ExecutionDAG {
+    /// Create an empty ExecutionDAG
     pub fn new() -> ExecutionDAG {
         ExecutionDAG {
             data: ExecutionDAGData {
@@ -66,6 +89,9 @@ impl ExecutionDAG {
         }
     }
 
+    /// Provide a file for the computation
+    ///
+    /// Will panic if the file doesn't exists or it's not readable
     pub fn provide_file(&mut self, file: File, path: &Path) {
         self.data.provided_files.insert(
             file.uuid.clone(),
@@ -77,6 +103,8 @@ impl ExecutionDAG {
         );
     }
 
+    /// Add an execution to the DAG and returns a Builder for adding the
+    /// callbacks
     pub fn add_execution(&mut self, execution: Execution) -> AddExecutionWrapper {
         let uuid = execution.uuid.clone();
         self.data
@@ -90,84 +118,108 @@ impl ExecutionDAG {
 }
 
 impl<'a> AddExecutionWrapper<'a> {
-    pub fn on_start(mut self, callback: &'static OnStartCallback) -> AddExecutionWrapper<'a> {
+    /// Set that callback that will be called when the execution starts
+    pub fn on_start<F>(mut self, callback: F) -> AddExecutionWrapper<'a>
+    where
+        F: (Fn(WorkerUuid) -> ()) + 'static,
+    {
         self.ensure_execution_callback().on_start = Some(Box::new(callback));
         self
     }
 
-    pub fn on_done(mut self, callback: &'static OnDoneCallback) -> AddExecutionWrapper<'a> {
+    /// Set that callback that will be called when the execution ends
+    pub fn on_done<F>(mut self, callback: F) -> AddExecutionWrapper<'a>
+    where
+        F: (Fn(WorkerResult) -> ()) + 'static,
+    {
         self.ensure_execution_callback().on_done = Some(Box::new(callback));
         self
     }
 
-    pub fn on_skip(mut self, callback: &'static OnSkipCallback) -> AddExecutionWrapper<'a> {
+    /// Set that callback that will be called when the execution is skipped
+    pub fn on_skip<F>(mut self, callback: F) -> AddExecutionWrapper<'a>
+    where
+        F: (Fn() -> ()) + 'static,
+    {
         self.ensure_execution_callback().on_skip = Some(Box::new(callback));
         self
     }
 
+    /// Write the standard output of the execution to `path`
     pub fn write_stdout_to(mut self, path: &str) -> AddExecutionWrapper<'a> {
         let uuid = self.get_execution().stdout().uuid.clone();
         self.write_file_to(path, uuid);
         self
     }
 
+    /// Write the standard error of the execution to `path`
     pub fn write_stderr_to(mut self, path: &str) -> AddExecutionWrapper<'a> {
         let uuid = self.get_execution().stderr().uuid.clone();
         self.write_file_to(path, uuid);
         self
     }
 
+    /// Write the output of the execution at `output` to `path`
     pub fn write_output_to(mut self, output: &str, path: &str) -> AddExecutionWrapper<'a> {
         let uuid = self.get_execution().output(output).uuid.clone();
         self.write_file_to(path, uuid);
         self
     }
 
-    pub fn get_stdout_content(
-        mut self,
-        limit: usize,
-        callback: &'static GetContentCallback,
-    ) -> AddExecutionWrapper<'a> {
+    /// Set that callback that will be called with the first `limit` bytes of
+    /// the standard output
+    pub fn get_stdout_content<F>(mut self, limit: usize, callback: F) -> AddExecutionWrapper<'a>
+    where
+        F: (Fn(Vec<u8>) -> ()) + 'static,
+    {
         let uuid = self.get_execution().stdout().uuid.clone();
-        self.bind_get_content(limit, callback, uuid);
+        self.bind_get_content(limit, Box::new(callback), uuid);
         self
     }
 
-    pub fn get_stderr_content(
-        mut self,
-        limit: usize,
-        callback: &'static GetContentCallback,
-    ) -> AddExecutionWrapper<'a> {
+    /// Set that callback that will be called with the first `limit` bytes of
+    /// the standard error
+    pub fn get_stderr_content<F>(mut self, limit: usize, callback: F) -> AddExecutionWrapper<'a>
+    where
+        F: (Fn(Vec<u8>) -> ()) + 'static,
+    {
         let uuid = self.get_execution().stderr().uuid.clone();
-        self.bind_get_content(limit, callback, uuid);
+        self.bind_get_content(limit, Box::new(callback), uuid);
         self
     }
 
-    pub fn get_output_content(
+    /// Set that callback that will be called with the first `limit` bytes of
+    /// the file at `output`
+    pub fn get_output_content<F>(
         mut self,
         output: &str,
         limit: usize,
-        callback: &'static GetContentCallback,
-    ) -> AddExecutionWrapper<'a> {
+        callback: F,
+    ) -> AddExecutionWrapper<'a>
+    where
+        F: (Fn(Vec<u8>) -> ()) + 'static,
+    {
         let uuid = self.get_execution().output(output).uuid.clone();
-        self.bind_get_content(limit, callback, uuid);
+        self.bind_get_content(limit, Box::new(callback), uuid);
         self
     }
 
+    /// Ensures the callback is present and store the path of where to store
+    /// the file
     fn write_file_to(&mut self, path: &str, uuid: FileUuid) {
         self.ensure_file_callback(&uuid);
         self.dag.file_callbacks.get_mut(&uuid).unwrap().write_to = Some(path.to_owned());
     }
 
+    /// Ensures the callback is present and store the callback
     fn bind_get_content(
         &mut self,
         limit: usize,
-        callback: &'static GetContentCallback,
+        callback: Box<GetContentCallback>,
         uuid: FileUuid,
     ) {
         self.ensure_file_callback(&uuid);
-        self.dag.file_callbacks.get_mut(&uuid).unwrap().get_content =
-            Some((limit, Box::new(callback)));
+        self.dag.file_callbacks.get_mut(&uuid).unwrap().get_content = Some((limit, callback));
     }
 
     fn ensure_file_callback(&mut self, uuid: &FileUuid) {
@@ -192,6 +244,10 @@ impl<'a> AddExecutionWrapper<'a> {
     }
 }
 
+/// Validate the DAG checking if all the required pieces are present and they
+/// actually make a DAG. It's checked that no duplicated UUID are present, no
+/// files are missing, all the executions are reachable and no cycles are
+/// present
 pub fn check_dag(
     dag: &ExecutionDAGData,
     callbacks: &ExecutionDAGCallbacks,

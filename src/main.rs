@@ -8,9 +8,9 @@ extern crate env_logger;
 extern crate fs2;
 extern crate hex;
 
-mod execution;
-mod executor;
-mod store;
+pub mod execution;
+pub mod executor;
+pub mod store;
 
 use execution::*;
 use executor::ExecutorTrait;
@@ -36,10 +36,11 @@ fn main() {
     exec.stdin(&file).input(&lib, "lib.h", false);
 
     let stdout = exec.stdout();
+    let a = 42;
 
     dag.add_execution(exec)
-        .on_start(&|w| warn!("Started on {}!", w))
-        .on_done(&|res| warn!("Exec result {:?}", res))
+        .on_start(move |w| warn!("Started on {} {}!", w, a))
+        .on_done(move |res| warn!("Exec result {:?}", res))
         .write_stdout_to("/tmp/stdout")
         .write_stderr_to("/tmp/stderr")
         .write_output_to("a.out", "/tmp/output")
