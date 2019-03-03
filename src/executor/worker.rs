@@ -74,6 +74,8 @@ impl Worker {
     pub fn work(self) -> Result<(), Error> {
         trace!("Worker {} ready, asking for work", self);
         serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
+        let mut current_job = None;
+        let mut missing_deps = 0;
         loop {
             let message = deserialize_from::<WorkerServerMessage>(&self.receiver);
             match message {
@@ -92,37 +94,28 @@ impl Worker {
                                 &WorkerClientMessage::AskFile(input.clone()),
                                 &self.sender,
                             )?;
+                            missing_deps += 1;
                         }
                     }
-                    thread::sleep(std::time::Duration::from_secs(1));
-                    serialize_into(
-                        &WorkerClientMessage::WorkerDone(WorkerResult {
-                            result: ExecutionResult {
-                                uuid: job.execution.uuid.clone(),
-                                status: ExecutionStatus::Success,
-                            },
-                        }),
-                        &self.sender,
-                    )?;
-                    for out in job.execution.outputs() {
-                        let path = std::path::Path::new("/dev/null");
-                        serialize_into(
-                            &WorkerClientMessage::ProvideFile(
-                                out.clone(),
-                                FileStoreKey::from_file(path)?,
-                            ),
-                            &self.sender,
-                        )
-                        .unwrap();
-                        ChannelFileSender::send(path, &self.sender)?;
+                    current_job = Some(job);
+                    if missing_deps == 0 {
+                        let mut store = self.file_store.lock().unwrap();
+                        execute_job(current_job.as_ref().unwrap(), &self.sender, &mut store)?;
+                        current_job = None;
+                        serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
                     }
-                    serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
                 }
                 Ok(WorkerServerMessage::ProvideFile(uuid, key)) => {
                     info!("Server sent file {} {:?}", uuid, key);
                     let mut store = self.file_store.lock().unwrap();
                     let reader = ChannelFileIterator::new(&self.receiver);
                     store.store(&key, reader)?;
+                    missing_deps -= 1;
+                    if missing_deps == 0 {
+                        execute_job(current_job.as_ref().unwrap(), &self.sender, &mut store)?;
+                        current_job = None;
+                        serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
+                    }
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();
@@ -137,6 +130,39 @@ impl Worker {
         }
         Ok(())
     }
+}
+
+fn execute_job(
+    job: &WorkerJob,
+    sender: &ChannelSender,
+    file_store: &mut FileStore,
+) -> Result<(), Error> {
+    let sandbox = Sandbox::new(
+        std::path::Path::new("/tmp/sandboxes"),
+        &job.execution,
+        &job.dep_keys,
+        file_store,
+    )?;
+    thread::sleep(std::time::Duration::from_secs(1));
+    serialize_into(
+        &WorkerClientMessage::WorkerDone(WorkerResult {
+            result: ExecutionResult {
+                uuid: job.execution.uuid.clone(),
+                status: ExecutionStatus::Success,
+            },
+        }),
+        sender,
+    )?;
+    for out in job.execution.outputs() {
+        let path = std::path::Path::new("/dev/null");
+        serialize_into(
+            &WorkerClientMessage::ProvideFile(out.clone(), FileStoreKey::from_file(path)?),
+            sender,
+        )
+        .unwrap();
+        ChannelFileSender::send(path, sender)?;
+    }
+    Ok(())
 }
 
 impl std::fmt::Display for WorkerConn {

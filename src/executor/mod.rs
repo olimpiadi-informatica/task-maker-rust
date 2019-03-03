@@ -2,6 +2,7 @@ mod client;
 mod executor;
 mod file_transmission;
 mod local_executor;
+mod sandbox;
 mod scheduler;
 mod worker;
 
@@ -12,6 +13,7 @@ pub use client::*;
 pub use executor::*;
 pub use file_transmission::*;
 pub use local_executor::*;
+pub use sandbox::*;
 pub use worker::*;
 
 /// The channel part that sends data.

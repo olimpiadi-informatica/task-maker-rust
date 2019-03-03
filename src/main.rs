@@ -7,6 +7,7 @@ extern crate chrono;
 extern crate env_logger;
 extern crate fs2;
 extern crate hex;
+extern crate tempdir;
 
 pub mod execution;
 pub mod executor;
@@ -32,13 +33,12 @@ fn main() {
         "Compilation of generator.cpp",
         ExecutionCommand::System("g++".to_owned()),
     );
-    exec.stdin(&file).input(&lib, "lib.h", false);
+    exec.stdin(&file).input(&lib, "test/nested/dir/lib.h", true);
 
     let stdout = exec.stdout();
-    let a = 42;
 
     dag.add_execution(exec)
-        .on_start(move |w| warn!("Started on {} {}!", w, a))
+        .on_start(move |w| warn!("Started on {}!", w))
         .on_done(move |res| warn!("Exec result {:?}", res))
         .write_stdout_to("/tmp/stdout")
         .write_stderr_to("/tmp/stderr")
