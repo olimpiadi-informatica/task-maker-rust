@@ -21,7 +21,7 @@ pub struct FileStore {
     data: FileStoreData,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct FileStoreKey {
     hash: HashData,
 }
@@ -130,6 +130,7 @@ impl FileStore {
         I: Iterator<Item = Vec<u8>>,
     {
         let path = self.key_to_path(key);
+        trace!("Storing {:?}", path);
         if path.exists() {
             trace!("File {:?} already exists", path);
             content.last(); // consume all the iterator
@@ -137,6 +138,9 @@ impl FileStore {
             self.flush()?;
             return Ok(());
         }
+        // TODO make write the file to a .temp and then move to the final place?
+        // not sure if needed since this is in a &mut self and should not be executed
+        // in parallel even between processes
         std::fs::create_dir_all(path.parent().unwrap())?;
         let mut file = std::fs::File::create(&path)?;
         content.map(|data| file.write_all(&data)).last();

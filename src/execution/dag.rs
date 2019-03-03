@@ -1,12 +1,21 @@
 use crate::execution::execution::*;
 use crate::execution::file::*;
+use crate::store::*;
 use failure::Fail;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::path::{Path, PathBuf};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProvidedFile {
+    pub file: File,
+    pub key: FileStoreKey,
+    pub local_path: PathBuf,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExecutionDAGData {
-    pub provided_files: HashMap<FileUuid, File>,
+    pub provided_files: HashMap<FileUuid, ProvidedFile>,
     pub executions: HashMap<ExecutionUuid, Execution>,
 }
 
@@ -57,8 +66,15 @@ impl ExecutionDAG {
         }
     }
 
-    pub fn provide_file(&mut self, file: File) {
-        self.data.provided_files.insert(file.uuid.clone(), file);
+    pub fn provide_file(&mut self, file: File, path: &Path) {
+        self.data.provided_files.insert(
+            file.uuid.clone(),
+            ProvidedFile {
+                file,
+                key: FileStoreKey::from_file(path).expect("Cannot compute FileStoreKey"),
+                local_path: path.to_owned(),
+            },
+        );
     }
 
     pub fn add_execution(&mut self, execution: Execution) -> AddExecutionWrapper {

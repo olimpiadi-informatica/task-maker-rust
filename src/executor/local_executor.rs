@@ -1,4 +1,5 @@
 use crate::executor::*;
+use crate::store::*;
 use failure::Error;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
@@ -20,6 +21,7 @@ impl LocalExecutor {
 impl ExecutorTrait for LocalExecutor {
     fn evaluate(
         &mut self,
+        file_store: FileStore,
         sender: Sender<String>,
         receiver: Receiver<String>,
     ) -> Result<(), Error> {
@@ -34,6 +36,6 @@ impl ExecutorTrait for LocalExecutor {
                 })
                 .expect("Failed to spawn worker thread");
         }
-        self.executor.evaluate(sender, receiver)
+        self.executor.evaluate(file_store, sender, receiver)
     }
 }

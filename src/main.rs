@@ -14,8 +14,10 @@ mod store;
 
 use execution::*;
 use executor::ExecutorTrait;
+use std::path::Path;
 use std::sync::mpsc::channel;
 use std::thread;
+use store::*;
 
 fn main() {
     env_logger::Builder::from_default_env()
@@ -66,8 +68,8 @@ fn main() {
     exec3.stdin(&stdout2);
     dag.add_execution(exec3);
 
-    dag.provide_file(lib);
-    dag.provide_file(file);
+    dag.provide_file(lib, Path::new("/tmp/testfile"));
+    dag.provide_file(file, Path::new("/tmp/testfile"));
 
     trace!("{:#?}", dag);
 
@@ -76,7 +78,9 @@ fn main() {
 
     let server = thread::spawn(move || {
         let mut executor = executor::LocalExecutor::new(2);
-        executor.evaluate(tx_remote, rx_remote).unwrap();
+        let file_store =
+            FileStore::new(Path::new("/tmp/store")).expect("Cannot create the file store");
+        executor.evaluate(file_store, tx_remote, rx_remote).unwrap();
     });
     executor::ExecutorClient::evaluate(dag, tx, rx).unwrap();
     server.join().expect("Server paniced");

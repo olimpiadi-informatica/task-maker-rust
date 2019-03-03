@@ -1,6 +1,7 @@
 use crate::execution::*;
 use crate::executor::scheduler::Scheduler;
 use crate::executor::*;
+use crate::store::*;
 use failure::Error;
 use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashMap};
@@ -24,7 +25,7 @@ pub enum ExecutorClientMessage {
         dag: ExecutionDAGData,
         callbacks: ExecutionDAGCallbacks,
     },
-    ProvideFile(FileUuid),
+    ProvideFile(FileUuid, FileStoreKey),
     Stop,
     Status,
 }
@@ -80,8 +81,12 @@ pub struct Executor {
 }
 
 pub trait ExecutorTrait {
-    fn evaluate(&mut self, sender: Sender<String>, receiver: Receiver<String>)
-        -> Result<(), Error>;
+    fn evaluate(
+        &mut self,
+        file_store: FileStore,
+        sender: Sender<String>,
+        receiver: Receiver<String>,
+    ) -> Result<(), Error>;
 }
 
 impl Executor {
@@ -103,6 +108,7 @@ impl Executor {
 
     pub fn evaluate(
         &mut self,
+        mut file_store: FileStore,
         sender: Sender<String>,
         receiver: Receiver<String>,
     ) -> Result<(), Error> {
@@ -127,14 +133,35 @@ impl Executor {
                     }
                     Scheduler::setup(self.data.clone());
                     Scheduler::schedule(self.data.clone());
+                    let ready_files = {
+                        let data = self.data.lock().unwrap();
+                        let mut ready_files = vec![];
+                        for (uuid, file) in data.dag.as_ref().unwrap().provided_files.iter() {
+                            if !file_store.has_key(&file.key) {
+                                serialize_into(
+                                    &ExecutorServerMessage::AskFile(uuid.clone()),
+                                    &sender,
+                                )?;
+                            } else {
+                                file_store.persist(&file.key)?;
+                                ready_files.push(uuid.clone());
+                                info!("File {} already in store!", uuid);
+                            }
+                        }
+                        ready_files
+                    };
+                    for file in ready_files.into_iter() {
+                        Scheduler::file_ready(self.data.clone(), file);
+                    }
                 }
-                Ok(ExecutorClientMessage::ProvideFile(uuid)) => {
-                    info!("Client sent: {}", uuid);
+                Ok(ExecutorClientMessage::ProvideFile(uuid, key)) => {
+                    info!("Client sent: {} {:?}", uuid, key);
                     if self.data.lock().unwrap().dag.is_none() {
                         warn!("Provided file before the DAG!");
                         drop(receiver);
                         break;
                     }
+                    file_store.store(&key, ChannelFileIterator::new(&receiver))?;
                     Scheduler::file_ready(self.data.clone(), uuid);
                 }
                 Ok(ExecutorClientMessage::Status) => {
@@ -170,7 +197,7 @@ impl Executor {
                 Err(e) => {
                     // TODO stop all the workers
                     let cause = e.find_root_cause().to_string();
-                    info!("Connection error: {}", cause);
+                    trace!("Connection error: {}", cause);
                     if cause == "receiving on a closed channel" {
                         break;
                     }
@@ -277,7 +304,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
             }
             Err(e) => {
                 let cause = e.find_root_cause().to_string();
-                info!("Connection error: {}", cause);
+                trace!("Connection error: {}", cause);
                 if cause == "receiving on a closed channel" {
                     executor.lock().unwrap().waiting_workers.remove(&conn.uuid);
                     info!("Removed worker {} from pool", conn);

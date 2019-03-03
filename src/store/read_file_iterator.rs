@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
 
-const READ_FILE_BUFFER_SIZE: usize = 1024;
+const READ_FILE_BUFFER_SIZE: usize = 8 * 1024;
 type ReadFileBuffer = [u8; READ_FILE_BUFFER_SIZE];
 
 pub struct ReadFileIterator {
@@ -23,7 +23,7 @@ impl ReadFileIterator {
 
 impl Iterator for ReadFileIterator {
     type Item = Vec<u8>;
-    fn next<'a>(&mut self) -> Option<Self::Item> {
+    fn next(&mut self) -> Option<Self::Item> {
         match self.buf_reader.read(&mut self.buf) {
             Ok(0) => None,
             Ok(n) => Some(self.buf[0..n].to_vec()),

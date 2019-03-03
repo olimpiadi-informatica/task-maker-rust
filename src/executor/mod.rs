@@ -1,5 +1,6 @@
 mod client;
 mod executor;
+mod file_transmission;
 mod local_executor;
 mod scheduler;
 mod worker;
@@ -9,6 +10,7 @@ use std::sync::mpsc::{Receiver, Sender};
 
 pub use client::*;
 pub use executor::*;
+pub use file_transmission::*;
 pub use local_executor::*;
 pub use worker::*;
 

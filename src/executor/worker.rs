@@ -48,7 +48,7 @@ impl Worker {
             let message = deserialize_from::<WorkerServerMessage>(&self.receiver);
             match message {
                 Ok(WorkerServerMessage::Work(job)) => {
-                    info!("Worker {} got job: {:?}", self, job);
+                    trace!("Worker {} got job: {:?}", self, job);
                     thread::sleep(std::time::Duration::from_secs(1));
                     serialize_into(
                         &WorkerClientMessage::WorkerDone(WorkerResult {
@@ -73,7 +73,7 @@ impl Worker {
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();
-                    error!("Connection error: {}", cause);
+                    trace!("Connection error: {}", cause);
                     if cause == "receiving on a closed channel" {
                         break;
                     }

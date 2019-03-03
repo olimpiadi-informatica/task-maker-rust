@@ -1,5 +1,6 @@
 use crate::execution::*;
 use crate::executor::*;
+use crate::store::*;
 use failure::Error;
 use std::sync::mpsc::{Receiver, Sender};
 
@@ -24,14 +25,17 @@ impl ExecutorClient {
             },
             &sender,
         )?;
-        for (uuid, _file) in provided_files.iter() {
-            serialize_into(&ExecutorClientMessage::ProvideFile(*uuid), &sender)?;
-        }
         loop {
             match deserialize_from::<ExecutorServerMessage>(&receiver) {
                 Ok(ExecutorServerMessage::AskFile(uuid)) => {
                     info!("Server is asking for {}", uuid);
-                    serialize_into(&ExecutorClientMessage::ProvideFile(uuid), &sender)?;
+                    let path = &provided_files
+                        .get(&uuid)
+                        .expect("Server asked for non provided file")
+                        .local_path;
+                    let key = FileStoreKey::from_file(path)?;
+                    serialize_into(&ExecutorClientMessage::ProvideFile(uuid, key), &sender)?;
+                    ChannelFileSender::send(&path, &sender)?;
                 }
                 Ok(ExecutorServerMessage::ProvideFile(uuid)) => {
                     info!("Server sent the file {}", uuid);
@@ -84,7 +88,7 @@ impl ExecutorClient {
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();
-                    info!("Connection error: {}", cause);
+                    trace!("Connection error: {}", cause);
                     if cause == "receiving on a closed channel" {
                         break;
                     }

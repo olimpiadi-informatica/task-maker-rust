@@ -133,6 +133,8 @@ impl Scheduler {
         if needs_reshed {
             // this call requires the lock to be free
             Scheduler::schedule(executor_data);
+        } else {
+            trace!("No new execution ready");
         }
     }
 
