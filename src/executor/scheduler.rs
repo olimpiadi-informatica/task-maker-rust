@@ -65,20 +65,35 @@ impl Scheduler {
 
         for (worker, exec) in free_workers.into_iter().zip(assigned.into_iter()) {
             doing_workers += 1;
+            let execution = data
+                .dag
+                .as_ref()
+                .unwrap()
+                .executions
+                .get(&exec)
+                .unwrap()
+                .clone();
+            let dep_keys = execution
+                .dependencies()
+                .iter()
+                .map(|k| {
+                    (
+                        k.clone(),
+                        data.file_keys
+                            .get(&k)
+                            .expect(&format!("Unknown file key of {}", k))
+                            .clone(),
+                    )
+                })
+                .collect();
             Scheduler::assign_job(
                 data.waiting_workers
                     .get(&worker)
                     .expect(&format!("Assigning to unknown worker {}", worker))
                     .clone(),
                 WorkerJob {
-                    execution: data
-                        .dag
-                        .as_ref()
-                        .unwrap()
-                        .executions
-                        .get(&exec)
-                        .unwrap()
-                        .clone(),
+                    execution,
+                    dep_keys,
                 },
                 worker.clone(),
             );

@@ -16,6 +16,7 @@ use execution::*;
 use executor::ExecutorTrait;
 use std::path::Path;
 use std::sync::mpsc::channel;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use store::*;
 
@@ -77,10 +78,10 @@ fn main() {
     let (tx_remote, rx) = channel();
 
     let server = thread::spawn(move || {
-        let mut executor = executor::LocalExecutor::new(2);
         let file_store =
             FileStore::new(Path::new("/tmp/store")).expect("Cannot create the file store");
-        executor.evaluate(file_store, tx_remote, rx_remote).unwrap();
+        let mut executor = executor::LocalExecutor::new(Arc::new(Mutex::new(file_store)), 2);
+        executor.evaluate(tx_remote, rx_remote).unwrap();
     });
     executor::ExecutorClient::evaluate(dag, tx, rx).unwrap();
     server.join().expect("Server paniced");

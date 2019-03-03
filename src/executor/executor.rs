@@ -12,6 +12,7 @@ use std::thread;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerJob {
     pub execution: Execution,
+    pub dep_keys: HashMap<FileUuid, FileStoreKey>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,14 +47,14 @@ pub enum ExecutorServerMessage {
 pub enum WorkerClientMessage {
     GetWork,
     WorkerDone(WorkerResult),
-    ProvideFile(FileUuid),
+    ProvideFile(FileUuid, FileStoreKey),
     AskFile(FileUuid),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum WorkerServerMessage {
     Work(WorkerJob),
-    ProvideFile(FileUuid),
+    ProvideFile(FileUuid, FileStoreKey),
 }
 
 #[derive(Debug)]
@@ -66,6 +67,8 @@ pub struct ExecutorData {
     pub ready_execs: BinaryHeap<ExecutionUuid>,
     pub missing_deps: HashMap<ExecutionUuid, usize>,
     pub dependents: HashMap<FileUuid, Vec<ExecutionUuid>>,
+    pub file_store: Arc<Mutex<FileStore>>,
+    pub file_keys: HashMap<FileUuid, FileStoreKey>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -81,18 +84,14 @@ pub struct Executor {
 }
 
 pub trait ExecutorTrait {
-    fn evaluate(
-        &mut self,
-        file_store: FileStore,
-        sender: Sender<String>,
-        receiver: Receiver<String>,
-    ) -> Result<(), Error>;
+    fn evaluate(&mut self, sender: Sender<String>, receiver: Receiver<String>)
+        -> Result<(), Error>;
 }
 
 impl Executor {
-    pub fn new() -> Executor {
+    pub fn new(file_store: Arc<Mutex<FileStore>>) -> Executor {
         Executor {
-            data: Arc::new(Mutex::new(ExecutorData::new())),
+            data: Arc::new(Mutex::new(ExecutorData::new(file_store))),
         }
     }
 
@@ -101,14 +100,13 @@ impl Executor {
         thread::Builder::new()
             .name(format!("Executor worker thread for {}", worker))
             .spawn(move || {
-                worker_thread(data, worker);
+                worker_thread(data, worker).expect("Worker failed");
             })
             .expect("Failed to spawn executor worker thread");
     }
 
     pub fn evaluate(
         &mut self,
-        mut file_store: FileStore,
         sender: Sender<String>,
         receiver: Receiver<String>,
     ) -> Result<(), Error> {
@@ -134,18 +132,20 @@ impl Executor {
                     Scheduler::setup(self.data.clone());
                     Scheduler::schedule(self.data.clone());
                     let ready_files = {
-                        let data = self.data.lock().unwrap();
+                        let mut data = self.data.lock().unwrap();
                         let mut ready_files = vec![];
-                        for (uuid, file) in data.dag.as_ref().unwrap().provided_files.iter() {
-                            if !file_store.has_key(&file.key) {
+                        let provided_files = data.dag.as_ref().unwrap().provided_files.clone();
+                        for (uuid, file) in provided_files.into_iter() {
+                            if !data.file_store.lock().unwrap().has_key(&file.key) {
                                 serialize_into(
                                     &ExecutorServerMessage::AskFile(uuid.clone()),
                                     &sender,
                                 )?;
                             } else {
-                                file_store.persist(&file.key)?;
+                                data.file_store.lock().unwrap().persist(&file.key)?;
+                                data.file_keys.insert(uuid.clone(), file.key.clone());
                                 ready_files.push(uuid.clone());
-                                info!("File {} already in store!", uuid);
+                                trace!("File {} already in store!", uuid);
                             }
                         }
                         ready_files
@@ -156,12 +156,19 @@ impl Executor {
                 }
                 Ok(ExecutorClientMessage::ProvideFile(uuid, key)) => {
                     info!("Client sent: {} {:?}", uuid, key);
-                    if self.data.lock().unwrap().dag.is_none() {
-                        warn!("Provided file before the DAG!");
-                        drop(receiver);
-                        break;
+                    {
+                        let mut data = self.data.lock().unwrap();
+                        if data.dag.is_none() {
+                            warn!("Provided file before the DAG!");
+                            drop(receiver);
+                            break;
+                        }
+                        data.file_store
+                            .lock()
+                            .unwrap()
+                            .store(&key, ChannelFileIterator::new(&receiver))?;
+                        data.file_keys.insert(uuid.clone(), key.clone());
                     }
-                    file_store.store(&key, ChannelFileIterator::new(&receiver))?;
                     Scheduler::file_ready(self.data.clone(), uuid);
                 }
                 Ok(ExecutorClientMessage::Status) => {
@@ -197,9 +204,11 @@ impl Executor {
                 Err(e) => {
                     // TODO stop all the workers
                     let cause = e.find_root_cause().to_string();
-                    trace!("Connection error: {}", cause);
                     if cause == "receiving on a closed channel" {
+                        trace!("Connection closed: {}", cause);
                         break;
+                    } else {
+                        error!("Connection error: {}", cause);
                     }
                 }
             }
@@ -209,7 +218,7 @@ impl Executor {
 }
 
 impl ExecutorData {
-    fn new() -> ExecutorData {
+    fn new(file_store: Arc<Mutex<FileStore>>) -> ExecutorData {
         ExecutorData {
             dag: None,
             callbacks: None,
@@ -219,11 +228,13 @@ impl ExecutorData {
             ready_execs: BinaryHeap::new(),
             missing_deps: HashMap::new(),
             dependents: HashMap::new(),
+            file_store: file_store,
+            file_keys: HashMap::new(),
         }
     }
 }
 
-fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
+fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result<(), Error> {
     trace!("Server connected to worker {}", conn);
 
     loop {
@@ -277,8 +288,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
                         serialize_into(
                             &ExecutorServerMessage::NotifyDone(exec_uuid.clone(), result.clone()),
                             data.client_sender.as_ref().unwrap(),
-                        )
-                        .expect("Cannot send message to client");
+                        )?;
                     }
                     exec_uuid
                 };
@@ -287,33 +297,56 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) {
                     _ => Scheduler::exec_failed(executor.clone(), exec_uuid),
                 }
             }
-            Ok(WorkerClientMessage::ProvideFile(uuid)) => {
-                info!("Worker provided file {}", uuid);
+            Ok(WorkerClientMessage::ProvideFile(uuid, key)) => {
+                info!("Worker provided file {} {:?}", uuid, key);
+                {
+                    let mut data = executor.lock().unwrap();
+                    data.file_store
+                        .lock()
+                        .unwrap()
+                        .store(&key, ChannelFileIterator::new(&conn.receiver))?;
+                    data.file_keys.insert(uuid.clone(), key.clone());
+                }
                 Scheduler::file_ready(executor.clone(), uuid);
                 let data = executor.lock().unwrap();
                 if data.callbacks.as_ref().unwrap().files.contains(&uuid) {
                     serialize_into(
                         &ExecutorServerMessage::ProvideFile(uuid),
                         &data.client_sender.as_ref().unwrap(),
-                    )
-                    .expect("Cannot send message to client");
+                    )?;
                 }
             }
             Ok(WorkerClientMessage::AskFile(uuid)) => {
-                serialize_into(&ExecutorServerMessage::ProvideFile(uuid), &conn.sender).unwrap();
+                info!("Worker asked for {}", uuid);
+                let data = executor.lock().unwrap();
+                let key = data
+                    .file_keys
+                    .get(&uuid)
+                    .expect("Worker is asking unknown file")
+                    .clone();
+                let path = data
+                    .file_store
+                    .lock()
+                    .unwrap()
+                    .get(&key)?
+                    .expect("File not present in store");
+                serialize_into(&WorkerServerMessage::ProvideFile(uuid, key), &conn.sender)?;
+                ChannelFileSender::send(&path, &conn.sender)?;
             }
             Err(e) => {
                 let cause = e.find_root_cause().to_string();
-                trace!("Connection error: {}", cause);
                 if cause == "receiving on a closed channel" {
                     executor.lock().unwrap().waiting_workers.remove(&conn.uuid);
                     info!("Removed worker {} from pool", conn);
                     Scheduler::schedule(executor.clone());
                     break;
+                } else {
+                    error!("Connection error: {}", cause);
                 }
             }
         }
     }
+    Ok(())
 }
 
 fn wait_for_work(executor: Arc<Mutex<ExecutorData>>, uuid: &WorkerUuid) -> WorkerJob {

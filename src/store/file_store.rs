@@ -15,6 +15,7 @@ const CHECK_INTEGRITY: bool = true;
 
 pub type HashData = Vec<u8>;
 
+#[derive(Debug)]
 pub struct FileStore {
     base_path: String,
     file: File,

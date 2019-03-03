@@ -88,9 +88,11 @@ impl ExecutorClient {
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();
-                    trace!("Connection error: {}", cause);
                     if cause == "receiving on a closed channel" {
+                        trace!("Connection closed: {}", cause);
                         break;
+                    } else {
+                        error!("Connection error: {}", cause);
                     }
                 }
             }
