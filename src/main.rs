@@ -33,17 +33,20 @@ fn main() {
         "Compilation of generator.cpp",
         ExecutionCommand::System("g++".to_owned()),
     );
-    exec.stdin(&file).input(&lib, "test/nested/dir/lib.h", true);
+    exec.stdin(&file)
+        .input(&lib, Path::new("test/nested/dir/lib.h"), true);
 
     let stdout = exec.stdout();
 
     dag.add_execution(exec)
         .on_start(move |w| warn!("Started on {}!", w))
         .on_done(move |res| warn!("Exec result {:?}", res))
-        .write_stdout_to("/tmp/stdout")
-        .write_stderr_to("/tmp/stderr")
-        .write_output_to("a.out", "/tmp/output")
-        .get_output_content("a.out", 100, &|content| warn!("a.out: {:?}", content))
+        .write_stdout_to(Path::new("/tmp/stdout"))
+        .write_stderr_to(Path::new("/tmp/stderr"))
+        .write_output_to(Path::new("a.out"), Path::new("/tmp/output"))
+        .get_output_content(Path::new("a.out"), 100, &|content| {
+            warn!("a.out: {:?}", content)
+        })
         .get_stdout_content(100, &|content| warn!("stdout: {:?}", content))
         .get_stderr_content(100, &|content| warn!("stderr: {:?}", content));
 

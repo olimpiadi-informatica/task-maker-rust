@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use uuid::Uuid;
 
 /// The identifier of a file, it's globally unique and it identifies a file
@@ -10,7 +11,7 @@ pub type GetContentCallback = Fn(Vec<u8>) -> ();
 
 /// Supported file callbacks
 pub struct FileCallbacks {
-    pub write_to: Option<String>,
+    pub write_to: Option<PathBuf>,
     pub get_content: Option<(usize, Box<GetContentCallback>)>,
 }
 

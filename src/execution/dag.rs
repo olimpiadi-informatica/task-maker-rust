@@ -146,21 +146,21 @@ impl<'a> AddExecutionWrapper<'a> {
     }
 
     /// Write the standard output of the execution to `path`
-    pub fn write_stdout_to(mut self, path: &str) -> AddExecutionWrapper<'a> {
+    pub fn write_stdout_to(mut self, path: &Path) -> AddExecutionWrapper<'a> {
         let uuid = self.get_execution().stdout().uuid.clone();
         self.write_file_to(path, uuid);
         self
     }
 
     /// Write the standard error of the execution to `path`
-    pub fn write_stderr_to(mut self, path: &str) -> AddExecutionWrapper<'a> {
+    pub fn write_stderr_to(mut self, path: &Path) -> AddExecutionWrapper<'a> {
         let uuid = self.get_execution().stderr().uuid.clone();
         self.write_file_to(path, uuid);
         self
     }
 
     /// Write the output of the execution at `output` to `path`
-    pub fn write_output_to(mut self, output: &str, path: &str) -> AddExecutionWrapper<'a> {
+    pub fn write_output_to(mut self, output: &Path, path: &Path) -> AddExecutionWrapper<'a> {
         let uuid = self.get_execution().output(output).uuid.clone();
         self.write_file_to(path, uuid);
         self
@@ -192,7 +192,7 @@ impl<'a> AddExecutionWrapper<'a> {
     /// the file at `output`
     pub fn get_output_content<F>(
         mut self,
-        output: &str,
+        output: &Path,
         limit: usize,
         callback: F,
     ) -> AddExecutionWrapper<'a>
@@ -206,7 +206,7 @@ impl<'a> AddExecutionWrapper<'a> {
 
     /// Ensures the callback is present and store the path of where to store
     /// the file
-    fn write_file_to(&mut self, path: &str, uuid: FileUuid) {
+    fn write_file_to(&mut self, path: &Path, uuid: FileUuid) {
         self.ensure_file_callback(&uuid);
         self.dag.file_callbacks.get_mut(&uuid).unwrap().write_to = Some(path.to_owned());
     }

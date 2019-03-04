@@ -51,7 +51,7 @@ impl ExecutorClient {
                     info!("Server sent the file {}", uuid);
                     if let Some(callback) = dag.file_callbacks.get(&uuid) {
                         if let Some(write_to) = callback.write_to.as_ref() {
-                            info!("Writing {} to {}", uuid, write_to);
+                            info!("Writing {} to {:?}", uuid, write_to);
                             // TODO write file
                         }
                         if let Some((_limit, get_content)) = callback.get_content.as_ref() {

@@ -2,6 +2,7 @@ use crate::execution::file::*;
 use crate::executor::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 /// The identifier of an execution, it's globally unique and it identifies an
@@ -31,7 +32,7 @@ pub enum ExecutionCommand {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionInput {
     /// Path relative to the sandbox directory
-    pub path: String,
+    pub path: PathBuf,
     /// Uuid of the file
     pub file: FileUuid,
     /// Whether this file should be marked as executable
@@ -67,7 +68,7 @@ pub struct Execution {
     /// List of input files that should be put inside the sandbox
     pub inputs: Vec<ExecutionInput>, // TODO change to HashMap
     /// List of the output files that should be capture from the sandbox
-    pub outputs: HashMap<String, File>,
+    pub outputs: HashMap<PathBuf, File>,
 }
 
 /// Status of a completed Execution
@@ -175,7 +176,7 @@ impl Execution {
 
     /// Bind a file inside the sandbox to the specified file. Calling again this
     /// method will overwrite the previous value
-    pub fn input(&mut self, file: &File, path: &str, executable: bool) -> &mut Self {
+    pub fn input(&mut self, file: &File, path: &Path, executable: bool) -> &mut Self {
         self.inputs.push(ExecutionInput {
             path: path.to_owned(),
             file: file.uuid.clone(),
@@ -186,11 +187,11 @@ impl Execution {
 
     /// Handle to a file produced by the execution. This should be called at
     /// least once before the evaluation starts in order to track the file
-    pub fn output(&mut self, path: &str) -> File {
+    pub fn output(&mut self, path: &Path) -> File {
         if self.outputs.contains_key(path) {
             return self.outputs.get(path).unwrap().clone();
         }
-        let file = File::new(&format!("Output of '{}' at '{}'", self.description, path));
+        let file = File::new(&format!("Output of '{}' at {:?}", self.description, path));
         self.outputs.insert(path.to_owned(), file);
         self.outputs.get(path).unwrap().clone()
     }
