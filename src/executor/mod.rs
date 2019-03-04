@@ -4,6 +4,7 @@ mod file_transmission;
 mod local_executor;
 mod sandbox;
 mod scheduler;
+mod signals;
 mod worker;
 
 use failure::Error;
@@ -14,6 +15,7 @@ pub use executor::*;
 pub use file_transmission::*;
 pub use local_executor::*;
 pub use sandbox::*;
+pub use signals::*;
 pub use worker::*;
 
 /// The channel part that sends data.

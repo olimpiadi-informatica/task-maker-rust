@@ -16,16 +16,9 @@ pub enum SandboxResult {
         /// The exit status of the process
         exit_status: u32,
         /// The signal that caused the process to exit
-        signal: u32,
-
-        /// The total cpu time (userspace) of the process
-        cpu_time: f32,
-        /// The total sys time (kernelspace) of the process
-        sys_time: f32,
-        /// The total time from the start of the process to the end
-        wall_time: f32,
-        /// The number of KiB used at most by the process
-        memory: u64,
+        signal: Option<u32>,
+        /// Resources used by the process
+        resources: ExecutionResourcesUsage,
     },
     /// The sandbox failed to execute the process, an error message is reported
     Failed {
@@ -82,11 +75,13 @@ impl Sandbox {
         );
         Ok(SandboxResult::Success {
             exit_status: 0,
-            signal: 0,
-            cpu_time: 42.0,
-            sys_time: 43.0,
-            wall_time: 90.0,
-            memory: 1234,
+            signal: None,
+            resources: ExecutionResourcesUsage {
+                cpu_time: 42.0,
+                sys_time: 43.0,
+                wall_time: 90.0,
+                memory: 1234,
+            },
         })
     }
 

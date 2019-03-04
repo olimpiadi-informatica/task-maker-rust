@@ -204,16 +204,12 @@ fn execute_job(
             let sandbox = thread_sandbox;
             let job = thread_job;
 
-            let result = sandbox.run();
+            let result = sandbox.run().unwrap();
+            let result = compute_execution_result(&job.execution, result);
+            let status = result.status.clone();
 
             serialize_into(
-                &WorkerClientMessage::WorkerDone(WorkerResult {
-                    result: ExecutionResult {
-                        uuid: job.execution.uuid.clone(),
-                        // TODO compute the real result
-                        status: ExecutionStatus::Success,
-                    },
-                }),
+                &WorkerClientMessage::WorkerDone(WorkerResult { result }),
                 &sender,
             )
             .unwrap();
@@ -230,23 +226,68 @@ fn execute_job(
                 ChannelFileSender::send(&path, &sender).unwrap();
             };
 
-            if let Some(stdout) = job.execution.stdout {
-                let path = sandbox.stdout_path();
-                send_file(stdout.uuid.clone(), path);
-            }
-            if let Some(stderr) = job.execution.stderr {
-                let path = sandbox.stderr_path();
-                send_file(stderr.uuid.clone(), path);
-            }
-            for (path, file) in job.execution.outputs.iter() {
-                let path = sandbox.output_path(Path::new(path));
-                send_file(file.uuid.clone(), path);
+            if let ExecutionStatus::Success = status {
+                if let Some(stdout) = job.execution.stdout {
+                    let path = sandbox.stdout_path();
+                    send_file(stdout.uuid.clone(), path);
+                }
+                if let Some(stderr) = job.execution.stderr {
+                    let path = sandbox.stderr_path();
+                    send_file(stderr.uuid.clone(), path);
+                }
+                for (path, file) in job.execution.outputs.iter() {
+                    let path = sandbox.output_path(Path::new(path));
+                    send_file(file.uuid.clone(), path);
+                }
             }
             current_job.lock().unwrap().current_job = None;
             current_job.lock().unwrap().current_sandbox = None;
             serialize_into(&WorkerClientMessage::GetWork, &sender).unwrap();
         })?;
     Ok(sandbox)
+}
+
+/// Compute the ExecutionResult based on the result of the sandbox
+fn compute_execution_result(execution: &Execution, result: SandboxResult) -> ExecutionResult {
+    match result {
+        SandboxResult::Success {
+            exit_status,
+            signal,
+            resources,
+        } => ExecutionResult {
+            uuid: execution.uuid.clone(),
+            status: compute_execution_status(execution, exit_status, signal, &resources),
+            resources,
+        },
+        SandboxResult::Failed { error } => ExecutionResult {
+            uuid: execution.uuid.clone(),
+            status: ExecutionStatus::InternalError(error.to_string()),
+            resources: ExecutionResourcesUsage {
+                cpu_time: 0.0,
+                sys_time: 0.0,
+                wall_time: 0.0,
+                memory: 0,
+            },
+        },
+    }
+}
+
+/// Compute the ExecutionStatus based on the result of the sandbox, checking
+/// the signals, the return code and the time/memory constraints
+fn compute_execution_status(
+    execution: &Execution,
+    exit_status: u32,
+    signal: Option<u32>,
+    resources: &ExecutionResourcesUsage,
+) -> ExecutionStatus {
+    if let Some(signal) = signal {
+        return ExecutionStatus::Signal(signal, strsignal(signal));
+    }
+    if exit_status != 0 {
+        return ExecutionStatus::ReturnCode(exit_status);
+    }
+    // TODO check time/memory limits
+    ExecutionStatus::Success
 }
 
 impl std::fmt::Display for WorkerConn {

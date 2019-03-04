@@ -77,11 +77,9 @@ pub enum ExecutionStatus {
     /// The program exited with 0 within the limits
     Success,
     /// The program exited with a non-zero status code
-    ReturnCode(i32),
+    ReturnCode(u32),
     /// The program stopped due to a signal
-    Signal(i32, String),
-    /// The program hasn't produced all the required files
-    MissingFile(String),
+    Signal(u32, String),
     /// The program hasn't exited within the time limit constraint
     TimeLimitExceeded,
     /// The program hasn't exited within the wall time limit constraint
@@ -89,7 +87,20 @@ pub enum ExecutionStatus {
     /// The program has exceeded the memory limit
     MemoryLimitExceeded,
     /// The sandbox failed to execute the program
-    InternalError,
+    InternalError(String),
+}
+
+/// Resources used during the execution
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionResourcesUsage {
+    /// Number of seconds the process used in userspace
+    pub cpu_time: f32,
+    /// Number of seconds the process used in kernelspace
+    pub sys_time: f32,
+    /// Number of seconds from the start to the end of the process
+    pub wall_time: f32,
+    /// Number of KiB used at most by the process
+    pub memory: u64,
 }
 
 /// The result of an execution
@@ -99,7 +110,8 @@ pub struct ExecutionResult {
     pub uuid: ExecutionUuid,
     /// Status of the completed execution
     pub status: ExecutionStatus,
-    // TODO add the missing fields like cpu time, used memory, ...
+    /// Resources used by the execution
+    pub resources: ExecutionResourcesUsage,
 }
 
 impl Execution {
