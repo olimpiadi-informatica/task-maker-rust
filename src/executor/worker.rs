@@ -2,6 +2,7 @@ use crate::execution::*;
 use crate::executor::*;
 use crate::store::*;
 use failure::{Error, Fail};
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -11,19 +12,32 @@ use uuid::Uuid;
 /// during a single connection.
 pub type WorkerUuid = Uuid;
 
+/// The information about the current job the worker is doing
+struct WorkerCurrentJob {
+    /// Job currently waiting for, when there is a job running this should be
+    /// None
+    current_job: Option<WorkerJob>,
+    /// Currently running sandbox
+    current_sandbox: Option<Sandbox>,
+    /// The number of missing files that are required for the sandbox setup
+    missing_deps: usize,
+}
+
 /// The worker is the component that receives the work from the server and
 /// sends the results back.
 pub struct Worker {
     /// The identifier of this worker
-    pub uuid: WorkerUuid,
+    uuid: WorkerUuid,
     /// The name of this worker
-    pub name: String,
+    name: String,
     /// The channel that sends messages to the server
-    pub sender: ChannelSender,
+    sender: ChannelSender,
     /// The channel that receives messages from the server
-    pub receiver: ChannelReceiver,
+    receiver: ChannelReceiver,
     /// A reference to the FileStore
-    pub file_store: Arc<Mutex<FileStore>>,
+    file_store: Arc<Mutex<FileStore>>,
+    /// Job the worker is currently workin on
+    current_job: Arc<Mutex<WorkerCurrentJob>>,
 }
 
 /// An handle of the connection to the worker
@@ -45,6 +59,28 @@ pub enum WorkerError {
     MissingDependencyKey { uuid: Uuid },
 }
 
+impl WorkerCurrentJob {
+    /// Make a new WorkerCurrentJob
+    fn new() -> WorkerCurrentJob {
+        WorkerCurrentJob {
+            current_job: None,
+            current_sandbox: None,
+            missing_deps: 0,
+        }
+    }
+
+    /// Keeps track that a new dependency is ready, will panic if no new file
+    /// were expected. Will return true if all the deps are ready
+    fn dependency_received(&mut self) -> bool {
+        assert!(
+            self.missing_deps > 0,
+            "A new dep is ready but no deps were waiting"
+        );
+        self.missing_deps -= 1;
+        self.missing_deps == 0
+    }
+}
+
 impl Worker {
     /// Make a new worker attached to a FileStore, will return a pair with the
     /// actual Worker and an handle with the channels to connect to communicate
@@ -60,6 +96,7 @@ impl Worker {
                 sender: tx_worker,
                 receiver: rx_worker,
                 file_store: file_store,
+                current_job: Arc::new(Mutex::new(WorkerCurrentJob::new())),
             },
             WorkerConn {
                 uuid: uuid,
@@ -74,13 +111,21 @@ impl Worker {
     pub fn work(self) -> Result<(), Error> {
         trace!("Worker {} ready, asking for work", self);
         serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
-        let mut current_job = None;
-        let mut missing_deps = 0;
+
+        let start_job = || -> Result<(), Error> {
+            let mut store = self.file_store.lock().unwrap();
+            let sandbox = execute_job(self.current_job.clone(), &self.sender, &mut store)?;
+            self.current_job.lock().unwrap().current_sandbox = Some(sandbox);
+            Ok(())
+        };
+
         loop {
             let message = deserialize_from::<WorkerServerMessage>(&self.receiver);
             match message {
+                // TODO add some asserts to check no 2 sandboxes are running in parallel
                 Ok(WorkerServerMessage::Work(job)) => {
                     trace!("Worker {} got job: {:?}", self, job);
+                    let mut missing_deps = 0;
                     for input in job.execution.dependencies().iter() {
                         let mut store = self.file_store.lock().unwrap();
                         let key =
@@ -97,12 +142,13 @@ impl Worker {
                             missing_deps += 1;
                         }
                     }
-                    current_job = Some(job);
+                    {
+                        let mut current_job = self.current_job.lock().unwrap();
+                        current_job.missing_deps = missing_deps;
+                        current_job.current_job = Some(job);
+                    }
                     if missing_deps == 0 {
-                        let mut store = self.file_store.lock().unwrap();
-                        execute_job(current_job.as_ref().unwrap(), &self.sender, &mut store)?;
-                        current_job = None;
-                        serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
+                        start_job()?;
                     }
                 }
                 Ok(WorkerServerMessage::ProvideFile(uuid, key)) => {
@@ -110,17 +156,19 @@ impl Worker {
                     let mut store = self.file_store.lock().unwrap();
                     let reader = ChannelFileIterator::new(&self.receiver);
                     store.store(&key, reader)?;
-                    missing_deps -= 1;
-                    if missing_deps == 0 {
-                        execute_job(current_job.as_ref().unwrap(), &self.sender, &mut store)?;
-                        current_job = None;
-                        serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
+                    if self.current_job.lock().unwrap().dependency_received() {
+                        start_job()?;
                     }
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();
                     if cause == "receiving on a closed channel" {
                         trace!("Connection closed: {}", cause);
+                        if let Some(sandbox) =
+                            self.current_job.lock().unwrap().current_sandbox.as_ref()
+                        {
+                            sandbox.kill();
+                        }
                         break;
                     } else {
                         error!("Connection error: {}", cause);
@@ -132,37 +180,73 @@ impl Worker {
     }
 }
 
+/// Spawn a new thread that will start the sandbox and will send the results
+/// back to the server
 fn execute_job(
-    job: &WorkerJob,
+    current_job: Arc<Mutex<WorkerCurrentJob>>,
     sender: &ChannelSender,
     file_store: &mut FileStore,
-) -> Result<(), Error> {
+) -> Result<Sandbox, Error> {
+    let job = current_job.lock().unwrap().current_job.clone().unwrap();
     let sandbox = Sandbox::new(
         std::path::Path::new("/tmp/sandboxes"),
         &job.execution,
         &job.dep_keys,
         file_store,
     )?;
-    thread::sleep(std::time::Duration::from_secs(1));
-    serialize_into(
-        &WorkerClientMessage::WorkerDone(WorkerResult {
-            result: ExecutionResult {
-                uuid: job.execution.uuid.clone(),
-                status: ExecutionStatus::Success,
-            },
-        }),
-        sender,
-    )?;
-    for out in job.execution.outputs() {
-        let path = std::path::Path::new("/dev/null");
-        serialize_into(
-            &WorkerClientMessage::ProvideFile(out.clone(), FileStoreKey::from_file(path)?),
-            sender,
-        )
-        .unwrap();
-        ChannelFileSender::send(path, sender)?;
-    }
-    Ok(())
+    let thread_sender = sender.clone();
+    let thread_sandbox = sandbox.clone();
+    let thread_job = job.clone();
+    thread::Builder::new()
+        .name(format!("Sandbox of {}", job.execution.description))
+        .spawn(move || {
+            let sender = thread_sender;
+            let sandbox = thread_sandbox;
+            let job = thread_job;
+
+            let result = sandbox.run();
+
+            serialize_into(
+                &WorkerClientMessage::WorkerDone(WorkerResult {
+                    result: ExecutionResult {
+                        uuid: job.execution.uuid.clone(),
+                        // TODO compute the real result
+                        status: ExecutionStatus::Success,
+                    },
+                }),
+                &sender,
+            )
+            .unwrap();
+
+            let send_file = |uuid: FileUuid, path: PathBuf| {
+                serialize_into(
+                    &WorkerClientMessage::ProvideFile(
+                        uuid,
+                        FileStoreKey::from_file(&path).unwrap(),
+                    ),
+                    &sender,
+                )
+                .unwrap();
+                ChannelFileSender::send(&path, &sender).unwrap();
+            };
+
+            if let Some(stdout) = job.execution.stdout {
+                let path = sandbox.stdout_path();
+                send_file(stdout.uuid.clone(), path);
+            }
+            if let Some(stderr) = job.execution.stderr {
+                let path = sandbox.stderr_path();
+                send_file(stderr.uuid.clone(), path);
+            }
+            for (path, file) in job.execution.outputs.iter() {
+                let path = sandbox.output_path(Path::new(path));
+                send_file(file.uuid.clone(), path);
+            }
+            current_job.lock().unwrap().current_job = None;
+            current_job.lock().unwrap().current_sandbox = None;
+            serialize_into(&WorkerClientMessage::GetWork, &sender).unwrap();
+        })?;
+    Ok(sandbox)
 }
 
 impl std::fmt::Display for WorkerConn {
