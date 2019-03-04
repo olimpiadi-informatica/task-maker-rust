@@ -379,6 +379,8 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                         &ExecutorServerMessage::ProvideFile(uuid),
                         &data.client_sender.as_ref().unwrap(),
                     )?;
+                    let path = data.file_store.lock().unwrap().get(&key)?.unwrap();
+                    ChannelFileSender::send(&path, &data.client_sender.as_ref().unwrap())?;
                 }
             }
             Ok(WorkerClientMessage::AskFile(uuid)) => {

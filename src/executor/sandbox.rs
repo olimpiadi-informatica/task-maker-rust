@@ -77,9 +77,9 @@ impl Sandbox {
             exit_status: 0,
             signal: None,
             resources: ExecutionResourcesUsage {
-                cpu_time: 42.0,
-                sys_time: 43.0,
-                wall_time: 90.0,
+                cpu_time: 0.1,
+                sys_time: 0.01,
+                wall_time: 0.11,
                 memory: 1234,
             },
         })

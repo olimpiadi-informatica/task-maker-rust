@@ -2,6 +2,7 @@ use crate::execution::*;
 use crate::executor::*;
 use crate::store::*;
 use failure::Error;
+use std::io::Write;
 
 /// This is a client of the Executor, the client is who sends a DAG for an
 /// evaluation, provides some files and receives the callbacks from the server.
@@ -49,15 +50,33 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::ProvideFile(uuid)) => {
                     info!("Server sent the file {}", uuid);
+                    let iterator = ChannelFileIterator::new(&receiver);
                     if let Some(callback) = dag.file_callbacks.get(&uuid) {
-                        if let Some(write_to) = callback.write_to.as_ref() {
-                            info!("Writing {} to {:?}", uuid, write_to);
-                            // TODO write file
+                        let limit = callback
+                            .get_content
+                            .as_ref()
+                            .map(|(limit, _)| *limit)
+                            .unwrap_or(0);
+                        let mut buffer: Vec<u8> = Vec::new();
+                        let mut file = match &callback.write_to {
+                            Some(path) => Some(std::fs::File::create(path)?),
+                            None => None,
+                        };
+                        for chunk in iterator {
+                            if let Some(file) = &mut file {
+                                file.write_all(&chunk)?;
+                            }
+                            if buffer.len() < limit {
+                                let len = std::cmp::min(chunk.len(), limit - buffer.len());
+                                buffer.extend_from_slice(&chunk[0..len - 1]);
+                            }
                         }
-                        if let Some((_limit, get_content)) = callback.get_content.as_ref() {
-                            get_content(vec![1, 2, 3, 42]);
-                            // TODO send file
+
+                        if let Some(get_content) = callback.get_content.as_ref().map(|(_, f)| f) {
+                            get_content(buffer);
                         }
+                    } else {
+                        iterator.last();
                     }
                 }
                 Ok(ExecutorServerMessage::NotifyStart(uuid, worker)) => {
