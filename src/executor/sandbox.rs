@@ -4,6 +4,7 @@ use failure::Error;
 use std::collections::HashMap;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::{Arc, Mutex};
 use tempdir::TempDir;
 
@@ -68,7 +69,13 @@ impl Sandbox {
             "Running sandbox at {:?}",
             self.data.lock().unwrap().boxdir.path()
         );
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        // TODO spawn the real sandbox here
+        let res = Command::new("/usr/bin/true").output()?;
+        if !res.status.success() {
+            return Ok(SandboxResult::Failed {
+                error: format!("Exited with {}", res.status),
+            });
+        }
         trace!(
             "Sandbox at {:?} completed",
             self.data.lock().unwrap().boxdir.path()
