@@ -33,8 +33,11 @@ fn main() {
         "Compilation of generator.cpp",
         ExecutionCommand::System("g++".to_owned()),
     );
+    let mut limits = ExecutionLimits::default();
+    limits.cpu_time(2.0);
     exec.stdin(&file)
-        .input(&lib, Path::new("test/nested/dir/lib.h"), true);
+        .input(&lib, Path::new("test/nested/dir/lib.h"), true)
+        .limits(limits);
 
     let stdout = exec.stdout();
 

@@ -280,13 +280,34 @@ fn compute_execution_status(
     signal: Option<u32>,
     resources: &ExecutionResourcesUsage,
 ) -> ExecutionStatus {
+    // it's important to check those before the signals because exceeding those
+    // limits may trigger a SIGKILL from the sandbox
+    if let Some(cpu_time_limit) = execution.limits.cpu_time {
+        if resources.cpu_time > cpu_time_limit {
+            return ExecutionStatus::TimeLimitExceeded;
+        }
+    }
+    if let Some(sys_time_limit) = execution.limits.sys_time {
+        if resources.sys_time > sys_time_limit {
+            return ExecutionStatus::SysTimeLimitExceeded;
+        }
+    }
+    if let Some(wall_time_limit) = execution.limits.wall_time {
+        if resources.wall_time > wall_time_limit {
+            return ExecutionStatus::WallTimeLimitExceeded;
+        }
+    }
+    if let Some(memory_limit) = execution.limits.memory {
+        if resources.memory > memory_limit {
+            return ExecutionStatus::MemoryLimitExceeded;
+        }
+    }
     if let Some(signal) = signal {
         return ExecutionStatus::Signal(signal, strsignal(signal));
     }
     if exit_status != 0 {
         return ExecutionStatus::ReturnCode(exit_status);
     }
-    // TODO check time/memory limits
     ExecutionStatus::Success
 }
 

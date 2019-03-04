@@ -69,6 +69,32 @@ pub struct Execution {
     pub inputs: Vec<ExecutionInput>, // TODO change to HashMap
     /// List of the output files that should be capture from the sandbox
     pub outputs: HashMap<PathBuf, File>,
+
+    /// Limits on the execution
+    pub limits: ExecutionLimits,
+}
+
+/// Limits on the execution
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionLimits {
+    /// Limit on the userspace cpu time of the process
+    pub cpu_time: Option<f32>,
+    /// Limit on the kernelspace cpu time of the process
+    pub sys_time: Option<f32>,
+    /// Limit on the total time of execution
+    pub wall_time: Option<f32>,
+    /// Limit on the number of KiB the process can use in any moment
+    pub memory: Option<u64>,
+    /// Limit on the number of threads/processes the process can spawn
+    pub nproc: Option<u32>,
+    /// Limit on the number of file descriptors the process can keep open
+    pub nofile: Option<u32>,
+    /// Maximum size of the files (in bytes) the process can write/create
+    pub fsize: Option<u64>,
+    /// RLIMIT_MEMLOCK
+    pub memlock: Option<u64>,
+    /// Limit on the stack size for the process. 0 means unlimited.
+    pub stack: Option<u64>,
 }
 
 /// Status of a completed Execution
@@ -82,6 +108,8 @@ pub enum ExecutionStatus {
     Signal(u32, String),
     /// The program hasn't exited within the time limit constraint
     TimeLimitExceeded,
+    /// The program hasn't exited within the sys time limit constraint
+    SysTimeLimitExceeded,
     /// The program hasn't exited within the wall time limit constraint
     WallTimeLimitExceeded,
     /// The program has exceeded the memory limit
@@ -114,6 +142,96 @@ pub struct ExecutionResult {
     pub resources: ExecutionResourcesUsage,
 }
 
+impl ExecutionLimits {
+    /// Make an empty limits where all the limits are disabled. You may want to
+    /// use `default` instead of this
+    pub fn new() -> ExecutionLimits {
+        ExecutionLimits {
+            cpu_time: None,
+            sys_time: None,
+            wall_time: None,
+            memory: None,
+            nproc: None,
+            nofile: None,
+            fsize: None,
+            memlock: None,
+            stack: None,
+        }
+    }
+
+    /// Set the cpu time limit
+    pub fn cpu_time(&mut self, limit: f32) -> &mut Self {
+        self.cpu_time = Some(limit);
+        self
+    }
+
+    /// Set the sys time limit
+    pub fn sys_time(&mut self, limit: f32) -> &mut Self {
+        self.sys_time = Some(limit);
+        self
+    }
+
+    /// Set the wall time limit
+    pub fn wall_time(&mut self, limit: f32) -> &mut Self {
+        self.sys_time = Some(limit);
+        self
+    }
+
+    /// Set the memory limit
+    pub fn memory(&mut self, limit: u64) -> &mut Self {
+        self.memory = Some(limit);
+        self
+    }
+
+    /// Set the nproc limit
+    pub fn nproc(&mut self, limit: u32) -> &mut Self {
+        self.nproc = Some(limit);
+        self
+    }
+
+    /// Set the nofile limit
+    pub fn nofile(&mut self, limit: u32) -> &mut Self {
+        self.nofile = Some(limit);
+        self
+    }
+
+    /// Set the fsize limit
+    pub fn fsize(&mut self, limit: u64) -> &mut Self {
+        self.fsize = Some(limit);
+        self
+    }
+
+    /// Set the memlock limit
+    pub fn memlock(&mut self, limit: u64) -> &mut Self {
+        self.memlock = Some(limit);
+        self
+    }
+
+    /// Set the stack limit
+    pub fn stack(&mut self, limit: u64) -> &mut Self {
+        self.stack = Some(limit);
+        self
+    }
+}
+
+impl std::default::Default for ExecutionLimits {
+    /// Default sane values for the execution limits, the limits listed here
+    /// should be safe enough for most of the executions.
+    fn default() -> Self {
+        ExecutionLimits {
+            cpu_time: None,
+            sys_time: None,
+            wall_time: None,
+            memory: None,
+            nproc: Some(1),
+            nofile: None,
+            fsize: Some(1024u64.pow(3)),
+            memlock: None,
+            stack: Some(0),
+        }
+    }
+}
+
 impl Execution {
     /// Create a basic Execution
     pub fn new(description: &str, command: ExecutionCommand) -> Execution {
@@ -129,6 +247,8 @@ impl Execution {
             stderr: None,
             inputs: vec![],
             outputs: HashMap::new(),
+
+            limits: ExecutionLimits::default(),
         }
     }
 
@@ -206,6 +326,12 @@ impl Execution {
         let file = File::new(&format!("Output of '{}' at {:?}", self.description, path));
         self.outputs.insert(path.to_owned(), file);
         self.outputs.get(path).unwrap().clone()
+    }
+
+    /// Set the limits for the execution
+    pub fn limits(&mut self, limits: ExecutionLimits) -> &mut Self {
+        self.limits = limits;
+        self
     }
 }
 
