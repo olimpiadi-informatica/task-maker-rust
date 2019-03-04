@@ -31,8 +31,6 @@ pub enum ExecutionCommand {
 /// An input of an Execution
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionInput {
-    /// Path relative to the sandbox directory
-    pub path: PathBuf,
     /// Uuid of the file
     pub file: FileUuid,
     /// Whether this file should be marked as executable
@@ -66,7 +64,7 @@ pub struct Execution {
     /// Optional standard error to capture
     pub stderr: Option<File>,
     /// List of input files that should be put inside the sandbox
-    pub inputs: Vec<ExecutionInput>, // TODO change to HashMap
+    pub inputs: HashMap<PathBuf, ExecutionInput>,
     /// List of the output files that should be capture from the sandbox
     pub outputs: HashMap<PathBuf, File>,
 
@@ -245,7 +243,7 @@ impl Execution {
             stdin: None,
             stdout: None,
             stderr: None,
-            inputs: vec![],
+            inputs: HashMap::new(),
             outputs: HashMap::new(),
 
             limits: ExecutionLimits::default(),
@@ -258,7 +256,7 @@ impl Execution {
         if let Some(stdin) = self.stdin {
             deps.push(stdin);
         }
-        for input in self.inputs.iter() {
+        for input in self.inputs.values() {
             deps.push(input.file);
         }
         deps
@@ -309,11 +307,13 @@ impl Execution {
     /// Bind a file inside the sandbox to the specified file. Calling again this
     /// method will overwrite the previous value
     pub fn input(&mut self, file: &File, path: &Path, executable: bool) -> &mut Self {
-        self.inputs.push(ExecutionInput {
-            path: path.to_owned(),
-            file: file.uuid.clone(),
-            executable,
-        });
+        self.inputs.insert(
+            path.to_owned(),
+            ExecutionInput {
+                file: file.uuid.clone(),
+                executable,
+            },
+        );
         self
     }
 

@@ -149,9 +149,9 @@ impl Sandbox {
         if execution.stderr.is_some() {
             Sandbox::touch_file(&dir.join("stderr"), 0o600)?;
         }
-        for input in execution.inputs.iter() {
+        for (path, input) in execution.inputs.iter() {
             Sandbox::write_sandbox_file(
-                &dir.join("box").join(&input.path),
+                &dir.join("box").join(&path),
                 dep_keys.get(&input.file).expect("file not provided"),
                 input.executable,
                 file_store,
