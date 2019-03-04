@@ -181,7 +181,7 @@ impl Scheduler {
                 trace!("Leaf file has failed");
                 return;
             }
-            let dependents = data.dependents.get(&file).unwrap().clone(); // TODO: maybe this clone is not necessary
+            let dependents = data.dependents.get(&file).unwrap().clone();
             for exec in dependents.iter() {
                 data.missing_deps.remove(&exec);
                 if data.callbacks.as_ref().unwrap().executions.contains(&exec) {

@@ -122,9 +122,9 @@ impl Worker {
         loop {
             let message = deserialize_from::<WorkerServerMessage>(&self.receiver);
             match message {
-                // TODO add some asserts to check no 2 sandboxes are running in parallel
                 Ok(WorkerServerMessage::Work(job)) => {
                     trace!("Worker {} got job: {:?}", self, job);
+                    assert!(self.current_job.lock().unwrap().current_job.is_none());
                     let mut missing_deps = 0;
                     for input in job.execution.dependencies().iter() {
                         let mut store = self.file_store.lock().unwrap();
