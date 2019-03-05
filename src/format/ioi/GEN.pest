@@ -1,0 +1,23 @@
+// Grammar of the gen/GEN file format:
+// It's line based, each line can be one of the following types:
+//  * comment: # followed by a space, followed by anything till end of line
+//  * subtask: #ST: XX where XX is a positive integer
+//  * copy: #COPY: XX where XX is a path
+//  * command: a list of arguments not starting with #
+
+whitespace = _{ " " | "\t" }
+non_newline = _{ !NEWLINE ~ ANY }
+number = { ASCII_DIGIT+ }
+
+word = { (!whitespace ~ non_newline)+ }
+spaces = _{ whitespace+ }
+
+comment = { "# " ~ non_newline* }
+subtask = { "#ST:" ~ whitespace* ~ number }
+copy = { "#COPY:" ~ whitespace* ~ word }
+command = { !"#" ~ word ~ (spaces ~ word)* ~ whitespace* }
+empty = { "" }
+
+line = { (subtask | copy | comment | command | empty) ~ NEWLINE }
+
+file = { SOI ~ line+ ~ EOI }
