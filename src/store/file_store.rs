@@ -14,6 +14,7 @@ use std::time::Duration;
 const PERSISTENCY_DURATION: Duration = Duration::from_secs(600);
 /// Whether to check the file integrity on the store before getting it
 const CHECK_INTEGRITY: bool = true;
+const FILE_STORE_FILE: &str = "store_info";
 
 /// The type of an hash of a file
 type HashData = Vec<u8>;
@@ -36,7 +37,7 @@ pub struct FileStore {
 
 /// Handle of a file in the FileStore, this must be computables given the
 /// content of the file, i.e. an hash of the content.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub struct FileStoreKey {
     /// An hash of the content of the file
     hash: HashData,
@@ -137,7 +138,7 @@ impl FileStore {
     /// another instance of a FileStore is locking the data file.
     pub fn new(base_path: &Path) -> Result<FileStore, Error> {
         std::fs::create_dir_all(base_path)?;
-        let path = Path::new(base_path).join("store_info");
+        let path = Path::new(base_path).join(FILE_STORE_FILE);
         if !path.exists() {
             serde_json::to_writer(File::create(&path)?, &FileStoreData::new())?;
         }
@@ -313,5 +314,273 @@ impl FileStore {
             Ok(key2) => key2.hash == key.hash,
             Err(_) => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::{assert_eq, assert_ne};
+    use std::fs::*;
+    use std::io::{Read, Write};
+    use tempdir::TempDir;
+
+    fn get_cwd() -> TempDir {
+        tempdir::TempDir::new("tmtest").unwrap()
+    }
+
+    fn fake_key() -> FileStoreKey {
+        FileStoreKey {
+            hash: vec![1, 2, 3, 4, 5, 6, 7, 8],
+        }
+    }
+
+    fn fake_file(path: &Path, content: &str) -> FileStoreKey {
+        File::create(path)
+            .unwrap()
+            .write_all(&content.as_bytes())
+            .unwrap();
+        FileStoreKey::from_file(path).unwrap()
+    }
+
+    fn add_file_to_store(path: &Path, content: &str, store: &mut FileStore) -> FileStoreKey {
+        let key = fake_file(path, content);
+        let iter = ReadFileIterator::new(path).unwrap();
+        store.store(&key, iter).unwrap();
+        key
+    }
+
+    fn corrupt_file(path: &Path) {
+        {
+            let file = File::open(&path).unwrap();
+            let mut perm = file.metadata().unwrap().permissions();
+            perm.set_readonly(false);
+            file.set_permissions(perm).unwrap();
+        }
+        OpenOptions::new()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .write_all("lol".as_bytes())
+            .unwrap();
+    }
+
+    #[test]
+    fn test_new_filestore() {
+        let cwd = get_cwd();
+        let _store = FileStore::new(cwd.path()).unwrap();
+        assert!(cwd.path().join(FILE_STORE_FILE).exists());
+    }
+
+    #[test]
+    fn test_new_filestore_concurrent() {
+        use std::time::*;
+
+        let cwd = get_cwd();
+        let store_dir = cwd.path().to_owned();
+        let store = FileStore::new(cwd.path()).unwrap();
+        let thr = std::thread::spawn(move || {
+            let start = Instant::now();
+            let _store = FileStore::new(&store_dir).unwrap();
+            let end = Instant::now();
+            assert!(end - start >= Duration::from_millis(300));
+        });
+        std::thread::sleep(Duration::from_millis(500));
+        drop(store);
+        thr.join().unwrap();
+    }
+
+    #[test]
+    fn test_corrupted_filestore() {
+        let cwd = get_cwd();
+        File::create(cwd.path().join(FILE_STORE_FILE))
+            .unwrap()
+            .write(&vec![1, 2, 3, 4, 5])
+            .unwrap();
+        assert!(FileStore::new(cwd.path()).is_err());
+    }
+
+    #[test]
+    fn test_store() {
+        let cwd = get_cwd();
+        let mut store = FileStore::new(cwd.path()).unwrap();
+        let key = add_file_to_store(&cwd.path().join("test.txt"), "test", &mut store);
+        let path_in_store = store.key_to_path(&key);
+        assert!(path_in_store.exists());
+        let mut content = String::new();
+        File::open(&path_in_store)
+            .unwrap()
+            .read_to_string(&mut content)
+            .unwrap();
+        assert_eq!(&content, "test");
+        assert!(File::open(&path_in_store)
+            .unwrap()
+            .metadata()
+            .unwrap()
+            .permissions()
+            .readonly());
+    }
+
+    #[test]
+    fn test_get() {
+        let cwd = get_cwd();
+        let mut store = FileStore::new(cwd.path()).unwrap();
+        let key = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &mut store);
+        let path = store.get(&key).unwrap();
+        let path_in_store = store.key_to_path(&key);
+        assert_eq!(Some(path_in_store), path);
+    }
+
+    #[test]
+    fn test_get_removed() {
+        let cwd = get_cwd();
+        let mut store = FileStore::new(cwd.path()).unwrap();
+        let key = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &mut store);
+        let path_in_store = store.key_to_path(&key);
+        remove_file(path_in_store).unwrap();
+        let path = store.get(&key).unwrap();
+        assert_eq!(None, path);
+    }
+
+    #[test]
+    fn test_get_not_known() {
+        let cwd = get_cwd();
+        let mut store = FileStore::new(cwd.path()).unwrap();
+        let key = fake_file(&cwd.path().join("test.txt"), "ciao");
+        let path = store.get(&key).unwrap();
+        assert_eq!(None, path);
+    }
+
+    #[test]
+    fn test_corrupted_file() {
+        if !CHECK_INTEGRITY {
+            return;
+        }
+        let cwd = get_cwd();
+        let mut store = FileStore::new(cwd.path()).unwrap();
+        let key = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &mut store);
+        let path_in_store = store.key_to_path(&key);
+        corrupt_file(&path_in_store);
+        let path = store.get(&key).unwrap();
+        assert_eq!(None, path);
+    }
+
+    #[test]
+    fn test_has_key() {
+        let cwd = get_cwd();
+        let mut store = FileStore::new(cwd.path()).unwrap();
+        let key = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &mut store);
+        assert!(store.has_key(&key));
+    }
+
+    #[test]
+    fn test_has_key_not_present() {
+        let cwd = get_cwd();
+        let mut store = FileStore::new(cwd.path()).unwrap();
+        let key = fake_file(&cwd.path().join("test.txt"), "ciaone");
+        assert!(!store.has_key(&key));
+    }
+
+    #[test]
+    fn test_has_key_corrupted() {
+        if !CHECK_INTEGRITY {
+            return;
+        }
+        let cwd = get_cwd();
+        let mut store = FileStore::new(cwd.path()).unwrap();
+        let key = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &mut store);
+        let path = store.key_to_path(&key);
+        corrupt_file(&path);
+        assert!(!store.has_key(&key));
+    }
+
+    #[test]
+    fn test_key_to_path() {
+        let cwd = get_cwd();
+        let store = FileStore::new(cwd.path()).unwrap();
+        let key = fake_file(&cwd.path().join("test.txt"), "ciao");
+        let path = store.key_to_path(&key);
+        assert!(path.starts_with(store.base_path));
+        assert!(path.ends_with(key.to_string()));
+    }
+
+    #[test]
+    fn test_mark_readonly() {
+        let cwd = get_cwd();
+        let path = cwd.path().join("test.txt");
+        File::create(&path).unwrap();
+        FileStore::mark_readonly(&path).unwrap();
+        assert!(File::open(&path)
+            .unwrap()
+            .metadata()
+            .unwrap()
+            .permissions()
+            .readonly());
+    }
+
+    #[test]
+    fn test_remove_file() {
+        let cwd = get_cwd();
+        let path = cwd.path().join("test.txt");
+        File::create(&path).unwrap();
+        FileStore::mark_readonly(&path).unwrap();
+        FileStore::remove_file(&path).unwrap();
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn test_check_integrity() {
+        let cwd = get_cwd();
+        let mut store = FileStore::new(&cwd.path()).unwrap();
+        let key = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &mut store);
+        let path = store.key_to_path(&key);
+        corrupt_file(&path);
+        assert!(!store.check_integrity(&key));
+    }
+
+    // TODO add tests for read_store_file
+
+    #[test]
+    fn test_file_store_data_get_mut() {
+        let mut data = FileStoreData::new();
+        let key = fake_key();
+        let date = Utc::now();
+        data.items.insert(key.to_string(), FileStoreItem::new());
+        data.get_mut(&key).persistent = date;
+        assert_eq!(data.get_mut(&key).persistent, date);
+    }
+
+    #[test]
+    fn test_file_store_data_get_mut_create() {
+        let mut data = FileStoreData::new();
+        let key = fake_key();
+        let date = Utc::now();
+        data.get_mut(&key).persistent = date;
+        assert_eq!(data.get_mut(&key).persistent, date);
+    }
+
+    #[test]
+    fn test_file_store_data_remove() {
+        let mut data = FileStoreData::new();
+        let key = fake_key();
+        data.items.insert(key.to_string(), FileStoreItem::new());
+        data.remove(&key);
+        assert!(!data.items.contains_key(&key.to_string()));
+    }
+
+    #[test]
+    fn test_file_store_key_from_file() {
+        let cwd = get_cwd();
+        fake_file(&cwd.path().join("file1a.txt"), "ciao");
+        fake_file(&cwd.path().join("file1b.txt"), "ciao");
+        fake_file(&cwd.path().join("file2.txt"), "ciaone");
+
+        let key1a = FileStoreKey::from_file(&cwd.path().join("file1a.txt")).unwrap();
+        let key1b = FileStoreKey::from_file(&cwd.path().join("file1b.txt")).unwrap();
+        let key2 = FileStoreKey::from_file(&cwd.path().join("file2.txt")).unwrap();
+
+        assert_eq!(key1a, key1b);
+        assert_ne!(key1a, key2);
+        assert_ne!(key1b, key2);
     }
 }

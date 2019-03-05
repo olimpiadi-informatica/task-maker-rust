@@ -7,6 +7,8 @@ extern crate chrono;
 extern crate env_logger;
 extern crate fs2;
 extern crate hex;
+#[cfg(test)]
+extern crate pretty_assertions;
 extern crate tempdir;
 
 pub mod execution;

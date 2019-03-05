@@ -38,3 +38,129 @@ impl Iterator for ReadFileIterator {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+    use std::io::Write;
+    use tempdir::TempDir;
+
+    fn get_cwd() -> TempDir {
+        tempdir::TempDir::new("tmtest").unwrap()
+    }
+
+    fn fake_file(path: &Path, content: Vec<u8>) {
+        File::create(path).unwrap().write_all(&content).unwrap();
+    }
+
+    #[test]
+    fn test_read_file_iterator_404() {
+        let cwd = get_cwd();
+        let path = cwd.path().join("file.txt");
+        let iter = ReadFileIterator::new(&path);
+        assert!(iter.is_err());
+    }
+
+    #[test]
+    fn test_read_file_iterator_empty_file() {
+        let cwd = get_cwd();
+        let path = cwd.path().join("file.txt");
+        fake_file(&path, vec![]);
+        let mut iter = ReadFileIterator::new(&path).unwrap();
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_read_file_iterator_small_file() {
+        let cwd = get_cwd();
+        let path = cwd.path().join("file.txt");
+        fake_file(&path, vec![1, 2, 3, 4]);
+        let mut iter = ReadFileIterator::new(&path).unwrap();
+        let chunk = iter.next();
+        assert_eq!(chunk, Some(vec![1, 2, 3, 4]));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_read_file_iterator_chunk_file() {
+        let cwd = get_cwd();
+        let path = cwd.path().join("file.txt");
+        let mut content = Vec::new();
+        for _ in 0..READ_FILE_BUFFER_SIZE {
+            content.push(123);
+        }
+        fake_file(&path, content.clone());
+        let mut iter = ReadFileIterator::new(&path).unwrap();
+        let chunk = iter.next();
+        assert_eq!(chunk, Some(content));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_read_file_iterator_chunk_and_a_half_file() {
+        let cwd = get_cwd();
+        let path = cwd.path().join("file.txt");
+        let mut content = Vec::new();
+        for _ in 0..READ_FILE_BUFFER_SIZE + 1 {
+            content.push(123);
+        }
+        fake_file(&path, content.clone());
+        let mut iter = ReadFileIterator::new(&path).unwrap();
+        assert_eq!(
+            iter.next(),
+            Some(content[0..READ_FILE_BUFFER_SIZE].to_owned())
+        );
+        assert_eq!(iter.next(), Some(vec![123]));
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_read_file_iterator_many_chunks_file() {
+        let cwd = get_cwd();
+        let path = cwd.path().join("file.txt");
+        let mut content = Vec::new();
+        let num_chunks = 3;
+        for _ in 0..READ_FILE_BUFFER_SIZE * num_chunks {
+            content.push(123);
+        }
+        fake_file(&path, content);
+        let mut iter = ReadFileIterator::new(&path).unwrap();
+        for _ in 0..num_chunks {
+            let chunk = iter.next().unwrap();
+            assert_eq!(chunk.len(), READ_FILE_BUFFER_SIZE);
+            assert!(chunk.iter().all(|c| c == &123));
+        }
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_read_file_iterator_random_file() {
+        let cwd = get_cwd();
+        let path = cwd.path().join("file.txt");
+        let mut content = Vec::new();
+        let num_chunks = 3;
+        let change = 123;
+        for i in 0..READ_FILE_BUFFER_SIZE * num_chunks + change {
+            content.push(i as u8);
+        }
+        fake_file(&path, content.clone());
+        let mut iter = ReadFileIterator::new(&path).unwrap();
+        let mut pos = 0;
+        for _ in 0..num_chunks {
+            let chunk = iter.next().unwrap();
+            assert_eq!(chunk.len(), READ_FILE_BUFFER_SIZE);
+            for b in chunk {
+                assert_eq!(b, content[pos]);
+                pos += 1;
+            }
+        }
+        let chunk = iter.next().unwrap();
+        for b in chunk {
+            assert_eq!(b, content[pos]);
+            pos += 1;
+        }
+        assert_eq!(pos, content.len());
+        assert_eq!(iter.next(), None);
+    }
+}
