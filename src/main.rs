@@ -49,13 +49,13 @@ fn main() {
         .write_stdout_to(Path::new("/tmp/stdout"))
         .write_stderr_to(Path::new("/tmp/stderr"))
         .write_output_to(Path::new("a.out"), Path::new("/tmp/output"))
-        .get_output_content(Path::new("a.out"), 100, &|content| {
+        .get_output_content(Path::new("a.out"), 100, |content| {
             warn!("a.out: {:?}", content)
         })
-        .get_stdout_content(100, &|content| warn!("stdout: {:?}", content))
-        .get_stderr_content(100, &|content| warn!("stderr: {:?}", content));
+        .get_stdout_content(100, |content| warn!("stdout: {:?}", content))
+        .get_stderr_content(100, |content| warn!("stderr: {:?}", content));
 
-    for i in 0..1 {
+    for i in 0..10 {
         let mut exec = Execution::new(
             &format!("Execution {}", i),
             ExecutionCommand::System("g++".to_owned()),
@@ -77,8 +77,8 @@ fn main() {
     exec3.stdin(&stdout2);
     dag.add_execution(exec3);
 
-    dag.provide_file(lib, Path::new("/tmp/testfile"));
-    dag.provide_file(file, Path::new("/tmp/testfile"));
+    dag.provide_file(lib, Path::new("/dev/null"));
+    dag.provide_file(file, Path::new("/dev/null"));
 
     trace!("{:#?}", dag);
 
@@ -88,7 +88,7 @@ fn main() {
     let server = thread::spawn(move || {
         let file_store =
             FileStore::new(Path::new("/tmp/store")).expect("Cannot create the file store");
-        let mut executor = executor::LocalExecutor::new(Arc::new(Mutex::new(file_store)), 2);
+        let mut executor = executor::LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
         executor.evaluate(tx_remote, rx_remote).unwrap();
     });
     executor::ExecutorClient::evaluate(dag, tx, rx).unwrap();

@@ -97,7 +97,8 @@ impl ExecutionDAG {
             file.uuid.clone(),
             ProvidedFile {
                 file,
-                key: FileStoreKey::from_file(path).expect("Cannot compute FileStoreKey"),
+                key: FileStoreKey::from_file(path)
+                    .expect(&format!("Cannot compute FileStoreKey for {:?}", path)),
                 local_path: path.to_owned(),
             },
         );
