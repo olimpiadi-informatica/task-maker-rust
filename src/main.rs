@@ -48,18 +48,15 @@ fn main() {
         .limits(limits);
 
     let stdout = exec.stdout();
-
+    dag.write_file_to(&stdout, Path::new("/tmp/stdout"));
+    dag.write_file_to(&exec.stderr(), Path::new("/tmp/stderr"));
+    dag.write_file_to(&exec.output(Path::new("a.out")), Path::new("/tmp/output"));
+    dag.get_file_content(&exec.output(Path::new("a.out")), 100, |content| {
+        warn!("a.out: {:?}", content)
+    });
     dag.add_execution(exec)
         .on_start(move |w| warn!("Started on {}!", w))
-        .on_done(move |res| warn!("Exec result {:?}", res))
-        .write_stdout_to(Path::new("/tmp/stdout"))
-        .write_stderr_to(Path::new("/tmp/stderr"))
-        .write_output_to(Path::new("a.out"), Path::new("/tmp/output"))
-        .get_output_content(Path::new("a.out"), 100, |content| {
-            warn!("a.out: {:?}", content)
-        })
-        .get_stdout_content(100, |content| warn!("stdout: {:?}", content))
-        .get_stderr_content(100, |content| warn!("stderr: {:?}", content));
+        .on_done(move |res| warn!("Exec result {:?}", res));
 
     for i in 0..10 {
         let mut exec = Execution::new(

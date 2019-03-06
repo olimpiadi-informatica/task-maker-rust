@@ -116,6 +116,32 @@ impl ExecutionDAG {
             dag: self,
         }
     }
+
+    /// When `file` is ready it will be written to `path`. The file must be
+    /// present in the dag before the evaluation starts.
+    pub fn write_file_to(&mut self, file: &File, path: &Path) {
+        self.file_callback(&file.uuid).write_to = Some(path.to_owned());
+    }
+
+    /// Call `callback` with the first `limit` bytes of the file when it's
+    /// ready. The file must be present in the dag before the evaluation
+    /// starts.
+    pub fn get_file_content<F>(&mut self, file: &File, limit: usize, callback: F)
+    where
+        F: (Fn(Vec<u8>) -> ()) + 'static,
+    {
+        self.file_callback(&file.uuid).get_content = Some((limit, Box::new(callback)));
+    }
+
+    /// Makes sure that a callback item exists for that file and returns a &mut
+    /// to it.
+    fn file_callback(&mut self, file: &FileUuid) -> &mut FileCallbacks {
+        if !self.file_callbacks.contains_key(file) {
+            self.file_callbacks
+                .insert(file.clone(), FileCallbacks::default());
+        }
+        self.file_callbacks.get_mut(&file).unwrap()
+    }
 }
 
 impl<'a> AddExecutionWrapper<'a> {
@@ -144,91 +170,6 @@ impl<'a> AddExecutionWrapper<'a> {
     {
         self.ensure_execution_callback().on_skip = Some(Box::new(callback));
         self
-    }
-
-    /// Write the standard output of the execution to `path`
-    pub fn write_stdout_to(mut self, path: &Path) -> AddExecutionWrapper<'a> {
-        let uuid = self.get_execution().stdout().uuid.clone();
-        self.write_file_to(path, uuid);
-        self
-    }
-
-    /// Write the standard error of the execution to `path`
-    pub fn write_stderr_to(mut self, path: &Path) -> AddExecutionWrapper<'a> {
-        let uuid = self.get_execution().stderr().uuid.clone();
-        self.write_file_to(path, uuid);
-        self
-    }
-
-    /// Write the output of the execution at `output` to `path`
-    pub fn write_output_to(mut self, output: &Path, path: &Path) -> AddExecutionWrapper<'a> {
-        let uuid = self.get_execution().output(output).uuid.clone();
-        self.write_file_to(path, uuid);
-        self
-    }
-
-    /// Set that callback that will be called with the first `limit` bytes of
-    /// the standard output
-    pub fn get_stdout_content<F>(mut self, limit: usize, callback: F) -> AddExecutionWrapper<'a>
-    where
-        F: (Fn(Vec<u8>) -> ()) + 'static,
-    {
-        let uuid = self.get_execution().stdout().uuid.clone();
-        self.bind_get_content(limit, Box::new(callback), uuid);
-        self
-    }
-
-    /// Set that callback that will be called with the first `limit` bytes of
-    /// the standard error
-    pub fn get_stderr_content<F>(mut self, limit: usize, callback: F) -> AddExecutionWrapper<'a>
-    where
-        F: (Fn(Vec<u8>) -> ()) + 'static,
-    {
-        let uuid = self.get_execution().stderr().uuid.clone();
-        self.bind_get_content(limit, Box::new(callback), uuid);
-        self
-    }
-
-    /// Set that callback that will be called with the first `limit` bytes of
-    /// the file at `output`
-    pub fn get_output_content<F>(
-        mut self,
-        output: &Path,
-        limit: usize,
-        callback: F,
-    ) -> AddExecutionWrapper<'a>
-    where
-        F: (Fn(Vec<u8>) -> ()) + 'static,
-    {
-        let uuid = self.get_execution().output(output).uuid.clone();
-        self.bind_get_content(limit, Box::new(callback), uuid);
-        self
-    }
-
-    /// Ensures the callback is present and store the path of where to store
-    /// the file
-    fn write_file_to(&mut self, path: &Path, uuid: FileUuid) {
-        self.ensure_file_callback(&uuid);
-        self.dag.file_callbacks.get_mut(&uuid).unwrap().write_to = Some(path.to_owned());
-    }
-
-    /// Ensures the callback is present and store the callback
-    fn bind_get_content(
-        &mut self,
-        limit: usize,
-        callback: Box<GetContentCallback>,
-        uuid: FileUuid,
-    ) {
-        self.ensure_file_callback(&uuid);
-        self.dag.file_callbacks.get_mut(&uuid).unwrap().get_content = Some((limit, callback));
-    }
-
-    fn ensure_file_callback(&mut self, uuid: &FileUuid) {
-        if !self.dag.file_callbacks.contains_key(&uuid) {
-            self.dag
-                .file_callbacks
-                .insert(uuid.clone(), FileCallbacks::default());
-        }
     }
 
     fn ensure_execution_callback(&mut self) -> &mut ExecutionCallbacks {
