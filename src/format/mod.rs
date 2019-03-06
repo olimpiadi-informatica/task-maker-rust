@@ -108,7 +108,7 @@ pub trait SubtaskInfo {
     fn max_score(&self) -> f64;
 
     /// Score mode of this subtask
-    fn score_mode(&self);
+    fn score_mode(&self) -> String;
 }
 
 /// Some basic information about a testcase.
@@ -186,7 +186,7 @@ pub trait Task {
     ) -> Box<Checker<Self::SubtaskId, Self::TestcaseId, F>>;
 
     /// Starts the actual evaluation of the task
-    fn evaluate<O>(&self, dag: &mut ExecutionDAG, _options: O)
+    fn evaluate<O>(&self, dag: &mut ExecutionDAG, options: O)
     where
         O: EvaluationOptions,
     {
@@ -201,7 +201,9 @@ pub trait Task {
                     .generator(*st_num, *tc_num)
                     .generate(dag, *st_num, *tc_num);
                 if let Some(path) = tc.write_input_to() {
-                    dag.write_file_to(&input, &path);
+                    if !options.dry_run() {
+                        dag.write_file_to(&input, &path);
+                    }
                 }
                 let val = if let Some(validator) = self.validator(*st_num, *tc_num) {
                     Some(validator.validate(dag, input.clone(), *st_num, *tc_num))
@@ -220,7 +222,9 @@ pub trait Task {
                     None
                 };
                 if let (Some(ref output), Some(ref path)) = (&output, &tc.write_output_to()) {
-                    dag.write_file_to(&output, &path);
+                    if !options.dry_run() {
+                        dag.write_file_to(&output, &path);
+                    }
                 }
 
                 inputs.get_mut(&st_num).unwrap().insert(*tc_num, input);

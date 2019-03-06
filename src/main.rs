@@ -1,5 +1,6 @@
 extern crate serde;
 extern crate serde_json;
+extern crate serde_yaml;
 extern crate uuid;
 #[macro_use]
 extern crate log;
@@ -33,6 +34,14 @@ fn main() {
 
     println!("Tmbox: {}/bin/tmbox", env!("OUT_DIR"));
 
+    println!(
+        "{:#?}",
+        serde_yaml::from_reader::<_, crate::format::ioi::IOITaskYAML>(
+            std::fs::File::open("/tmp/task.yaml").unwrap()
+        )
+    );
+
+    return;
     format::ioi::parse();
 
     let mut dag = ExecutionDAG::new();
