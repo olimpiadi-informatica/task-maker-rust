@@ -1,9 +1,14 @@
+use crate::format::ioi::*;
 use crate::format::*;
 
 pub type IOIBatchSubtaskId = u32;
 pub type IOIBatchTestcaseId = u32;
 
-pub struct IOIBatchTask;
+pub struct IOIBatchTask {
+    pub info: IOITaskInfo,
+}
+
+pub struct IOIBatchSubtaskInfo;
 
 pub struct IOIBatchTestcaseInfo;
 
@@ -59,7 +64,7 @@ where
         &self,
         dag: &mut ExecutionDAG,
         input: File,
-        output: File,
+        output: Option<File>,
         test: File,
         subtask: IOIBatchSubtaskId,
         testcase: IOIBatchTestcaseId,
@@ -78,9 +83,19 @@ impl TestcaseInfo for IOIBatchTestcaseInfo {
     }
 }
 
+impl SubtaskInfo for IOIBatchSubtaskInfo {
+    fn max_score(&self) -> f64 {
+        unimplemented!();
+    }
+    fn score_mode(&self) {
+        unimplemented!();
+    }
+}
+
 impl Task for IOIBatchTask {
     type SubtaskId = IOIBatchSubtaskId;
     type TestcaseId = IOIBatchTestcaseId;
+    type SubtaskInfo = IOIBatchSubtaskInfo;
     type TestcaseInfo = IOIBatchTestcaseInfo;
 
     fn format() -> &'static str {
@@ -95,7 +110,11 @@ impl Task for IOIBatchTask {
         unimplemented!();
     }
 
-    fn subtasks(&self) -> HashMap<Self::SubtaskId, HashMap<Self::TestcaseId, Self::TestcaseInfo>> {
+    fn subtasks(&self) -> HashMap<Self::SubtaskId, Self::SubtaskInfo> {
+        unimplemented!();
+    }
+
+    fn testcases(&self, subtask: Self::SubtaskId) -> HashMap<Self::TestcaseId, Self::TestcaseInfo> {
         unimplemented!();
     }
 

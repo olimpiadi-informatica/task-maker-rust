@@ -27,6 +27,8 @@ impl CheckerResult {
     }
 }
 
+/// A trait that describes what is a generator: something that knowing which
+/// testcase produces an input file
 pub trait Generator<SubtaskId, TestcaseId>
 where
     SubtaskId: Eq + PartialOrd + Hash + Copy,
@@ -37,6 +39,9 @@ where
     fn generate(&self, dag: &mut ExecutionDAG, subtask: SubtaskId, testcase: TestcaseId) -> File;
 }
 
+/// A trait that describes what is a validator: something that known which
+/// testcase and given that input file checks if it respects all
+/// constraints.
 pub trait Validator<SubtaskId, TestcaseId>
 where
     SubtaskId: Eq + PartialOrd + Hash + Copy,
@@ -53,6 +58,9 @@ where
     ) -> File;
 }
 
+/// A trait that describes what is a solution: something that given an input
+/// file produces an output file. An extra parameter `validation` is supplied
+/// to make sure that the validation (if any) comes before.
 pub trait Solution<SubtaskId, TestcaseId>
 where
     SubtaskId: Eq + PartialOrd + Hash + Copy,
@@ -70,6 +78,9 @@ where
     ) -> File;
 }
 
+/// A trait that describes what is a checker: something that given an input
+/// file, an optional correct output file and the contestant's output file
+/// computes a score (and eventually message) for that testcase.
 pub trait Checker<SubtaskId, TestcaseId, F>
 where
     SubtaskId: Eq + PartialOrd + Hash + Copy,
@@ -82,14 +93,25 @@ where
         &self,
         dag: &mut ExecutionDAG,
         input: File,
-        output: File,
+        output: Option<File>,
         test: File,
         subtask: SubtaskId,
         testcase: TestcaseId,
+        // TODO maybe tell the checker which solution it is checking
         callback: F,
     );
 }
 
+/// Some basic information about a subtask
+pub trait SubtaskInfo {
+    /// Maximum score of this subtask
+    fn max_score(&self) -> f64;
+
+    /// Score mode of this subtask
+    fn score_mode(&self);
+}
+
+/// Some basic information about a testcase.
 pub trait TestcaseInfo {
     /// Write the input file to this path if it's not a dry-run
     fn write_input_to(&self) -> Option<PathBuf>;
@@ -98,6 +120,7 @@ pub trait TestcaseInfo {
     fn write_output_to(&self) -> Option<PathBuf>;
 }
 
+/// The options for an evaluation
 pub trait EvaluationOptions {
     /// Whether the input/output files should be written somewhere
     fn dry_run(&self) -> bool;
@@ -111,6 +134,8 @@ pub trait Task {
     type SubtaskId: Eq + PartialOrd + Hash + Copy;
     /// Type of the identifier of a testcase
     type TestcaseId: Eq + PartialOrd + Hash + Copy;
+    /// Type of the information about a subtask
+    type SubtaskInfo: SubtaskInfo;
     /// Type of the information about a testcase
     type TestcaseInfo: TestcaseInfo;
 
@@ -123,8 +148,11 @@ pub trait Task {
     /// Title of the task (the long one)
     fn title(&self) -> String;
 
-    /// The list of testcases and subtasks for this task
-    fn subtasks(&self) -> HashMap<Self::SubtaskId, HashMap<Self::TestcaseId, Self::TestcaseInfo>>;
+    /// The list of the subtasks for this task
+    fn subtasks(&self) -> HashMap<Self::SubtaskId, Self::SubtaskInfo>;
+
+    /// The list of the testcases for that subtask
+    fn testcases(&self, subtask: Self::SubtaskId) -> HashMap<Self::TestcaseId, Self::TestcaseInfo>;
 
     /// The list of known solution files
     fn solutions(&self) -> HashMap<PathBuf, &Solution<Self::SubtaskId, Self::TestcaseId>>;
@@ -168,7 +196,7 @@ pub trait Task {
         for (st_num, st) in subtasks.iter() {
             inputs.insert(*st_num, HashMap::new());
             outputs.insert(*st_num, HashMap::new());
-            for (tc_num, tc) in st.iter() {
+            for (tc_num, tc) in self.testcases(*st_num).iter() {
                 let input = self
                     .generator(*st_num, *tc_num)
                     .generate(dag, *st_num, *tc_num);

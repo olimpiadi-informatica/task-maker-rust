@@ -64,12 +64,13 @@ where
         &self,
         dag: &mut ExecutionDAG,
         _input: File,
-        output: File,
+        output: Option<File>,
         test: File,
         _subtask: SubtaskId,
         _testcase: TestcaseId,
         callback: F,
     ) {
+        let output = output.expect("WhiteDiffChecker requires the input file to be present");
         let mut exec = Execution::new(
             "Whitediff checker",
             ExecutionCommand::System("diff".to_owned()),
