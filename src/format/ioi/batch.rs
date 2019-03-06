@@ -30,7 +30,7 @@ impl Validator<IOIBatchSubtaskId, IOIBatchTestcaseId> for IOIBatchValidator {
     fn validate(
         &self,
         dag: &mut ExecutionDAG,
-        input: FileUuid,
+        input: File,
         subtask: IOIBatchSubtaskId,
         testcase: IOIBatchTestcaseId,
     ) -> File {
@@ -42,8 +42,8 @@ impl Solution<IOIBatchSubtaskId, IOIBatchTestcaseId> for IOIBatchSolution {
     fn solve(
         &self,
         dag: &mut ExecutionDAG,
-        input: FileUuid,
-        validation: Option<FileUuid>,
+        input: File,
+        validation: Option<File>,
         subtask: IOIBatchSubtaskId,
         testcase: IOIBatchTestcaseId,
     ) -> File {
@@ -53,14 +53,14 @@ impl Solution<IOIBatchSubtaskId, IOIBatchTestcaseId> for IOIBatchSolution {
 
 impl<F> Checker<IOIBatchSubtaskId, IOIBatchTestcaseId, F> for IOIBatchChecker
 where
-    F: Fn(CheckerResult) -> (),
+    F: Fn(CheckerResult) -> () + 'static,
 {
     fn check(
         &self,
         dag: &mut ExecutionDAG,
-        input: FileUuid,
-        output: FileUuid,
-        test: FileUuid,
+        input: File,
+        output: File,
+        test: File,
         subtask: IOIBatchSubtaskId,
         testcase: IOIBatchTestcaseId,
         callback: F,

@@ -9,7 +9,23 @@ pub mod ioi;
 pub use common::*;
 
 /// The result of the checking process
-pub struct CheckerResult {}
+pub struct CheckerResult {
+    /// Value from 0.0 (not correct) to 1.0 (correct) with the score of the
+    /// solution
+    pub score: f64,
+    /// Optional message from the checker
+    pub message: Option<String>,
+}
+
+impl CheckerResult {
+    /// Make a new CheckerResult
+    pub fn new(score: f64, message: Option<&str>) -> CheckerResult {
+        CheckerResult {
+            score,
+            message: message.map(|s| s.to_owned()),
+        }
+    }
+}
 
 pub trait Generator<SubtaskId, TestcaseId>
 where
@@ -31,7 +47,7 @@ where
     fn validate(
         &self,
         dag: &mut ExecutionDAG,
-        input: FileUuid,
+        input: File,
         subtask: SubtaskId,
         testcase: TestcaseId,
     ) -> File;
@@ -47,8 +63,8 @@ where
     fn solve(
         &self,
         dag: &mut ExecutionDAG,
-        input: FileUuid,
-        validation: Option<FileUuid>,
+        input: File,
+        validation: Option<File>,
         subtask: SubtaskId,
         testcase: TestcaseId,
     ) -> File;
@@ -58,16 +74,16 @@ pub trait Checker<SubtaskId, TestcaseId, F>
 where
     SubtaskId: Eq + PartialOrd + Hash + Copy,
     TestcaseId: Eq + PartialOrd + Hash + Copy,
-    F: Fn(CheckerResult) -> (),
+    F: Fn(CheckerResult) -> () + 'static,
 {
     /// Add the checking process to the DAG and call the callback when the
     /// checker is done
     fn check(
         &self,
         dag: &mut ExecutionDAG,
-        input: FileUuid,
-        output: FileUuid,
-        test: FileUuid,
+        input: File,
+        output: File,
+        test: File,
         subtask: SubtaskId,
         testcase: TestcaseId,
         callback: F,
@@ -160,15 +176,15 @@ pub trait Task {
                     dag.write_file_to(&input, &path);
                 }
                 let val = if let Some(validator) = self.validator(*st_num, *tc_num) {
-                    Some(validator.validate(dag, input.uuid.clone(), *st_num, *tc_num))
+                    Some(validator.validate(dag, input.clone(), *st_num, *tc_num))
                 } else {
                     None
                 };
                 let output = if let Some(solution) = self.official_solution(*st_num, *tc_num) {
                     Some(solution.solve(
                         dag,
-                        input.uuid.clone(),
-                        val.map(|f| f.uuid.clone()),
+                        input.clone(),
+                        val.map(|f| f.clone()),
                         *st_num,
                         *tc_num,
                     ))

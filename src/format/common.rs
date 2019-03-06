@@ -1,7 +1,6 @@
-use crate::execution::*;
 use crate::format::*;
 use std::hash::Hash;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// A generator/solution that will simply use a static file
 pub struct StaticFileProvider {
@@ -18,6 +17,11 @@ impl StaticFileProvider {
         StaticFileProvider { description, path }
     }
 }
+
+/// A checker that compares the output files ignoring the whitespaces
+///
+/// It uses `diff --ignore-all-spaces correct test`
+pub struct WhiteDiffChecker;
 
 impl<SubtaskId, TestcaseId> Generator<SubtaskId, TestcaseId> for StaticFileProvider
 where
@@ -39,13 +43,48 @@ where
     fn solve(
         &self,
         dag: &mut ExecutionDAG,
-        _input: FileUuid,
-        _validation: Option<FileUuid>,
+        _input: File,
+        _validation: Option<File>,
         _subtask: SubtaskId,
         _testcase: TestcaseId,
     ) -> File {
         let file = File::new(&self.description);
         dag.provide_file(file.clone(), &self.path);
         file
+    }
+}
+
+impl<SubtaskId, TestcaseId, F> Checker<SubtaskId, TestcaseId, F> for WhiteDiffChecker
+where
+    SubtaskId: Eq + PartialOrd + Hash + Copy,
+    TestcaseId: Eq + PartialOrd + Hash + Copy,
+    F: Fn(CheckerResult) -> () + 'static,
+{
+    fn check(
+        &self,
+        dag: &mut ExecutionDAG,
+        _input: File,
+        output: File,
+        test: File,
+        _subtask: SubtaskId,
+        _testcase: TestcaseId,
+        callback: F,
+    ) {
+        let mut exec = Execution::new(
+            "Whitediff checker",
+            ExecutionCommand::System("diff".to_owned()),
+        );
+        exec.args = vec![
+            "--ignore-all-space".to_owned(),
+            "correct".to_owned(),
+            "test".to_owned(),
+        ];
+        exec.input(&output, Path::new("correct"), false);
+        exec.input(&test, Path::new("test"), false);
+        dag.add_execution(exec)
+            .on_done(move |result| match result.result.status {
+                ExecutionStatus::Success => callback(CheckerResult::new(1.0, None)),
+                _ => callback(CheckerResult::new(0.0, None)),
+            });
     }
 }
