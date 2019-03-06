@@ -180,10 +180,6 @@ impl<'a> AddExecutionWrapper<'a> {
         }
         self.dag.execution_callbacks.get_mut(&self.uuid).unwrap()
     }
-
-    fn get_execution(&mut self) -> &mut Execution {
-        self.dag.data.executions.get_mut(&self.uuid).unwrap()
-    }
 }
 
 /// Validate the DAG checking if all the required pieces are present and they

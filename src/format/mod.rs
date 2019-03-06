@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::path::PathBuf;
 
+pub mod common;
 pub mod ioi;
+
+pub use common::*;
 
 /// The result of the checking process
 pub struct CheckerResult {}
@@ -15,12 +18,7 @@ where
 {
     /// Generate an input file editing the DAG and returning the uuid of the
     /// file.
-    fn generate(
-        &self,
-        dag: &mut ExecutionDAG,
-        subtask: SubtaskId,
-        testcase: TestcaseId,
-    ) -> FileUuid;
+    fn generate(&self, dag: &mut ExecutionDAG, subtask: SubtaskId, testcase: TestcaseId) -> File;
 }
 
 pub trait Validator<SubtaskId, TestcaseId>
@@ -36,7 +34,7 @@ where
         input: FileUuid,
         subtask: SubtaskId,
         testcase: TestcaseId,
-    ) -> FileUuid;
+    ) -> File;
 }
 
 pub trait Solution<SubtaskId, TestcaseId>
@@ -50,9 +48,10 @@ where
         &self,
         dag: &mut ExecutionDAG,
         input: FileUuid,
+        validation: Option<FileUuid>,
         subtask: SubtaskId,
         testcase: TestcaseId,
-    ) -> FileUuid;
+    ) -> File;
 }
 
 pub trait Checker<SubtaskId, TestcaseId, F>
@@ -140,17 +139,48 @@ pub trait Task {
         &self,
         subtask: Self::SubtaskId,
         testcase: Self::TestcaseId,
-    ) -> Option<Box<Checker<Self::SubtaskId, Self::TestcaseId, F>>>;
+    ) -> Box<Checker<Self::SubtaskId, Self::TestcaseId, F>>;
 
     /// Starts the actual evaluation of the task
-    fn evaluate<O>(&self, _options: O)
+    fn evaluate<O>(&self, dag: &mut ExecutionDAG, _options: O)
     where
         O: EvaluationOptions,
     {
         let subtasks = self.subtasks();
+        let mut inputs = HashMap::new();
+        let mut outputs = HashMap::new();
         for (st_num, st) in subtasks.iter() {
+            inputs.insert(*st_num, HashMap::new());
+            outputs.insert(*st_num, HashMap::new());
             for (tc_num, tc) in st.iter() {
-                self.validator(*st_num, *tc_num).unwrap();
+                let input = self
+                    .generator(*st_num, *tc_num)
+                    .generate(dag, *st_num, *tc_num);
+                if let Some(path) = tc.write_input_to() {
+                    dag.write_file_to(&input, &path);
+                }
+                let val = if let Some(validator) = self.validator(*st_num, *tc_num) {
+                    Some(validator.validate(dag, input.uuid.clone(), *st_num, *tc_num))
+                } else {
+                    None
+                };
+                let output = if let Some(solution) = self.official_solution(*st_num, *tc_num) {
+                    Some(solution.solve(
+                        dag,
+                        input.uuid.clone(),
+                        val.map(|f| f.uuid.clone()),
+                        *st_num,
+                        *tc_num,
+                    ))
+                } else {
+                    None
+                };
+                if let (Some(ref output), Some(ref path)) = (&output, &tc.write_output_to()) {
+                    dag.write_file_to(&output, &path);
+                }
+
+                inputs.get_mut(&st_num).unwrap().insert(*tc_num, input);
+                outputs.get_mut(&st_num).unwrap().insert(*tc_num, output);
             }
         }
         unimplemented!();

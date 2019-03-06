@@ -21,7 +21,7 @@ impl Generator<IOIBatchSubtaskId, IOIBatchTestcaseId> for IOIBatchGenerator {
         dag: &mut ExecutionDAG,
         subtask: IOIBatchSubtaskId,
         testcase: IOIBatchTestcaseId,
-    ) -> FileUuid {
+    ) -> File {
         unimplemented!();
     }
 }
@@ -33,7 +33,7 @@ impl Validator<IOIBatchSubtaskId, IOIBatchTestcaseId> for IOIBatchValidator {
         input: FileUuid,
         subtask: IOIBatchSubtaskId,
         testcase: IOIBatchTestcaseId,
-    ) -> FileUuid {
+    ) -> File {
         unimplemented!();
     }
 }
@@ -43,9 +43,10 @@ impl Solution<IOIBatchSubtaskId, IOIBatchTestcaseId> for IOIBatchSolution {
         &self,
         dag: &mut ExecutionDAG,
         input: FileUuid,
+        validation: Option<FileUuid>,
         subtask: IOIBatchSubtaskId,
         testcase: IOIBatchTestcaseId,
-    ) -> FileUuid {
+    ) -> File {
         unimplemented!();
     }
 }
@@ -107,7 +108,10 @@ impl Task for IOIBatchTask {
         subtask: Self::SubtaskId,
         testcase: Self::TestcaseId,
     ) -> Box<Generator<Self::SubtaskId, Self::TestcaseId>> {
-        unimplemented!();
+        Box::new(StaticFileProvider::new(
+            format!("Static input of testcase {}", testcase),
+            std::path::Path::new(".").to_owned(),
+        ))
     }
 
     fn validator(
@@ -123,14 +127,17 @@ impl Task for IOIBatchTask {
         subtask: Self::SubtaskId,
         testcase: Self::TestcaseId,
     ) -> Option<Box<Solution<Self::SubtaskId, Self::TestcaseId>>> {
-        unimplemented!();
+        Some(Box::new(StaticFileProvider::new(
+            format!("Static output of testcase {}", testcase),
+            std::path::Path::new(".").to_owned(),
+        )))
     }
 
     fn checker<F>(
         &self,
         subtask: Self::SubtaskId,
         testcase: Self::TestcaseId,
-    ) -> Option<Box<Checker<Self::SubtaskId, Self::TestcaseId, F>>> {
+    ) -> Box<Checker<Self::SubtaskId, Self::TestcaseId, F>> {
         unimplemented!();
     }
 }
