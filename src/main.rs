@@ -31,6 +31,8 @@ fn main() {
         .default_format_timestamp_nanos(true)
         .init();
 
+    println!("Tmbox: {}/bin/tmbox", env!("OUT_DIR"));
+
     format::ioi::parse();
 
     let mut dag = ExecutionDAG::new();

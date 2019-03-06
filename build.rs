@@ -1,0 +1,27 @@
+extern crate glob;
+
+use glob::glob;
+use std::env;
+use std::path::Path;
+use std::process::Command;
+
+fn main() {
+    if !Path::new("tmbox").exists() {
+        panic!("Please clone all the submodules! tmbox is missing");
+    }
+    let out_dir = env::var("OUT_DIR").unwrap();
+    let num_jobs = env::var("NUM_JOBS").unwrap();
+    Command::new("make")
+        .arg(format!("TARGET={}", out_dir))
+        .arg("-j")
+        .arg(num_jobs.to_string())
+        .current_dir(Path::new("tmbox"))
+        .status()
+        .unwrap();
+    println!("rerun-if-changed=tmbox");
+    for cc in glob("tmbox/**/*").unwrap() {
+        if let Ok(f) = cc {
+            println!("rerun-if-changed={}", f.display());
+        }
+    }
+}

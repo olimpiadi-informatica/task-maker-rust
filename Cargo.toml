@@ -3,6 +3,7 @@ name = "task-maker-rust"
 version = "0.1.0"
 authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
 edition = "2018"
+build = "build.rs"
 
 [dependencies]
 serde = { version = "1.0.88", features = ["derive", "rc"] }
@@ -22,6 +23,9 @@ pest_derive = "2.1"
 
 [dev-dependencies]
 pretty_assertions = "0.6"
+
+[build-dependencies]
+glob = "0.2"
 
 [[bin]]
 name = "task-maker"
