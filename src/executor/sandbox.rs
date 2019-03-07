@@ -44,6 +44,8 @@ struct SandboxData {
 pub struct Sandbox {
     /// Internal data of the sandbox
     data: Arc<Mutex<SandboxData>>,
+    /// Command to execute
+    command: ExecutionCommand,
 }
 
 impl Sandbox {
@@ -60,6 +62,7 @@ impl Sandbox {
         Sandbox::setup(boxdir.path(), execution, dep_keys, file_store)?;
         Ok(Sandbox {
             data: Arc::new(Mutex::new(SandboxData { boxdir: boxdir })),
+            command: execution.command.clone(),
         })
     }
 
@@ -70,7 +73,10 @@ impl Sandbox {
             self.data.lock().unwrap().boxdir.path()
         );
         // TODO spawn the real sandbox here
-        let res = Command::new("/usr/bin/true").output()?;
+        let res = match self.command {
+            ExecutionCommand::System(ref cmd) => Command::new(cmd).output()?,
+            _ => unimplemented!(),
+        };
         if !res.status.success() {
             return Ok(SandboxResult::Failed {
                 error: format!("Exited with {}", res.status),
