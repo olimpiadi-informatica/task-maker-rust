@@ -1,5 +1,5 @@
-use crate::format::ioi::*;
-use crate::format::*;
+use crate::task_types::ioi::*;
+use crate::task_types::*;
 
 pub struct IOIBatchTask {
     pub info: IOITaskInfo,

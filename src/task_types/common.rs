@@ -1,4 +1,4 @@
-use crate::format::*;
+use crate::task_types::*;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 

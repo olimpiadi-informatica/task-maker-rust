@@ -17,8 +17,8 @@ extern crate tempdir;
 
 pub mod execution;
 pub mod executor;
-pub mod format;
 pub mod store;
+pub mod task_types;
 
 use execution::*;
 use std::path::Path;
@@ -36,13 +36,13 @@ fn main() {
 
     println!(
         "{:#?}",
-        serde_yaml::from_reader::<_, crate::format::ioi::IOITaskYAML>(
+        serde_yaml::from_reader::<_, crate::task_types::ioi::IOITaskYAML>(
             std::fs::File::open("/tmp/task.yaml").unwrap()
         )
     );
 
     return;
-    format::ioi::parse();
+    task_types::ioi::parse();
 
     let mut dag = ExecutionDAG::new();
 

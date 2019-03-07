@@ -1,7 +1,7 @@
 use pest::Parser;
 
 #[derive(Parser)]
-#[grammar = "format/ioi/GEN.pest"]
+#[grammar = "task_types/ioi/GEN.pest"]
 struct GENParser;
 
 pub fn parse() {

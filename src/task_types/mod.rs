@@ -229,6 +229,8 @@ pub trait Task {
 
                 inputs.get_mut(&st_num).unwrap().insert(*tc_num, input);
                 outputs.get_mut(&st_num).unwrap().insert(*tc_num, output);
+
+                // TODO evaluate the submissions!
             }
         }
         unimplemented!();
