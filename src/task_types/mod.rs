@@ -1,4 +1,5 @@
 use crate::execution::*;
+use failure::Error;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
@@ -255,5 +256,8 @@ pub trait TaskFormat {
     /// Assuming `path` is valid make a Task from that directory.
     fn parse(
         path: &Path,
-    ) -> Box<Task<Self::SubtaskId, Self::TestcaseId, Self::SubtaskInfo, Self::TestcaseInfo>>;
+    ) -> Result<
+        Box<Task<Self::SubtaskId, Self::TestcaseId, Self::SubtaskInfo, Self::TestcaseInfo>>,
+        Error,
+    >;
 }

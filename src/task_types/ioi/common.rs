@@ -9,6 +9,7 @@ pub type IOISubtaskId = u32;
 pub type IOITestcaseId = u32;
 
 /// Information about a generic IOI task
+#[derive(Debug)]
 pub struct IOITaskInfo {
     /// The information from the yaml file
     pub yaml: IOITaskYAML,
@@ -68,6 +69,7 @@ pub struct IOITaskYAML {
 }
 
 /// A subtask of a IOI task
+#[derive(Debug)]
 pub struct IOISubtaskInfo {
     /// The maximum score of the subtask, must be >= 0
     pub max_score: f64,
@@ -78,6 +80,7 @@ pub struct IOISubtaskInfo {
 /// A testcase of a IOI task. Every testcase has an input and an output that
 /// will be put in the input/ and output/ folders. The files are written there
 /// only if it's not a dry-run and if the files are not static.
+#[derive(Debug)]
 pub struct IOITestcaseInfo {
     /// The number of the testcase
     pub testcase: IOITestcaseId,
