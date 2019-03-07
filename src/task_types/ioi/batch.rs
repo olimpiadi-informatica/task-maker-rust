@@ -49,10 +49,7 @@ impl Solution<IOISubtaskId, IOITestcaseId> for IOIBatchSolution {
     }
 }
 
-impl<F> Checker<IOISubtaskId, IOITestcaseId, F> for IOIBatchChecker
-where
-    F: Fn(CheckerResult) -> () + 'static,
-{
+impl Checker<IOISubtaskId, IOITestcaseId> for IOIBatchChecker {
     fn check(
         &self,
         dag: &mut ExecutionDAG,
@@ -61,18 +58,13 @@ where
         test: File,
         subtask: IOISubtaskId,
         testcase: IOITestcaseId,
-        callback: F,
+        callback: Box<Fn(CheckerResult) -> ()>,
     ) {
         unimplemented!();
     }
 }
 
-impl Task for IOIBatchTask {
-    type SubtaskId = IOISubtaskId;
-    type TestcaseId = IOITestcaseId;
-    type SubtaskInfo = IOISubtaskInfo;
-    type TestcaseInfo = IOITestcaseInfo;
-
+impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIBatchTask {
     fn format() -> &'static str {
         "ioi-batch"
     }
@@ -85,23 +77,23 @@ impl Task for IOIBatchTask {
         unimplemented!();
     }
 
-    fn subtasks(&self) -> HashMap<Self::SubtaskId, Self::SubtaskInfo> {
+    fn subtasks(&self) -> HashMap<IOISubtaskId, IOISubtaskInfo> {
         unimplemented!();
     }
 
-    fn testcases(&self, subtask: Self::SubtaskId) -> HashMap<Self::TestcaseId, Self::TestcaseInfo> {
+    fn testcases(&self, subtask: IOISubtaskId) -> HashMap<IOITestcaseId, IOITestcaseInfo> {
         unimplemented!();
     }
 
-    fn solutions(&self) -> HashMap<PathBuf, &Solution<Self::SubtaskId, Self::TestcaseId>> {
+    fn solutions(&self) -> HashMap<PathBuf, &Solution<IOISubtaskId, IOITestcaseId>> {
         unimplemented!();
     }
 
     fn generator(
         &self,
-        subtask: Self::SubtaskId,
-        testcase: Self::TestcaseId,
-    ) -> Box<Generator<Self::SubtaskId, Self::TestcaseId>> {
+        subtask: IOISubtaskId,
+        testcase: IOITestcaseId,
+    ) -> Box<Generator<IOISubtaskId, IOITestcaseId>> {
         Box::new(StaticFileProvider::new(
             format!("Static input of testcase {}", testcase),
             std::path::Path::new(".").to_owned(),
@@ -110,28 +102,28 @@ impl Task for IOIBatchTask {
 
     fn validator(
         &self,
-        subtask: Self::SubtaskId,
-        testcase: Self::TestcaseId,
-    ) -> Option<Box<Validator<Self::SubtaskId, Self::TestcaseId>>> {
+        subtask: IOISubtaskId,
+        testcase: IOITestcaseId,
+    ) -> Option<Box<Validator<IOISubtaskId, IOITestcaseId>>> {
         Some(Box::new(IOIBatchValidator {}))
     }
 
     fn official_solution(
         &self,
-        subtask: Self::SubtaskId,
-        testcase: Self::TestcaseId,
-    ) -> Option<Box<Solution<Self::SubtaskId, Self::TestcaseId>>> {
+        subtask: IOISubtaskId,
+        testcase: IOITestcaseId,
+    ) -> Option<Box<Solution<IOISubtaskId, IOITestcaseId>>> {
         Some(Box::new(StaticFileProvider::new(
             format!("Static output of testcase {}", testcase),
             std::path::Path::new(".").to_owned(),
         )))
     }
 
-    fn checker<F>(
+    fn checker(
         &self,
-        subtask: Self::SubtaskId,
-        testcase: Self::TestcaseId,
-    ) -> Box<Checker<Self::SubtaskId, Self::TestcaseId, F>> {
+        subtask: IOISubtaskId,
+        testcase: IOITestcaseId,
+    ) -> Box<Checker<IOISubtaskId, IOITestcaseId>> {
         unimplemented!();
     }
 }

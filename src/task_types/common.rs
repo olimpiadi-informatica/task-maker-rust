@@ -54,11 +54,10 @@ where
     }
 }
 
-impl<SubtaskId, TestcaseId, F> Checker<SubtaskId, TestcaseId, F> for WhiteDiffChecker
+impl<SubtaskId, TestcaseId> Checker<SubtaskId, TestcaseId> for WhiteDiffChecker
 where
     SubtaskId: Eq + PartialOrd + Hash + Copy,
     TestcaseId: Eq + PartialOrd + Hash + Copy,
-    F: Fn(CheckerResult) -> () + 'static,
 {
     fn check(
         &self,
@@ -68,7 +67,7 @@ where
         test: File,
         _subtask: SubtaskId,
         _testcase: TestcaseId,
-        callback: F,
+        callback: Box<Fn(CheckerResult) -> ()>,
     ) {
         let output = output.expect("WhiteDiffChecker requires the input file to be present");
         let mut exec = Execution::new(

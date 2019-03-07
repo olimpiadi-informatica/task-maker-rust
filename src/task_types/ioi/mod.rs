@@ -1,5 +1,6 @@
 mod batch;
 mod common;
+pub mod formats;
 mod parser;
 
 pub use batch::*;

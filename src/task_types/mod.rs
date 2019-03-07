@@ -1,7 +1,7 @@
 use crate::execution::*;
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub mod common;
 pub mod ioi;
@@ -81,11 +81,10 @@ where
 /// A trait that describes what is a checker: something that given an input
 /// file, an optional correct output file and the contestant's output file
 /// computes a score (and eventually message) for that testcase.
-pub trait Checker<SubtaskId, TestcaseId, F>
+pub trait Checker<SubtaskId, TestcaseId>
 where
     SubtaskId: Eq + PartialOrd + Hash + Copy,
     TestcaseId: Eq + PartialOrd + Hash + Copy,
-    F: Fn(CheckerResult) -> () + 'static,
 {
     /// Add the checking process to the DAG and call the callback when the
     /// checker is done
@@ -98,7 +97,7 @@ where
         subtask: SubtaskId,
         testcase: TestcaseId,
         // TODO maybe tell the checker which solution it is checking
-        callback: F,
+        callback: Box<Fn(CheckerResult) -> ()>,
     );
 }
 
@@ -129,18 +128,20 @@ pub trait EvaluationOptions {
     fn cache_mode(&self) -> bool;
 }
 
-pub trait Task {
-    /// Type of the identifier of a subtask
-    type SubtaskId: Eq + PartialOrd + Hash + Copy;
-    /// Type of the identifier of a testcase
-    type TestcaseId: Eq + PartialOrd + Hash + Copy;
-    /// Type of the information about a subtask
-    type SubtaskInfo: SubtaskInfo;
-    /// Type of the information about a testcase
-    type TestcaseInfo: TestcaseInfo;
-
+/// Trait that describes a generic task. Every task must have a generator (a
+/// way of getting testcases) and can have a validator, an official solution,
+/// but has to have a checker that assigns a score to a solution.
+pub trait Task<
+    SubtaskId: Eq + PartialOrd + Hash + Copy,
+    TestcaseId: Eq + PartialOrd + Hash + Copy,
+    SubtaskInfo: crate::task_types::SubtaskInfo,
+    TestcaseInfo: crate::task_types::TestcaseInfo,
+>
+{
     /// Name of the format of the task
-    fn format() -> &'static str;
+    fn format() -> &'static str
+    where
+        Self: Sized;
 
     /// Name of the task (the short one)
     fn name(&self) -> String;
@@ -149,47 +150,44 @@ pub trait Task {
     fn title(&self) -> String;
 
     /// The list of the subtasks for this task
-    fn subtasks(&self) -> HashMap<Self::SubtaskId, Self::SubtaskInfo>;
+    fn subtasks(&self) -> HashMap<SubtaskId, SubtaskInfo>;
 
     /// The list of the testcases for that subtask
-    fn testcases(&self, subtask: Self::SubtaskId) -> HashMap<Self::TestcaseId, Self::TestcaseInfo>;
+    fn testcases(&self, subtask: SubtaskId) -> HashMap<TestcaseId, TestcaseInfo>;
 
     /// The list of known solution files
-    fn solutions(&self) -> HashMap<PathBuf, &Solution<Self::SubtaskId, Self::TestcaseId>>;
+    fn solutions(&self) -> HashMap<PathBuf, &Solution<SubtaskId, TestcaseId>>;
 
     /// The generator that will create that testcase
     fn generator(
         &self,
-        subtask: Self::SubtaskId,
-        testcase: Self::TestcaseId,
-    ) -> Box<Generator<Self::SubtaskId, Self::TestcaseId>>;
+        subtask: SubtaskId,
+        testcase: TestcaseId,
+    ) -> Box<Generator<SubtaskId, TestcaseId>>;
 
     /// The optional validator that will validate that testcase
     fn validator(
         &self,
-        subtask: Self::SubtaskId,
-        testcase: Self::TestcaseId,
-    ) -> Option<Box<Validator<Self::SubtaskId, Self::TestcaseId>>>;
+        subtask: SubtaskId,
+        testcase: TestcaseId,
+    ) -> Option<Box<Validator<SubtaskId, TestcaseId>>>;
 
     /// The optional official solution that will generate the output file
     fn official_solution(
         &self,
-        subtask: Self::SubtaskId,
-        testcase: Self::TestcaseId,
-    ) -> Option<Box<Solution<Self::SubtaskId, Self::TestcaseId>>>;
+        subtask: SubtaskId,
+        testcase: TestcaseId,
+    ) -> Option<Box<Solution<SubtaskId, TestcaseId>>>;
 
     /// The optional checker that will check the output file
-    fn checker<F>(
+    fn checker(
         &self,
-        subtask: Self::SubtaskId,
-        testcase: Self::TestcaseId,
-    ) -> Box<Checker<Self::SubtaskId, Self::TestcaseId, F>>;
+        subtask: SubtaskId,
+        testcase: TestcaseId,
+    ) -> Box<Checker<SubtaskId, TestcaseId>>;
 
     /// Starts the actual evaluation of the task
-    fn evaluate<O>(&self, dag: &mut ExecutionDAG, options: O)
-    where
-        O: EvaluationOptions,
-    {
+    fn evaluate(&self, dag: &mut ExecutionDAG, options: &EvaluationOptions) {
         let subtasks = self.subtasks();
         let mut inputs = HashMap::new();
         let mut outputs = HashMap::new();
@@ -235,4 +233,27 @@ pub trait Task {
         }
         unimplemented!();
     }
+}
+
+/// A task format is a way of laying files in a task folder, every task folder
+/// contains a single task which type can be different even for the same
+/// format. For example in a IOI-like format there could be a Batch task, a
+/// Communication task, ...
+pub trait TaskFormat {
+    /// Type of the identifier of a subtask
+    type SubtaskId: Eq + PartialOrd + Hash + Copy;
+    /// Type of the identifier of a testcase
+    type TestcaseId: Eq + PartialOrd + Hash + Copy;
+    /// Type of the information about a subtask
+    type SubtaskInfo: SubtaskInfo;
+    /// Type of the information about a testcase
+    type TestcaseInfo: TestcaseInfo;
+
+    /// Whether the `path` points to a valid task for this format.
+    fn is_valid(path: &Path) -> bool;
+
+    /// Assuming `path` is valid make a Task from that directory.
+    fn parse(
+        path: &Path,
+    ) -> Box<Task<Self::SubtaskId, Self::TestcaseId, Self::SubtaskInfo, Self::TestcaseInfo>>;
 }
