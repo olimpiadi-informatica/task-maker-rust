@@ -124,9 +124,9 @@ mod tests {
         let (tx, rx_remote) = channel();
         let (tx_remote, rx) = channel();
 
+        let store_path = cwd.path().join("store");
         let server = thread::spawn(move || {
-            let file_store =
-                FileStore::new(Path::new("/tmp/store")).expect("Cannot create the file store");
+            let file_store = FileStore::new(&store_path).expect("Cannot create the file store");
             let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
             executor.evaluate(tx_remote, rx_remote).unwrap();
         });
