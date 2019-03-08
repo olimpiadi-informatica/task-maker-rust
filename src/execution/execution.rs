@@ -23,9 +23,9 @@ pub type OnSkipCallback = Fn() -> ();
 pub enum ExecutionCommand {
     /// A system command, the workers will search in their PATH for the
     /// executable if it's relative
-    System(String),
+    System(PathBuf),
     /// A command relative to the sandbox directory
-    Local(String),
+    Local(PathBuf),
 }
 
 /// An input of an Execution

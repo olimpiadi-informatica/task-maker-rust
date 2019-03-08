@@ -70,6 +70,5 @@ impl TaskFormat for IOIItalianYaml {
             // TODO static inputs
             unimplemented!();
         }
-        unimplemented!();
     }
 }

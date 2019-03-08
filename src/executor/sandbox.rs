@@ -100,6 +100,7 @@ impl Sandbox {
         let mut sandbox = Command::new(Path::new(env!("OUT_DIR")).join("bin").join("tmbox"));
         sandbox.arg("--directory").arg(&boxdir.join("box"));
         sandbox.arg("--json");
+        sandbox.arg("--env").arg("PATH");
         if self.execution.stdin.is_some() {
             sandbox.arg("--stdin").arg(boxdir.join("stdin"));
         }
@@ -128,13 +129,14 @@ impl Sandbox {
         if let Some(wall) = self.execution.limits.wall_time {
             sandbox.arg("--wall").arg(wall.to_string());
         }
+        sandbox.arg("--");
         match &self.execution.command {
             ExecutionCommand::System(cmd) => {
                 if let Ok(cmd) = which::which(cmd) {
                     sandbox.arg(cmd)
                 } else {
                     return Ok(SandboxResult::Failed {
-                        error: format!("Executable {} not found", cmd),
+                        error: format!("Executable {:?} not found", cmd),
                     });
                 }
             }
@@ -145,6 +147,7 @@ impl Sandbox {
         }
         trace!("Sandbox command: {:?}", sandbox);
         let res = sandbox.output()?;
+        trace!("Sandbox output: {:?}", res);
         let outcome = serde_json::from_str::<TMBoxResult>(std::str::from_utf8(&res.stdout)?)?;
         if outcome.error {
             Ok(SandboxResult::Failed {

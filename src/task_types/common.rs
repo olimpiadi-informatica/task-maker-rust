@@ -72,7 +72,7 @@ where
         let output = output.expect("WhiteDiffChecker requires the input file to be present");
         let mut exec = Execution::new(
             "Whitediff checker",
-            ExecutionCommand::System("diff".to_owned()),
+            ExecutionCommand::System(PathBuf::from("diff")),
         );
         exec.args = vec![
             "--ignore-all-space".to_owned(),

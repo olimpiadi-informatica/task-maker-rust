@@ -47,7 +47,7 @@ mod tests {
     use super::*;
     use crate::execution::*;
     use crate::store::*;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc::channel;
     use std::sync::{Arc, Mutex};
@@ -60,15 +60,18 @@ mod tests {
 
         let file = File::new("Input file");
 
-        let mut exec = Execution::new("An execution", ExecutionCommand::System("true".to_owned()));
+        let mut exec = Execution::new(
+            "An execution",
+            ExecutionCommand::System(PathBuf::from("true")),
+        );
         exec.stdin(&file);
         let stdout = exec.stdout();
 
-        let mut exec2 = Execution::new("Nope!", ExecutionCommand::System("false".to_owned()));
+        let mut exec2 = Execution::new("Nope!", ExecutionCommand::System(PathBuf::from("false")));
         exec2.stdin(&stdout);
         let stdout2 = exec2.stdout();
 
-        let mut exec3 = Execution::new("Skippp", ExecutionCommand::System("true".to_owned()));
+        let mut exec3 = Execution::new("Skippp", ExecutionCommand::System(PathBuf::from("true")));
         exec3.stdin(&stdout2);
         let output3 = exec3.output(Path::new("test"));
 

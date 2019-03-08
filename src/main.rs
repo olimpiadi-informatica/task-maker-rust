@@ -15,9 +15,12 @@ extern crate pest_derive;
 extern crate pretty_assertions;
 extern crate tempdir;
 extern crate which;
+#[macro_use]
+extern crate lazy_static;
 
 pub mod execution;
 pub mod executor;
+pub mod languages;
 pub mod store;
 pub mod task_types;
 
