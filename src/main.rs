@@ -14,6 +14,7 @@ extern crate pest_derive;
 #[cfg(test)]
 extern crate pretty_assertions;
 extern crate tempdir;
+extern crate which;
 
 pub mod execution;
 pub mod executor;

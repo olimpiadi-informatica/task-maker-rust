@@ -21,6 +21,7 @@ chrono = { version = "0.4", features = ["serde"] }
 tempdir = "0.3"
 pest = "2.1"
 pest_derive = "2.1"
+which = "2.0"
 
 [dev-dependencies]
 pretty_assertions = "0.6"

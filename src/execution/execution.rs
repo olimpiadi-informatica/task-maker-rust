@@ -76,11 +76,11 @@ pub struct Execution {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionLimits {
     /// Limit on the userspace cpu time of the process
-    pub cpu_time: Option<f32>,
+    pub cpu_time: Option<f64>,
     /// Limit on the kernelspace cpu time of the process
-    pub sys_time: Option<f32>,
+    pub sys_time: Option<f64>,
     /// Limit on the total time of execution
-    pub wall_time: Option<f32>,
+    pub wall_time: Option<f64>,
     /// Limit on the number of KiB the process can use in any moment
     pub memory: Option<u64>,
     /// Limit on the number of threads/processes the process can spawn
@@ -120,11 +120,11 @@ pub enum ExecutionStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionResourcesUsage {
     /// Number of seconds the process used in userspace
-    pub cpu_time: f32,
+    pub cpu_time: f64,
     /// Number of seconds the process used in kernelspace
-    pub sys_time: f32,
+    pub sys_time: f64,
     /// Number of seconds from the start to the end of the process
-    pub wall_time: f32,
+    pub wall_time: f64,
     /// Number of KiB used at most by the process
     pub memory: u64,
 }
@@ -158,19 +158,19 @@ impl ExecutionLimits {
     }
 
     /// Set the cpu time limit
-    pub fn cpu_time(&mut self, limit: f32) -> &mut Self {
+    pub fn cpu_time(&mut self, limit: f64) -> &mut Self {
         self.cpu_time = Some(limit);
         self
     }
 
     /// Set the sys time limit
-    pub fn sys_time(&mut self, limit: f32) -> &mut Self {
+    pub fn sys_time(&mut self, limit: f64) -> &mut Self {
         self.sys_time = Some(limit);
         self
     }
 
     /// Set the wall time limit
-    pub fn wall_time(&mut self, limit: f32) -> &mut Self {
+    pub fn wall_time(&mut self, limit: f64) -> &mut Self {
         self.sys_time = Some(limit);
         self
     }

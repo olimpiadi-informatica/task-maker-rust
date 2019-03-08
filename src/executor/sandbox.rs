@@ -1,6 +1,7 @@
 use crate::execution::*;
 use crate::store::*;
 use failure::Error;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -44,8 +45,34 @@ struct SandboxData {
 pub struct Sandbox {
     /// Internal data of the sandbox
     data: Arc<Mutex<SandboxData>>,
-    /// Command to execute
-    command: ExecutionCommand,
+    /// Execution to run
+    execution: Execution,
+}
+
+/// The outcome from tmbox. If the sandbox fails to run only `error` and
+/// `message` are set, otherwise all the fields are present except for
+/// `message`.
+#[derive(Debug, Deserialize)]
+struct TMBoxResult {
+    /// Whether the sandbox failed to execute the subprocess, will set
+    /// `message`.
+    error: bool,
+    /// Error message from the sandbox.
+    message: Option<String>,
+    /// Total CPU time in userspace.
+    cpu_time: Option<f64>,
+    /// Total CPU time in kernelspace.
+    sys_time: Option<f64>,
+    /// Total time from the start to the end of the process.
+    wall_time: Option<f64>,
+    /// Peak memory usage of the process in KiB.
+    memory_usage: Option<u64>,
+    /// Exit status code of the process.
+    status_code: Option<u32>,
+    /// Signal that made the process exit.
+    signal: Option<u32>,
+    /// Whether the sandbox killed the process.
+    killed_by_sandbox: Option<bool>,
 }
 
 impl Sandbox {
@@ -62,40 +89,84 @@ impl Sandbox {
         Sandbox::setup(boxdir.path(), execution, dep_keys, file_store)?;
         Ok(Sandbox {
             data: Arc::new(Mutex::new(SandboxData { boxdir: boxdir })),
-            command: execution.command.clone(),
+            execution: execution.clone(),
         })
     }
 
     /// Starts the sandbox and blocks the thread until the sandbox exists.
     pub fn run(&self) -> Result<SandboxResult, Error> {
-        trace!(
-            "Running sandbox at {:?}",
-            self.data.lock().unwrap().boxdir.path()
-        );
-        // TODO spawn the real sandbox here
-        let res = match self.command {
-            ExecutionCommand::System(ref cmd) => Command::new(cmd).output()?,
-            _ => unimplemented!(),
-        };
-        if !res.status.success() {
-            return Ok(SandboxResult::Failed {
-                error: format!("Exited with {}", res.status),
-            });
+        let boxdir = self.data.lock().unwrap().boxdir.path().to_owned();
+        trace!("Running sandbox at {:?}", boxdir);
+        let mut sandbox = Command::new(Path::new(env!("OUT_DIR")).join("bin").join("tmbox"));
+        sandbox.arg("--directory").arg(&boxdir.join("box"));
+        sandbox.arg("--json");
+        if self.execution.stdin.is_some() {
+            sandbox.arg("--stdin").arg(boxdir.join("stdin"));
         }
-        trace!(
-            "Sandbox at {:?} completed",
-            self.data.lock().unwrap().boxdir.path()
-        );
-        Ok(SandboxResult::Success {
-            exit_status: 0,
-            signal: None,
-            resources: ExecutionResourcesUsage {
-                cpu_time: 0.1,
-                sys_time: 0.01,
-                wall_time: 0.11,
-                memory: 1234,
-            },
-        })
+        if self.execution.stdout.is_some() {
+            sandbox.arg("--stdout").arg(boxdir.join("stdout"));
+        }
+        if self.execution.stderr.is_some() {
+            sandbox.arg("--stderr").arg(boxdir.join("stderr"));
+        }
+        // set the cpu_limit (--time parameter) to the sum of cpu_time and
+        // sys_time
+        let mut cpu_limit = None;
+        if let Some(cpu) = self.execution.limits.cpu_time {
+            cpu_limit = Some(cpu);
+        }
+        if let Some(sys) = self.execution.limits.sys_time {
+            if cpu_limit.is_none() {
+                cpu_limit = Some(sys);
+            } else {
+                cpu_limit = Some(cpu_limit.unwrap() + sys);
+            }
+        }
+        if let Some(cpu) = cpu_limit {
+            sandbox.arg("--time").arg(cpu.to_string());
+        }
+        if let Some(wall) = self.execution.limits.wall_time {
+            sandbox.arg("--wall").arg(wall.to_string());
+        }
+        match &self.execution.command {
+            ExecutionCommand::System(cmd) => {
+                if let Ok(cmd) = which::which(cmd) {
+                    sandbox.arg(cmd)
+                } else {
+                    return Ok(SandboxResult::Failed {
+                        error: format!("Executable {} not found", cmd),
+                    });
+                }
+            }
+            ExecutionCommand::Local(cmd) => sandbox.arg(cmd),
+        };
+        for arg in self.execution.args.iter() {
+            sandbox.arg(arg);
+        }
+        trace!("Sandbox command: {:?}", sandbox);
+        let res = sandbox.output()?;
+        let outcome = serde_json::from_str::<TMBoxResult>(std::str::from_utf8(&res.stdout)?)?;
+        if outcome.error {
+            Ok(SandboxResult::Failed {
+                error: outcome.message.unwrap(),
+            })
+        } else {
+            let signal = if outcome.signal.unwrap() == 0 {
+                None
+            } else {
+                Some(outcome.signal.unwrap())
+            };
+            Ok(SandboxResult::Success {
+                exit_status: outcome.status_code.unwrap(),
+                signal,
+                resources: ExecutionResourcesUsage {
+                    cpu_time: outcome.cpu_time.unwrap(),
+                    sys_time: outcome.sys_time.unwrap(),
+                    wall_time: outcome.wall_time.unwrap(),
+                    memory: outcome.memory_usage.unwrap(),
+                },
+            })
+        }
     }
 
     /// Tell the sandbox process to kill the underlying process, this will make
@@ -148,6 +219,7 @@ impl Sandbox {
             dir,
             execution.description
         );
+        std::fs::create_dir_all(dir.join("box"))?;
         if let Some(stdin) = execution.stdin {
             Sandbox::write_sandbox_file(
                 &dir.join("stdin"),

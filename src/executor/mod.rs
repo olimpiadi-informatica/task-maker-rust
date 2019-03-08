@@ -90,7 +90,7 @@ mod tests {
             .on_start(move |_w| exec_start.store(true, Ordering::Relaxed));
         dag.add_execution(exec2)
             .on_done(move |_res| exec2_done.store(true, Ordering::Relaxed))
-            .on_skip(|| assert!(false, "exec2 hash been skipped"))
+            .on_skip(|| assert!(false, "exec2 has been skipped"))
             .on_start(move |_w| exec2_start.store(true, Ordering::Relaxed));
         dag.add_execution(exec3)
             .on_done(|_res| assert!(false, "exec3 has not been skipped"))
