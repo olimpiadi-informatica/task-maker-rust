@@ -320,13 +320,14 @@ impl FileStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::*;
     use pretty_assertions::{assert_eq, assert_ne};
     use std::fs::*;
     use std::io::{Read, Write};
     use tempdir::TempDir;
 
     fn get_cwd() -> TempDir {
-        tempdir::TempDir::new("tmtest").unwrap()
+        setup_test()
     }
 
     fn fake_key() -> FileStoreKey {

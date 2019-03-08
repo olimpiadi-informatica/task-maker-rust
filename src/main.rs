@@ -23,6 +23,8 @@ pub mod executor;
 pub mod languages;
 pub mod store;
 pub mod task_types;
+#[cfg(test)]
+mod test_utils;
 
 fn main() {
     env_logger::Builder::from_default_env()

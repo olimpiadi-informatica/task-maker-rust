@@ -42,12 +42,13 @@ impl Iterator for ReadFileIterator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::*;
     use pretty_assertions::assert_eq;
     use std::io::Write;
     use tempdir::TempDir;
 
     fn get_cwd() -> TempDir {
-        tempdir::TempDir::new("tmtest").unwrap()
+        setup_test()
     }
 
     fn fake_file(path: &Path, content: Vec<u8>) {

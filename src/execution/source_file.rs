@@ -84,21 +84,14 @@ impl SourceFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::executor::*;
-    use crate::store::*;
+    use crate::test_utils::*;
     use std::io::Write;
-    use std::path::Path;
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::mpsc::channel;
-    use std::sync::{Arc, Mutex};
-    use std::thread;
 
     #[test]
     fn test_source_file_cpp() {
-        env_logger::Builder::from_default_env()
-            .default_format_timestamp_nanos(true)
-            .init();
-        let cwd = tempdir::TempDir::new("tm-test").unwrap();
+        let cwd = setup_test();
+
         let mut dag = ExecutionDAG::new();
         let source = "int main() {return 0;}";
         let source_path = cwd.path().join("source.cpp");
@@ -121,17 +114,7 @@ mod tests {
             .on_done(move |_res| exec_done.store(true, Ordering::Relaxed))
             .on_skip(move || exec_skipped.store(true, Ordering::Relaxed));
 
-        let (tx, rx_remote) = channel();
-        let (tx_remote, rx) = channel();
-
-        let store_path = cwd.path().join("store");
-        let server = thread::spawn(move || {
-            let file_store = FileStore::new(&store_path).expect("Cannot create the file store");
-            let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
-            executor.evaluate(tx_remote, rx_remote).unwrap();
-        });
-        ExecutorClient::evaluate(dag, tx, rx).unwrap();
-        server.join().expect("Server paniced");
+        eval_dag_locally(dag, cwd.path());
 
         assert!(exec_start2.load(Ordering::Relaxed));
         assert!(exec_done2.load(Ordering::Relaxed));
