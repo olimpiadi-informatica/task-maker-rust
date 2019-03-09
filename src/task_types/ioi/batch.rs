@@ -22,6 +22,10 @@ impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIB
         "ioi-batch"
     }
 
+    fn path(&self) -> &Path {
+        &self.info.path
+    }
+
     fn name(&self) -> String {
         self.info.yaml.name.clone()
     }

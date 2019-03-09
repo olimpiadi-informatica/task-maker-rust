@@ -118,10 +118,12 @@ pub trait TestcaseInfo<
     TestcaseId: Eq + PartialOrd + Hash + Copy,
 >
 {
-    /// Write the input file to this path if it's not a dry-run
+    /// Write the input file to this path if it's not a dry-run, relative to
+    /// the task directory.
     fn write_input_to(&self) -> Option<PathBuf>;
 
-    /// Write the output file to this path if it's not a dry-run
+    /// Write the output file to this path if it's not a dry-run, relative to
+    /// the task directory.
     fn write_output_to(&self) -> Option<PathBuf>;
 
     /// The generator that will create that testcase
@@ -154,6 +156,9 @@ pub trait Task<
     fn format() -> &'static str
     where
         Self: Sized;
+
+    /// Path to the root folder of the task.
+    fn path(&self) -> &Path;
 
     /// Name of the task (the short one)
     fn name(&self) -> String;
@@ -197,7 +202,7 @@ pub trait Task<
                 let input = tc.generator().generate(dag, *st_num, *tc_num);
                 if let Some(path) = tc.write_input_to() {
                     if !options.dry_run() {
-                        dag.write_file_to(&input, &path);
+                        dag.write_file_to(&input, &self.path().join(path));
                     }
                 }
                 let val = if let Some(validator) = tc.validator() {
@@ -218,7 +223,7 @@ pub trait Task<
                 };
                 if let (Some(ref output), Some(ref path)) = (&output, &tc.write_output_to()) {
                     if !options.dry_run() {
-                        dag.write_file_to(&output, &path);
+                        dag.write_file_to(&output, &self.path().join(path));
                     }
                 }
 
