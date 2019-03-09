@@ -112,12 +112,19 @@ pub trait SubtaskInfo {
 }
 
 /// Some basic information about a testcase.
-pub trait TestcaseInfo {
+pub trait TestcaseInfo<
+    SubtaskId: Eq + PartialOrd + Hash + Copy,
+    TestcaseId: Eq + PartialOrd + Hash + Copy,
+>
+{
     /// Write the input file to this path if it's not a dry-run
     fn write_input_to(&self) -> Option<PathBuf>;
 
     /// Write the output file to this path if it's not a dry-run
     fn write_output_to(&self) -> Option<PathBuf>;
+
+    /// The generator that will create that testcase
+    fn generator(&self) -> &Box<Generator<SubtaskId, TestcaseId>>;
 }
 
 /// The options for an evaluation
@@ -136,7 +143,7 @@ pub trait Task<
     SubtaskId: Eq + PartialOrd + Hash + Copy,
     TestcaseId: Eq + PartialOrd + Hash + Copy,
     SubtaskInfo: crate::task_types::SubtaskInfo,
-    TestcaseInfo: crate::task_types::TestcaseInfo,
+    TestcaseInfo: crate::task_types::TestcaseInfo<SubtaskId, TestcaseId>,
 >: std::fmt::Debug
 {
     /// Name of the format of the task
@@ -158,13 +165,6 @@ pub trait Task<
 
     /// The list of known solution files
     fn solutions(&self) -> HashMap<PathBuf, &Solution<SubtaskId, TestcaseId>>;
-
-    /// The generator that will create that testcase
-    fn generator(
-        &self,
-        subtask: SubtaskId,
-        testcase: TestcaseId,
-    ) -> &Box<Generator<SubtaskId, TestcaseId>>;
 
     /// The optional validator that will validate that testcase
     fn validator(
@@ -196,9 +196,7 @@ pub trait Task<
             inputs.insert(*st_num, HashMap::new());
             outputs.insert(*st_num, HashMap::new());
             for (tc_num, tc) in self.testcases(*st_num).iter() {
-                let input = self
-                    .generator(*st_num, *tc_num)
-                    .generate(dag, *st_num, *tc_num);
+                let input = tc.generator().generate(dag, *st_num, *tc_num);
                 if let Some(path) = tc.write_input_to() {
                     if !options.dry_run() {
                         dag.write_file_to(&input, &path);
@@ -248,7 +246,7 @@ pub trait TaskFormat {
     /// Type of the information about a subtask
     type SubtaskInfo: SubtaskInfo;
     /// Type of the information about a testcase
-    type TestcaseInfo: TestcaseInfo;
+    type TestcaseInfo: TestcaseInfo<Self::SubtaskId, Self::TestcaseId>;
 
     /// Whether the `path` points to a valid task for this format.
     fn is_valid(path: &Path) -> bool;

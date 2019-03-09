@@ -77,21 +77,6 @@ impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIB
         unimplemented!();
     }
 
-    fn generator(
-        &self,
-        subtask: IOISubtaskId,
-        testcase: IOITestcaseId,
-    ) -> &Box<Generator<IOISubtaskId, IOITestcaseId>> {
-        &self
-            .info
-            .testcases
-            .get(&subtask)
-            .unwrap()
-            .get(&testcase)
-            .unwrap()
-            .generator
-    }
-
     fn validator(
         &self,
         subtask: IOISubtaskId,

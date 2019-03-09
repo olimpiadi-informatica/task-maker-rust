@@ -121,13 +121,17 @@ impl SubtaskInfo for IOISubtaskInfo {
     }
 }
 
-impl TestcaseInfo for IOITestcaseInfo {
+impl TestcaseInfo<IOISubtaskId, IOITestcaseId> for IOITestcaseInfo {
     fn write_input_to(&self) -> Option<PathBuf> {
         Some(Path::new("input").join(format!("input{}.txt", self.testcase)))
     }
 
     fn write_output_to(&self) -> Option<PathBuf> {
         Some(Path::new("output").join(format!("output{}.txt", self.testcase)))
+    }
+
+    fn generator(&self) -> &Box<Generator<IOISubtaskId, IOITestcaseId>> {
+        &self.generator
     }
 }
 
