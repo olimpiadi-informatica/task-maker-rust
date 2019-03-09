@@ -1,3 +1,5 @@
+use crate::execution::*;
+use crate::languages::*;
 use glob::glob;
 use std::path::{Path, PathBuf};
 
@@ -20,4 +22,15 @@ pub fn list_files(cwd: &Path, patterns: Vec<&str>) -> Vec<PathBuf> {
         }
     }
     results
+}
+
+/// Make a SourceFile with the first file that matches the patterns provided
+/// that is in a recognised language.
+pub fn find_source_file(cwd: &Path, patterns: Vec<&str>) -> Option<SourceFile> {
+    for file in list_files(cwd, patterns) {
+        if LanguageManager::detect_language(&file).is_some() {
+            return Some(SourceFile::new(&file).unwrap());
+        }
+    }
+    None
 }

@@ -22,7 +22,15 @@ impl StaticFileProvider {
 /// A checker that compares the output files ignoring the whitespaces
 ///
 /// It uses `diff --ignore-all-spaces correct test`
+#[derive(Debug)]
 pub struct WhiteDiffChecker;
+
+impl WhiteDiffChecker {
+    /// Make a new WhiteDiffChecker
+    pub fn new() -> WhiteDiffChecker {
+        WhiteDiffChecker {}
+    }
+}
 
 impl<SubtaskId, TestcaseId> Generator<SubtaskId, TestcaseId> for StaticFileProvider
 where

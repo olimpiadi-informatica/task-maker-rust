@@ -62,7 +62,7 @@ impl TaskFormat for IOIItalianYaml {
                 yaml,
                 subtasks,
                 testcases,
-                checker: (),
+                checker: Box::new(WhiteDiffChecker::new()),
             };
             info!("{:#?}", info);
             return Ok(Box::new(IOIBatchTask { info: info }));

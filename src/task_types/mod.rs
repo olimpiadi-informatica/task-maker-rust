@@ -3,6 +3,7 @@ use failure::Error;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 pub mod common;
 pub mod ioi;
@@ -43,7 +44,7 @@ where
 /// A trait that describes what is a validator: something that known which
 /// testcase and given that input file checks if it respects all
 /// constraints.
-pub trait Validator<SubtaskId, TestcaseId>
+pub trait Validator<SubtaskId, TestcaseId>: std::fmt::Debug
 where
     SubtaskId: Eq + PartialOrd + Hash + Copy,
     TestcaseId: Eq + PartialOrd + Hash + Copy,
@@ -82,7 +83,7 @@ where
 /// A trait that describes what is a checker: something that given an input
 /// file, an optional correct output file and the contestant's output file
 /// computes a score (and eventually message) for that testcase.
-pub trait Checker<SubtaskId, TestcaseId>
+pub trait Checker<SubtaskId, TestcaseId>: std::fmt::Debug
 where
     SubtaskId: Eq + PartialOrd + Hash + Copy,
     TestcaseId: Eq + PartialOrd + Hash + Copy,
@@ -124,7 +125,10 @@ pub trait TestcaseInfo<
     fn write_output_to(&self) -> Option<PathBuf>;
 
     /// The generator that will create that testcase
-    fn generator(&self) -> &Box<Generator<SubtaskId, TestcaseId>>;
+    fn generator(&self) -> Arc<Generator<SubtaskId, TestcaseId>>;
+
+    /// The optional validator that will validate that testcase
+    fn validator(&self) -> Option<Arc<Validator<SubtaskId, TestcaseId>>>;
 }
 
 /// The options for an evaluation
@@ -166,13 +170,6 @@ pub trait Task<
     /// The list of known solution files
     fn solutions(&self) -> HashMap<PathBuf, &Solution<SubtaskId, TestcaseId>>;
 
-    /// The optional validator that will validate that testcase
-    fn validator(
-        &self,
-        subtask: SubtaskId,
-        testcase: TestcaseId,
-    ) -> Option<Box<Validator<SubtaskId, TestcaseId>>>;
-
     /// The optional official solution that will generate the output file
     fn official_solution(
         &self,
@@ -185,7 +182,7 @@ pub trait Task<
         &self,
         subtask: SubtaskId,
         testcase: TestcaseId,
-    ) -> Box<Checker<SubtaskId, TestcaseId>>;
+    ) -> &Box<Checker<SubtaskId, TestcaseId>>;
 
     /// Starts the actual evaluation of the task
     fn evaluate(&self, dag: &mut ExecutionDAG, options: &EvaluationOptions) {
@@ -202,7 +199,7 @@ pub trait Task<
                         dag.write_file_to(&input, &path);
                     }
                 }
-                let val = if let Some(validator) = self.validator(*st_num, *tc_num) {
+                let val = if let Some(validator) = tc.validator() {
                     Some(validator.validate(dag, input.clone(), *st_num, *tc_num))
                 } else {
                     None

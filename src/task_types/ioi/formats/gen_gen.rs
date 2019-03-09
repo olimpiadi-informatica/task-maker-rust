@@ -36,7 +36,7 @@ pub fn parse_gen_gen(
         score_mode: "max".to_string(),
     });
 
-    let generators = list_files(
+    let generator = find_source_file(
         &task_dir,
         vec![
             "gen/generator.*",
@@ -44,14 +44,28 @@ pub fn parse_gen_gen(
             "gen/generator",
             "gen/generatore",
         ],
-    );
-    let mut generator = None;
-    for gen in generators {
-        if LanguageManager::detect_language(&gen).is_some() {
-            generator = Some(Arc::new(SourceFile::new(&gen).unwrap()));
-            break;
-        }
-    }
+    )
+    .map(|g| Arc::new(g));
+
+    let validator = find_source_file(
+        &task_dir,
+        vec![
+            "gen/validator.*",
+            "gen/valida.*",
+            "gen/validator",
+            "gen/valida",
+        ],
+    )
+    .map(|g| Arc::new(g));
+
+    let get_validator = |st: IOISubtaskId| {
+        validator.as_ref().map(|v| {
+            Arc::new(IOIValidator::new(
+                v.clone(),
+                vec!["input.txt".to_string(), st.to_string()],
+            )) as Arc<Validator<IOISubtaskId, IOITestcaseId>>
+        })
+    };
 
     for line in file.into_inner() {
         match line.as_rule() {
@@ -81,11 +95,11 @@ pub fn parse_gen_gen(
                             IOITestcaseInfo {
                                 testcase: testcase_count,
                                 static_output: None,
-                                generator: Box::new(StaticFileProvider::new(
+                                generator: Arc::new(StaticFileProvider::new(
                                     format!("Static input of testcase {}", testcase_count),
                                     task_dir.join(what),
                                 )),
-                                validator: (),
+                                validator: get_validator(subtasks.len() as IOISubtaskId),
                             },
                         );
                         testcase_count += 1;
@@ -101,11 +115,11 @@ pub fn parse_gen_gen(
                             IOITestcaseInfo {
                                 testcase: testcase_count,
                                 static_output: None,
-                                generator: Box::new(IOIGenerator::new(
+                                generator: Arc::new(IOIGenerator::new(
                                     generator.clone().unwrap(),
                                     cmd,
                                 )),
-                                validator: (),
+                                validator: get_validator(subtasks.len() as IOISubtaskId),
                             },
                         );
                         testcase_count += 1;
