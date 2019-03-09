@@ -1,4 +1,5 @@
 use crate::execution::*;
+use crate::score_types::*;
 use failure::Error;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -107,9 +108,6 @@ where
 pub trait SubtaskInfo {
     /// Maximum score of this subtask
     fn max_score(&self) -> f64;
-
-    /// Score mode of this subtask
-    fn score_mode(&self) -> String;
 }
 
 /// Some basic information about a testcase.
@@ -172,6 +170,9 @@ pub trait Task<
     /// The list of the testcases for that subtask
     fn testcases(&self, subtask: SubtaskId) -> &HashMap<TestcaseId, TestcaseInfo>;
 
+    /// The score type to use for this task.
+    fn score_type(&self) -> &ScoreType<SubtaskId, TestcaseId>;
+
     /// The list of known solution files
     fn solutions(&self) -> &HashMap<PathBuf, Box<Solution<SubtaskId, TestcaseId>>>;
 
@@ -189,12 +190,18 @@ pub trait Task<
         testcase: TestcaseId,
     ) -> &Box<Checker<SubtaskId, TestcaseId>>;
 
-    /// Starts the actual evaluation of the task
+    /// Build the DAG of the evaluation of this task.
     fn evaluate(&self, dag: &mut ExecutionDAG, options: &EvaluationOptions) {
         let subtasks = self.subtasks();
         let mut inputs = HashMap::new();
         let mut outputs = HashMap::new();
         let solutions = self.solutions();
+        // TODO register the scores
+        // let solutions_scores: HashMap<PathBuf, Box<dyn ScoreType<SubtaskId, TestcaseId>>> =
+        //     solutions
+        //         .keys()
+        //         .map(|sol| (sol.clone(), self.score_type().clone()))
+        //         .collect();
         for (st_num, _st) in subtasks.iter() {
             inputs.insert(*st_num, HashMap::new());
             outputs.insert(*st_num, HashMap::new());
@@ -236,12 +243,22 @@ pub trait Task<
                     .unwrap()
                     .insert(*tc_num, output.clone());
 
-                for sol in solutions.values() {
-                    sol.solve(dag, input.clone(), val.clone(), *st_num, *tc_num);
+                for (_sol_path, sol) in solutions.iter() {
+                    let sol_output = sol.solve(dag, input.clone(), val.clone(), *st_num, *tc_num);
+                    self.checker(*st_num, *tc_num).check(
+                        dag,
+                        input.clone(),
+                        output.clone(),
+                        sol_output,
+                        *st_num,
+                        *tc_num,
+                        Box::new(|_res| {
+                            // TODO register the score!
+                        }),
+                    );
                 }
             }
         }
-        unimplemented!();
     }
 }
 

@@ -106,10 +106,39 @@ impl TaskFormat for IOIItalianYaml {
             )) as Box<Solution<IOISubtaskId, IOITestcaseId>>
         });
 
+        let get_score_type = |subtasks: &HashMap<IOISubtaskId, IOISubtaskInfo>,
+                              testcases: &HashMap<
+            IOISubtaskId,
+            HashMap<IOITestcaseId, IOITestcaseInfo>,
+        >| {
+            let subtasks = subtasks
+                .iter()
+                .map(|(id, s)| (id.clone(), s as &SubtaskInfo))
+                .collect();
+            let testcases = testcases
+                .iter()
+                .map(|(id, s)| {
+                    (
+                        id.clone(),
+                        s.iter()
+                            .map(|(id, t)| {
+                                (id.clone(), t as &TestcaseInfo<IOISubtaskId, IOITestcaseId>)
+                            })
+                            .collect(),
+                    )
+                })
+                .collect();
+            match yaml.score_type.as_ref().map(|s| s.as_str()) {
+                None | Some("min") => Box::new(ScoreTypeMin::new(subtasks, testcases)),
+                _ => unimplemented!(),
+            }
+        };
+
         if path.join("gen").join("GEN").exists() {
             let (subtasks, testcases) = parse_gen_gen(&path.join("gen").join("GEN"))?;
             let info = IOITaskInfo {
                 path: path.to_owned(),
+                score_type: get_score_type(&subtasks, &testcases),
                 yaml,
                 subtasks,
                 testcases,

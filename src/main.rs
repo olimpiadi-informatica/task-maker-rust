@@ -22,6 +22,7 @@ extern crate glob;
 pub mod execution;
 pub mod executor;
 pub mod languages;
+pub mod score_types;
 pub mod store;
 pub mod task_types;
 #[cfg(test)]

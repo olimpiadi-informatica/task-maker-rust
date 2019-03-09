@@ -30,10 +30,7 @@ pub fn parse_gen_gen(
     let mut last_testcases: HashMap<IOITestcaseId, IOITestcaseInfo> = HashMap::new();
     let mut testcase_count = 0;
 
-    let mut default_subtask = Some(IOISubtaskInfo {
-        max_score: 100.0,
-        score_mode: "max".to_string(),
-    });
+    let mut default_subtask = Some(IOISubtaskInfo { max_score: 100.0 });
 
     let generator = find_source_file(
         &task_dir,
@@ -81,7 +78,6 @@ pub fn parse_gen_gen(
                         let score = line.into_inner().next().unwrap().as_str();
                         last_subtask = Some(IOISubtaskInfo {
                             max_score: score.parse::<f64>().unwrap(),
-                            score_mode: "max".to_string(), // TODO
                         });
                     }
                     Rule::copy => {

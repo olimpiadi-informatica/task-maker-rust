@@ -22,6 +22,8 @@ pub struct IOITaskInfo {
     pub testcases: HashMap<IOISubtaskId, HashMap<IOITestcaseId, IOITestcaseInfo>>,
     /// The checker to use for this task
     pub checker: Box<Checker<IOISubtaskId, IOITestcaseId>>,
+    /// The score type to use for this task
+    pub score_type: Box<ScoreType<IOISubtaskId, IOITestcaseId>>,
 }
 
 /// Deserialized data from the task.yaml of a IOI format task
@@ -35,10 +37,10 @@ pub struct IOITaskYAML {
     pub title: String,
     /// The number of input files, if not provided will be autodetected
     pub n_input: Option<u32>,
-    /// The score mode to use for this task.
-    ///
-    /// TODO!
+    /// The score mode for this task, task-maker will ignore this.
     pub score_mode: Option<String>,
+    /// The score type to use for this task.
+    pub score_type: Option<String>,
     /// The token mode of this task.
     ///
     /// This is ignored by task-maker.
@@ -77,8 +79,6 @@ pub struct IOITaskYAML {
 pub struct IOISubtaskInfo {
     /// The maximum score of the subtask, must be >= 0
     pub max_score: f64,
-    /// The score mode of the subtask
-    pub score_mode: String,
 }
 
 /// A testcase of a IOI task. Every testcase has an input and an output that
@@ -164,9 +164,6 @@ impl IOISolution {
 impl SubtaskInfo for IOISubtaskInfo {
     fn max_score(&self) -> f64 {
         self.max_score
-    }
-    fn score_mode(&self) -> String {
-        self.score_mode.clone()
     }
 }
 

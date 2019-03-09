@@ -42,6 +42,10 @@ impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIB
         self.info.testcases.get(&subtask).unwrap()
     }
 
+    fn score_type(&self) -> &ScoreType<IOISubtaskId, IOITestcaseId> {
+        self.info.score_type.as_ref()
+    }
+
     fn solutions(&self) -> &HashMap<PathBuf, Box<Solution<IOISubtaskId, IOITestcaseId>>> {
         &self.solutions
     }
