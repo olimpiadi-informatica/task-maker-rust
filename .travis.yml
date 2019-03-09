@@ -8,5 +8,5 @@ rust:
   - stable
 script:
   - cargo build --all
-  - cargo test --verbose --all
+  - RUST_BACKTRACE=1 cargo test --verbose --all
 cache: cargo
