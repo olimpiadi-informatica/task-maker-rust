@@ -2,11 +2,14 @@ language: rust
 dist: xenial
 addons:
   apt:
+    sources:
+      - ubuntu-toolchain-r-test
     packages:
-      - build-essential
+      - g++-7
 rust:
   - stable
 script:
+  - export CC=gcc-7 && CXX=g++-7
   - cargo build --all
   - RUST_BACKTRACE=1 cargo test --verbose --all
 cache: cargo

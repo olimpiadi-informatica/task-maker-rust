@@ -73,6 +73,7 @@ impl SourceFile {
             comp.args = self.language.compilation_args(&self.path);
             let source = File::new(&format!("Source file of {:?}", self.path));
             comp.input(&source, Path::new(self.path.file_name().unwrap()), false);
+            comp.limits.nproc = None;
             // TODO compilation dependencies
             let exec = comp.output(&self.language.executable_name(&self.path));
             dag.provide_file(source, &self.path);

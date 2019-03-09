@@ -11,8 +11,10 @@ fn main() {
     }
     let out_dir = env::var("OUT_DIR").unwrap();
     let num_jobs = env::var("NUM_JOBS").unwrap();
+    let cxx = env::var("CXX").unwrap_or("g++".to_string());
     let status = Command::new("make")
         .arg(format!("TARGET={}", out_dir))
+        .arg(format!("CXX={}", cxx))
         .arg("-j")
         .arg(num_jobs.to_string())
         .current_dir(Path::new("tmbox"))

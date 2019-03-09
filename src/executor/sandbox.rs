@@ -129,6 +129,12 @@ impl Sandbox {
         if let Some(wall) = self.execution.limits.wall_time {
             sandbox.arg("--wall").arg(wall.to_string());
         }
+        match self.execution.limits.nproc {
+            Some(1) => {}
+            _ => {
+                sandbox.arg("--multiprocess");
+            }
+        }
         sandbox.arg("--");
         match &self.execution.command {
             ExecutionCommand::System(cmd) => {
