@@ -30,7 +30,7 @@ impl CheckerResult {
 
 /// A trait that describes what is a generator: something that knowing which
 /// testcase produces an input file
-pub trait Generator<SubtaskId, TestcaseId>
+pub trait Generator<SubtaskId, TestcaseId>: std::fmt::Debug
 where
     SubtaskId: Eq + PartialOrd + Hash + Copy,
     TestcaseId: Eq + PartialOrd + Hash + Copy,
@@ -137,7 +137,7 @@ pub trait Task<
     TestcaseId: Eq + PartialOrd + Hash + Copy,
     SubtaskInfo: crate::task_types::SubtaskInfo,
     TestcaseInfo: crate::task_types::TestcaseInfo,
->
+>: std::fmt::Debug
 {
     /// Name of the format of the task
     fn format() -> &'static str
@@ -151,10 +151,10 @@ pub trait Task<
     fn title(&self) -> String;
 
     /// The list of the subtasks for this task
-    fn subtasks(&self) -> HashMap<SubtaskId, SubtaskInfo>;
+    fn subtasks(&self) -> &HashMap<SubtaskId, SubtaskInfo>;
 
     /// The list of the testcases for that subtask
-    fn testcases(&self, subtask: SubtaskId) -> HashMap<TestcaseId, TestcaseInfo>;
+    fn testcases(&self, subtask: SubtaskId) -> &HashMap<TestcaseId, TestcaseInfo>;
 
     /// The list of known solution files
     fn solutions(&self) -> HashMap<PathBuf, &Solution<SubtaskId, TestcaseId>>;
@@ -164,7 +164,7 @@ pub trait Task<
         &self,
         subtask: SubtaskId,
         testcase: TestcaseId,
-    ) -> Box<Generator<SubtaskId, TestcaseId>>;
+    ) -> &Box<Generator<SubtaskId, TestcaseId>>;
 
     /// The optional validator that will validate that testcase
     fn validator(
@@ -192,7 +192,7 @@ pub trait Task<
         let subtasks = self.subtasks();
         let mut inputs = HashMap::new();
         let mut outputs = HashMap::new();
-        for (st_num, st) in subtasks.iter() {
+        for (st_num, _st) in subtasks.iter() {
             inputs.insert(*st_num, HashMap::new());
             outputs.insert(*st_num, HashMap::new());
             for (tc_num, tc) in self.testcases(*st_num).iter() {

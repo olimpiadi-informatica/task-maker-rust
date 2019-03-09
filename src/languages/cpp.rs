@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 /// Version of the C++ standard and compiler to use.
 #[allow(dead_code)]
+#[derive(Debug)]
 pub enum LanguageCppVersion {
     /// g++ with -std=c++11
     GccCpp11,
@@ -14,6 +15,7 @@ pub enum LanguageCppVersion {
 }
 
 /// The C++ language.
+#[derive(Debug)]
 pub struct LanguageCpp {
     pub version: LanguageCppVersion,
 }

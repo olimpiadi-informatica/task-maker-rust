@@ -17,6 +17,7 @@ extern crate tempdir;
 extern crate which;
 #[macro_use]
 extern crate lazy_static;
+extern crate glob;
 
 pub mod execution;
 pub mod executor;
@@ -32,4 +33,16 @@ fn main() {
         .init();
 
     println!("Tmbox: {}/bin/tmbox", env!("OUT_DIR"));
+    use crate::execution::*;
+    use crate::task_types::ioi::*;
+
+    let mut dag = ExecutionDAG::new();
+    use crate::task_types::TaskFormat;
+    let task = task_types::ioi::formats::IOIItalianYaml::parse(std::path::Path::new(
+        "../oii/problemi/carestia",
+    ))
+    .unwrap();
+    task.evaluate(&mut dag, &IOIEvaluationOptions {});
+    info!("Task: {:#?}", task);
+    info!("Dag: {:#?}", dag);
 }

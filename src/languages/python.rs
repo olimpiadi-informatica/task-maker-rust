@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 /// Version of the Python interpreter to use.
 #[allow(dead_code)]
+#[derive(Debug)]
 pub enum LanguagePythonVersion {
     /// Use the shebang written as the first line of the source.
     Autodetect,
@@ -14,6 +15,7 @@ pub enum LanguagePythonVersion {
 }
 
 /// The Python language
+#[derive(Debug)]
 pub struct LanguagePython {
     version: LanguagePythonVersion,
 }

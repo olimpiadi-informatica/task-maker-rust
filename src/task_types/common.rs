@@ -3,6 +3,7 @@ use std::hash::Hash;
 use std::path::{Path, PathBuf};
 
 /// A generator/solution that will simply use a static file
+#[derive(Debug)]
 pub struct StaticFileProvider {
     /// A textual description of the testcase, for example
     ///   'Sample input for case 0'

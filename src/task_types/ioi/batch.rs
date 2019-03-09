@@ -1,28 +1,16 @@
 use crate::task_types::ioi::*;
 use crate::task_types::*;
 
+#[derive(Debug)]
 pub struct IOIBatchTask {
     pub info: IOITaskInfo,
 }
-
-pub struct IOIBatchGenerator;
 
 pub struct IOIBatchValidator;
 
 pub struct IOIBatchSolution;
 
 pub struct IOIBatchChecker;
-
-impl Generator<IOISubtaskId, IOITestcaseId> for IOIBatchGenerator {
-    fn generate(
-        &self,
-        dag: &mut ExecutionDAG,
-        subtask: IOISubtaskId,
-        testcase: IOITestcaseId,
-    ) -> File {
-        unimplemented!();
-    }
-}
 
 impl Validator<IOISubtaskId, IOITestcaseId> for IOIBatchValidator {
     fn validate(
@@ -70,19 +58,19 @@ impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIB
     }
 
     fn name(&self) -> String {
-        unimplemented!();
+        self.info.yaml.name.clone()
     }
 
     fn title(&self) -> String {
-        unimplemented!();
+        self.info.yaml.title.clone()
     }
 
-    fn subtasks(&self) -> HashMap<IOISubtaskId, IOISubtaskInfo> {
-        unimplemented!();
+    fn subtasks(&self) -> &HashMap<IOISubtaskId, IOISubtaskInfo> {
+        &self.info.subtasks
     }
 
-    fn testcases(&self, subtask: IOISubtaskId) -> HashMap<IOITestcaseId, IOITestcaseInfo> {
-        unimplemented!();
+    fn testcases(&self, subtask: IOISubtaskId) -> &HashMap<IOITestcaseId, IOITestcaseInfo> {
+        self.info.testcases.get(&subtask).unwrap()
     }
 
     fn solutions(&self) -> HashMap<PathBuf, &Solution<IOISubtaskId, IOITestcaseId>> {
@@ -93,11 +81,15 @@ impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIB
         &self,
         subtask: IOISubtaskId,
         testcase: IOITestcaseId,
-    ) -> Box<Generator<IOISubtaskId, IOITestcaseId>> {
-        Box::new(StaticFileProvider::new(
-            format!("Static input of testcase {}", testcase),
-            std::path::Path::new(".").to_owned(),
-        ))
+    ) -> &Box<Generator<IOISubtaskId, IOITestcaseId>> {
+        &self
+            .info
+            .testcases
+            .get(&subtask)
+            .unwrap()
+            .get(&testcase)
+            .unwrap()
+            .generator
     }
 
     fn validator(
@@ -105,7 +97,7 @@ impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIB
         subtask: IOISubtaskId,
         testcase: IOITestcaseId,
     ) -> Option<Box<Validator<IOISubtaskId, IOITestcaseId>>> {
-        Some(Box::new(IOIBatchValidator {}))
+        None
     }
 
     fn official_solution(
@@ -113,10 +105,7 @@ impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIB
         subtask: IOISubtaskId,
         testcase: IOITestcaseId,
     ) -> Option<Box<Solution<IOISubtaskId, IOITestcaseId>>> {
-        Some(Box::new(StaticFileProvider::new(
-            format!("Static output of testcase {}", testcase),
-            std::path::Path::new(".").to_owned(),
-        )))
+        None
     }
 
     fn checker(

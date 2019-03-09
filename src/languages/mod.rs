@@ -6,7 +6,7 @@ mod cpp;
 mod python;
 
 /// Trait that defines what a language is.
-pub trait Language {
+pub trait Language: std::fmt::Debug {
     /// Full name of the language
     fn name(&self) -> &'static str;
 

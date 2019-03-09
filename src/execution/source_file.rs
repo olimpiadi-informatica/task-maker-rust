@@ -1,17 +1,18 @@
 use crate::execution::*;
 use crate::languages::*;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// A source file that will be able to be execute (with an optional
 /// compilation step).
+#[derive(Debug)]
 pub struct SourceFile {
     /// Path to the source file.
     pub path: PathBuf,
     /// Language of the source file.
     pub language: Arc<Language>,
     /// Handle to the executable after the compilation/provided file.
-    pub executable: Option<File>,
+    pub executable: Arc<Mutex<Option<File>>>,
 }
 
 impl SourceFile {
@@ -25,7 +26,7 @@ impl SourceFile {
         Some(SourceFile {
             path: path.to_owned(),
             language: lang.unwrap(),
-            executable: None,
+            executable: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -36,7 +37,7 @@ impl SourceFile {
     /// The returned execution has all the dependencies already set, but it has
     /// not been added to the DAG yet.
     pub fn execute(
-        &mut self,
+        &self,
         dag: &mut ExecutionDAG,
         description: &str,
         args: Vec<String>,
@@ -45,7 +46,7 @@ impl SourceFile {
         let mut exec = Execution::new(description, self.language.runtime_command(&self.path));
         exec.args = self.language.runtime_args(&self.path, args);
         exec.input(
-            self.executable.as_ref().unwrap(),
+            self.executable.lock().unwrap().as_ref().unwrap(),
             &self.language.executable_name(&self.path),
             true,
         );
@@ -55,8 +56,8 @@ impl SourceFile {
 
     /// Prepare the source file setting the `executable` and eventually
     /// compiling the source file.
-    fn prepare(&mut self, dag: &mut ExecutionDAG) {
-        if self.executable.is_some() {
+    fn prepare(&self, dag: &mut ExecutionDAG) {
+        if self.executable.lock().unwrap().is_some() {
             return;
         }
         if self.language.need_compilation() {
@@ -72,10 +73,10 @@ impl SourceFile {
             dag.provide_file(source, &self.path);
             dag.add_execution(comp);
             // TODO bind the compilation events
-            self.executable = Some(exec);
+            *self.executable.lock().unwrap() = Some(exec);
         } else {
             let executable = File::new(&format!("Source file of {:?}", self.path));
-            self.executable = Some(executable.clone());
+            *self.executable.lock().unwrap() = Some(executable.clone());
             dag.provide_file(executable, &self.path);
         }
     }
@@ -99,7 +100,7 @@ mod tests {
             .unwrap()
             .write_all(source.as_bytes())
             .unwrap();
-        let mut source = SourceFile::new(&source_path).unwrap();
+        let source = SourceFile::new(&source_path).unwrap();
         let exec = source.execute(&mut dag, "Testing exec", vec![]);
 
         let exec_start = Arc::new(AtomicBool::new(false));

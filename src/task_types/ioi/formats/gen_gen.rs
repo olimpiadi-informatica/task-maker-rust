@@ -1,8 +1,11 @@
+use crate::languages::*;
 use crate::task_types::ioi::*;
+use crate::task_types::*;
 use failure::Error;
 use pest::Parser;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 
 #[derive(Parser)]
 #[grammar = "task_types/ioi/formats/GEN.pest"]
@@ -18,6 +21,7 @@ pub fn parse_gen_gen(
     ),
     Error,
 > {
+    let task_dir = path.parent().unwrap().parent().unwrap();
     let content = std::fs::read_to_string(path)?;
     let mut file = GENParser::parse(Rule::file, &content)?;
     let file = file.next().unwrap(); // extract the real file
@@ -31,6 +35,23 @@ pub fn parse_gen_gen(
         max_score: 100.0,
         score_mode: "max".to_string(),
     });
+
+    let generators = list_files(
+        &task_dir,
+        vec![
+            "gen/generator.*",
+            "gen/generatore.*",
+            "gen/generator",
+            "gen/generatore",
+        ],
+    );
+    let mut generator = None;
+    for gen in generators {
+        if LanguageManager::detect_language(&gen).is_some() {
+            generator = Some(Arc::new(SourceFile::new(&gen).unwrap()));
+            break;
+        }
+    }
 
     for line in file.into_inner() {
         match line.as_rule() {
@@ -59,9 +80,11 @@ pub fn parse_gen_gen(
                             testcase_count,
                             IOITestcaseInfo {
                                 testcase: testcase_count,
-                                static_input: Some(std::path::PathBuf::from(what)),
                                 static_output: None,
-                                generator: (),
+                                generator: Box::new(StaticFileProvider::new(
+                                    format!("Static input of testcase {}", testcase_count),
+                                    task_dir.join(what),
+                                )),
                                 validator: (),
                             },
                         );
@@ -77,9 +100,11 @@ pub fn parse_gen_gen(
                             testcase_count,
                             IOITestcaseInfo {
                                 testcase: testcase_count,
-                                static_input: None,
                                 static_output: None,
-                                generator: (), // TODO
+                                generator: Box::new(IOIGenerator::new(
+                                    generator.clone().unwrap(),
+                                    cmd,
+                                )),
                                 validator: (),
                             },
                         );
