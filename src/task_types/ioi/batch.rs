@@ -1,9 +1,20 @@
 use crate::task_types::ioi::*;
 use crate::task_types::*;
 
+/// In a IOI Batch task each input file is evaluated by a single solution which
+/// takes the input file as an input (at stdin or at a file path) and writes
+/// the output file (to stdout or at a file path).
+///
+/// The output is then checked by a checker which takes the input, the output
+/// and the correct output (produced by the official solution).
 #[derive(Debug)]
 pub struct IOIBatchTask {
+    /// Information about the task
     pub info: IOITaskInfo,
+    /// List of the known solutions
+    pub solutions: HashMap<PathBuf, Box<Solution<IOISubtaskId, IOITestcaseId>>>,
+    /// The official solution, may be None if the task has static outputs.
+    pub official_solution: Option<Box<Solution<IOISubtaskId, IOITestcaseId>>>,
 }
 
 impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIBatchTask {
@@ -27,16 +38,16 @@ impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIB
         self.info.testcases.get(&subtask).unwrap()
     }
 
-    fn solutions(&self) -> HashMap<PathBuf, &Solution<IOISubtaskId, IOITestcaseId>> {
-        unimplemented!();
+    fn solutions(&self) -> &HashMap<PathBuf, Box<Solution<IOISubtaskId, IOITestcaseId>>> {
+        &self.solutions
     }
 
     fn official_solution(
         &self,
         _subtask: IOISubtaskId,
         _testcase: IOITestcaseId,
-    ) -> Option<Box<Solution<IOISubtaskId, IOITestcaseId>>> {
-        None
+    ) -> &Option<Box<Solution<IOISubtaskId, IOITestcaseId>>> {
+        &self.official_solution
     }
 
     fn checker(

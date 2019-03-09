@@ -56,16 +56,72 @@ impl TaskFormat for IOIItalianYaml {
             &path.join("task.yaml"),
         )?)?;
         info!("The yaml is {:#?}", yaml);
+
+        let infile = if yaml.infile != "" {
+            Some(PathBuf::from(&yaml.infile))
+        } else {
+            None
+        };
+        let outfile = if yaml.outfile != "" {
+            Some(PathBuf::from(&yaml.outfile))
+        } else {
+            None
+        };
+        let mut limits = ExecutionLimits::default();
+        limits.cpu_time = yaml.time_limit;
+        limits.memory = yaml.memory_limit;
+
+        let sols = list_files(path, vec!["sol/*"]);
+        let mut solutions = HashMap::new();
+        for sol in sols {
+            let path = path.join(&sol);
+            let source = SourceFile::new(&path);
+            if let Some(source) = source {
+                solutions.insert(
+                    sol,
+                    Box::new(IOISolution::new(
+                        Arc::new(source),
+                        infile.clone(),
+                        outfile.clone(),
+                        limits.clone(),
+                    )) as Box<Solution<IOISubtaskId, IOITestcaseId>>,
+                );
+            }
+        }
+        let official = find_source_file(
+            path,
+            vec![
+                "sol/solution.*",
+                "sol/soluzione.*",
+                "sol/solution",
+                "sol/soluzione",
+            ],
+        );
+        let official_solution = official.map(|s| {
+            Box::new(IOISolution::new(
+                Arc::new(s),
+                infile,
+                outfile,
+                ExecutionLimits::default(), // the official solution does not have limits
+            )) as Box<Solution<IOISubtaskId, IOITestcaseId>>
+        });
+
         if path.join("gen").join("GEN").exists() {
             let (subtasks, testcases) = parse_gen_gen(&path.join("gen").join("GEN"))?;
             let info = IOITaskInfo {
+                path: path.to_owned(),
                 yaml,
                 subtasks,
                 testcases,
                 checker: Box::new(WhiteDiffChecker::new()),
             };
-            info!("{:#?}", info);
-            return Ok(Box::new(IOIBatchTask { info: info }));
+            let task = IOIBatchTask {
+                info,
+                solutions,
+                official_solution,
+            };
+            info!("Task: {:#?}", task);
+            return Ok(Box::new(task));
         } else {
             // TODO static inputs
             unimplemented!();

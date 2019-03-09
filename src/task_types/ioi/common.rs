@@ -12,6 +12,8 @@ pub type IOITestcaseId = u32;
 /// Information about a generic IOI task
 #[derive(Debug)]
 pub struct IOITaskInfo {
+    /// Path of the directory of the task.
+    pub path: PathBuf,
     /// The information from the yaml file
     pub yaml: IOITaskYAML,
     /// The list of the subtasks
@@ -112,6 +114,19 @@ pub struct IOIValidator {
     pub args: Vec<String>,
 }
 
+/// A solution for a task, not necessary the official one.
+#[derive(Debug)]
+pub struct IOISolution {
+    /// The source file with the solution.
+    pub source_file: Arc<SourceFile>,
+    /// The input file the solution is expecting, None for stdin.
+    pub infile: Option<PathBuf>,
+    /// The output file the solution is writing to. None for stdout.
+    pub outfile: Option<PathBuf>,
+    /// Limits to set to the execution of the solution.
+    pub limits: ExecutionLimits,
+}
+
 /// Evaluation options for a IOI task
 pub struct IOIEvaluationOptions;
 
@@ -126,6 +141,23 @@ impl IOIValidator {
     /// Make a new IOIValidator based on that source file and those args.
     pub fn new(source_file: Arc<SourceFile>, args: Vec<String>) -> IOIValidator {
         IOIValidator { source_file, args }
+    }
+}
+
+impl IOISolution {
+    /// Make a new IOISolution based on that source file.
+    pub fn new(
+        source_file: Arc<SourceFile>,
+        infile: Option<PathBuf>,
+        outfile: Option<PathBuf>,
+        limits: ExecutionLimits,
+    ) -> IOISolution {
+        IOISolution {
+            source_file,
+            infile,
+            outfile,
+            limits,
+        }
     }
 }
 
@@ -192,6 +224,43 @@ impl Validator<IOISubtaskId, IOITestcaseId> for IOIValidator {
         let stdout = exec.stdout();
         dag.add_execution(exec);
         stdout
+    }
+}
+
+impl Solution<IOISubtaskId, IOITestcaseId> for IOISolution {
+    fn solve(
+        &self,
+        dag: &mut ExecutionDAG,
+        input: File,
+        validation: Option<File>,
+        _subtask: IOISubtaskId,
+        testcase: IOITestcaseId,
+    ) -> File {
+        let mut exec = self.source_file.execute(
+            dag,
+            &format!(
+                "Execution of {} on testcase {}",
+                self.source_file.name(),
+                testcase
+            ),
+            vec![],
+        );
+        if let Some(infile) = &self.infile {
+            exec.input(&input, infile, false);
+        } else {
+            exec.stdin(&input);
+        }
+        let output = if let Some(outfile) = &self.outfile {
+            exec.output(outfile)
+        } else {
+            exec.stdout()
+        };
+        if let Some(validation) = validation {
+            exec.input(&validation, Path::new("_tm_validation"), false);
+        }
+        exec.limits = self.limits.clone();
+        dag.add_execution(exec);
+        output
     }
 }
 

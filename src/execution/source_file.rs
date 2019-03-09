@@ -54,6 +54,11 @@ impl SourceFile {
         exec
     }
 
+    /// The name of the source file, it's based on the name of the file.
+    pub fn name(&self) -> String {
+        String::from(self.path.file_name().unwrap().to_str().unwrap())
+    }
+
     /// Prepare the source file setting the `executable` and eventually
     /// compiling the source file.
     fn prepare(&self, dag: &mut ExecutionDAG) {
@@ -62,7 +67,7 @@ impl SourceFile {
         }
         if self.language.need_compilation() {
             let mut comp = Execution::new(
-                &format!("Compilation of {:?}", self.path),
+                &format!("Compilation of {:?}", self.name()),
                 self.language.compilation_command(&self.path),
             );
             comp.args = self.language.compilation_args(&self.path);

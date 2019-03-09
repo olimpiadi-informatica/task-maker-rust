@@ -63,7 +63,7 @@ where
 /// A trait that describes what is a solution: something that given an input
 /// file produces an output file. An extra parameter `validation` is supplied
 /// to make sure that the validation (if any) comes before.
-pub trait Solution<SubtaskId, TestcaseId>
+pub trait Solution<SubtaskId, TestcaseId>: std::fmt::Debug
 where
     SubtaskId: Eq + PartialOrd + Hash + Copy,
     TestcaseId: Eq + PartialOrd + Hash + Copy,
@@ -168,14 +168,14 @@ pub trait Task<
     fn testcases(&self, subtask: SubtaskId) -> &HashMap<TestcaseId, TestcaseInfo>;
 
     /// The list of known solution files
-    fn solutions(&self) -> HashMap<PathBuf, &Solution<SubtaskId, TestcaseId>>;
+    fn solutions(&self) -> &HashMap<PathBuf, Box<Solution<SubtaskId, TestcaseId>>>;
 
     /// The optional official solution that will generate the output file
     fn official_solution(
         &self,
         subtask: SubtaskId,
         testcase: TestcaseId,
-    ) -> Option<Box<Solution<SubtaskId, TestcaseId>>>;
+    ) -> &Option<Box<Solution<SubtaskId, TestcaseId>>>;
 
     /// The optional checker that will check the output file
     fn checker(
@@ -189,6 +189,7 @@ pub trait Task<
         let subtasks = self.subtasks();
         let mut inputs = HashMap::new();
         let mut outputs = HashMap::new();
+        let solutions = self.solutions();
         for (st_num, _st) in subtasks.iter() {
             inputs.insert(*st_num, HashMap::new());
             outputs.insert(*st_num, HashMap::new());
@@ -208,7 +209,7 @@ pub trait Task<
                     Some(solution.solve(
                         dag,
                         input.clone(),
-                        val.map(|f| f.clone()),
+                        val.as_ref().map(|f| f.clone()),
                         *st_num,
                         *tc_num,
                     ))
@@ -221,10 +222,18 @@ pub trait Task<
                     }
                 }
 
-                inputs.get_mut(&st_num).unwrap().insert(*tc_num, input);
-                outputs.get_mut(&st_num).unwrap().insert(*tc_num, output);
+                inputs
+                    .get_mut(&st_num)
+                    .unwrap()
+                    .insert(*tc_num, input.clone());
+                outputs
+                    .get_mut(&st_num)
+                    .unwrap()
+                    .insert(*tc_num, output.clone());
 
-                // TODO evaluate the submissions!
+                for sol in solutions.values() {
+                    sol.solve(dag, input.clone(), val.clone(), *st_num, *tc_num);
+                }
             }
         }
         unimplemented!();
