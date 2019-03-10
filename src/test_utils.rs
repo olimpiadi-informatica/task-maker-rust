@@ -1,6 +1,6 @@
 #[cfg(test)]
 pub mod test_utils {
-    use crate::execution::*;
+    use crate::evaluation::*;
     use crate::executor::*;
     use crate::store::*;
     use std::path::Path;
@@ -20,7 +20,7 @@ pub mod test_utils {
         TempDir::new("tm-test").unwrap()
     }
 
-    pub fn eval_dag_locally(dag: ExecutionDAG, cwd: &Path) {
+    pub fn eval_dag_locally(eval: EvaluationData, cwd: &Path) {
         let (tx, rx_remote) = channel();
         let (tx_remote, rx) = channel();
         let store_path = cwd.join("store");
@@ -29,7 +29,7 @@ pub mod test_utils {
             let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
             executor.evaluate(tx_remote, rx_remote).unwrap();
         });
-        ExecutorClient::evaluate(dag, tx, rx).unwrap();
+        ExecutorClient::evaluate(eval, tx, rx).unwrap();
         server.join().expect("Server paniced");
     }
 

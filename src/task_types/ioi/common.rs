@@ -1,3 +1,4 @@
+use crate::evaluation::*;
 use crate::task_types::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -188,17 +189,17 @@ impl TestcaseInfo<IOISubtaskId, IOITestcaseId> for IOITestcaseInfo {
 impl Generator<IOISubtaskId, IOITestcaseId> for IOIGenerator {
     fn generate(
         &self,
-        dag: &mut ExecutionDAG,
+        eval: &mut EvaluationData,
         _subtask: IOISubtaskId,
         testcase: IOITestcaseId,
     ) -> File {
         let mut exec = self.source_file.execute(
-            dag,
+            eval,
             &format!("Generation of testcase {}", testcase),
             self.args.clone(),
         );
         let stdout = exec.stdout();
-        dag.add_execution(exec);
+        eval.dag.add_execution(exec);
         stdout
     }
 }
@@ -206,20 +207,20 @@ impl Generator<IOISubtaskId, IOITestcaseId> for IOIGenerator {
 impl Validator<IOISubtaskId, IOITestcaseId> for IOIValidator {
     fn validate(
         &self,
-        dag: &mut ExecutionDAG,
+        eval: &mut EvaluationData,
         input: File,
         _subtask: IOISubtaskId,
         testcase: IOITestcaseId,
     ) -> File {
         let mut exec = self.source_file.execute(
-            dag,
+            eval,
             &format!("Validation of testcase {}", testcase),
             self.args.clone(),
         );
         exec.stdin(&input);
         exec.input(&input, Path::new("input.txt"), false);
         let stdout = exec.stdout();
-        dag.add_execution(exec);
+        eval.dag.add_execution(exec);
         stdout
     }
 }
@@ -227,14 +228,14 @@ impl Validator<IOISubtaskId, IOITestcaseId> for IOIValidator {
 impl Solution<IOISubtaskId, IOITestcaseId> for IOISolution {
     fn solve(
         &self,
-        dag: &mut ExecutionDAG,
+        eval: &mut EvaluationData,
         input: File,
         validation: Option<File>,
         _subtask: IOISubtaskId,
         testcase: IOITestcaseId,
     ) -> File {
         let mut exec = self.source_file.execute(
-            dag,
+            eval,
             &format!(
                 "Execution of {} on testcase {}",
                 self.source_file.name(),
@@ -256,7 +257,7 @@ impl Solution<IOISubtaskId, IOITestcaseId> for IOISolution {
             exec.input(&validation, Path::new("_tm_validation"), false);
         }
         exec.limits = self.limits.clone();
-        dag.add_execution(exec);
+        eval.dag.add_execution(exec);
         output
     }
 }

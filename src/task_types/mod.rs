@@ -1,3 +1,4 @@
+use crate::evaluation::*;
 use crate::execution::*;
 use crate::score_types::*;
 use failure::Error;
@@ -39,7 +40,8 @@ where
 {
     /// Generate an input file editing the DAG and returning the uuid of the
     /// file.
-    fn generate(&self, dag: &mut ExecutionDAG, subtask: SubtaskId, testcase: TestcaseId) -> File;
+    fn generate(&self, eval: &mut EvaluationData, subtask: SubtaskId, testcase: TestcaseId)
+        -> File;
 }
 
 /// A trait that describes what is a validator: something that known which
@@ -54,7 +56,7 @@ where
     /// validator, something to keep tracks of the dependencies.
     fn validate(
         &self,
-        dag: &mut ExecutionDAG,
+        eval: &mut EvaluationData,
         input: File,
         subtask: SubtaskId,
         testcase: TestcaseId,
@@ -73,7 +75,7 @@ where
     /// output file.
     fn solve(
         &self,
-        dag: &mut ExecutionDAG,
+        eval: &mut EvaluationData,
         input: File,
         validation: Option<File>,
         subtask: SubtaskId,
@@ -93,7 +95,7 @@ where
     /// checker is done
     fn check(
         &self,
-        dag: &mut ExecutionDAG,
+        eval: &mut EvaluationData,
         input: File,
         output: Option<File>,
         test: File,
@@ -191,7 +193,7 @@ pub trait Task<
     ) -> &Box<Checker<SubtaskId, TestcaseId>>;
 
     /// Build the DAG of the evaluation of this task.
-    fn evaluate(&self, dag: &mut ExecutionDAG, options: &EvaluationOptions) {
+    fn evaluate(&self, eval: &mut EvaluationData, options: &EvaluationOptions) {
         let subtasks = self.subtasks();
         let mut inputs = HashMap::new();
         let mut outputs = HashMap::new();
@@ -206,20 +208,20 @@ pub trait Task<
             inputs.insert(*st_num, HashMap::new());
             outputs.insert(*st_num, HashMap::new());
             for (tc_num, tc) in self.testcases(*st_num).iter() {
-                let input = tc.generator().generate(dag, *st_num, *tc_num);
+                let input = tc.generator().generate(eval, *st_num, *tc_num);
                 if let Some(path) = tc.write_input_to() {
                     if !options.dry_run() {
-                        dag.write_file_to(&input, &self.path().join(path));
+                        eval.dag.write_file_to(&input, &self.path().join(path));
                     }
                 }
                 let val = if let Some(validator) = tc.validator() {
-                    Some(validator.validate(dag, input.clone(), *st_num, *tc_num))
+                    Some(validator.validate(eval, input.clone(), *st_num, *tc_num))
                 } else {
                     None
                 };
                 let output = if let Some(solution) = self.official_solution(*st_num, *tc_num) {
                     Some(solution.solve(
-                        dag,
+                        eval,
                         input.clone(),
                         val.as_ref().map(|f| f.clone()),
                         *st_num,
@@ -230,7 +232,7 @@ pub trait Task<
                 };
                 if let (Some(ref output), Some(ref path)) = (&output, &tc.write_output_to()) {
                     if !options.dry_run() {
-                        dag.write_file_to(&output, &self.path().join(path));
+                        eval.dag.write_file_to(&output, &self.path().join(path));
                     }
                 }
 
@@ -244,9 +246,9 @@ pub trait Task<
                     .insert(*tc_num, output.clone());
 
                 for (_sol_path, sol) in solutions.iter() {
-                    let sol_output = sol.solve(dag, input.clone(), val.clone(), *st_num, *tc_num);
+                    let sol_output = sol.solve(eval, input.clone(), val.clone(), *st_num, *tc_num);
                     self.checker(*st_num, *tc_num).check(
-                        dag,
+                        eval,
                         input.clone(),
                         output.clone(),
                         sol_output,

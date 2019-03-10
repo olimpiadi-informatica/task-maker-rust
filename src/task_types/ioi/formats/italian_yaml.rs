@@ -7,14 +7,14 @@ use std::path::Path;
 /// italian_yaml format is structured as follow:
 /// * task.yaml - file with the task information
 /// * gen/ - folder with the generator and validator
-/// *     generator... (also generatore)
-/// *     validator... (also valida)
-/// *     GEN - subtask and testcase specifications
+///     * generator... (also generatore)
+///     * validator... (also valida)
+///     * GEN - subtask and testcase specifications
 /// * sol/ - folder with solutions, graders and stubs
-/// *     solution... the official solution (also soluzione)
-/// *     other...
+///     * solution... the official solution (also soluzione)
+///     * other...
 /// * check/ - folder with the checker (also cor/)
-/// *     checker... (also correttore)
+///     * checker... (also correttore)
 /// * input/ - folder with the input files
 /// * output/ - folder with the output files
 /// * statement/ - folder with the statement (also testo)

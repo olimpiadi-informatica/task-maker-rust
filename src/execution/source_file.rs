@@ -1,3 +1,4 @@
+use crate::evaluation::*;
 use crate::execution::*;
 use crate::languages::*;
 use std::path::{Path, PathBuf};
@@ -38,7 +39,7 @@ impl SourceFile {
     /// not been added to the DAG yet.
     pub fn execute(
         &self,
-        dag: &mut ExecutionDAG,
+        dag: &mut EvaluationData,
         description: &str,
         args: Vec<String>,
     ) -> Execution {
@@ -61,7 +62,7 @@ impl SourceFile {
 
     /// Prepare the source file setting the `executable` and eventually
     /// compiling the source file.
-    fn prepare(&self, dag: &mut ExecutionDAG) {
+    fn prepare(&self, eval: &mut EvaluationData) {
         if self.executable.lock().unwrap().is_some() {
             return;
         }
@@ -76,14 +77,14 @@ impl SourceFile {
             comp.limits.nproc = None;
             // TODO compilation dependencies
             let exec = comp.output(&self.language.executable_name(&self.path));
-            dag.provide_file(source, &self.path);
-            dag.add_execution(comp);
+            eval.dag.provide_file(source, &self.path);
+            eval.dag.add_execution(comp);
             // TODO bind the compilation events
             *self.executable.lock().unwrap() = Some(exec);
         } else {
             let executable = File::new(&format!("Source file of {:?}", self.path));
             *self.executable.lock().unwrap() = Some(executable.clone());
-            dag.provide_file(executable, &self.path);
+            eval.dag.provide_file(executable, &self.path);
         }
     }
 }
@@ -99,7 +100,7 @@ mod tests {
     fn test_source_file_cpp() {
         let cwd = setup_test();
 
-        let mut dag = ExecutionDAG::new();
+        let (mut eval, _receiver) = EvaluationData::new();
         let source = "int main() {return 0;}";
         let source_path = cwd.path().join("source.cpp");
         std::fs::File::create(&source_path)
@@ -107,7 +108,7 @@ mod tests {
             .write_all(source.as_bytes())
             .unwrap();
         let source = SourceFile::new(&source_path).unwrap();
-        let exec = source.execute(&mut dag, "Testing exec", vec![]);
+        let exec = source.execute(&mut eval, "Testing exec", vec![]);
 
         let exec_start = Arc::new(AtomicBool::new(false));
         let exec_start2 = exec_start.clone();
@@ -116,12 +117,13 @@ mod tests {
         let exec_skipped = Arc::new(AtomicBool::new(false));
         let exec_skipped2 = exec_skipped.clone();
 
-        dag.add_execution(exec)
+        eval.dag
+            .add_execution(exec)
             .on_start(move |_w| exec_start.store(true, Ordering::Relaxed))
             .on_done(move |_res| exec_done.store(true, Ordering::Relaxed))
             .on_skip(move || exec_skipped.store(true, Ordering::Relaxed));
 
-        eval_dag_locally(dag, cwd.path());
+        eval_dag_locally(eval, cwd.path());
 
         assert!(exec_start2.load(Ordering::Relaxed));
         assert!(exec_done2.load(Ordering::Relaxed));

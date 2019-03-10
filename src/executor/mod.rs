@@ -44,6 +44,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::evaluation::*;
     use crate::execution::*;
     use crate::test_utils::*;
     use std::path::{Path, PathBuf};
@@ -53,7 +54,7 @@ mod tests {
     #[test]
     fn test_local_evaluation() {
         let cwd = setup_test();
-        let mut dag = ExecutionDAG::new();
+        let (mut eval, _receiver) = EvaluationData::new();
 
         let file = File::new("Input file");
 
@@ -83,24 +84,29 @@ mod tests {
         let exec3_skipped = Arc::new(AtomicBool::new(false));
         let exec3_skipped2 = exec3_skipped.clone();
 
-        dag.provide_file(file, Path::new("/dev/null"));
-        dag.add_execution(exec)
+        eval.dag.provide_file(file, Path::new("/dev/null"));
+        eval.dag
+            .add_execution(exec)
             .on_done(move |_res| exec_done.store(true, Ordering::Relaxed))
             .on_skip(|| assert!(false, "exec has been skipped"))
             .on_start(move |_w| exec_start.store(true, Ordering::Relaxed));
-        dag.add_execution(exec2)
+        eval.dag
+            .add_execution(exec2)
             .on_done(move |_res| exec2_done.store(true, Ordering::Relaxed))
             .on_skip(|| assert!(false, "exec2 has been skipped"))
             .on_start(move |_w| exec2_start.store(true, Ordering::Relaxed));
-        dag.add_execution(exec3)
+        eval.dag
+            .add_execution(exec3)
             .on_done(|_res| assert!(false, "exec3 has not been skipped"))
             .on_skip(move || exec3_skipped.store(true, Ordering::Relaxed))
             .on_start(|_w| assert!(false, "exec3 has not been skipped"));
-        dag.write_file_to(&stdout, &cwd.path().join("stdout"));
-        dag.write_file_to(&stdout2, &cwd.path().join("stdout2"));
-        dag.write_file_to(&output3, &cwd.path().join("output3"));
+        eval.dag.write_file_to(&stdout, &cwd.path().join("stdout"));
+        eval.dag
+            .write_file_to(&stdout2, &cwd.path().join("stdout2"));
+        eval.dag
+            .write_file_to(&output3, &cwd.path().join("output3"));
 
-        eval_dag_locally(dag, cwd.path());
+        eval_dag_locally(eval, cwd.path());
 
         assert!(exec_done2.load(Ordering::Relaxed));
         assert!(exec_start2.load(Ordering::Relaxed));

@@ -1,3 +1,4 @@
+use crate::evaluation::*;
 use crate::execution::*;
 use crate::executor::*;
 use crate::store::*;
@@ -14,24 +15,29 @@ impl ExecutorClient {
     /// as needed and storing the files from the server. This method is
     /// blocking until the server ends the computation.
     ///
-    /// * `dag` - The ExecutionDAG to evaluate
+    /// * `eval` - The EvaluationData to evaluate
     /// * `sender` - A channel that sends messages to the server
     /// * `receiver` - A channel that receives messages from the server
     pub fn evaluate(
-        dag: ExecutionDAG,
+        eval: EvaluationData,
         sender: ChannelSender,
         receiver: ChannelReceiver,
     ) -> Result<(), Error> {
         trace!("ExecutorClient started");
         // list all the files/executions that want callbacks
         let dag_callbacks = ExecutionDAGCallbacks {
-            executions: dag.execution_callbacks.keys().map(|k| k.clone()).collect(),
-            files: dag.file_callbacks.keys().map(|k| k.clone()).collect(),
+            executions: eval
+                .dag
+                .execution_callbacks
+                .keys()
+                .map(|k| k.clone())
+                .collect(),
+            files: eval.dag.file_callbacks.keys().map(|k| k.clone()).collect(),
         };
-        let provided_files = dag.data.provided_files.clone();
+        let provided_files = eval.dag.data.provided_files.clone();
         serialize_into(
             &ExecutorClientMessage::Evaluate {
-                dag: dag.data,
+                dag: eval.dag.data,
                 callbacks: dag_callbacks,
             },
             &sender,
@@ -51,7 +57,7 @@ impl ExecutorClient {
                 Ok(ExecutorServerMessage::ProvideFile(uuid)) => {
                     info!("Server sent the file {}", uuid);
                     let iterator = ChannelFileIterator::new(&receiver);
-                    if let Some(callback) = dag.file_callbacks.get(&uuid) {
+                    if let Some(callback) = eval.dag.file_callbacks.get(&uuid) {
                         let limit = callback
                             .get_content
                             .as_ref()
@@ -81,7 +87,7 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::NotifyStart(uuid, worker)) => {
                     info!("Execution {} started on {}", uuid, worker);
-                    if let Some(callbacks) = dag.execution_callbacks.get(&uuid) {
+                    if let Some(callbacks) = eval.dag.execution_callbacks.get(&uuid) {
                         if let Some(callback) = &callbacks.on_start {
                             callback(worker);
                         }
@@ -89,7 +95,7 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::NotifyDone(uuid, result)) => {
                     info!("Execution {} completed with {:?}", uuid, result);
-                    if let Some(callbacks) = dag.execution_callbacks.get(&uuid) {
+                    if let Some(callbacks) = eval.dag.execution_callbacks.get(&uuid) {
                         if let Some(callback) = &callbacks.on_done {
                             callback(result);
                         }
@@ -97,7 +103,7 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::NotifySkip(uuid)) => {
                     info!("Execution {} skipped", uuid);
-                    if let Some(callbacks) = dag.execution_callbacks.get(&uuid) {
+                    if let Some(callbacks) = eval.dag.execution_callbacks.get(&uuid) {
                         if let Some(callback) = &callbacks.on_skip {
                             callback();
                         }

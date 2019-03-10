@@ -19,6 +19,7 @@ extern crate which;
 extern crate lazy_static;
 extern crate glob;
 
+pub mod evaluation;
 pub mod execution;
 pub mod executor;
 pub mod languages;
@@ -27,6 +28,7 @@ pub mod store;
 pub mod task_types;
 #[cfg(test)]
 mod test_utils;
+pub mod ui;
 
 fn main() {
     env_logger::Builder::from_default_env()
@@ -34,16 +36,25 @@ fn main() {
         .init();
 
     println!("Tmbox: {}/bin/tmbox", env!("OUT_DIR"));
-    use crate::execution::*;
+    use crate::evaluation::*;
+    use crate::executor::*;
     use crate::task_types::ioi::*;
+    use crate::ui::*;
 
-    let mut dag = ExecutionDAG::new();
+    let (mut eval, receiver) = EvaluationData::new();
+    eval.sender
+        .send(UIMessage::Compilation {
+            status: UIExecutionStatus::Skipped,
+            file: std::path::PathBuf::from("lalal"),
+        })
+        .unwrap();
     use crate::task_types::TaskFormat;
     let task = task_types::ioi::formats::IOIItalianYaml::parse(std::path::Path::new(
         "../oii/problemi/carestia",
     ))
     .unwrap();
-    task.evaluate(&mut dag, &IOIEvaluationOptions {});
+    task.evaluate(&mut eval, &IOIEvaluationOptions {});
     info!("Task: {:#?}", task);
-    info!("Dag: {:#?}", dag);
+    info!("Dag: {:#?}", eval.dag);
+    info!("Message: {:#?}", deserialize_from::<UIMessage>(&receiver));
 }

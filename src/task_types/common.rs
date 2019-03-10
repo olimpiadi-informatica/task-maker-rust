@@ -37,9 +37,14 @@ where
     SubtaskId: Eq + PartialOrd + Hash + Copy,
     TestcaseId: Eq + PartialOrd + Hash + Copy,
 {
-    fn generate(&self, dag: &mut ExecutionDAG, _subtask: SubtaskId, _testcase: TestcaseId) -> File {
+    fn generate(
+        &self,
+        eval: &mut EvaluationData,
+        _subtask: SubtaskId,
+        _testcase: TestcaseId,
+    ) -> File {
         let file = File::new(&self.description);
-        dag.provide_file(file.clone(), &self.path);
+        eval.dag.provide_file(file.clone(), &self.path);
         file
     }
 }
@@ -51,14 +56,14 @@ where
 {
     fn solve(
         &self,
-        dag: &mut ExecutionDAG,
+        eval: &mut EvaluationData,
         _input: File,
         _validation: Option<File>,
         _subtask: SubtaskId,
         _testcase: TestcaseId,
     ) -> File {
         let file = File::new(&self.description);
-        dag.provide_file(file.clone(), &self.path);
+        eval.dag.provide_file(file.clone(), &self.path);
         file
     }
 }
@@ -70,7 +75,7 @@ where
 {
     fn check(
         &self,
-        dag: &mut ExecutionDAG,
+        eval: &mut EvaluationData,
         _input: File,
         output: Option<File>,
         test: File,
@@ -90,7 +95,8 @@ where
         ];
         exec.input(&output, Path::new("correct"), false);
         exec.input(&test, Path::new("test"), false);
-        dag.add_execution(exec)
+        eval.dag
+            .add_execution(exec)
             .on_done(move |result| match result.result.status {
                 ExecutionStatus::Success => callback(CheckerResult::new(1.0, None)),
                 _ => callback(CheckerResult::new(0.0, None)),
