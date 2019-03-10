@@ -2,6 +2,7 @@ use crate::execution::execution::*;
 use crate::execution::file::*;
 use crate::executor::*;
 use crate::store::*;
+use boxfnonce::BoxFnOnce;
 use failure::Fail;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -148,27 +149,27 @@ impl<'a> AddExecutionWrapper<'a> {
     /// Set that callback that will be called when the execution starts
     pub fn on_start<F>(mut self, callback: F) -> AddExecutionWrapper<'a>
     where
-        F: (Fn(WorkerUuid) -> ()) + 'static,
+        F: (FnOnce(WorkerUuid) -> ()) + 'static,
     {
-        self.ensure_execution_callback().on_start = Some(Box::new(callback));
+        self.ensure_execution_callback().on_start = Some(BoxFnOnce::from(callback));
         self
     }
 
     /// Set that callback that will be called when the execution ends
     pub fn on_done<F>(mut self, callback: F) -> AddExecutionWrapper<'a>
     where
-        F: (Fn(WorkerResult) -> ()) + 'static,
+        F: (FnOnce(WorkerResult) -> ()) + 'static,
     {
-        self.ensure_execution_callback().on_done = Some(Box::new(callback));
+        self.ensure_execution_callback().on_done = Some(BoxFnOnce::from(callback));
         self
     }
 
     /// Set that callback that will be called when the execution is skipped
     pub fn on_skip<F>(mut self, callback: F) -> AddExecutionWrapper<'a>
     where
-        F: (Fn() -> ()) + 'static,
+        F: (FnOnce() -> ()) + 'static,
     {
-        self.ensure_execution_callback().on_skip = Some(Box::new(callback));
+        self.ensure_execution_callback().on_skip = Some(BoxFnOnce::from(callback));
         self
     }
 

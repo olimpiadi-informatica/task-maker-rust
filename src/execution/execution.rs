@@ -1,5 +1,6 @@
 use crate::execution::file::*;
 use crate::executor::*;
+use boxfnonce::BoxFnOnce;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -10,13 +11,13 @@ use uuid::Uuid;
 pub type ExecutionUuid = Uuid;
 
 /// Type of the callback called when an Execution starts
-pub type OnStartCallback = Fn(WorkerUuid) -> ();
+pub type OnStartCallback = BoxFnOnce<'static, (WorkerUuid,)>;
 
 /// Type of the callback called when an Execution ends
-pub type OnDoneCallback = Fn(WorkerResult) -> ();
+pub type OnDoneCallback = BoxFnOnce<'static, (WorkerResult,)>;
 
 /// Type of the callback called when an Execution is skipped
-pub type OnSkipCallback = Fn() -> ();
+pub type OnSkipCallback = BoxFnOnce<'static, ()>;
 
 /// Command of an Execution to execute
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,9 +40,12 @@ pub struct ExecutionInput {
 
 /// The supported callbacks of an execution
 pub struct ExecutionCallbacks {
-    pub on_start: Option<Box<OnStartCallback>>,
-    pub on_done: Option<Box<OnDoneCallback>>,
-    pub on_skip: Option<Box<OnSkipCallback>>,
+    /// The callback called when the execution starts.
+    pub on_start: Option<OnStartCallback>,
+    /// The callback called when the execution has completed.
+    pub on_done: Option<OnDoneCallback>,
+    /// The callback called when the execution has been skipped.
+    pub on_skip: Option<OnSkipCallback>,
 }
 
 /// An Execution is a process that will be executed by a worker inside a

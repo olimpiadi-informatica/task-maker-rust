@@ -17,6 +17,7 @@ extern crate tempdir;
 extern crate which;
 #[macro_use]
 extern crate lazy_static;
+extern crate boxfnonce;
 extern crate glob;
 
 pub mod evaluation;

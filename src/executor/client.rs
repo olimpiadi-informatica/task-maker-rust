@@ -19,7 +19,7 @@ impl ExecutorClient {
     /// * `sender` - A channel that sends messages to the server
     /// * `receiver` - A channel that receives messages from the server
     pub fn evaluate(
-        eval: EvaluationData,
+        mut eval: EvaluationData,
         sender: ChannelSender,
         receiver: ChannelReceiver,
     ) -> Result<(), Error> {
@@ -87,26 +87,26 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::NotifyStart(uuid, worker)) => {
                     info!("Execution {} started on {}", uuid, worker);
-                    if let Some(callbacks) = eval.dag.execution_callbacks.get(&uuid) {
-                        if let Some(callback) = &callbacks.on_start {
-                            callback(worker);
-                        }
+                    if let Some(callbacks) = eval.dag.execution_callbacks.get_mut(&uuid) {
+                        callbacks
+                            .on_start
+                            .take()
+                            .map(|callback| callback.call(worker));
                     }
                 }
                 Ok(ExecutorServerMessage::NotifyDone(uuid, result)) => {
                     info!("Execution {} completed with {:?}", uuid, result);
-                    if let Some(callbacks) = eval.dag.execution_callbacks.get(&uuid) {
-                        if let Some(callback) = &callbacks.on_done {
-                            callback(result);
-                        }
+                    if let Some(callbacks) = eval.dag.execution_callbacks.get_mut(&uuid) {
+                        callbacks
+                            .on_done
+                            .take()
+                            .map(|callback| callback.call(result));
                     }
                 }
                 Ok(ExecutorServerMessage::NotifySkip(uuid)) => {
                     info!("Execution {} skipped", uuid);
-                    if let Some(callbacks) = eval.dag.execution_callbacks.get(&uuid) {
-                        if let Some(callback) = &callbacks.on_skip {
-                            callback();
-                        }
+                    if let Some(callbacks) = eval.dag.execution_callbacks.get_mut(&uuid) {
+                        callbacks.on_skip.take().map(|callback| callback.call());
                     }
                 }
                 Ok(ExecutorServerMessage::Error(error)) => {

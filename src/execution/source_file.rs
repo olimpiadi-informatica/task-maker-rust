@@ -1,6 +1,7 @@
 use crate::evaluation::*;
 use crate::execution::*;
 use crate::languages::*;
+use crate::ui::*;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -39,11 +40,11 @@ impl SourceFile {
     /// not been added to the DAG yet.
     pub fn execute(
         &self,
-        dag: &mut EvaluationData,
+        eval: &mut EvaluationData,
         description: &str,
         args: Vec<String>,
     ) -> Execution {
-        self.prepare(dag);
+        self.prepare(eval);
         let mut exec = Execution::new(description, self.language.runtime_command(&self.path));
         exec.args = self.language.runtime_args(&self.path, args);
         exec.input(
@@ -78,7 +79,43 @@ impl SourceFile {
             // TODO compilation dependencies
             let exec = comp.output(&self.language.executable_name(&self.path));
             eval.dag.provide_file(source, &self.path);
-            eval.dag.add_execution(comp);
+            let (sender1, path1) = (eval.sender.clone(), self.name());
+            let (sender2, path2) = (eval.sender.clone(), self.name());
+            let (sender3, path3) = (eval.sender.clone(), self.name());
+            eval.dag
+                .add_execution(comp)
+                .on_start(move |worker| {
+                    sender1
+                        .send(UIMessage::Compilation {
+                            file: PathBuf::from(path1),
+                            status: UIExecutionStatus::Started {
+                                worker: worker.to_string(),
+                            },
+                        })
+                        .unwrap();
+                })
+                .on_done(move |result| {
+                    sender2
+                        .send(UIMessage::Compilation {
+                            file: PathBuf::from(path2),
+                            status: UIExecutionStatus::Done { result },
+                        })
+                        .unwrap();
+                })
+                .on_skip(move || {
+                    sender3
+                        .send(UIMessage::Compilation {
+                            file: PathBuf::from(path3),
+                            status: UIExecutionStatus::Skipped,
+                        })
+                        .unwrap();
+                });
+            eval.sender
+                .send(UIMessage::Compilation {
+                    file: PathBuf::from(self.name()),
+                    status: UIExecutionStatus::Pending,
+                })
+                .unwrap();
             // TODO bind the compilation events
             *self.executable.lock().unwrap() = Some(exec);
         } else {
