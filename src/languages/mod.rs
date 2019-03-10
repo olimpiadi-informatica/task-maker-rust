@@ -5,6 +5,21 @@ use std::sync::Arc;
 mod cpp;
 mod python;
 
+/// A dependency of an execution, all the sandbox paths must be relative and
+/// inside of the sandbox.
+#[derive(Debug)]
+pub struct Dependency {
+    /// The handle of the file.
+    pub file: File,
+    /// The path of the file on the local system.
+    pub local_path: PathBuf,
+    /// The path inside of the sandbox of where to put the file. Must be
+    /// relative to the sandbox and inside of it.
+    pub sandbox_path: PathBuf,
+    /// Whether the file should be executable or not.
+    pub executable: bool,
+}
+
 /// Trait that defines what a language is.
 pub trait Language: std::fmt::Debug {
     /// Full name of the language
@@ -32,6 +47,12 @@ pub trait Language: std::fmt::Debug {
         panic!("Language {} cannot be compiled!", self.name());
     }
 
+    /// The dependencies to put inside the compilation sandbox. This does not
+    /// include the source file.
+    fn compilation_dependencies(&self, _path: &Path) -> Vec<Dependency> {
+        vec![]
+    }
+
     /// Command to use to run the program.
     fn runtime_command(&self, path: &Path) -> ExecutionCommand {
         ExecutionCommand::Local(self.executable_name(path))
@@ -40,6 +61,12 @@ pub trait Language: std::fmt::Debug {
     /// Arguments to pass to the executable to start the evaluation
     fn runtime_args(&self, _path: &Path, args: Vec<String>) -> Vec<String> {
         args
+    }
+
+    /// The dependencies to put inside the execution sandbox. This does not
+    /// include the executable.
+    fn runtime_dependencies(&self, _path: &Path) -> Vec<Dependency> {
+        vec![]
     }
 
     /// The name of the executable to call inside the sandbox

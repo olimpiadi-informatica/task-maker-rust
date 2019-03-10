@@ -19,6 +19,7 @@ extern crate which;
 extern crate lazy_static;
 extern crate boxfnonce;
 extern crate glob;
+extern crate regex;
 
 pub mod evaluation;
 pub mod execution;
@@ -38,8 +39,13 @@ fn main() {
 
     println!("Tmbox: {}/bin/tmbox", env!("OUT_DIR"));
     use crate::evaluation::*;
+    use crate::executor::*;
+    use crate::store::*;
     use crate::task_types::ioi::*;
     use crate::ui::*;
+    use std::sync::mpsc::channel;
+    use std::sync::{Arc, Mutex};
+    use std::thread;
 
     let (mut eval, _receiver) = EvaluationData::new();
     eval.sender
@@ -54,4 +60,16 @@ fn main() {
     task.evaluate(&mut eval, &IOIEvaluationOptions {});
     info!("Task: {:#?}", task);
     info!("Dag: {:#?}", eval.dag);
+
+    let (tx, rx_remote) = channel();
+    let (tx_remote, rx) = channel();
+    let cwd = tempdir::TempDir::new("task-maker").unwrap();
+    let store_path = cwd.path().join("store");
+    let server = thread::spawn(move || {
+        let file_store = FileStore::new(&store_path).expect("Cannot create the file store");
+        let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
+        executor.evaluate(tx_remote, rx_remote).unwrap();
+    });
+    ExecutorClient::evaluate(eval, tx, rx).unwrap();
+    server.join().expect("Server paniced");
 }

@@ -52,7 +52,10 @@ impl SourceFile {
             &self.language.executable_name(&self.path),
             true,
         );
-        // TODO runtime dependencies
+        for dep in self.language.runtime_dependencies(&self.path) {
+            exec.input(&dep.file, &dep.sandbox_path, dep.executable);
+            eval.dag.provide_file(dep.file, &dep.local_path);
+        }
         exec
     }
 
@@ -76,7 +79,10 @@ impl SourceFile {
             let source = File::new(&format!("Source file of {:?}", self.path));
             comp.input(&source, Path::new(self.path.file_name().unwrap()), false);
             comp.limits.nproc = None;
-            // TODO compilation dependencies
+            for dep in self.language.compilation_dependencies(&self.path) {
+                comp.input(&dep.file, &dep.sandbox_path, dep.executable);
+                eval.dag.provide_file(dep.file, &dep.local_path);
+            }
             let exec = comp.output(&self.language.executable_name(&self.path));
             eval.dag.provide_file(source, &self.path);
             let (sender1, path1) = (eval.sender.clone(), self.name());
