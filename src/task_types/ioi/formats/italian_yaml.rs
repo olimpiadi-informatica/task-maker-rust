@@ -69,7 +69,7 @@ impl TaskFormat for IOIItalianYaml {
         };
         let mut limits = ExecutionLimits::default();
         limits.cpu_time = yaml.time_limit;
-        limits.memory = yaml.memory_limit;
+        limits.memory = yaml.memory_limit.map(|l| l * 1024); // yaml is MiB, limits in KiB
 
         let sols = list_files(path, vec!["sol/*"]);
         let mut solutions = HashMap::new();

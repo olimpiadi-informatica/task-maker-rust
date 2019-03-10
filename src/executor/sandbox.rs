@@ -103,12 +103,18 @@ impl Sandbox {
         sandbox.arg("--env").arg("PATH");
         if self.execution.stdin.is_some() {
             sandbox.arg("--stdin").arg(boxdir.join("stdin"));
+        } else {
+            sandbox.arg("--stdin").arg("/dev/null");
         }
         if self.execution.stdout.is_some() {
             sandbox.arg("--stdout").arg(boxdir.join("stdout"));
+        } else {
+            sandbox.arg("--stdout").arg("/dev/null");
         }
         if self.execution.stderr.is_some() {
             sandbox.arg("--stderr").arg(boxdir.join("stderr"));
+        } else {
+            sandbox.arg("--stderr").arg("/dev/null");
         }
         // set the cpu_limit (--time parameter) to the sum of cpu_time and
         // sys_time
