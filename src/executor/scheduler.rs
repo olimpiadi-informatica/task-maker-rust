@@ -95,6 +95,13 @@ impl Scheduler {
                     )
                 })
                 .collect();
+            if data.callbacks.as_ref().unwrap().executions.contains(&exec) {
+                serialize_into(
+                    &ExecutorServerMessage::NotifyStart(exec.clone(), worker.clone()),
+                    data.client_sender.as_ref().unwrap(),
+                )
+                .expect("Cannot send message to client");
+            }
             Scheduler::assign_job(
                 data.workers
                     .get(&worker)
@@ -106,13 +113,6 @@ impl Scheduler {
                 },
                 worker.clone(),
             );
-            if data.callbacks.as_ref().unwrap().executions.contains(&exec) {
-                serialize_into(
-                    &ExecutorServerMessage::NotifyStart(exec.clone(), worker.clone()),
-                    data.client_sender.as_ref().unwrap(),
-                )
-                .expect("Cannot send message to client");
-            }
         }
 
         if ready_execs.is_empty()

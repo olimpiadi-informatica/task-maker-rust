@@ -62,7 +62,7 @@ impl Language for LanguageCpp {
             }
             LanguageCppVersion::GccCpp14 => args.push("-std=c++14"),
         }
-        args.push(path.to_str().unwrap());
+        args.push(path.file_name().unwrap().to_str().unwrap());
         args.into_iter().map(|s| s.to_owned()).collect()
     }
 

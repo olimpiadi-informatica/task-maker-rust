@@ -38,11 +38,10 @@ fn main() {
 
     println!("Tmbox: {}/bin/tmbox", env!("OUT_DIR"));
     use crate::evaluation::*;
-    use crate::executor::*;
     use crate::task_types::ioi::*;
     use crate::ui::*;
 
-    let (mut eval, receiver) = EvaluationData::new();
+    let (mut eval, _receiver) = EvaluationData::new();
     eval.sender
         .send(UIMessage::Compilation {
             status: UIExecutionStatus::Skipped,
@@ -50,12 +49,9 @@ fn main() {
         })
         .unwrap();
     use crate::task_types::TaskFormat;
-    let task = task_types::ioi::formats::IOIItalianYaml::parse(std::path::Path::new(
-        "../oii/problemi/carestia",
-    ))
-    .unwrap();
+    let path = std::path::Path::new("../task-maker/python/tests/task_with_st");
+    let task = task_types::ioi::formats::IOIItalianYaml::parse(path).unwrap();
     task.evaluate(&mut eval, &IOIEvaluationOptions {});
     info!("Task: {:#?}", task);
     info!("Dag: {:#?}", eval.dag);
-    info!("Message: {:#?}", deserialize_from::<UIMessage>(&receiver));
 }
