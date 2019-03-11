@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 pub mod common;
@@ -75,7 +75,10 @@ where
     TestcaseId: Eq + PartialOrd + Hash + Copy,
 {
     /// Generate the output file editing the DAG and returning the uuid of the
-    /// output file.
+    /// output file. The score_type parameter is useful for setting the score
+    /// to zero if the solution failed (i.e. crashed). This method is required
+    /// to set the score for this testcase if and only if the checker won't
+    /// run.
     fn solve(
         &self,
         eval: &mut EvaluationData,
@@ -83,6 +86,7 @@ where
         validation: Option<File>,
         subtask: SubtaskId,
         testcase: TestcaseId,
+        score_type: Option<Arc<Mutex<Box<dyn ScoreType<SubtaskId, TestcaseId>>>>>,
     ) -> File;
 }
 
@@ -149,8 +153,8 @@ pub trait EvaluationOptions {
 /// way of getting testcases) and can have a validator, an official solution,
 /// but has to have a checker that assigns a score to a solution.
 pub trait Task<
-    SubtaskId: Eq + PartialOrd + Hash + Copy,
-    TestcaseId: Eq + PartialOrd + Hash + Copy,
+    SubtaskId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
+    TestcaseId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
     SubtaskInfo: crate::task_types::SubtaskInfo,
     TestcaseInfo: crate::task_types::TestcaseInfo<SubtaskId, TestcaseId>,
 >: std::fmt::Debug
@@ -204,30 +208,46 @@ pub trait Task<
         mut executor: LocalExecutor,
     ) {
         let subtasks = self.subtasks();
-        let mut inputs = HashMap::new();
-        let mut outputs = HashMap::new();
         let solutions = self.solutions();
-        // TODO register the scores
-        // let solutions_scores: HashMap<PathBuf, Box<dyn ScoreType<SubtaskId, TestcaseId>>> =
-        //     solutions
-        //         .keys()
-        //         .map(|sol| (sol.clone(), self.score_type().clone()))
-        //         .collect();
+        // the scores of the solutions, the values must be thread-safe because
+        // they are changed in other threads during the evaluation.
+        let solutions_scores: HashMap<
+            PathBuf,
+            Arc<Mutex<Box<dyn ScoreType<SubtaskId, TestcaseId>>>>,
+        > = solutions
+            .keys()
+            .map(|sol| {
+                let mut score_type = self.score_type().boxed();
+                let name1 = sol.clone();
+                let name2 = sol.clone();
+                score_type.get_subtask_score(Box::new(move |subtask, score| {
+                    warn!("Score of {:?} subtask {:?} is {}", name1, subtask, score);
+                }));
+                score_type.get_task_score(Box::new(move |score| {
+                    warn!("Score of {:?} task is {}", name2, score);
+                }));
+                (sol.clone(), Arc::new(Mutex::new(score_type)))
+            })
+            .collect();
+
         for (st_num, _st) in subtasks.iter() {
-            inputs.insert(*st_num, HashMap::new());
-            outputs.insert(*st_num, HashMap::new());
             for (tc_num, tc) in self.testcases(*st_num).iter() {
+                // STEP 1: generate the input file
                 let input = tc.generator().generate(&mut eval, *st_num, *tc_num);
                 if let Some(path) = tc.write_input_to() {
                     if !options.dry_run() {
                         eval.dag.write_file_to(&input, &self.path().join(path));
                     }
                 }
+
+                // STEP 2: validate the input file if there is a validator
                 let val = if let Some(validator) = tc.validator() {
                     Some(validator.validate(&mut eval, input.clone(), *st_num, *tc_num))
                 } else {
                     None
                 };
+
+                // STEP 3: generate the output file if there is an official solutions
                 let output = if let Some(solution) = self.official_solution(*st_num, *tc_num) {
                     Some(solution.solve(
                         &mut eval,
@@ -235,6 +255,7 @@ pub trait Task<
                         val.as_ref().map(|f| f.clone()),
                         *st_num,
                         *tc_num,
+                        None,
                     ))
                 } else {
                     None
@@ -245,18 +266,22 @@ pub trait Task<
                     }
                 }
 
-                inputs
-                    .get_mut(&st_num)
-                    .unwrap()
-                    .insert(*tc_num, input.clone());
-                outputs
-                    .get_mut(&st_num)
-                    .unwrap()
-                    .insert(*tc_num, output.clone());
-
-                for (_sol_path, sol) in solutions.iter() {
-                    let sol_output =
-                        sol.solve(&mut eval, input.clone(), val.clone(), *st_num, *tc_num);
+                // STEP 4: evaluate all the solutions on this testcase
+                for (sol_path, sol) in solutions.iter() {
+                    let score_type = solutions_scores.get(sol_path).unwrap().clone();
+                    // STEP 4a: execute the solution with the input file
+                    let sol_output = sol.solve(
+                        &mut eval,
+                        input.clone(),
+                        val.clone(),
+                        *st_num,
+                        *tc_num,
+                        Some(score_type.clone()),
+                    );
+                    let sol_path2 = sol_path.clone();
+                    let st_num2 = *st_num;
+                    let tc_num2 = *tc_num;
+                    // STEP 4b: run the checker on the outcome and store the result.
                     self.checker(*st_num, *tc_num).check(
                         &mut eval,
                         input.clone(),
@@ -264,8 +289,13 @@ pub trait Task<
                         sol_output,
                         *st_num,
                         *tc_num,
-                        Box::new(|_res| {
-                            // TODO register the score!
+                        Box::new(move |res| {
+                            let mut score_type = score_type.lock().unwrap();
+                            score_type.testcase_score(st_num2, tc_num2, res.score);
+                            warn!(
+                                "Score of {:?} at testcase {:?} is {}",
+                                sol_path2, tc_num2, res.score
+                            );
                         }),
                     );
                 }

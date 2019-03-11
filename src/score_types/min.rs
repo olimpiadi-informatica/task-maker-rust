@@ -35,44 +35,50 @@ where
     SubtaskId: Eq + PartialOrd + Hash + Copy + Debug + 'static,
     TestcaseId: Eq + PartialOrd + Hash + Copy + Debug + 'static,
 {
-    fn testcase_score(&mut self, subtask: SubtaskId, testcase: TestcaseId, score: f64) -> bool {
+    fn testcase_score(&mut self, subtask: SubtaskId, testcase: TestcaseId, score: f64) {
         self.base.testcase_score(subtask, testcase, score);
         let mut score: f64 = 1.0;
         for testcase in self.base.testcase_scores.get(&subtask).unwrap().values() {
             // there is a non-ready testcase of this subtask
             if testcase.is_none() {
-                return false;
+                return;
             }
             score = score.min(testcase.unwrap());
         }
         // all the testcases are ready, update the subtask score
         score *= self.base.max_subtask_scores.get(&subtask).unwrap();
         *self.base.subtask_scores.get_mut(&subtask).unwrap() = Some(score);
+        if let Some(callback) = &self.base.get_subtask_callback {
+            callback(subtask, score);
+        }
 
         let mut score: f64 = 0.0;
-        for subtask in self.base.subtask_scores.values() {
+        for (num, subtask) in self.base.subtask_scores.iter() {
             // there is a non-ready subtask
             if subtask.is_none() {
-                return true; // the subtask has been updated tho
+                warn!("Subtask {:?} is not ready: {:?}", num, self.base);
+                return;
             }
             score += subtask.unwrap();
         }
         // all the subtasks are ready, update the task
         self.base.task_score = Some(score);
-        true
+        if let Some(callback) = &self.base.get_task_callback {
+            callback(score);
+        }
     }
 
-    fn get_subtask_score(&mut self, subtask: SubtaskId) -> Option<f64> {
-        self.base.get_subtask_score(subtask)
+    fn get_subtask_score(&mut self, callback: Box<Fn(SubtaskId, f64) -> ()>) {
+        self.base.get_subtask_score(callback);
     }
 
-    fn get_task_score(&mut self) -> Option<f64> {
-        self.base.get_task_score()
+    fn get_task_score(&mut self, callback: Box<Fn(f64) -> ()>) {
+        self.base.get_task_score(callback);
     }
 
-    fn clone(&self) -> Box<dyn ScoreType<SubtaskId, TestcaseId>> {
+    fn boxed(&self) -> Box<dyn ScoreType<SubtaskId, TestcaseId>> {
         Box::new(ScoreTypeMin {
-            base: self.base.clone(),
+            base: self.base.partial_clone(),
         })
     }
 }

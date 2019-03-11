@@ -61,6 +61,7 @@ where
         _validation: Option<File>,
         _subtask: SubtaskId,
         _testcase: TestcaseId,
+        _score_type: Option<Arc<Mutex<Box<dyn ScoreType<SubtaskId, TestcaseId>>>>>,
     ) -> File {
         let file = File::new(&self.description);
         eval.dag.provide_file(file.clone(), &self.path);
