@@ -147,7 +147,13 @@ impl Scheduler {
             let dependents = data.dependents.get(&file).unwrap().clone();
             for exec in dependents.iter() {
                 if !data.missing_deps.contains_key(&exec) {
-                    warn!("Invalid dependents {} of {}", exec, file);
+                    let exec = data.dag.as_ref().unwrap().executions.get(&exec).unwrap();
+                    trace!(
+                        "Cannot schedule {:?} ({}) from {}",
+                        exec.description,
+                        exec.uuid,
+                        file
+                    );
                     continue;
                 }
                 let count = data.missing_deps.get_mut(&exec).unwrap();
@@ -156,7 +162,12 @@ impl Scheduler {
                     data.ready_execs.push(exec.clone());
                     data.missing_deps.remove(&exec);
                     needs_reshed = true;
-                    trace!("Execution {} is now ready", exec);
+                    let exec = data.dag.as_ref().unwrap().executions.get(&exec).unwrap();
+                    trace!(
+                        "Execution {} ({}) is now ready",
+                        exec.description,
+                        exec.uuid
+                    );
                 }
             }
         }
@@ -195,7 +206,16 @@ impl Scheduler {
             dependents
         };
         for exec in execs.iter() {
-            trace!("Execution {} has been skipped", exec);
+            {
+                let data = executor_data.lock().unwrap();
+                let exec = data.dag.as_ref().unwrap().executions.get(&exec).unwrap();
+                trace!(
+                    "Execution {} ({}) has been skipped due to {}",
+                    exec.description,
+                    exec.uuid,
+                    file
+                );
+            }
             Scheduler::exec_failed(executor_data.clone(), *exec);
         }
     }
