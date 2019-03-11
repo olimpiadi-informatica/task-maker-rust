@@ -43,11 +43,9 @@ fn main() {
     use crate::store::*;
     use crate::task_types::ioi::*;
     use crate::ui::*;
-    use std::sync::mpsc::channel;
     use std::sync::{Arc, Mutex};
-    use std::thread;
 
-    let (mut eval, _receiver) = EvaluationData::new();
+    let (eval, _receiver) = EvaluationData::new();
     eval.sender
         .send(UIMessage::Compilation {
             status: UIExecutionStatus::Skipped,
@@ -57,19 +55,10 @@ fn main() {
     use crate::task_types::TaskFormat;
     let path = std::path::Path::new("../task-maker/python/tests/task_with_st");
     let task = task_types::ioi::formats::IOIItalianYaml::parse(path).unwrap();
-    task.evaluate(&mut eval, &IOIEvaluationOptions {});
-    info!("Task: {:#?}", task);
-    info!("Dag: {:#?}", eval.dag);
 
-    let (tx, rx_remote) = channel();
-    let (tx_remote, rx) = channel();
     let cwd = tempdir::TempDir::new("task-maker").unwrap();
     let store_path = cwd.path().join("store");
-    let server = thread::spawn(move || {
-        let file_store = FileStore::new(&store_path).expect("Cannot create the file store");
-        let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
-        executor.evaluate(tx_remote, rx_remote).unwrap();
-    });
-    ExecutorClient::evaluate(eval, tx, rx).unwrap();
-    server.join().expect("Server paniced");
+    let file_store = FileStore::new(&store_path).expect("Cannot create the file store");
+    let executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
+    task.evaluate(eval, &IOIEvaluationOptions {}, executor);
 }
