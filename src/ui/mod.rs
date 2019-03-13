@@ -40,6 +40,16 @@ pub enum UIMessage {
         /// The status of the generation.
         status: UIExecutionStatus,
     },
+
+    /// The validation of a testcase in a IOI task.
+    IOIValidation {
+        /// The id of the subtaks.
+        subtask: IOISubtaskId,
+        /// The id of the testcase.
+        testcase: IOITestcaseId,
+        /// The status of the validation.
+        status: UIExecutionStatus,
+    },
 }
 
 /// The sender of the UIMessage

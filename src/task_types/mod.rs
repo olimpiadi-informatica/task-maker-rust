@@ -68,7 +68,7 @@ where
         input: File,
         subtask: SubtaskId,
         testcase: TestcaseId,
-    ) -> File;
+    ) -> (File, Option<Execution>);
 }
 
 /// A trait that describes what is a solution: something that given an input
@@ -163,6 +163,15 @@ pub trait TaskUIInterface<
 {
     /// Send to the UI the status of the generation of a testcase.
     fn generation_result(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: SubtaskId,
+        testcase: TestcaseId,
+        status: UIExecutionStatus,
+    );
+
+    /// Send to the UI the status of the validation of a testcase.
+    fn validation_result(
         &self,
         sender: Arc<Mutex<UIMessageSender>>,
         subtask: SubtaskId,
@@ -271,7 +280,12 @@ pub trait Task<
 
                 // STEP 2: validate the input file if there is a validator
                 let val = if let Some(validator) = tc.validator() {
-                    Some(validator.validate(&mut eval, input.clone(), *st_num, *tc_num))
+                    let (val, exec) =
+                        validator.validate(&mut eval, input.clone(), *st_num, *tc_num);
+                    if let Some(exec) = exec {
+                        bind_validation_callbacks(&interface, exec, &mut eval, *st_num, *tc_num);
+                    }
+                    Some(val)
                 } else {
                     None
                 };
@@ -406,5 +420,47 @@ fn bind_generation_callbacks<SubtaskId, TestcaseId>(
         })
         .on_skip(move || {
             interface3.generation_result(sender3, st_num3, tc_num3, UIExecutionStatus::Skipped);
+        });
+}
+
+/// Bind the callbacks relative to the validation execution.
+fn bind_validation_callbacks<SubtaskId, TestcaseId>(
+    interface: &Arc<TaskUIInterface<SubtaskId, TestcaseId>>,
+    exec: Execution,
+    eval: &mut EvaluationData,
+    st_num: SubtaskId,
+    tc_num: TestcaseId,
+) where
+    SubtaskId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
+    TestcaseId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
+{
+    let interface1 = interface.clone();
+    let interface2 = interface.clone();
+    let interface3 = interface.clone();
+    let (sender1, st_num1, tc_num1) = (eval.sender.clone(), st_num, tc_num);
+    let (sender2, st_num2, tc_num2) = (eval.sender.clone(), st_num, tc_num);
+    let (sender3, st_num3, tc_num3) = (eval.sender.clone(), st_num, tc_num);
+    eval.dag
+        .add_execution(exec)
+        .on_start(move |worker| {
+            interface1.validation_result(
+                sender1,
+                st_num1,
+                tc_num1,
+                UIExecutionStatus::Started {
+                    worker: worker.to_string(),
+                },
+            );
+        })
+        .on_done(move |result| {
+            interface2.validation_result(
+                sender2,
+                st_num2,
+                tc_num2,
+                UIExecutionStatus::Done { result },
+            );
+        })
+        .on_skip(move || {
+            interface3.validation_result(sender3, st_num3, tc_num3, UIExecutionStatus::Skipped);
         });
 }

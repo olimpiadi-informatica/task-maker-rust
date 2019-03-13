@@ -90,4 +90,20 @@ impl TaskUIInterface<IOISubtaskId, IOITestcaseId> for IOITaskUIInterface {
             })
             .unwrap();
     }
+
+    fn validation_result(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: IOISubtaskId,
+        testcase: IOITestcaseId,
+        status: UIExecutionStatus,
+    ) {
+        sender
+            .send(UIMessage::IOIValidation {
+                subtask,
+                testcase,
+                status,
+            })
+            .unwrap();
+    }
 }

@@ -217,7 +217,7 @@ impl Validator<IOISubtaskId, IOITestcaseId> for IOIValidator {
         input: File,
         _subtask: IOISubtaskId,
         testcase: IOITestcaseId,
-    ) -> File {
+    ) -> (File, Option<Execution>) {
         let mut exec = self.source_file.execute(
             eval,
             &format!("Validation of testcase {}", testcase),
@@ -226,8 +226,7 @@ impl Validator<IOISubtaskId, IOITestcaseId> for IOIValidator {
         exec.stdin(&input);
         exec.input(&input, Path::new("input.txt"), false);
         let stdout = exec.stdout();
-        eval.dag.add_execution(exec);
-        stdout
+        (stdout, Some(exec))
     }
 }
 
