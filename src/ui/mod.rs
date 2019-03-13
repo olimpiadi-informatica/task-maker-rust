@@ -50,6 +50,28 @@ pub enum UIMessage {
         /// The status of the validation.
         status: UIExecutionStatus,
     },
+
+    /// The solution of a testcase in a IOI task.
+    IOISolution {
+        /// The id of the subtaks.
+        subtask: IOISubtaskId,
+        /// The id of the testcase.
+        testcase: IOITestcaseId,
+        /// The status of the solution.
+        status: UIExecutionStatus,
+    },
+
+    /// The evaluation of a solution in a IOI task.
+    IOIEvaluation {
+        /// The id of the subtaks.
+        subtask: IOISubtaskId,
+        /// The id of the testcase.
+        testcase: IOITestcaseId,
+        /// The path of the solution.
+        solution: PathBuf,
+        /// The status of the solution.
+        status: UIExecutionStatus,
+    },
 }
 
 /// The sender of the UIMessage

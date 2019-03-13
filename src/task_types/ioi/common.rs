@@ -236,10 +236,9 @@ impl Solution<IOISubtaskId, IOITestcaseId> for IOISolution {
         eval: &mut EvaluationData,
         input: File,
         validation: Option<File>,
-        subtask: IOISubtaskId,
+        _subtask: IOISubtaskId,
         testcase: IOITestcaseId,
-        score_type: Option<Arc<Mutex<Box<dyn ScoreType<IOISubtaskId, IOITestcaseId>>>>>,
-    ) -> File {
+    ) -> (File, Option<Execution>) {
         let mut exec = self.source_file.execute(
             eval,
             &format!(
@@ -263,20 +262,7 @@ impl Solution<IOISubtaskId, IOITestcaseId> for IOISolution {
             exec.input(&validation, Path::new("_tm_validation"), false);
         }
         exec.limits = self.limits.clone();
-        eval.dag
-            .add_execution(exec)
-            .on_done(move |res| match res.result.status {
-                ExecutionStatus::Success => {}
-                _ => {
-                    if let Some(score_type) = score_type {
-                        score_type
-                            .lock()
-                            .unwrap()
-                            .testcase_score(subtask, testcase, 0.0);
-                    }
-                }
-            });
-        output
+        (output, Some(exec))
     }
 }
 

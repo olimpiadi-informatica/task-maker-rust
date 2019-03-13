@@ -80,10 +80,7 @@ where
     TestcaseId: Eq + PartialOrd + Hash + Copy,
 {
     /// Generate the output file editing the DAG and returning the uuid of the
-    /// output file. The score_type parameter is useful for setting the score
-    /// to zero if the solution failed (i.e. crashed). This method is required
-    /// to set the score for this testcase if and only if the checker won't
-    /// run.
+    /// output file.
     fn solve(
         &self,
         eval: &mut EvaluationData,
@@ -91,8 +88,7 @@ where
         validation: Option<File>,
         subtask: SubtaskId,
         testcase: TestcaseId,
-        score_type: Option<Arc<Mutex<Box<dyn ScoreType<SubtaskId, TestcaseId>>>>>,
-    ) -> File;
+    ) -> (File, Option<Execution>);
 }
 
 /// A trait that describes what is a checker: something that given an input
@@ -176,6 +172,27 @@ pub trait TaskUIInterface<
         sender: Arc<Mutex<UIMessageSender>>,
         subtask: SubtaskId,
         testcase: TestcaseId,
+        status: UIExecutionStatus,
+    );
+
+    /// Send to the UI the status of the generation of the output of a
+    /// testcase.
+    fn solution_result(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: SubtaskId,
+        testcase: TestcaseId,
+        status: UIExecutionStatus,
+    );
+
+    /// Send to the ui the status of the evaluation of a solution on a
+    /// testcase.
+    fn evaluation_result(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: SubtaskId,
+        testcase: TestcaseId,
+        solution: PathBuf,
         status: UIExecutionStatus,
     );
 }
@@ -292,14 +309,17 @@ pub trait Task<
 
                 // STEP 3: generate the output file if there is an official solutions
                 let output = if let Some(solution) = self.official_solution(*st_num, *tc_num) {
-                    Some(solution.solve(
+                    let (output, exec) = solution.solve(
                         &mut eval,
                         input.clone(),
                         val.as_ref().map(|f| f.clone()),
                         *st_num,
                         *tc_num,
-                        None,
-                    ))
+                    );
+                    if let Some(exec) = exec {
+                        bind_solution_callbacks(&interface, exec, &mut eval, *st_num, *tc_num);
+                    }
+                    Some(output)
                 } else {
                     None
                 };
@@ -313,14 +333,19 @@ pub trait Task<
                 for (sol_path, sol) in solutions.iter() {
                     let score_type = solutions_scores.get(sol_path).unwrap().clone();
                     // STEP 4a: execute the solution with the input file
-                    let sol_output = sol.solve(
-                        &mut eval,
-                        input.clone(),
-                        val.clone(),
-                        *st_num,
-                        *tc_num,
-                        Some(score_type.clone()),
-                    );
+                    let (sol_output, exec) =
+                        sol.solve(&mut eval, input.clone(), val.clone(), *st_num, *tc_num);
+                    if let Some(exec) = exec {
+                        bind_evaluation_callbacks(
+                            &interface,
+                            exec,
+                            &mut eval,
+                            *st_num,
+                            *tc_num,
+                            sol_path.clone(),
+                            score_type.clone(),
+                        );
+                    }
                     let sol_path2 = sol_path.clone();
                     let st_num2 = *st_num;
                     let tc_num2 = *tc_num;
@@ -462,5 +487,113 @@ fn bind_validation_callbacks<SubtaskId, TestcaseId>(
         })
         .on_skip(move || {
             interface3.validation_result(sender3, st_num3, tc_num3, UIExecutionStatus::Skipped);
+        });
+}
+
+/// Bind the callbacks relative to the official solution execution.
+fn bind_solution_callbacks<SubtaskId, TestcaseId>(
+    interface: &Arc<TaskUIInterface<SubtaskId, TestcaseId>>,
+    exec: Execution,
+    eval: &mut EvaluationData,
+    st_num: SubtaskId,
+    tc_num: TestcaseId,
+) where
+    SubtaskId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
+    TestcaseId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
+{
+    let interface1 = interface.clone();
+    let interface2 = interface.clone();
+    let interface3 = interface.clone();
+    let (sender1, st_num1, tc_num1) = (eval.sender.clone(), st_num, tc_num);
+    let (sender2, st_num2, tc_num2) = (eval.sender.clone(), st_num, tc_num);
+    let (sender3, st_num3, tc_num3) = (eval.sender.clone(), st_num, tc_num);
+    eval.dag
+        .add_execution(exec)
+        .on_start(move |worker| {
+            interface1.solution_result(
+                sender1,
+                st_num1,
+                tc_num1,
+                UIExecutionStatus::Started {
+                    worker: worker.to_string(),
+                },
+            );
+        })
+        .on_done(move |result| {
+            interface2.solution_result(
+                sender2,
+                st_num2,
+                tc_num2,
+                UIExecutionStatus::Done { result },
+            );
+        })
+        .on_skip(move || {
+            interface3.solution_result(sender3, st_num3, tc_num3, UIExecutionStatus::Skipped);
+        });
+}
+
+/// Bind the callbacks relative to the official solution execution.
+fn bind_evaluation_callbacks<SubtaskId, TestcaseId>(
+    interface: &Arc<TaskUIInterface<SubtaskId, TestcaseId>>,
+    exec: Execution,
+    eval: &mut EvaluationData,
+    st_num: SubtaskId,
+    tc_num: TestcaseId,
+    solution: PathBuf,
+    score_type: Arc<Mutex<Box<dyn ScoreType<SubtaskId, TestcaseId>>>>,
+) where
+    SubtaskId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
+    TestcaseId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
+{
+    let interface1 = interface.clone();
+    let interface2 = interface.clone();
+    let interface3 = interface.clone();
+    let (sender1, st_num1, tc_num1) = (eval.sender.clone(), st_num, tc_num);
+    let (sender2, st_num2, tc_num2) = (eval.sender.clone(), st_num, tc_num);
+    let (sender3, st_num3, tc_num3) = (eval.sender.clone(), st_num, tc_num);
+    let solution1 = solution.clone();
+    let solution2 = solution.clone();
+    let solution3 = solution.clone();
+    eval.dag
+        .add_execution(exec)
+        .on_start(move |worker| {
+            interface1.evaluation_result(
+                sender1,
+                st_num1,
+                tc_num1,
+                solution1,
+                UIExecutionStatus::Started {
+                    worker: worker.to_string(),
+                },
+            );
+        })
+        .on_done(move |result| {
+            // if the solution failed the checker won't run and the score of
+            // this testcase won't be set, manually set it to zero.
+            match result.result.status {
+                ExecutionStatus::Success => {}
+                _ => {
+                    score_type
+                        .lock()
+                        .unwrap()
+                        .testcase_score(st_num2, tc_num2, 0.0);
+                }
+            }
+            interface2.evaluation_result(
+                sender2,
+                st_num2,
+                tc_num2,
+                solution2,
+                UIExecutionStatus::Done { result },
+            );
+        })
+        .on_skip(move || {
+            interface3.evaluation_result(
+                sender3,
+                st_num3,
+                tc_num3,
+                solution3,
+                UIExecutionStatus::Skipped,
+            );
         });
 }

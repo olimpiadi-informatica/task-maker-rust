@@ -106,4 +106,38 @@ impl TaskUIInterface<IOISubtaskId, IOITestcaseId> for IOITaskUIInterface {
             })
             .unwrap();
     }
+
+    fn solution_result(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: IOISubtaskId,
+        testcase: IOITestcaseId,
+        status: UIExecutionStatus,
+    ) {
+        sender
+            .send(UIMessage::IOISolution {
+                subtask,
+                testcase,
+                status,
+            })
+            .unwrap();
+    }
+
+    fn evaluation_result(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: IOISubtaskId,
+        testcase: IOITestcaseId,
+        solution: PathBuf,
+        status: UIExecutionStatus,
+    ) {
+        sender
+            .send(UIMessage::IOIEvaluation {
+                subtask,
+                testcase,
+                solution,
+                status,
+            })
+            .unwrap();
+    }
 }
