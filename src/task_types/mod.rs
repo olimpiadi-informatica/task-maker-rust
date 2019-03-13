@@ -266,40 +266,7 @@ pub trait Task<
                     }
                 }
                 if let Some(exec) = exec {
-                    let interface1 = interface.clone();
-                    let interface2 = interface.clone();
-                    let interface3 = interface.clone();
-                    let (sender1, st_num1, tc_num1) = (eval.sender.clone(), *st_num, *tc_num);
-                    let (sender2, st_num2, tc_num2) = (eval.sender.clone(), *st_num, *tc_num);
-                    let (sender3, st_num3, tc_num3) = (eval.sender.clone(), *st_num, *tc_num);
-                    eval.dag
-                        .add_execution(exec)
-                        .on_start(move |worker| {
-                            interface1.generation_result(
-                                sender1,
-                                st_num1,
-                                tc_num1,
-                                UIExecutionStatus::Started {
-                                    worker: worker.to_string(),
-                                },
-                            );
-                        })
-                        .on_done(move |result| {
-                            interface2.generation_result(
-                                sender2,
-                                st_num2,
-                                tc_num2,
-                                UIExecutionStatus::Done { result },
-                            );
-                        })
-                        .on_skip(move || {
-                            interface3.generation_result(
-                                sender3,
-                                st_num3,
-                                tc_num3,
-                                UIExecutionStatus::Skipped,
-                            );
-                        });
+                    bind_generation_callbacks(&interface, exec, &mut eval, *st_num, *tc_num);
                 }
 
                 // STEP 2: validate the input file if there is a validator
@@ -398,4 +365,46 @@ pub trait TaskFormat {
         Box<Task<Self::SubtaskId, Self::TestcaseId, Self::SubtaskInfo, Self::TestcaseInfo>>,
         Error,
     >;
+}
+
+/// Bind the callbacks relative to the generation execution.
+fn bind_generation_callbacks<SubtaskId, TestcaseId>(
+    interface: &Arc<TaskUIInterface<SubtaskId, TestcaseId>>,
+    exec: Execution,
+    eval: &mut EvaluationData,
+    st_num: SubtaskId,
+    tc_num: TestcaseId,
+) where
+    SubtaskId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
+    TestcaseId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
+{
+    let interface1 = interface.clone();
+    let interface2 = interface.clone();
+    let interface3 = interface.clone();
+    let (sender1, st_num1, tc_num1) = (eval.sender.clone(), st_num, tc_num);
+    let (sender2, st_num2, tc_num2) = (eval.sender.clone(), st_num, tc_num);
+    let (sender3, st_num3, tc_num3) = (eval.sender.clone(), st_num, tc_num);
+    eval.dag
+        .add_execution(exec)
+        .on_start(move |worker| {
+            interface1.generation_result(
+                sender1,
+                st_num1,
+                tc_num1,
+                UIExecutionStatus::Started {
+                    worker: worker.to_string(),
+                },
+            );
+        })
+        .on_done(move |result| {
+            interface2.generation_result(
+                sender2,
+                st_num2,
+                tc_num2,
+                UIExecutionStatus::Done { result },
+            );
+        })
+        .on_skip(move || {
+            interface3.generation_result(sender3, st_num3, tc_num3, UIExecutionStatus::Skipped);
+        });
 }
