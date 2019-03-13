@@ -1,4 +1,5 @@
 use crate::executor::*;
+use crate::task_types::ioi::*;
 use failure::Error;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -27,6 +28,16 @@ pub enum UIMessage {
         /// The compilation of this file.
         file: PathBuf,
         /// The status of the compilation.
+        status: UIExecutionStatus,
+    },
+
+    /// The generation of a testcase in a IOI task.
+    IOIGeneration {
+        /// The id of the subtaks.
+        subtask: IOISubtaskId,
+        /// The id of the testcase.
+        testcase: IOITestcaseId,
+        /// The status of the generation.
         status: UIExecutionStatus,
     },
 }

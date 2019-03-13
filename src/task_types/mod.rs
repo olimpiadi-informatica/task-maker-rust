@@ -2,6 +2,7 @@ use crate::evaluation::*;
 use crate::execution::*;
 use crate::executor::*;
 use crate::score_types::*;
+use crate::ui::*;
 use failure::Error;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -43,8 +44,12 @@ where
 {
     /// Generate an input file editing the DAG and returning the uuid of the
     /// file.
-    fn generate(&self, eval: &mut EvaluationData, subtask: SubtaskId, testcase: TestcaseId)
-        -> File;
+    fn generate(
+        &self,
+        eval: &mut EvaluationData,
+        subtask: SubtaskId,
+        testcase: TestcaseId,
+    ) -> (File, Option<Execution>);
 }
 
 /// A trait that describes what is a validator: something that known which
@@ -149,6 +154,23 @@ pub trait EvaluationOptions {
     fn cache_mode(&self) -> bool;
 }
 
+/// An interface between a Task type and the UI. Each task type may send
+/// different information to the UI based on the number of the testcase.
+pub trait TaskUIInterface<
+    SubtaskId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
+    TestcaseId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
+>
+{
+    /// Send to the UI the status of the generation of a testcase.
+    fn generation_result(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: SubtaskId,
+        testcase: TestcaseId,
+        status: UIExecutionStatus,
+    );
+}
+
 /// Trait that describes a generic task. Every task must have a generator (a
 /// way of getting testcases) and can have a validator, an official solution,
 /// but has to have a checker that assigns a score to a solution.
@@ -199,6 +221,9 @@ pub trait Task<
         testcase: TestcaseId,
     ) -> &Box<Checker<SubtaskId, TestcaseId>>;
 
+    /// Get the TaskUIInterface relative to this
+    fn get_ui_interface(&self) -> Arc<TaskUIInterface<SubtaskId, TestcaseId>>;
+
     /// Build the DAG of the evaluation of this task and use the executor to
     /// start the evaluation. This method will block until the evaluation ends.
     fn evaluate(
@@ -232,12 +257,49 @@ pub trait Task<
 
         for (st_num, _st) in subtasks.iter() {
             for (tc_num, tc) in self.testcases(*st_num).iter() {
+                let interface = self.get_ui_interface().clone();
                 // STEP 1: generate the input file
-                let input = tc.generator().generate(&mut eval, *st_num, *tc_num);
+                let (input, exec) = tc.generator().generate(&mut eval, *st_num, *tc_num);
                 if let Some(path) = tc.write_input_to() {
                     if !options.dry_run() {
                         eval.dag.write_file_to(&input, &self.path().join(path));
                     }
+                }
+                if let Some(exec) = exec {
+                    let interface1 = interface.clone();
+                    let interface2 = interface.clone();
+                    let interface3 = interface.clone();
+                    let (sender1, st_num1, tc_num1) = (eval.sender.clone(), *st_num, *tc_num);
+                    let (sender2, st_num2, tc_num2) = (eval.sender.clone(), *st_num, *tc_num);
+                    let (sender3, st_num3, tc_num3) = (eval.sender.clone(), *st_num, *tc_num);
+                    eval.dag
+                        .add_execution(exec)
+                        .on_start(move |worker| {
+                            interface1.generation_result(
+                                sender1,
+                                st_num1,
+                                tc_num1,
+                                UIExecutionStatus::Started {
+                                    worker: worker.to_string(),
+                                },
+                            );
+                        })
+                        .on_done(move |result| {
+                            interface2.generation_result(
+                                sender2,
+                                st_num2,
+                                tc_num2,
+                                UIExecutionStatus::Done { result },
+                            );
+                        })
+                        .on_skip(move || {
+                            interface3.generation_result(
+                                sender3,
+                                st_num3,
+                                tc_num3,
+                                UIExecutionStatus::Skipped,
+                            );
+                        });
                 }
 
                 // STEP 2: validate the input file if there is a validator

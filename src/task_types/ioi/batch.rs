@@ -17,6 +17,9 @@ pub struct IOIBatchTask {
     pub official_solution: Option<Box<Solution<IOISubtaskId, IOITestcaseId>>>,
 }
 
+/// The interface between a IOI task and the UI.
+pub struct IOITaskUIInterface;
+
 impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIBatchTask {
     fn format() -> &'static str {
         "ioi-batch"
@@ -64,5 +67,27 @@ impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIB
         _testcase: IOITestcaseId,
     ) -> &Box<Checker<IOISubtaskId, IOITestcaseId>> {
         &self.info.checker
+    }
+
+    fn get_ui_interface(&self) -> Arc<TaskUIInterface<IOISubtaskId, IOITestcaseId>> {
+        Arc::new(IOITaskUIInterface {})
+    }
+}
+
+impl TaskUIInterface<IOISubtaskId, IOITestcaseId> for IOITaskUIInterface {
+    fn generation_result(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: IOISubtaskId,
+        testcase: IOITestcaseId,
+        status: UIExecutionStatus,
+    ) {
+        sender
+            .send(UIMessage::IOIGeneration {
+                subtask,
+                testcase,
+                status,
+            })
+            .unwrap();
     }
 }

@@ -190,17 +190,23 @@ impl Generator<IOISubtaskId, IOITestcaseId> for IOIGenerator {
     fn generate(
         &self,
         eval: &mut EvaluationData,
-        _subtask: IOISubtaskId,
+        subtask: IOISubtaskId,
         testcase: IOITestcaseId,
-    ) -> File {
+    ) -> (File, Option<Execution>) {
         let mut exec = self.source_file.execute(
             eval,
             &format!("Generation of testcase {}", testcase),
             self.args.clone(),
         );
         let stdout = exec.stdout();
-        eval.dag.add_execution(exec);
-        stdout
+        eval.sender
+            .send(UIMessage::IOIGeneration {
+                subtask: subtask,
+                testcase: testcase,
+                status: UIExecutionStatus::Pending,
+            })
+            .unwrap();
+        (stdout, Some(exec))
     }
 }
 

@@ -42,10 +42,10 @@ where
         eval: &mut EvaluationData,
         _subtask: SubtaskId,
         _testcase: TestcaseId,
-    ) -> File {
+    ) -> (File, Option<Execution>) {
         let file = File::new(&self.description);
         eval.dag.provide_file(file.clone(), &self.path);
-        file
+        (file, None)
     }
 }
 

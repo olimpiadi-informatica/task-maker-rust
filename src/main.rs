@@ -45,7 +45,7 @@ fn main() {
     use crate::ui::*;
     use std::sync::{Arc, Mutex};
 
-    let (eval, _receiver) = EvaluationData::new();
+    let (eval, receiver) = EvaluationData::new();
     eval.sender
         .send(UIMessage::Compilation {
             status: UIExecutionStatus::Skipped,
@@ -61,4 +61,8 @@ fn main() {
     let file_store = FileStore::new(&store_path).expect("Cannot create the file store");
     let executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
     task.evaluate(eval, &IOIEvaluationOptions {}, executor);
+
+    while let Ok(mex) = deserialize_from::<UIMessage>(&receiver) {
+        info!("UI: {:?}", mex);
+    }
 }
