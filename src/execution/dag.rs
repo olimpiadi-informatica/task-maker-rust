@@ -69,14 +69,6 @@ pub enum DAGError {
     DuplicateFileUUID { uuid: FileUuid },
 }
 
-/// Value returned by [ExecutionDAG](struct.ExecutionDAG.html).[add_execution](
-/// struct.ExecutionDAG.html#method.add_execution) to make a
-/// Builder for setting the callbacks
-pub struct AddExecutionWrapper<'a> {
-    uuid: ExecutionUuid,
-    dag: &'a mut ExecutionDAG,
-}
-
 impl ExecutionDAG {
     /// Create an empty ExecutionDAG
     pub fn new() -> ExecutionDAG {
@@ -107,15 +99,10 @@ impl ExecutionDAG {
 
     /// Add an execution to the DAG and returns a Builder for adding the
     /// callbacks
-    pub fn add_execution(&mut self, execution: Execution) -> AddExecutionWrapper {
-        let uuid = execution.uuid.clone();
+    pub fn add_execution(&mut self, execution: Execution) {
         self.data
             .executions
             .insert(execution.uuid.clone(), execution);
-        AddExecutionWrapper {
-            uuid: uuid,
-            dag: self,
-        }
     }
 
     /// When `file` is ready it will be written to `path`. The file must be
@@ -134,6 +121,36 @@ impl ExecutionDAG {
         self.file_callback(&file.uuid).get_content = Some((limit, Box::new(callback)));
     }
 
+    /// Add a callback that will be called when the execution starts
+    pub fn on_execution_start<F>(&mut self, execution: &ExecutionUuid, callback: F)
+    where
+        F: (FnOnce(WorkerUuid) -> ()) + 'static,
+    {
+        self.execution_callback(execution)
+            .on_start
+            .push(BoxFnOnce::from(callback));
+    }
+
+    /// Add a callback that will be called when the execution ends
+    pub fn on_execution_done<F>(&mut self, execution: &ExecutionUuid, callback: F)
+    where
+        F: (FnOnce(WorkerResult) -> ()) + 'static,
+    {
+        self.execution_callback(execution)
+            .on_done
+            .push(BoxFnOnce::from(callback));
+    }
+
+    /// Add a callback that will be called when the execution is skipped
+    pub fn on_execution_skip<F>(&mut self, execution: &ExecutionUuid, callback: F)
+    where
+        F: (FnOnce() -> ()) + 'static,
+    {
+        self.execution_callback(execution)
+            .on_skip
+            .push(BoxFnOnce::from(callback));
+    }
+
     /// Makes sure that a callback item exists for that file and returns a &mut
     /// to it.
     fn file_callback(&mut self, file: &FileUuid) -> &mut FileCallbacks {
@@ -143,43 +160,15 @@ impl ExecutionDAG {
         }
         self.file_callbacks.get_mut(&file).unwrap()
     }
-}
 
-impl<'a> AddExecutionWrapper<'a> {
-    /// Set that callback that will be called when the execution starts
-    pub fn on_start<F>(mut self, callback: F) -> AddExecutionWrapper<'a>
-    where
-        F: (FnOnce(WorkerUuid) -> ()) + 'static,
-    {
-        self.ensure_execution_callback().on_start = Some(BoxFnOnce::from(callback));
-        self
-    }
-
-    /// Set that callback that will be called when the execution ends
-    pub fn on_done<F>(mut self, callback: F) -> AddExecutionWrapper<'a>
-    where
-        F: (FnOnce(WorkerResult) -> ()) + 'static,
-    {
-        self.ensure_execution_callback().on_done = Some(BoxFnOnce::from(callback));
-        self
-    }
-
-    /// Set that callback that will be called when the execution is skipped
-    pub fn on_skip<F>(mut self, callback: F) -> AddExecutionWrapper<'a>
-    where
-        F: (FnOnce() -> ()) + 'static,
-    {
-        self.ensure_execution_callback().on_skip = Some(BoxFnOnce::from(callback));
-        self
-    }
-
-    fn ensure_execution_callback(&mut self) -> &mut ExecutionCallbacks {
-        if !self.dag.execution_callbacks.contains_key(&self.uuid) {
-            self.dag
-                .execution_callbacks
-                .insert(self.uuid.clone(), ExecutionCallbacks::default());
+    /// Makes sure that a callback item exists for that exection and returns a
+    /// &mut to it.
+    fn execution_callback(&mut self, execution: &ExecutionUuid) -> &mut ExecutionCallbacks {
+        if !self.execution_callbacks.contains_key(execution) {
+            self.execution_callbacks
+                .insert(execution.clone(), ExecutionCallbacks::default());
         }
-        self.dag.execution_callbacks.get_mut(&self.uuid).unwrap()
+        self.execution_callbacks.get_mut(execution).unwrap()
     }
 }
 

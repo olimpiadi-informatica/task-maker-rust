@@ -96,10 +96,10 @@ where
         exec.input(&output, Path::new("correct"), false);
         exec.input(&test, Path::new("test"), false);
         eval.dag
-            .add_execution(exec)
-            .on_done(move |result| match result.result.status {
+            .on_execution_done(&exec.uuid, move |result| match result.result.status {
                 ExecutionStatus::Success => callback(CheckerResult::new(1.0, None)),
                 _ => callback(CheckerResult::new(0.0, None)),
             });
+        eval.dag.add_execution(exec);
     }
 }

@@ -88,34 +88,33 @@ impl SourceFile {
             let (sender1, path1) = (eval.sender.clone(), self.name());
             let (sender2, path2) = (eval.sender.clone(), self.name());
             let (sender3, path3) = (eval.sender.clone(), self.name());
-            eval.dag
-                .add_execution(comp)
-                .on_start(move |worker| {
-                    sender1
-                        .send(UIMessage::Compilation {
-                            file: PathBuf::from(path1),
-                            status: UIExecutionStatus::Started {
-                                worker: worker.to_string(),
-                            },
-                        })
-                        .unwrap();
-                })
-                .on_done(move |result| {
-                    sender2
-                        .send(UIMessage::Compilation {
-                            file: PathBuf::from(path2),
-                            status: UIExecutionStatus::Done { result },
-                        })
-                        .unwrap();
-                })
-                .on_skip(move || {
-                    sender3
-                        .send(UIMessage::Compilation {
-                            file: PathBuf::from(path3),
-                            status: UIExecutionStatus::Skipped,
-                        })
-                        .unwrap();
-                });
+            eval.dag.on_execution_start(&comp.uuid, move |worker| {
+                sender1
+                    .send(UIMessage::Compilation {
+                        file: PathBuf::from(path1),
+                        status: UIExecutionStatus::Started {
+                            worker: worker.to_string(),
+                        },
+                    })
+                    .unwrap();
+            });
+            eval.dag.on_execution_done(&comp.uuid, move |result| {
+                sender2
+                    .send(UIMessage::Compilation {
+                        file: PathBuf::from(path2),
+                        status: UIExecutionStatus::Done { result },
+                    })
+                    .unwrap();
+            });
+            eval.dag.on_execution_skip(&comp.uuid, move || {
+                sender3
+                    .send(UIMessage::Compilation {
+                        file: PathBuf::from(path3),
+                        status: UIExecutionStatus::Skipped,
+                    })
+                    .unwrap();
+            });
+            eval.dag.add_execution(comp);
             eval.sender
                 .send(UIMessage::Compilation {
                     file: PathBuf::from(self.name()),
@@ -159,12 +158,16 @@ mod tests {
         let exec_done2 = exec_done.clone();
         let exec_skipped = Arc::new(AtomicBool::new(false));
         let exec_skipped2 = exec_skipped.clone();
-
-        eval.dag
-            .add_execution(exec)
-            .on_start(move |_w| exec_start.store(true, Ordering::Relaxed))
-            .on_done(move |_res| exec_done.store(true, Ordering::Relaxed))
-            .on_skip(move || exec_skipped.store(true, Ordering::Relaxed));
+        eval.dag.on_execution_start(&exec.uuid, move |_w| {
+            exec_start.store(true, Ordering::Relaxed)
+        });
+        eval.dag.on_execution_done(&exec.uuid, move |_res| {
+            exec_done.store(true, Ordering::Relaxed)
+        });
+        eval.dag.on_execution_skip(&exec.uuid, move || {
+            exec_skipped.store(true, Ordering::Relaxed)
+        });
+        eval.dag.add_execution(exec);
 
         eval_dag_locally(eval, cwd.path());
 

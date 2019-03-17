@@ -83,23 +83,35 @@ mod tests {
         let exec2_start2 = exec2_start.clone();
         let exec3_skipped = Arc::new(AtomicBool::new(false));
         let exec3_skipped2 = exec3_skipped.clone();
-
         eval.dag.provide_file(file, Path::new("/dev/null"));
+        eval.dag.on_execution_done(&exec.uuid, move |_res| {
+            exec_done.store(true, Ordering::Relaxed)
+        });
         eval.dag
-            .add_execution(exec)
-            .on_done(move |_res| exec_done.store(true, Ordering::Relaxed))
-            .on_skip(|| assert!(false, "exec has been skipped"))
-            .on_start(move |_w| exec_start.store(true, Ordering::Relaxed));
+            .on_execution_skip(&exec.uuid, || assert!(false, "exec has been skipped"));
+        eval.dag.on_execution_start(&exec.uuid, move |_w| {
+            exec_start.store(true, Ordering::Relaxed)
+        });
+        eval.dag.add_execution(exec);
+        eval.dag.on_execution_done(&exec2.uuid, move |_res| {
+            exec2_done.store(true, Ordering::Relaxed)
+        });
         eval.dag
-            .add_execution(exec2)
-            .on_done(move |_res| exec2_done.store(true, Ordering::Relaxed))
-            .on_skip(|| assert!(false, "exec2 has been skipped"))
-            .on_start(move |_w| exec2_start.store(true, Ordering::Relaxed));
-        eval.dag
-            .add_execution(exec3)
-            .on_done(|_res| assert!(false, "exec3 has not been skipped"))
-            .on_skip(move || exec3_skipped.store(true, Ordering::Relaxed))
-            .on_start(|_w| assert!(false, "exec3 has not been skipped"));
+            .on_execution_skip(&exec2.uuid, || assert!(false, "exec2 has been skipped"));
+        eval.dag.on_execution_start(&exec2.uuid, move |_w| {
+            exec2_start.store(true, Ordering::Relaxed)
+        });
+        eval.dag.add_execution(exec2);
+        eval.dag.on_execution_done(&exec3.uuid, |_res| {
+            assert!(false, "exec3 has not been skipped")
+        });
+        eval.dag.on_execution_skip(&exec3.uuid, move || {
+            exec3_skipped.store(true, Ordering::Relaxed)
+        });
+        eval.dag.on_execution_start(&exec3.uuid, |_w| {
+            assert!(false, "exec3 has not been skipped")
+        });
+        eval.dag.add_execution(exec3);
         eval.dag.write_file_to(&stdout, &cwd.path().join("stdout"));
         eval.dag
             .write_file_to(&stdout2, &cwd.path().join("stdout2"));

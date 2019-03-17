@@ -423,29 +423,28 @@ fn bind_generation_callbacks<SubtaskId, TestcaseId>(
     let (sender1, st_num1, tc_num1) = (eval.sender.clone(), st_num, tc_num);
     let (sender2, st_num2, tc_num2) = (eval.sender.clone(), st_num, tc_num);
     let (sender3, st_num3, tc_num3) = (eval.sender.clone(), st_num, tc_num);
-    eval.dag
-        .add_execution(exec)
-        .on_start(move |worker| {
-            interface1.generation_result(
-                sender1,
-                st_num1,
-                tc_num1,
-                UIExecutionStatus::Started {
-                    worker: worker.to_string(),
-                },
-            );
-        })
-        .on_done(move |result| {
-            interface2.generation_result(
-                sender2,
-                st_num2,
-                tc_num2,
-                UIExecutionStatus::Done { result },
-            );
-        })
-        .on_skip(move || {
-            interface3.generation_result(sender3, st_num3, tc_num3, UIExecutionStatus::Skipped);
-        });
+    eval.dag.on_execution_start(&exec.uuid, move |worker| {
+        interface1.generation_result(
+            sender1,
+            st_num1,
+            tc_num1,
+            UIExecutionStatus::Started {
+                worker: worker.to_string(),
+            },
+        );
+    });
+    eval.dag.on_execution_done(&exec.uuid, move |result| {
+        interface2.generation_result(
+            sender2,
+            st_num2,
+            tc_num2,
+            UIExecutionStatus::Done { result },
+        );
+    });
+    eval.dag.on_execution_skip(&exec.uuid, move || {
+        interface3.generation_result(sender3, st_num3, tc_num3, UIExecutionStatus::Skipped);
+    });
+    eval.dag.add_execution(exec);
 }
 
 /// Bind the callbacks relative to the validation execution.
@@ -465,29 +464,28 @@ fn bind_validation_callbacks<SubtaskId, TestcaseId>(
     let (sender1, st_num1, tc_num1) = (eval.sender.clone(), st_num, tc_num);
     let (sender2, st_num2, tc_num2) = (eval.sender.clone(), st_num, tc_num);
     let (sender3, st_num3, tc_num3) = (eval.sender.clone(), st_num, tc_num);
-    eval.dag
-        .add_execution(exec)
-        .on_start(move |worker| {
-            interface1.validation_result(
-                sender1,
-                st_num1,
-                tc_num1,
-                UIExecutionStatus::Started {
-                    worker: worker.to_string(),
-                },
-            );
-        })
-        .on_done(move |result| {
-            interface2.validation_result(
-                sender2,
-                st_num2,
-                tc_num2,
-                UIExecutionStatus::Done { result },
-            );
-        })
-        .on_skip(move || {
-            interface3.validation_result(sender3, st_num3, tc_num3, UIExecutionStatus::Skipped);
-        });
+    eval.dag.on_execution_start(&exec.uuid, move |worker| {
+        interface1.validation_result(
+            sender1,
+            st_num1,
+            tc_num1,
+            UIExecutionStatus::Started {
+                worker: worker.to_string(),
+            },
+        );
+    });
+    eval.dag.on_execution_done(&exec.uuid, move |result| {
+        interface2.validation_result(
+            sender2,
+            st_num2,
+            tc_num2,
+            UIExecutionStatus::Done { result },
+        );
+    });
+    eval.dag.on_execution_skip(&exec.uuid, move || {
+        interface3.validation_result(sender3, st_num3, tc_num3, UIExecutionStatus::Skipped);
+    });
+    eval.dag.add_execution(exec);
 }
 
 /// Bind the callbacks relative to the official solution execution.
@@ -507,29 +505,28 @@ fn bind_solution_callbacks<SubtaskId, TestcaseId>(
     let (sender1, st_num1, tc_num1) = (eval.sender.clone(), st_num, tc_num);
     let (sender2, st_num2, tc_num2) = (eval.sender.clone(), st_num, tc_num);
     let (sender3, st_num3, tc_num3) = (eval.sender.clone(), st_num, tc_num);
-    eval.dag
-        .add_execution(exec)
-        .on_start(move |worker| {
-            interface1.solution_result(
-                sender1,
-                st_num1,
-                tc_num1,
-                UIExecutionStatus::Started {
-                    worker: worker.to_string(),
-                },
-            );
-        })
-        .on_done(move |result| {
-            interface2.solution_result(
-                sender2,
-                st_num2,
-                tc_num2,
-                UIExecutionStatus::Done { result },
-            );
-        })
-        .on_skip(move || {
-            interface3.solution_result(sender3, st_num3, tc_num3, UIExecutionStatus::Skipped);
-        });
+    eval.dag.on_execution_start(&exec.uuid, move |worker| {
+        interface1.solution_result(
+            sender1,
+            st_num1,
+            tc_num1,
+            UIExecutionStatus::Started {
+                worker: worker.to_string(),
+            },
+        );
+    });
+    eval.dag.on_execution_done(&exec.uuid, move |result| {
+        interface2.solution_result(
+            sender2,
+            st_num2,
+            tc_num2,
+            UIExecutionStatus::Done { result },
+        );
+    });
+    eval.dag.on_execution_skip(&exec.uuid, move || {
+        interface3.solution_result(sender3, st_num3, tc_num3, UIExecutionStatus::Skipped);
+    });
+    eval.dag.add_execution(exec);
 }
 
 /// Bind the callbacks relative to the official solution execution.
@@ -554,46 +551,45 @@ fn bind_evaluation_callbacks<SubtaskId, TestcaseId>(
     let solution1 = solution.clone();
     let solution2 = solution.clone();
     let solution3 = solution.clone();
-    eval.dag
-        .add_execution(exec)
-        .on_start(move |worker| {
-            interface1.evaluation_result(
-                sender1,
-                st_num1,
-                tc_num1,
-                solution1,
-                UIExecutionStatus::Started {
-                    worker: worker.to_string(),
-                },
-            );
-        })
-        .on_done(move |result| {
-            // if the solution failed the checker won't run and the score of
-            // this testcase won't be set, manually set it to zero.
-            match result.result.status {
-                ExecutionStatus::Success => {}
-                _ => {
-                    score_type
-                        .lock()
-                        .unwrap()
-                        .testcase_score(st_num2, tc_num2, 0.0);
-                }
+    eval.dag.on_execution_start(&exec.uuid, move |worker| {
+        interface1.evaluation_result(
+            sender1,
+            st_num1,
+            tc_num1,
+            solution1,
+            UIExecutionStatus::Started {
+                worker: worker.to_string(),
+            },
+        );
+    });
+    eval.dag.on_execution_done(&exec.uuid, move |result| {
+        // if the solution failed the checker won't run and the score of
+        // this testcase won't be set, manually set it to zero.
+        match result.result.status {
+            ExecutionStatus::Success => {}
+            _ => {
+                score_type
+                    .lock()
+                    .unwrap()
+                    .testcase_score(st_num2, tc_num2, 0.0);
             }
-            interface2.evaluation_result(
-                sender2,
-                st_num2,
-                tc_num2,
-                solution2,
-                UIExecutionStatus::Done { result },
-            );
-        })
-        .on_skip(move || {
-            interface3.evaluation_result(
-                sender3,
-                st_num3,
-                tc_num3,
-                solution3,
-                UIExecutionStatus::Skipped,
-            );
-        });
+        }
+        interface2.evaluation_result(
+            sender2,
+            st_num2,
+            tc_num2,
+            solution2,
+            UIExecutionStatus::Done { result },
+        );
+    });
+    eval.dag.on_execution_skip(&exec.uuid, move || {
+        interface3.evaluation_result(
+            sender3,
+            st_num3,
+            tc_num3,
+            solution3,
+            UIExecutionStatus::Skipped,
+        );
+    });
+    eval.dag.add_execution(exec);
 }

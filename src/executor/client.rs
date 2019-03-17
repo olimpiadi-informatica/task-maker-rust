@@ -88,25 +88,25 @@ impl ExecutorClient {
                 Ok(ExecutorServerMessage::NotifyStart(uuid, worker)) => {
                     info!("Execution {} started on {}", uuid, worker);
                     if let Some(callbacks) = eval.dag.execution_callbacks.get_mut(&uuid) {
-                        callbacks
-                            .on_start
-                            .take()
-                            .map(|callback| callback.call(worker));
+                        for callback in callbacks.on_start.drain(..) {
+                            callback.call(worker);
+                        }
                     }
                 }
                 Ok(ExecutorServerMessage::NotifyDone(uuid, result)) => {
                     info!("Execution {} completed with {:?}", uuid, result);
                     if let Some(callbacks) = eval.dag.execution_callbacks.get_mut(&uuid) {
-                        callbacks
-                            .on_done
-                            .take()
-                            .map(|callback| callback.call(result));
+                        for callback in callbacks.on_done.drain(..) {
+                            callback.call(result.clone());
+                        }
                     }
                 }
                 Ok(ExecutorServerMessage::NotifySkip(uuid)) => {
                     info!("Execution {} skipped", uuid);
                     if let Some(callbacks) = eval.dag.execution_callbacks.get_mut(&uuid) {
-                        callbacks.on_skip.take().map(|callback| callback.call());
+                        for callback in callbacks.on_skip.drain(..) {
+                            callback.call();
+                        }
                     }
                 }
                 Ok(ExecutorServerMessage::Error(error)) => {

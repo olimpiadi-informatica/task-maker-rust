@@ -40,12 +40,12 @@ pub struct ExecutionInput {
 
 /// The supported callbacks of an execution
 pub struct ExecutionCallbacks {
-    /// The callback called when the execution starts.
-    pub on_start: Option<OnStartCallback>,
-    /// The callback called when the execution has completed.
-    pub on_done: Option<OnDoneCallback>,
-    /// The callback called when the execution has been skipped.
-    pub on_skip: Option<OnSkipCallback>,
+    /// The callbacks called when the execution starts.
+    pub on_start: Vec<OnStartCallback>,
+    /// The callbacks called when the execution has completed.
+    pub on_done: Vec<OnDoneCallback>,
+    /// The callbacks called when the execution has been skipped.
+    pub on_skip: Vec<OnSkipCallback>,
 }
 
 /// An Execution is a process that will be executed by a worker inside a
@@ -343,9 +343,9 @@ impl std::fmt::Debug for ExecutionCallbacks {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         formatter
             .debug_struct("ExecutionCallbacks")
-            .field("on_start", &self.on_start.is_some())
-            .field("on_done", &self.on_done.is_some())
-            .field("on_skip", &self.on_skip.is_some())
+            .field("on_start", &self.on_start.len())
+            .field("on_done", &self.on_done.len())
+            .field("on_skip", &self.on_skip.len())
             .finish()?;
         Ok(())
     }
@@ -354,9 +354,9 @@ impl std::fmt::Debug for ExecutionCallbacks {
 impl std::default::Default for ExecutionCallbacks {
     fn default() -> Self {
         ExecutionCallbacks {
-            on_start: None,
-            on_done: None,
-            on_skip: None,
+            on_start: Vec::new(),
+            on_done: Vec::new(),
+            on_skip: Vec::new(),
         }
     }
 }
