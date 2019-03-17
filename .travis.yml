@@ -20,7 +20,7 @@ script:
   - sudo update-alternatives --set cc /usr/bin/gcc
   - sudo update-alternatives --set c++ /usr/bin/g++
   - export CC=gcc-7 CXX=g++-7
-  - cargo clippy --all-targets --all-features
+  - cargo clippy --all-targets --all-features -- -A clippy::module_inception -A clippy::new_without_default -A clippy::borrowed_box
   - cargo build --all
   - RUST_BACKTRACE=1 cargo test --verbose --all
 cache: cargo
