@@ -195,13 +195,11 @@ impl FileStore {
             self.flush()?;
             return Ok(None);
         }
-        if CHECK_INTEGRITY {
-            if !self.check_integrity(key) {
-                warn!("File {:?} failed the integrity check", path);
-                self.data.remove(key);
-                FileStore::remove_file(&path)?;
-                return Ok(None);
-            }
+        if CHECK_INTEGRITY && !self.check_integrity(key) {
+            warn!("File {:?} failed the integrity check", path);
+            self.data.remove(key);
+            FileStore::remove_file(&path)?;
+            return Ok(None);
         }
         self.persist(key)?;
         Ok(Some(path))
@@ -214,13 +212,11 @@ impl FileStore {
         if !path.exists() {
             return false;
         }
-        if CHECK_INTEGRITY {
-            if !self.check_integrity(&key) {
-                warn!("File {:?} failed the integrity check", path);
-                self.data.remove(key);
-                FileStore::remove_file(&path).expect("Cannot remove corrupted file");
-                return false;
-            }
+        if CHECK_INTEGRITY && !self.check_integrity(&key) {
+            warn!("File {:?} failed the integrity check", path);
+            self.data.remove(key);
+            FileStore::remove_file(&path).expect("Cannot remove corrupted file");
+            return false;
         }
         true
     }
@@ -362,7 +358,7 @@ mod tests {
             .write(true)
             .open(path)
             .unwrap()
-            .write_all("lol".as_bytes())
+            .write_all(b"lol")
             .unwrap();
     }
 
@@ -396,7 +392,7 @@ mod tests {
         let cwd = get_cwd();
         File::create(cwd.path().join(FILE_STORE_FILE))
             .unwrap()
-            .write(&vec![1, 2, 3, 4, 5])
+            .write_all(&[1, 2, 3, 4, 5])
             .unwrap();
         assert!(FileStore::new(cwd.path()).is_err());
     }

@@ -6,16 +6,16 @@ pub mod test_utils {
     use std::path::Path;
     use std::sync::mpsc::channel;
     use std::sync::{Arc, Mutex};
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::thread;
     use tempdir::TempDir;
 
     pub fn setup_test() -> TempDir {
-        let mut has_inited = LOG_INITIALIZED.lock().unwrap();
-        if !*has_inited {
+        let has_inited = LOG_INITIALIZED.swap(true, Ordering::Relaxed);
+        if !has_inited {
             env_logger::Builder::from_default_env()
                 .default_format_timestamp_nanos(true)
                 .init();
-            *has_inited = true;
         }
         TempDir::new("tm-test").unwrap()
     }
@@ -34,7 +34,7 @@ pub mod test_utils {
     }
 
     lazy_static! {
-        static ref LOG_INITIALIZED: Mutex<bool> = Mutex::new(false);
+        static ref LOG_INITIALIZED: AtomicBool = AtomicBool::new(false);
     }
 }
 

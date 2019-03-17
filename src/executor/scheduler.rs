@@ -27,9 +27,7 @@ impl Scheduler {
                 ready_execs.push(exec_uuid.clone());
             }
             for dep in deps.into_iter() {
-                if !dependents.contains_key(&dep) {
-                    dependents.insert(dep.clone(), vec![]);
-                }
+                dependents.entry(dep).or_insert_with(|| vec![]);
                 dependents.get_mut(&dep).unwrap().push(exec_uuid.clone());
             }
         }
@@ -78,26 +76,24 @@ impl Scheduler {
                 .dag
                 .as_ref()
                 .unwrap()
-                .executions
-                .get(&exec)
-                .unwrap()
+                .executions[&exec]
                 .clone();
             let dep_keys = execution
                 .dependencies()
                 .iter()
                 .map(|k| {
                     (
-                        k.clone(),
+                        *k,
                         data.file_keys
                             .get(&k)
-                            .expect(&format!("Unknown file key of {}", k))
+                            .unwrap_or_else(|| panic!("Unknown file key of {}", k))
                             .clone(),
                     )
                 })
                 .collect();
             if data.callbacks.as_ref().unwrap().executions.contains(&exec) {
                 serialize_into(
-                    &ExecutorServerMessage::NotifyStart(exec.clone(), worker.clone()),
+                    &ExecutorServerMessage::NotifyStart(exec, *worker),
                     data.client_sender.as_ref().unwrap(),
                 )
                 .expect("Cannot send message to client");
@@ -105,13 +101,13 @@ impl Scheduler {
             Scheduler::assign_job(
                 data.workers
                     .get(&worker)
-                    .expect(&format!("Assigning to unknown worker {}", worker))
+                    .unwrap_or_else(|| panic!("Assigning to unknown worker {}", worker))
                     .clone(),
                 WorkerJob {
                     execution,
                     dep_keys,
                 },
-                worker.clone(),
+                *worker,
             );
         }
 
@@ -144,10 +140,10 @@ impl Scheduler {
                 trace!("Leaf file is ready");
                 return;
             }
-            let dependents = data.dependents.get(&file).unwrap().clone();
+            let dependents = data.dependents[&file].clone();
             for exec in dependents.iter() {
                 if !data.missing_deps.contains_key(&exec) {
-                    let exec = data.dag.as_ref().unwrap().executions.get(&exec).unwrap();
+                    let exec = &data.dag.as_ref().unwrap().executions[&exec];
                     trace!(
                         "Cannot schedule {:?} ({}) from {}",
                         exec.description,
@@ -162,7 +158,7 @@ impl Scheduler {
                     data.ready_execs.push(exec.clone());
                     data.missing_deps.remove(&exec);
                     needs_reshed = true;
-                    let exec = data.dag.as_ref().unwrap().executions.get(&exec).unwrap();
+                    let exec = &data.dag.as_ref().unwrap().executions[&exec];
                     trace!(
                         "Execution {} ({}) is now ready",
                         exec.description,
@@ -192,12 +188,12 @@ impl Scheduler {
                 trace!("Leaf file has failed");
                 return;
             }
-            let dependents = data.dependents.get(&file).unwrap().clone();
+            let dependents = data.dependents[&file].clone();
             for exec in dependents.iter() {
                 data.missing_deps.remove(&exec);
                 if data.callbacks.as_ref().unwrap().executions.contains(&exec) {
                     serialize_into(
-                        &ExecutorServerMessage::NotifySkip(exec.clone()),
+                        &ExecutorServerMessage::NotifySkip(*exec),
                         data.client_sender.as_ref().unwrap(),
                     )
                     .expect("Cannot send message to client");
@@ -208,7 +204,7 @@ impl Scheduler {
         for exec in execs.iter() {
             {
                 let data = executor_data.lock().unwrap();
-                let exec = data.dag.as_ref().unwrap().executions.get(&exec).unwrap();
+                let exec = &data.dag.as_ref().unwrap().executions[&exec];
                 trace!(
                     "Execution {} ({}) has been skipped due to {}",
                     exec.description,

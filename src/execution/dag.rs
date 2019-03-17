@@ -87,11 +87,11 @@ impl ExecutionDAG {
     /// Will panic if the file doesn't exists or it's not readable
     pub fn provide_file(&mut self, file: File, path: &Path) {
         self.data.provided_files.insert(
-            file.uuid.clone(),
+            file.uuid,
             ProvidedFile {
                 file,
                 key: FileStoreKey::from_file(path)
-                    .expect(&format!("Cannot compute FileStoreKey for {:?}", path)),
+                    .unwrap_or_else(|_| panic!("Cannot compute FileStoreKey for {:?}", path)),
                 local_path: path.to_owned(),
             },
         );
@@ -102,7 +102,7 @@ impl ExecutionDAG {
     pub fn add_execution(&mut self, execution: Execution) {
         self.data
             .executions
-            .insert(execution.uuid.clone(), execution);
+            .insert(execution.uuid, execution);
     }
 
     /// When `file` is ready it will be written to `path`. The file must be
@@ -187,11 +187,7 @@ pub fn check_dag(
     let mut ready_files: VecDeque<FileUuid> = VecDeque::new();
 
     let mut add_dependency = |file: FileUuid, exec: ExecutionUuid| {
-        if !dependencies.contains_key(&file) {
-            dependencies.insert(file, vec![exec]);
-        } else {
-            dependencies.get_mut(&file).unwrap().push(exec);
-        }
+        dependencies.entry(file).or_insert_with(|| vec![]).push(exec);
     };
 
     // add the exectutions and check for duplicated UUIDs
@@ -200,16 +196,16 @@ pub fn check_dag(
         let deps = exec.dependencies();
         let count = deps.len();
         for dep in deps.into_iter() {
-            add_dependency(dep, exec_uuid.clone());
+            add_dependency(dep, *exec_uuid);
         }
         for out in exec.outputs().into_iter() {
             if !known_files.insert(out) {
                 return Err(DAGError::DuplicateFileUUID { uuid: out });
             }
         }
-        if num_dependencies.insert(exec_uuid.clone(), count).is_some() {
+        if num_dependencies.insert(*exec_uuid, count).is_some() {
             return Err(DAGError::DuplicateExecutionUUID {
-                uuid: exec_uuid.clone(),
+                uuid: *exec_uuid,
             });
         }
         if count == 0 {
@@ -220,7 +216,7 @@ pub fn check_dag(
     for uuid in dag.provided_files.keys() {
         ready_files.push_back(uuid.clone());
         if !known_files.insert(uuid.clone()) {
-            return Err(DAGError::DuplicateFileUUID { uuid: uuid.clone() });
+            return Err(DAGError::DuplicateFileUUID { uuid: *uuid });
         }
     }
     // visit the DAG for finding the unreachable executions / cycles
@@ -229,7 +225,7 @@ pub fn check_dag(
             if !dependencies.contains_key(&file) {
                 continue;
             }
-            for exec in dependencies.get(&file).unwrap().iter() {
+            for exec in dependencies[&file].iter() {
                 let num_deps = num_dependencies
                     .get_mut(&exec)
                     .expect("num_dependencies of an unknown execution");
@@ -256,7 +252,7 @@ pub fn check_dag(
         if *count == 0 {
             continue;
         }
-        let exec = dag.executions.get(&exec_uuid).unwrap();
+        let exec = &dag.executions[&exec_uuid];
         for dep in exec.dependencies().iter() {
             if !known_files.contains(dep) {
                 return Err(DAGError::MissingFile {
@@ -274,7 +270,7 @@ pub fn check_dag(
         if !known_files.contains(&file) {
             return Err(DAGError::MissingFile {
                 uuid: *file,
-                description: format!("File required by a callback"),
+                description: "File required by a callback".to_owned(),
             });
         }
     }

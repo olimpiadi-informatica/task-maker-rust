@@ -63,14 +63,14 @@ where
     ) -> ScoreTypeBase<SubtaskId, TestcaseId> {
         ScoreTypeBase {
             task_score: None,
-            subtask_scores: subtasks.keys().map(|id| (id.clone(), None)).collect(),
+            subtask_scores: subtasks.keys().map(|id| (*id, None)).collect(),
             max_subtask_scores: subtasks
                 .into_iter()
                 .map(|(id, info)| (id, info.max_score()))
                 .collect(),
             testcase_scores: testcases
                 .into_iter()
-                .map(|(st_id, st)| (st_id, st.keys().map(|id| (id.clone(), None)).collect()))
+                .map(|(st_id, st)| (st_id, st.keys().map(|id| (*id, None)).collect()))
                 .collect(),
             get_subtask_callback: None,
             get_task_callback: None,
@@ -103,7 +103,7 @@ where
     /// Make a clone of Self resetting the callbacks (they are not clonable).
     fn partial_clone(&self) -> Self {
         Self {
-            task_score: self.task_score.clone(),
+            task_score: self.task_score,
             subtask_scores: self.subtask_scores.clone(),
             max_subtask_scores: self.max_subtask_scores.clone(),
             testcase_scores: self.testcase_scores.clone(),

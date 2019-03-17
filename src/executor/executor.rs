@@ -206,13 +206,13 @@ impl Executor {
                         for (uuid, file) in provided_files.into_iter() {
                             if !data.file_store.lock().unwrap().has_key(&file.key) {
                                 serialize_into(
-                                    &ExecutorServerMessage::AskFile(uuid.clone()),
+                                    &ExecutorServerMessage::AskFile(uuid),
                                     &sender,
                                 )?;
                             } else {
                                 data.file_store.lock().unwrap().persist(&file.key)?;
-                                data.file_keys.insert(uuid.clone(), file.key.clone());
-                                ready_files.push(uuid.clone());
+                                data.file_keys.insert(uuid, file.key.clone());
+                                ready_files.push(uuid);
                                 trace!("File {} already in store!", uuid);
                             }
                         }
@@ -235,7 +235,7 @@ impl Executor {
                             .lock()
                             .unwrap()
                             .store(&key, ChannelFileIterator::new(&receiver))?;
-                        data.file_keys.insert(uuid.clone(), key.clone());
+                        data.file_keys.insert(uuid, key.clone());
                     }
                     Scheduler::file_ready(self.data.clone(), uuid);
                 }
@@ -249,7 +249,7 @@ impl Executor {
                                 .iter()
                                 .map(|(uuid, worker)| {
                                     (
-                                        uuid.clone(),
+                                        *uuid,
                                         worker.name.clone(),
                                         worker.job.lock().unwrap().is_some(),
                                     )
@@ -294,7 +294,7 @@ impl ExecutorData {
             ready_execs: BinaryHeap::new(),
             missing_deps: HashMap::new(),
             dependents: HashMap::new(),
-            file_store: file_store,
+            file_store,
             file_keys: HashMap::new(),
         }
     }
@@ -315,7 +315,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                 {
                     let mut executor = executor.lock().unwrap();
                     executor.workers.insert(
-                        conn.uuid.clone(),
+                        conn.uuid,
                         Arc::new(WorkerState {
                             name: conn.name.clone(),
                             job: Mutex::new(None),
@@ -351,7 +351,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                         .contains(&exec_uuid)
                     {
                         serialize_into(
-                            &ExecutorServerMessage::NotifyDone(exec_uuid.clone(), result.clone()),
+                            &ExecutorServerMessage::NotifyDone(exec_uuid, result.clone()),
                             data.client_sender.as_ref().unwrap(),
                         )?;
                     }
@@ -370,7 +370,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                         .lock()
                         .unwrap()
                         .store(&key, ChannelFileIterator::new(&conn.receiver))?;
-                    data.file_keys.insert(uuid.clone(), key.clone());
+                    data.file_keys.insert(uuid, key.clone());
                 }
                 Scheduler::file_ready(executor.clone(), uuid);
                 let data = executor.lock().unwrap();
@@ -418,7 +418,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
 
 /// Block the thread until there is something to do for this worker
 fn wait_for_work(executor: Arc<Mutex<ExecutorData>>, uuid: &WorkerUuid) -> WorkerJob {
-    let worker = &*executor.lock().unwrap().workers.get(&uuid).unwrap().clone();
+    let worker = &*executor.lock().unwrap().workers[&uuid].clone();
     let mut job = worker.job.lock().unwrap();
     while job.is_none() {
         job = worker.cv.wait(job).unwrap();

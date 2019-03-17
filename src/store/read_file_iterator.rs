@@ -103,7 +103,7 @@ mod tests {
         let cwd = get_cwd();
         let path = cwd.path().join("file.txt");
         let mut content = Vec::new();
-        for _ in 0..READ_FILE_BUFFER_SIZE + 1 {
+        for _ in 0..=READ_FILE_BUFFER_SIZE {
             content.push(123);
         }
         fake_file(&path, content.clone());

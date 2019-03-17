@@ -201,8 +201,8 @@ impl Generator<IOISubtaskId, IOITestcaseId> for IOIGenerator {
         let stdout = exec.stdout();
         eval.sender
             .send(UIMessage::IOIGeneration {
-                subtask: subtask,
-                testcase: testcase,
+                subtask,
+                testcase,
                 status: UIExecutionStatus::Pending,
             })
             .unwrap();

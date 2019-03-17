@@ -119,7 +119,7 @@ fn extract_imports(path: &Path) -> Vec<String> {
     let mut res: Vec<String> = Vec::new();
     for cap in RE.captures_iter(&content) {
         if let Some(type1) = cap.get(1) {
-            for piece in type1.as_str().split(",") {
+            for piece in type1.as_str().split(',') {
                 res.push(piece.trim().to_string());
             }
         } else if let Some(type2) = cap.get(2) {

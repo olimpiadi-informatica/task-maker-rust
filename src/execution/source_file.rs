@@ -22,9 +22,7 @@ impl SourceFile {
     /// language is unknown.
     pub fn new(path: &Path) -> Option<SourceFile> {
         let lang = LanguageManager::detect_language(path);
-        if lang.is_none() {
-            return None;
-        }
+        lang.as_ref()?;
         Some(SourceFile {
             path: path.to_owned(),
             language: lang.unwrap(),

@@ -41,7 +41,7 @@ pub fn parse_gen_gen(
             "gen/generatore",
         ],
     )
-    .map(|g| Arc::new(g));
+    .map(Arc::new);
 
     let validator = find_source_file(
         &task_dir,
@@ -52,7 +52,7 @@ pub fn parse_gen_gen(
             "gen/valida",
         ],
     )
-    .map(|g| Arc::new(g));
+    .map(Arc::new);
 
     let get_validator = |st: IOISubtaskId| {
         validator.as_ref().map(|v| {

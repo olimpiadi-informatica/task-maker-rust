@@ -30,9 +30,9 @@ impl ExecutorClient {
                 .dag
                 .execution_callbacks
                 .keys()
-                .map(|k| k.clone())
+                .cloned()
                 .collect(),
-            files: eval.dag.file_callbacks.keys().map(|k| k.clone()).collect(),
+            files: eval.dag.file_callbacks.keys().cloned().collect(),
         };
         let provided_files = eval.dag.data.provided_files.clone();
         serialize_into(

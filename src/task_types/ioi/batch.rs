@@ -42,7 +42,7 @@ impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIB
     }
 
     fn testcases(&self, subtask: IOISubtaskId) -> &HashMap<IOITestcaseId, IOITestcaseInfo> {
-        self.info.testcases.get(&subtask).unwrap()
+        &self.info.testcases[&subtask]
     }
 
     fn score_type(&self) -> &ScoreType<IOISubtaskId, IOITestcaseId> {

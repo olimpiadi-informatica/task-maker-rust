@@ -322,7 +322,7 @@ pub trait Task<
                     let (output, exec) = solution.solve(
                         &mut eval,
                         input.clone(),
-                        val.as_ref().map(|f| f.clone()),
+                        val.as_ref().cloned(),
                         *st_num,
                         *tc_num,
                     );
@@ -341,7 +341,7 @@ pub trait Task<
 
                 // STEP 4: evaluate all the solutions on this testcase
                 for (sol_path, sol) in solutions.iter() {
-                    let score_type = solutions_scores.get(sol_path).unwrap().clone();
+                    let score_type = solutions_scores[sol_path].clone();
                     // STEP 4a: execute the solution with the input file
                     let (sol_output, exec) =
                         sol.solve(&mut eval, input.clone(), val.clone(), *st_num, *tc_num);

@@ -88,7 +88,7 @@ impl Sandbox {
         let boxdir = TempDir::new_in(sandboxes_dir, "box")?;
         Sandbox::setup(boxdir.path(), execution, dep_keys, file_store)?;
         Ok(Sandbox {
-            data: Arc::new(Mutex::new(SandboxData { boxdir: boxdir })),
+            data: Arc::new(Mutex::new(SandboxData { boxdir })),
             execution: execution.clone(),
         })
     }

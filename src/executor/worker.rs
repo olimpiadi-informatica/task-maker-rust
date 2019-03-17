@@ -91,15 +91,15 @@ impl Worker {
         let uuid = Uuid::new_v4();
         (
             Worker {
-                uuid: uuid.clone(),
+                uuid,
                 name: name.to_owned(),
                 sender: tx_worker,
                 receiver: rx_worker,
-                file_store: file_store,
+                file_store,
                 current_job: Arc::new(Mutex::new(WorkerCurrentJob::new())),
             },
             WorkerConn {
-                uuid: uuid,
+                uuid,
                 name: name.to_owned(),
                 sender: tx,
                 receiver: rx,
@@ -132,11 +132,11 @@ impl Worker {
                             job.dep_keys
                                 .get(&input)
                                 .ok_or(WorkerError::MissingDependencyKey {
-                                    uuid: input.clone(),
+                                    uuid: *input,
                                 })?;
                         if !store.has_key(&key) {
                             serialize_into(
-                                &WorkerClientMessage::AskFile(input.clone()),
+                                &WorkerClientMessage::AskFile(*input),
                                 &self.sender,
                             )?;
                             missing_deps += 1;
@@ -229,15 +229,15 @@ fn execute_job(
             if let ExecutionStatus::Success = status {
                 if let Some(stdout) = job.execution.stdout {
                     let path = sandbox.stdout_path();
-                    send_file(stdout.uuid.clone(), path);
+                    send_file(stdout.uuid, path);
                 }
                 if let Some(stderr) = job.execution.stderr {
                     let path = sandbox.stderr_path();
-                    send_file(stderr.uuid.clone(), path);
+                    send_file(stderr.uuid, path);
                 }
                 for (path, file) in job.execution.outputs.iter() {
                     let path = sandbox.output_path(Path::new(path));
-                    send_file(file.uuid.clone(), path);
+                    send_file(file.uuid, path);
                 }
             }
             current_job.lock().unwrap().current_job = None;
@@ -255,12 +255,12 @@ fn compute_execution_result(execution: &Execution, result: SandboxResult) -> Exe
             signal,
             resources,
         } => ExecutionResult {
-            uuid: execution.uuid.clone(),
+            uuid: execution.uuid,
             status: compute_execution_status(execution, exit_status, signal, &resources),
             resources,
         },
         SandboxResult::Failed { error } => ExecutionResult {
-            uuid: execution.uuid.clone(),
+            uuid: execution.uuid,
             status: ExecutionStatus::InternalError(error.to_string()),
             resources: ExecutionResourcesUsage {
                 cpu_time: 0.0,

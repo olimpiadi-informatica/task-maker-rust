@@ -113,16 +113,16 @@ impl TaskFormat for IOIItalianYaml {
         >| {
             let subtasks = subtasks
                 .iter()
-                .map(|(id, s)| (id.clone(), s as &SubtaskInfo))
+                .map(|(id, s)| (*id, s as &SubtaskInfo))
                 .collect();
             let testcases = testcases
                 .iter()
                 .map(|(id, s)| {
                     (
-                        id.clone(),
+                        *id,
                         s.iter()
                             .map(|(id, t)| {
-                                (id.clone(), t as &TestcaseInfo<IOISubtaskId, IOITestcaseId>)
+                                (*id, t as &TestcaseInfo<IOISubtaskId, IOITestcaseId>)
                             })
                             .collect(),
                     )
@@ -150,7 +150,7 @@ impl TaskFormat for IOIItalianYaml {
                 official_solution,
             };
             info!("Task: {:#?}", task);
-            return Ok(Box::new(task));
+            Ok(Box::new(task))
         } else {
             // TODO static inputs
             unimplemented!();

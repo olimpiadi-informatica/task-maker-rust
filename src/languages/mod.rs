@@ -101,7 +101,7 @@ impl LanguageManager {
         let manager = &LANGUAGE_MANAGER_SINGL;
         let ext = path
             .extension()
-            .unwrap_or(std::ffi::OsStr::new(""))
+            .unwrap_or_else(|| std::ffi::OsStr::new(""))
             .to_str()
             .unwrap()
             .to_lowercase();

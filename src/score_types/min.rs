@@ -38,7 +38,7 @@ where
     fn testcase_score(&mut self, subtask: SubtaskId, testcase: TestcaseId, score: f64) {
         self.base.testcase_score(subtask, testcase, score);
         let mut score: f64 = 1.0;
-        for testcase in self.base.testcase_scores.get(&subtask).unwrap().values() {
+        for testcase in self.base.testcase_scores[&subtask].values() {
             // there is a non-ready testcase of this subtask
             if testcase.is_none() {
                 return;
@@ -46,7 +46,7 @@ where
             score = score.min(testcase.unwrap());
         }
         // all the testcases are ready, update the subtask score
-        score *= self.base.max_subtask_scores.get(&subtask).unwrap();
+        score *= self.base.max_subtask_scores[&subtask];
         *self.base.subtask_scores.get_mut(&subtask).unwrap() = Some(score);
         if let Some(callback) = &self.base.get_subtask_callback {
             callback(subtask, score);

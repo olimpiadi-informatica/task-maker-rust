@@ -270,13 +270,13 @@ impl Execution {
     pub fn outputs(&self) -> Vec<FileUuid> {
         let mut outs = vec![];
         if let Some(stdout) = &self.stdout {
-            outs.push(stdout.uuid.clone());
+            outs.push(stdout.uuid);
         }
         if let Some(stderr) = &self.stderr {
-            outs.push(stderr.uuid.clone());
+            outs.push(stderr.uuid);
         }
         for output in self.outputs.values() {
-            outs.push(output.uuid.clone());
+            outs.push(output.uuid);
         }
         outs
     }
@@ -284,7 +284,7 @@ impl Execution {
     /// Bind the standard input to the specified file. Calling again this
     /// method will overwrite the previous value
     pub fn stdin(&mut self, stdin: &File) -> &mut Self {
-        self.stdin = Some(stdin.uuid.clone());
+        self.stdin = Some(stdin.uuid);
         self
     }
 
@@ -314,7 +314,7 @@ impl Execution {
         self.inputs.insert(
             path.to_owned(),
             ExecutionInput {
-                file: file.uuid.clone(),
+                file: file.uuid,
                 executable,
             },
         );
@@ -325,11 +325,11 @@ impl Execution {
     /// least once before the evaluation starts in order to track the file
     pub fn output(&mut self, path: &Path) -> File {
         if self.outputs.contains_key(path) {
-            return self.outputs.get(path).unwrap().clone();
+            return self.outputs[path].clone();
         }
         let file = File::new(&format!("Output of '{}' at {:?}", self.description, path));
         self.outputs.insert(path.to_owned(), file);
-        self.outputs.get(path).unwrap().clone()
+        self.outputs[path].clone()
     }
 
     /// Set the limits for the execution
