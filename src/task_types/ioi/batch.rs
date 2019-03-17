@@ -140,4 +140,22 @@ impl TaskUIInterface<IOISubtaskId, IOITestcaseId> for IOITaskUIInterface {
             })
             .unwrap();
     }
+
+    fn checker_result(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: IOISubtaskId,
+        testcase: IOITestcaseId,
+        solution: PathBuf,
+        status: UIExecutionStatus,
+    ) {
+        sender
+            .send(UIMessage::IOIChecker {
+                subtask,
+                testcase,
+                solution,
+                status,
+            })
+            .unwrap();
+    }
 }

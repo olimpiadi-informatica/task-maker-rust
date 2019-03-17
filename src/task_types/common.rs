@@ -82,7 +82,7 @@ where
         _subtask: SubtaskId,
         _testcase: TestcaseId,
         callback: Box<Fn(CheckerResult) -> ()>,
-    ) {
+    ) -> Execution {
         let output = output.expect("WhiteDiffChecker requires the input file to be present");
         let mut exec = Execution::new(
             "Whitediff checker",
@@ -100,6 +100,6 @@ where
                 ExecutionStatus::Success => callback(CheckerResult::new(1.0, None)),
                 _ => callback(CheckerResult::new(0.0, None)),
             });
-        eval.dag.add_execution(exec);
+        exec
     }
 }

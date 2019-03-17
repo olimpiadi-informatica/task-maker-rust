@@ -72,6 +72,19 @@ pub enum UIMessage {
         /// The status of the solution.
         status: UIExecutionStatus,
     },
+
+    /// The checking of a solution in a IOI task.
+    IOIChecker {
+        /// The id of the subtaks.
+        subtask: IOISubtaskId,
+        /// The id of the testcase.
+        testcase: IOITestcaseId,
+        /// The path of the solution.
+        solution: PathBuf,
+        /// The status of the solution. Note that a failure of this execution
+        /// may not mean that the checker failed.
+        status: UIExecutionStatus,
+    },
 }
 
 /// The sender of the UIMessage

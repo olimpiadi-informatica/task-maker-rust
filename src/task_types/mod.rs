@@ -111,7 +111,7 @@ where
         testcase: TestcaseId,
         // TODO maybe tell the checker which solution it is checking
         callback: Box<Fn(CheckerResult) -> ()>,
-    );
+    ) -> Execution;
 }
 
 /// Some basic information about a subtask
@@ -188,6 +188,16 @@ pub trait TaskUIInterface<
     /// Send to the ui the status of the evaluation of a solution on a
     /// testcase.
     fn evaluation_result(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: SubtaskId,
+        testcase: TestcaseId,
+        solution: PathBuf,
+        status: UIExecutionStatus,
+    );
+
+    /// Send to the ui the status of the checking of a solution on a testcase.
+    fn checker_result(
         &self,
         sender: Arc<Mutex<UIMessageSender>>,
         subtask: SubtaskId,
@@ -350,7 +360,7 @@ pub trait Task<
                     let st_num2 = *st_num;
                     let tc_num2 = *tc_num;
                     // STEP 4b: run the checker on the outcome and store the result.
-                    self.checker(*st_num, *tc_num).check(
+                    let exec = self.checker(*st_num, *tc_num).check(
                         &mut eval,
                         input.clone(),
                         output.clone(),
@@ -365,6 +375,15 @@ pub trait Task<
                                 sol_path2, tc_num2, res.score
                             );
                         }),
+                    );
+
+                    bind_checker_callbacks(
+                        &interface,
+                        exec,
+                        &mut eval,
+                        *st_num,
+                        *tc_num,
+                        sol_path.clone(),
                     );
                 }
             }
@@ -584,6 +603,59 @@ fn bind_evaluation_callbacks<SubtaskId, TestcaseId>(
     });
     eval.dag.on_execution_skip(&exec.uuid, move || {
         interface3.evaluation_result(
+            sender3,
+            st_num3,
+            tc_num3,
+            solution3,
+            UIExecutionStatus::Skipped,
+        );
+    });
+    eval.dag.add_execution(exec);
+}
+
+/// Bind the callbacks relative to the checking of a solution.
+fn bind_checker_callbacks<SubtaskId, TestcaseId>(
+    interface: &Arc<TaskUIInterface<SubtaskId, TestcaseId>>,
+    exec: Execution,
+    eval: &mut EvaluationData,
+    st_num: SubtaskId,
+    tc_num: TestcaseId,
+    solution: PathBuf,
+) where
+    SubtaskId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
+    TestcaseId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
+{
+    let interface1 = interface.clone();
+    let interface2 = interface.clone();
+    let interface3 = interface.clone();
+    let (sender1, st_num1, tc_num1) = (eval.sender.clone(), st_num, tc_num);
+    let (sender2, st_num2, tc_num2) = (eval.sender.clone(), st_num, tc_num);
+    let (sender3, st_num3, tc_num3) = (eval.sender.clone(), st_num, tc_num);
+    let solution1 = solution.clone();
+    let solution2 = solution.clone();
+    let solution3 = solution.clone();
+    eval.dag.on_execution_start(&exec.uuid, move |worker| {
+        interface1.checker_result(
+            sender1,
+            st_num1,
+            tc_num1,
+            solution1,
+            UIExecutionStatus::Started {
+                worker: worker.to_string(),
+            },
+        );
+    });
+    eval.dag.on_execution_done(&exec.uuid, move |result| {
+        interface2.checker_result(
+            sender2,
+            st_num2,
+            tc_num2,
+            solution2,
+            UIExecutionStatus::Done { result },
+        );
+    });
+    eval.dag.on_execution_skip(&exec.uuid, move || {
+        interface3.checker_result(
             sender3,
             st_num3,
             tc_num3,
