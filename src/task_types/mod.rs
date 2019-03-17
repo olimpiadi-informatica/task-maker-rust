@@ -3,6 +3,7 @@ use crate::execution::*;
 use crate::executor::*;
 use crate::score_types::*;
 use crate::ui::*;
+use boxfnonce::BoxFnOnce;
 use failure::Error;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -110,7 +111,7 @@ where
         subtask: SubtaskId,
         testcase: TestcaseId,
         // TODO maybe tell the checker which solution it is checking
-        callback: Box<Fn(CheckerResult) -> ()>,
+        callback: BoxFnOnce<'static, (CheckerResult,)>,
     ) -> Execution;
 }
 
@@ -205,6 +206,28 @@ pub trait TaskUIInterface<
         solution: PathBuf,
         status: UIExecutionStatus,
     );
+
+    /// Send to the ui the score of a solution of a testcase.
+    fn testcase_score(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: SubtaskId,
+        testcase: TestcaseId,
+        solution: PathBuf,
+        score: f64,
+    );
+
+    /// Send to the ui the score of a solution of a subtask.
+    fn subtask_score(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: SubtaskId,
+        solution: PathBuf,
+        score: f64,
+    );
+
+    /// Send to the ui the score of a solution of a task.
+    fn task_score(&self, sender: Arc<Mutex<UIMessageSender>>, solution: PathBuf, score: f64);
 }
 
 /// Trait that describes a generic task. Every task must have a generator (a
@@ -270,6 +293,7 @@ pub trait Task<
     ) {
         let subtasks = self.subtasks();
         let solutions = self.solutions();
+        let interface = self.get_ui_interface().clone();
         // the scores of the solutions, the values must be thread-safe because
         // they are changed in other threads during the evaluation.
         let solutions_scores: HashMap<
@@ -279,21 +303,38 @@ pub trait Task<
             .keys()
             .map(|sol| {
                 let mut score_type = self.score_type().boxed();
-                let name1 = sol.clone();
-                let name2 = sol.clone();
-                score_type.get_subtask_score(Box::new(move |subtask, score| {
-                    warn!("Score of {:?} subtask {:?} is {}", name1, subtask, score);
-                }));
-                score_type.get_task_score(Box::new(move |score| {
-                    warn!("Score of {:?} task is {}", name2, score);
-                }));
+                let get_subtask_score_callback =
+                    |sender: Arc<Mutex<UIMessageSender>>,
+                     interface: Arc<TaskUIInterface<SubtaskId, TestcaseId>>,
+                     name: PathBuf| {
+                        move |subtask, score| {
+                            interface.subtask_score(sender.clone(), subtask, name.clone(), score);
+                        }
+                    };
+                score_type.get_subtask_score(Box::new(get_subtask_score_callback(
+                    eval.sender.clone(),
+                    interface.clone(),
+                    sol.clone(),
+                )));
+                let get_task_score_callback =
+                    |sender: Arc<Mutex<UIMessageSender>>,
+                     interface: Arc<TaskUIInterface<SubtaskId, TestcaseId>>,
+                     name: PathBuf| {
+                        move |score| {
+                            interface.task_score(sender.clone(), name.clone(), score);
+                        }
+                    };
+                score_type.get_task_score(Box::new(get_task_score_callback(
+                    eval.sender.clone(),
+                    interface.clone(),
+                    sol.clone(),
+                )));
                 (sol.clone(), Arc::new(Mutex::new(score_type)))
             })
             .collect();
 
         for (st_num, _st) in subtasks.iter() {
             for (tc_num, tc) in self.testcases(*st_num).iter() {
-                let interface = self.get_ui_interface().clone();
                 // STEP 1: generate the input file
                 let (input, exec) = tc.generator().generate(&mut eval, *st_num, *tc_num);
                 if let Some(path) = tc.write_input_to() {
@@ -359,6 +400,8 @@ pub trait Task<
                     let sol_path2 = sol_path.clone();
                     let st_num2 = *st_num;
                     let tc_num2 = *tc_num;
+                    let interface2 = interface.clone();
+                    let sender2 = eval.sender.clone();
                     // STEP 4b: run the checker on the outcome and store the result.
                     let exec = self.checker(*st_num, *tc_num).check(
                         &mut eval,
@@ -367,13 +410,11 @@ pub trait Task<
                         sol_output,
                         *st_num,
                         *tc_num,
-                        Box::new(move |res| {
+                        BoxFnOnce::new(move |res: CheckerResult| {
                             let mut score_type = score_type.lock().unwrap();
                             score_type.testcase_score(st_num2, tc_num2, res.score);
-                            warn!(
-                                "Score of {:?} at testcase {:?} is {}",
-                                sol_path2, tc_num2, res.score
-                            );
+                            interface2
+                                .testcase_score(sender2, st_num2, tc_num2, sol_path2, res.score);
                         }),
                     );
 

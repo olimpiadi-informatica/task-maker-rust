@@ -85,6 +85,36 @@ pub enum UIMessage {
         /// may not mean that the checker failed.
         status: UIExecutionStatus,
     },
+
+    /// The score of a testcase is ready.
+    IOITestcaseScore {
+        /// The id of the subtaks.
+        subtask: IOISubtaskId,
+        /// The id of the testcase.
+        testcase: IOITestcaseId,
+        /// The path of the solution.
+        solution: PathBuf,
+        /// The score of the testcase.
+        score: f64,
+    },
+
+    /// The score of a subtask is ready.
+    IOISubtaskScore {
+        /// The id of the subtaks.
+        subtask: IOISubtaskId,
+        /// The path of the solution.
+        solution: PathBuf,
+        /// The score of the subtask.
+        score: f64,
+    },
+
+    /// The score of a task is ready.
+    IOITaskScore {
+        /// The path of the solution.
+        solution: PathBuf,
+        /// The score of the task.
+        score: f64,
+    },
 }
 
 /// The sender of the UIMessage

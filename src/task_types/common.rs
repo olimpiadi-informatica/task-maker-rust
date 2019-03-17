@@ -1,4 +1,5 @@
 use crate::task_types::*;
+use boxfnonce::BoxFnOnce;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 
@@ -81,7 +82,7 @@ where
         test: File,
         _subtask: SubtaskId,
         _testcase: TestcaseId,
-        callback: Box<Fn(CheckerResult) -> ()>,
+        callback: BoxFnOnce<'static, (CheckerResult,)>,
     ) -> Execution {
         let output = output.expect("WhiteDiffChecker requires the input file to be present");
         let mut exec = Execution::new(
@@ -97,8 +98,8 @@ where
         exec.input(&test, Path::new("test"), false);
         eval.dag
             .on_execution_done(&exec.uuid, move |result| match result.result.status {
-                ExecutionStatus::Success => callback(CheckerResult::new(1.0, None)),
-                _ => callback(CheckerResult::new(0.0, None)),
+                ExecutionStatus::Success => callback.call(CheckerResult::new(1.0, None)),
+                _ => callback.call(CheckerResult::new(0.0, None)),
             });
         exec
     }

@@ -53,10 +53,9 @@ where
         }
 
         let mut score: f64 = 0.0;
-        for (num, subtask) in self.base.subtask_scores.iter() {
+        for subtask in self.base.subtask_scores.values() {
             // there is a non-ready subtask
             if subtask.is_none() {
-                warn!("Subtask {:?} is not ready: {:?}", num, self.base);
                 return;
             }
             score += subtask.unwrap();

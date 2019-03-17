@@ -158,4 +158,44 @@ impl TaskUIInterface<IOISubtaskId, IOITestcaseId> for IOITaskUIInterface {
             })
             .unwrap();
     }
+
+    fn testcase_score(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: IOISubtaskId,
+        testcase: IOITestcaseId,
+        solution: PathBuf,
+        score: f64,
+    ) {
+        sender
+            .send(UIMessage::IOITestcaseScore {
+                subtask,
+                testcase,
+                solution,
+                score,
+            })
+            .unwrap();
+    }
+
+    fn subtask_score(
+        &self,
+        sender: Arc<Mutex<UIMessageSender>>,
+        subtask: IOISubtaskId,
+        solution: PathBuf,
+        score: f64,
+    ) {
+        sender
+            .send(UIMessage::IOISubtaskScore {
+                subtask,
+                solution,
+                score,
+            })
+            .unwrap();
+    }
+
+    fn task_score(&self, sender: Arc<Mutex<UIMessageSender>>, solution: PathBuf, score: f64) {
+        sender
+            .send(UIMessage::IOITaskScore { solution, score })
+            .unwrap();
+    }
 }

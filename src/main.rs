@@ -1,3 +1,7 @@
+#![allow(clippy::borrowed_box)]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::module_inception)]
+
 extern crate serde;
 extern crate serde_json;
 extern crate serde_yaml;
