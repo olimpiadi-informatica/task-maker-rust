@@ -82,8 +82,8 @@ pub enum WorkerClientMessage {
 /// Messages sent by the server to the worker
 #[derive(Debug, Serialize, Deserialize)]
 pub enum WorkerServerMessage {
-    /// The job the worker should do
-    Work(WorkerJob),
+    /// The job the worker should do. Boxed to reduce the enum size.
+    Work(Box<WorkerJob>),
     /// The file the workers as asked After this message there is a protocol
     /// switch for the file transmission
     ProvideFile(FileUuid, FileStoreKey),
@@ -205,10 +205,7 @@ impl Executor {
                         let provided_files = data.dag.as_ref().unwrap().provided_files.clone();
                         for (uuid, file) in provided_files.into_iter() {
                             if !data.file_store.lock().unwrap().has_key(&file.key) {
-                                serialize_into(
-                                    &ExecutorServerMessage::AskFile(uuid),
-                                    &sender,
-                                )?;
+                                serialize_into(&ExecutorServerMessage::AskFile(uuid), &sender)?;
                             } else {
                                 data.file_store.lock().unwrap().persist(&file.key)?;
                                 data.file_keys.insert(uuid, file.key.clone());
@@ -326,7 +323,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
 
                 Scheduler::schedule(executor.clone());
                 let job = wait_for_work(executor.clone(), &conn.uuid);
-                serialize_into(&WorkerServerMessage::Work(job), &conn.sender).unwrap();
+                serialize_into(&WorkerServerMessage::Work(Box::new(job)), &conn.sender).unwrap();
             }
             Ok(WorkerClientMessage::WorkerDone(result)) => {
                 info!("Worker {} completed with: {:?}", conn, result);

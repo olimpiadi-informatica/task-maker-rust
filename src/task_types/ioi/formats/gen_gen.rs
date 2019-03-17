@@ -10,16 +10,11 @@ use std::sync::Arc;
 #[grammar = "task_types/ioi/formats/GEN.pest"]
 struct GENParser;
 
+pub type IOISubtasksInfo = HashMap<IOISubtaskId, IOISubtaskInfo>;
+pub type IOITestcasesInfo = HashMap<IOISubtaskId, HashMap<IOITestcaseId, IOITestcaseInfo>>;
+
 /// Parse the gen/GEN file extracting the subtasks and the testcases
-pub fn parse_gen_gen(
-    path: &Path,
-) -> Result<
-    (
-        HashMap<IOISubtaskId, IOISubtaskInfo>,
-        HashMap<IOISubtaskId, HashMap<IOITestcaseId, IOITestcaseInfo>>,
-    ),
-    Error,
-> {
+pub fn parse_gen_gen(path: &Path) -> Result<(IOISubtasksInfo, IOITestcasesInfo), Error> {
     let task_dir = path.parent().unwrap().parent().unwrap();
     let content = std::fs::read_to_string(path)?;
     let mut file = GENParser::parse(Rule::file, &content)?;

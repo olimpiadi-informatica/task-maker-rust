@@ -16,7 +16,7 @@ pub type WorkerUuid = Uuid;
 struct WorkerCurrentJob {
     /// Job currently waiting for, when there is a job running this should be
     /// None
-    current_job: Option<WorkerJob>,
+    current_job: Option<Box<WorkerJob>>,
     /// Currently running sandbox
     current_sandbox: Option<Sandbox>,
     /// The number of missing files that are required for the sandbox setup
@@ -128,17 +128,12 @@ impl Worker {
                     let mut missing_deps = 0;
                     for input in job.execution.dependencies().iter() {
                         let mut store = self.file_store.lock().unwrap();
-                        let key =
-                            job.dep_keys
-                                .get(&input)
-                                .ok_or(WorkerError::MissingDependencyKey {
-                                    uuid: *input,
-                                })?;
+                        let key = job
+                            .dep_keys
+                            .get(&input)
+                            .ok_or(WorkerError::MissingDependencyKey { uuid: *input })?;
                         if !store.has_key(&key) {
-                            serialize_into(
-                                &WorkerClientMessage::AskFile(*input),
-                                &self.sender,
-                            )?;
+                            serialize_into(&WorkerClientMessage::AskFile(*input), &self.sender)?;
                             missing_deps += 1;
                         }
                     }

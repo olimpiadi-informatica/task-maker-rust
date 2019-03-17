@@ -17,6 +17,8 @@ pub mod ioi;
 
 pub use common::*;
 
+type ScoreTypeShared<SubtaskId, TestcaseId> = Arc<Mutex<Box<dyn ScoreType<SubtaskId, TestcaseId>>>>;
+
 /// The result of the checking process
 pub struct CheckerResult {
     /// Value from 0.0 (not correct) to 1.0 (correct) with the score of the
@@ -296,10 +298,7 @@ pub trait Task<
         let interface = self.get_ui_interface().clone();
         // the scores of the solutions, the values must be thread-safe because
         // they are changed in other threads during the evaluation.
-        let solutions_scores: HashMap<
-            PathBuf,
-            Arc<Mutex<Box<dyn ScoreType<SubtaskId, TestcaseId>>>>,
-        > = solutions
+        let solutions_scores: HashMap<PathBuf, ScoreTypeShared<SubtaskId, TestcaseId>> = solutions
             .keys()
             .map(|sol| {
                 let mut score_type = self.score_type().boxed();
