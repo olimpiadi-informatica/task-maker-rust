@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::mpsc::channel;
 
+mod print;
+mod raw;
+
 /// The status of an execution.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum UIExecutionStatus {
@@ -125,6 +128,9 @@ pub struct UIMessageSender {
 impl UIMessageSender {
     /// Make a new pair of UIMessageSender and ChannelReceiver.
     pub fn new() -> (UIMessageSender, ChannelReceiver) {
+        // TODO: since this channel is always local to the client consider not
+        // using the normal serializer and opt in using channel::<UIMessage>
+        // directly.
         let (sender, receiver) = channel();
         (UIMessageSender { sender }, receiver)
     }
@@ -132,5 +138,31 @@ impl UIMessageSender {
     /// Send a message to the channel.
     pub fn send(&self, message: UIMessage) -> Result<(), Error> {
         serialize_into(&message, &self.sender)
+    }
+}
+
+/// The trait that describes the UI functionalities.
+pub trait UI {
+    /// Process a new UI message.
+    fn on_message(&mut self, message: UIMessage);
+}
+
+/// The type of the UI to use, it enumerates all the known UI interfaces.
+pub enum UIType {
+    /// The PrintUI.
+    Print,
+    /// The RawUI
+    Raw,
+}
+
+impl UIType {
+    pub fn start(&self, receiver: ChannelReceiver) {
+        let mut ui: Box<dyn UI> = match self {
+            UIType::Print => Box::new(print::PrintUI::new()),
+            UIType::Raw => Box::new(raw::RawUI::new()),
+        };
+        while let Ok(message) = deserialize_from::<UIMessage>(&receiver) {
+            ui.on_message(message);
+        }
     }
 }

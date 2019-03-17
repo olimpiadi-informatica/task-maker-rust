@@ -43,7 +43,6 @@ fn main() {
         .default_format_timestamp_nanos(true)
         .init();
 
-    println!("Tmbox: {}/bin/tmbox", env!("OUT_DIR"));
     use crate::evaluation::*;
     use crate::executor::*;
     use crate::store::*;
@@ -52,10 +51,10 @@ fn main() {
     use std::sync::{Arc, Mutex};
 
     let (eval, receiver) = EvaluationData::new();
-    eval.sender
-        .send(UIMessage::Compilation {
-            status: UIExecutionStatus::Skipped,
-            file: std::path::PathBuf::from("lalal"),
+    let ui_thread = std::thread::Builder::new()
+        .name("UI".to_owned())
+        .spawn(move || {
+            UIType::Print.start(receiver);
         })
         .unwrap();
     use crate::task_types::TaskFormat;
@@ -67,8 +66,5 @@ fn main() {
     let file_store = FileStore::new(&store_path).expect("Cannot create the file store");
     let executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
     task.evaluate(eval, &IOIEvaluationOptions {}, executor);
-
-    while let Ok(mex) = deserialize_from::<UIMessage>(&receiver) {
-        info!("UI: {:?}", mex);
-    }
+    ui_thread.join().unwrap();
 }
