@@ -26,6 +26,7 @@ extern crate lazy_static;
 extern crate boxfnonce;
 extern crate glob;
 extern crate regex;
+extern crate termcolor;
 
 pub mod evaluation;
 pub mod execution;
