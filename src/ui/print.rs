@@ -43,6 +43,7 @@ impl PrintUI {
         ui
     }
 
+    /// Write the UIExecutionStatus type to the console, coloring the message.
     fn write_status(&mut self, status: &UIExecutionStatus) {
         match status {
             UIExecutionStatus::Pending => write!(&mut self.stdout, "[PENDING] ").unwrap(),
@@ -56,6 +57,7 @@ impl PrintUI {
         self.stdout.reset().unwrap();
     }
 
+    /// Write the UIExecutionStatus details to the console.
     fn write_status_details(&mut self, status: &UIExecutionStatus) {
         match status {
             UIExecutionStatus::Pending => {}
@@ -69,6 +71,7 @@ impl PrintUI {
         }
     }
 
+    /// Write the ExecutionStatus details to the console.
     fn write_execution_status(&mut self, status: &ExecutionStatus) {
         match status {
             ExecutionStatus::Success => self.write_success(format!("[{:?}]", status)),
@@ -77,36 +80,42 @@ impl PrintUI {
         }
     }
 
+    /// Write an error to the console.
     fn write_error(&mut self, message: String) {
         self.stdout.set_color(&self.error_style).unwrap();
         write!(&mut self.stdout, "{}", message).unwrap();
         self.stdout.reset().unwrap();
     }
 
+    /// Write a warning to the console.
     fn write_warning(&mut self, message: String) {
         self.stdout.set_color(&self.warning_style).unwrap();
         write!(&mut self.stdout, "{}", message).unwrap();
         self.stdout.reset().unwrap();
     }
 
+    /// Write an info message to the console.
     fn write_info(&mut self, message: String) {
         self.stdout.set_color(&self.info_style).unwrap();
         write!(&mut self.stdout, "{}", message).unwrap();
         self.stdout.reset().unwrap();
     }
 
+    /// Write a success message to the console.
     fn write_success(&mut self, message: String) {
         self.stdout.set_color(&self.success_style).unwrap();
         write!(&mut self.stdout, "{}", message).unwrap();
         self.stdout.reset().unwrap();
     }
 
+    /// Write a message in bold to the console.
     fn write_bold(&mut self, message: String) {
         self.stdout.set_color(&self.bold_style).unwrap();
         write!(&mut self.stdout, "{}", message).unwrap();
         self.stdout.reset().unwrap();
     }
 
+    /// Write a message, padding it to at least 80 chars.
     fn write_message(&mut self, message: String) {
         write!(&mut self.stdout, "{:<80}", message).unwrap();
     }
