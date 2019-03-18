@@ -26,6 +26,7 @@ extern crate lazy_static;
 extern crate boxfnonce;
 extern crate glob;
 extern crate regex;
+extern crate structopt;
 extern crate termcolor;
 
 pub mod evaluation;
@@ -39,10 +40,23 @@ pub mod task_types;
 mod test_utils;
 pub mod ui;
 
+use std::path::PathBuf;
+use structopt::StructOpt;
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "task-maker")]
+struct Opt {
+    /// Directory of the task to evaluate
+    #[structopt(short = "t", long = "task-dir", default_value = ".")]
+    task_dir: PathBuf,
+}
+
 fn main() {
     env_logger::Builder::from_default_env()
         .default_format_timestamp_nanos(true)
         .init();
+
+    let opt = Opt::from_args();
 
     use crate::evaluation::*;
     use crate::executor::*;
@@ -59,8 +73,7 @@ fn main() {
         })
         .unwrap();
     use crate::task_types::TaskFormat;
-    let path = std::path::Path::new("../task-maker/python/tests/task_with_st");
-    let task = task_types::ioi::formats::IOIItalianYaml::parse(path).unwrap();
+    let task = task_types::ioi::formats::IOIItalianYaml::parse(&opt.task_dir).unwrap();
 
     let cwd = tempdir::TempDir::new("task-maker").unwrap();
     let store_path = cwd.path().join("store");
