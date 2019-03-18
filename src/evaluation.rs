@@ -1,5 +1,4 @@
 use crate::execution::*;
-use crate::executor::*;
 use crate::ui::*;
 use failure::Error;
 use std::sync::{Arc, Mutex};
@@ -15,7 +14,7 @@ pub struct EvaluationData {
 impl EvaluationData {
     /// Crate a new EvaluationData returning the data and the receiving part of
     /// the UI chanel.
-    pub fn new() -> (EvaluationData, ChannelReceiver) {
+    pub fn new() -> (EvaluationData, UIChannelReceiver) {
         let (sender, receiver) = UIMessageSender::new();
         (
             EvaluationData {

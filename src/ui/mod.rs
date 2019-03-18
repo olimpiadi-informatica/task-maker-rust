@@ -3,10 +3,14 @@ use crate::task_types::ioi::*;
 use failure::Error;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, Receiver, Sender};
 
+mod curses;
 mod print;
 mod raw;
+
+pub type UIChannelSender = Sender<UIMessage>;
+pub type UIChannelReceiver = Receiver<UIMessage>;
 
 /// The status of an execution.
 #[derive(Debug, Serialize, Deserialize)]
@@ -122,22 +126,19 @@ pub enum UIMessage {
 
 /// The sender of the UIMessage
 pub struct UIMessageSender {
-    sender: ChannelSender,
+    sender: UIChannelSender,
 }
 
 impl UIMessageSender {
     /// Make a new pair of UIMessageSender and ChannelReceiver.
-    pub fn new() -> (UIMessageSender, ChannelReceiver) {
-        // TODO: since this channel is always local to the client consider not
-        // using the normal serializer and opt in using channel::<UIMessage>
-        // directly.
+    pub fn new() -> (UIMessageSender, UIChannelReceiver) {
         let (sender, receiver) = channel();
         (UIMessageSender { sender }, receiver)
     }
 
     /// Send a message to the channel.
     pub fn send(&self, message: UIMessage) -> Result<(), Error> {
-        serialize_into(&message, &self.sender)
+        self.sender.send(message).map_err(|e| e.into())
     }
 }
 
@@ -154,15 +155,18 @@ pub enum UIType {
     Print,
     /// The RawUI
     Raw,
+    /// The CursesUI
+    Curses,
 }
 
 impl UIType {
-    pub fn start(&self, receiver: ChannelReceiver) {
+    pub fn start(&self, receiver: UIChannelReceiver) {
         let mut ui: Box<dyn UI> = match self {
             UIType::Print => Box::new(print::PrintUI::new()),
             UIType::Raw => Box::new(raw::RawUI::new()),
+            UIType::Curses => Box::new(curses::CursesUI::new()),
         };
-        while let Ok(message) = deserialize_from::<UIMessage>(&receiver) {
+        while let Ok(message) = receiver.recv() {
             ui.on_message(message);
         }
     }
@@ -175,6 +179,7 @@ impl std::str::FromStr for UIType {
         match s.to_ascii_lowercase().as_str() {
             "print" => Ok(UIType::Print),
             "raw" => Ok(UIType::Raw),
+            "curses" => Ok(UIType::Curses),
             _ => Err(format!("Unknown ui: {}", s)),
         }
     }

@@ -50,7 +50,7 @@ struct Opt {
     #[structopt(short = "t", long = "task-dir", default_value = ".")]
     task_dir: PathBuf,
 
-    /// Which UI to use, available UIS are: print, raw
+    /// Which UI to use, available UIS are: print, raw, curses
     #[structopt(long = "ui", default_value = "print")]
     ui: crate::ui::UIType,
 }

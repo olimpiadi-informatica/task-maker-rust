@@ -482,6 +482,12 @@ fn bind_generation_callbacks<SubtaskId, TestcaseId>(
     let (sender1, st_num1, tc_num1) = (eval.sender.clone(), st_num, tc_num);
     let (sender2, st_num2, tc_num2) = (eval.sender.clone(), st_num, tc_num);
     let (sender3, st_num3, tc_num3) = (eval.sender.clone(), st_num, tc_num);
+    interface.generation_result(
+        eval.sender.clone(),
+        st_num,
+        tc_num,
+        UIExecutionStatus::Pending,
+    );
     eval.dag.on_execution_start(&exec.uuid, move |worker| {
         interface1.generation_result(
             sender1,
@@ -523,6 +529,12 @@ fn bind_validation_callbacks<SubtaskId, TestcaseId>(
     let (sender1, st_num1, tc_num1) = (eval.sender.clone(), st_num, tc_num);
     let (sender2, st_num2, tc_num2) = (eval.sender.clone(), st_num, tc_num);
     let (sender3, st_num3, tc_num3) = (eval.sender.clone(), st_num, tc_num);
+    interface.validation_result(
+        eval.sender.clone(),
+        st_num,
+        tc_num,
+        UIExecutionStatus::Pending,
+    );
     eval.dag.on_execution_start(&exec.uuid, move |worker| {
         interface1.validation_result(
             sender1,
@@ -564,6 +576,12 @@ fn bind_solution_callbacks<SubtaskId, TestcaseId>(
     let (sender1, st_num1, tc_num1) = (eval.sender.clone(), st_num, tc_num);
     let (sender2, st_num2, tc_num2) = (eval.sender.clone(), st_num, tc_num);
     let (sender3, st_num3, tc_num3) = (eval.sender.clone(), st_num, tc_num);
+    interface.solution_result(
+        eval.sender.clone(),
+        st_num,
+        tc_num,
+        UIExecutionStatus::Pending,
+    );
     eval.dag.on_execution_start(&exec.uuid, move |worker| {
         interface1.solution_result(
             sender1,
@@ -610,6 +628,13 @@ fn bind_evaluation_callbacks<SubtaskId, TestcaseId>(
     let solution1 = solution.clone();
     let solution2 = solution.clone();
     let solution3 = solution.clone();
+    interface.evaluation_result(
+        eval.sender.clone(),
+        st_num,
+        tc_num,
+        solution,
+        UIExecutionStatus::Pending,
+    );
     eval.dag.on_execution_start(&exec.uuid, move |worker| {
         interface1.evaluation_result(
             sender1,
@@ -674,6 +699,13 @@ fn bind_checker_callbacks<SubtaskId, TestcaseId>(
     let solution1 = solution.clone();
     let solution2 = solution.clone();
     let solution3 = solution.clone();
+    interface.checker_result(
+        eval.sender.clone(),
+        st_num,
+        tc_num,
+        solution,
+        UIExecutionStatus::Pending,
+    );
     eval.dag.on_execution_start(&exec.uuid, move |worker| {
         interface1.checker_result(
             sender1,
