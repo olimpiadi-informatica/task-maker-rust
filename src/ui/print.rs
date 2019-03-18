@@ -150,7 +150,7 @@ impl UI for PrintUI {
                     for tc_num in testcases[st_num].iter().sorted() {
                         write!(&mut self.stdout, " {}", tc_num).unwrap();
                     }
-                    write!(&mut self.stdout, " ]\n").unwrap();
+                    writeln!(&mut self.stdout, " ]").unwrap();
                 }
             }
             UIMessage::IOIGeneration {
@@ -242,6 +242,6 @@ impl UI for PrintUI {
                 self.write_message(format!("Solution {:?} scored {} ", solution, score));
             }
         };
-        write!(&mut self.stdout, "\n").unwrap();
+        writeln!(&mut self.stdout).unwrap();
     }
 }
