@@ -148,6 +148,7 @@ pub trait UI {
 }
 
 /// The type of the UI to use, it enumerates all the known UI interfaces.
+#[derive(Debug)]
 pub enum UIType {
     /// The PrintUI.
     Print,
@@ -163,6 +164,18 @@ impl UIType {
         };
         while let Ok(message) = deserialize_from::<UIMessage>(&receiver) {
             ui.on_message(message);
+        }
+    }
+}
+
+impl std::str::FromStr for UIType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<UIType, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "print" => Ok(UIType::Print),
+            "raw" => Ok(UIType::Raw),
+            _ => Err(format!("Unknown ui: {}", s)),
         }
     }
 }

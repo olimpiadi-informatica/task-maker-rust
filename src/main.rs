@@ -49,6 +49,10 @@ struct Opt {
     /// Directory of the task to evaluate
     #[structopt(short = "t", long = "task-dir", default_value = ".")]
     task_dir: PathBuf,
+
+    /// Which UI to use, available UIS are: print, raw
+    #[structopt(long = "ui", default_value = "print")]
+    ui: crate::ui::UIType,
 }
 
 fn main() {
@@ -62,17 +66,21 @@ fn main() {
     use crate::executor::*;
     use crate::store::*;
     use crate::task_types::ioi::*;
-    use crate::ui::*;
     use std::sync::{Arc, Mutex};
 
     let (eval, receiver) = EvaluationData::new();
+    let ui = opt.ui;
     let ui_thread = std::thread::Builder::new()
         .name("UI".to_owned())
         .spawn(move || {
-            UIType::Print.start(receiver);
+            ui.start(receiver);
         })
         .unwrap();
+
     use crate::task_types::TaskFormat;
+    if !task_types::ioi::formats::IOIItalianYaml::is_valid(&opt.task_dir) {
+        panic!("Invalid task directory!");
+    }
     let task = task_types::ioi::formats::IOIItalianYaml::parse(&opt.task_dir).unwrap();
 
     let cwd = tempdir::TempDir::new("task-maker").unwrap();
