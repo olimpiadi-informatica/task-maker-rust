@@ -28,6 +28,7 @@ boxfnonce = "0.1.1"
 regex = "1"
 termcolor = "1"
 structopt = "0.2"
+itertools = "0.8"
 
 [dev-dependencies]
 pretty_assertions = "0.6"

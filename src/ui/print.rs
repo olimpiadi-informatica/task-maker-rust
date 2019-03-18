@@ -1,5 +1,6 @@
 use crate::execution::ExecutionStatus;
 use crate::ui::*;
+use itertools::Itertools;
 use std::io::Write;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
@@ -11,6 +12,7 @@ pub struct PrintUI {
     warning_style: ColorSpec,
     info_style: ColorSpec,
     success_style: ColorSpec,
+    bold_style: ColorSpec,
 }
 
 impl PrintUI {
@@ -22,6 +24,7 @@ impl PrintUI {
             warning_style: ColorSpec::new(),
             info_style: ColorSpec::new(),
             success_style: ColorSpec::new(),
+            bold_style: ColorSpec::new(),
         };
         ui.error_style.set_fg(Some(Color::Red)).set_bold(true);
         ui.warning_style
@@ -36,6 +39,7 @@ impl PrintUI {
             .set_fg(Some(Color::Green))
             .set_intense(true)
             .set_bold(true);
+        ui.bold_style.set_bold(true);
         ui
     }
 
@@ -97,6 +101,12 @@ impl PrintUI {
         self.stdout.reset().unwrap();
     }
 
+    fn write_bold(&mut self, message: String) {
+        self.stdout.set_color(&self.bold_style).unwrap();
+        write!(&mut self.stdout, "{}", message).unwrap();
+        self.stdout.reset().unwrap();
+    }
+
     fn write_message(&mut self, message: String) {
         write!(&mut self.stdout, "{:<80}", message).unwrap();
     }
@@ -109,6 +119,30 @@ impl UI for PrintUI {
                 self.write_status(&status);
                 self.write_message(format!("Compilation of {:?} ", file));
                 self.write_status_details(&status);
+            }
+            UIMessage::IOITask {
+                name,
+                title,
+                path,
+                subtasks,
+                testcases,
+            } => {
+                self.write_bold(format!("Task {} ({})\n", title, name));
+                writeln!(&mut self.stdout, "Path: {:?}", path).unwrap();
+                writeln!(&mut self.stdout, "Subtasks").unwrap();
+                for (st_num, subtask) in subtasks.iter().sorted_by_key(|x| x.0) {
+                    writeln!(
+                        &mut self.stdout,
+                        "  {}: {} points",
+                        st_num, subtask.max_score
+                    )
+                    .unwrap();
+                    write!(&mut self.stdout, "     testcases: [").unwrap();
+                    for tc_num in testcases[st_num].iter().sorted() {
+                        write!(&mut self.stdout, " {}", tc_num).unwrap();
+                    }
+                    write!(&mut self.stdout, " ]\n").unwrap();
+                }
             }
             UIMessage::IOIGeneration {
                 subtask,

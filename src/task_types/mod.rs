@@ -160,6 +160,9 @@ pub trait TaskUIInterface<
     TestcaseId: Eq + PartialOrd + Hash + Copy + std::fmt::Debug + 'static,
 >
 {
+    /// Send the information about the task to the UI.
+    fn task_info(&self, sender: Arc<Mutex<UIMessageSender>>);
+
     /// Send to the UI the status of the generation of a testcase.
     fn generation_result(
         &self,
@@ -296,6 +299,7 @@ pub trait Task<
         let subtasks = self.subtasks();
         let solutions = self.solutions();
         let interface = self.get_ui_interface().clone();
+        interface.task_info(eval.sender.clone());
         // the scores of the solutions, the values must be thread-safe because
         // they are changed in other threads during the evaluation.
         let solutions_scores: HashMap<PathBuf, ScoreTypeShared<SubtaskId, TestcaseId>> = solutions

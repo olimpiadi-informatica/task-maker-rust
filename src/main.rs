@@ -25,6 +25,7 @@ extern crate which;
 extern crate lazy_static;
 extern crate boxfnonce;
 extern crate glob;
+extern crate itertools;
 extern crate regex;
 extern crate structopt;
 extern crate termcolor;

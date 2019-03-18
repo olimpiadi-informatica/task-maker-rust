@@ -2,6 +2,7 @@ use crate::executor::*;
 use crate::task_types::ioi::*;
 use failure::Error;
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
@@ -13,7 +14,7 @@ pub type UIChannelSender = Sender<UIMessage>;
 pub type UIChannelReceiver = Receiver<UIMessage>;
 
 /// The status of an execution.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum UIExecutionStatus {
     /// The Execution is known to the DAG and when all its dependencies are
     /// ready it will be started.
@@ -28,7 +29,7 @@ pub enum UIExecutionStatus {
 }
 
 /// A message sent to the UI.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum UIMessage {
     /// An update on the compilation status.
     Compilation {
@@ -36,6 +37,20 @@ pub enum UIMessage {
         file: PathBuf,
         /// The status of the compilation.
         status: UIExecutionStatus,
+    },
+
+    /// The information about the task which is being run.
+    IOITask {
+        /// The short name of the task.
+        name: String,
+        /// The long name of the task.
+        title: String,
+        /// The path to the task on the client disk.
+        path: PathBuf,
+        /// The list of the subtasks with their information.
+        subtasks: HashMap<IOISubtaskId, IOISubtaskInfo>,
+        /// The set of testcases for each subtask.
+        testcases: HashMap<IOISubtaskId, HashSet<IOITestcaseId>>,
     },
 
     /// The generation of a testcase in a IOI task.

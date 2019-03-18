@@ -18,7 +18,11 @@ pub struct IOIBatchTask {
 }
 
 /// The interface between a IOI task and the UI.
-pub struct IOITaskUIInterface;
+pub struct IOITaskUIInterface {
+    /// The message with the task information, sent by
+    /// `IOITaskUIInterface::task_info`.
+    info: UIMessage,
+}
 
 impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIBatchTask {
     fn format() -> &'static str {
@@ -70,11 +74,28 @@ impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIB
     }
 
     fn get_ui_interface(&self) -> Arc<TaskUIInterface<IOISubtaskId, IOITestcaseId>> {
-        Arc::new(IOITaskUIInterface {})
+        Arc::new(IOITaskUIInterface {
+            info: UIMessage::IOITask {
+                name: self.info.yaml.name.clone(),
+                title: self.info.yaml.title.clone(),
+                path: self.info.path.clone(),
+                subtasks: self.info.subtasks.clone(),
+                testcases: self
+                    .info
+                    .testcases
+                    .iter()
+                    .map(|(st_num, testcases)| (*st_num, testcases.keys().cloned().collect()))
+                    .collect(),
+            },
+        })
     }
 }
 
 impl TaskUIInterface<IOISubtaskId, IOITestcaseId> for IOITaskUIInterface {
+    fn task_info(&self, sender: Arc<Mutex<UIMessageSender>>) {
+        sender.send(self.info.clone()).unwrap();
+    }
+
     fn generation_result(
         &self,
         sender: Arc<Mutex<UIMessageSender>>,

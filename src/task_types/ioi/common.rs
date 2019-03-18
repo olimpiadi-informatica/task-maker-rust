@@ -76,7 +76,7 @@ pub struct IOITaskYAML {
 }
 
 /// A subtask of a IOI task
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IOISubtaskInfo {
     /// The maximum score of the subtask, must be >= 0
     pub max_score: f64,
