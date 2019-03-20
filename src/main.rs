@@ -29,6 +29,8 @@ extern crate itertools;
 extern crate regex;
 extern crate structopt;
 extern crate termcolor;
+extern crate termion;
+extern crate tui;
 
 pub mod evaluation;
 pub mod execution;

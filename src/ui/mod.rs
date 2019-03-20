@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 mod curses;
+mod ioi_state;
 mod print;
 mod raw;
 

@@ -29,6 +29,8 @@ regex = "1"
 termcolor = "1"
 structopt = "0.2"
 itertools = "0.8"
+tui = "0.5"
+termion = "1.5"
 
 [dev-dependencies]
 pretty_assertions = "0.6"

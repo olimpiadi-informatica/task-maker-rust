@@ -21,7 +21,7 @@ impl CursesUI {
 impl UI for CursesUI {
     fn on_message(&mut self, message: UIMessage) {
         if let UIMessage::IOITask { .. } = message {
-            self.ui = Some(Box::new(ioi::IOICursesUI::new()));
+            self.ui = Some(Box::new(ioi::IOICursesUI::new().unwrap()));
         }
         self.ui
             .as_mut()
