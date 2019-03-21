@@ -21,11 +21,12 @@ impl CursesUI {
 impl UI for CursesUI {
     fn on_message(&mut self, message: UIMessage) {
         if let UIMessage::IOITask { .. } = message {
-            self.ui = Some(Box::new(ioi::IOICursesUI::new().unwrap()));
+            self.ui = Some(Box::new(ioi::IOICursesUI::new(message).unwrap()));
+        } else {
+            self.ui
+                .as_mut()
+                .expect("Received message before the task")
+                .on_message(message);
         }
-        self.ui
-            .as_mut()
-            .expect("Received message before the task")
-            .on_message(message);
     }
 }

@@ -1,3 +1,4 @@
+use crate::ui::ioi_state::*;
 use crate::ui::*;
 use failure::Error;
 use std::io;
@@ -7,9 +8,14 @@ use std::thread::{Builder, JoinHandle};
 use termion::input::MouseTerminal;
 use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
-use tui::backend::TermionBackend;
+use tui::backend::{Backend, TermionBackend};
+use tui::layout::{Constraint, Direction, Layout, Rect};
+use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, Paragraph, Text, Widget};
-use tui::Terminal;
+use tui::{Frame, Terminal};
+
+/// The framerate of the UI.
+const FPS: u64 = 30;
 
 /// The type of the terminal with its backend.
 type TerminalType =
@@ -20,14 +26,14 @@ pub struct IOICursesUI {
     /// The thread where the UI lives.
     ui_thread: Option<JoinHandle<()>>,
     /// The state of the task for the UI.
-    state: Arc<RwLock<ioi_state::IOIUIState>>,
+    state: Arc<RwLock<IOIUIState>>,
     /// When it becomes true the UI will stop.
     stop: Arc<AtomicBool>,
 }
 
 impl IOICursesUI {
     /// Try to make a new IOICursesUI setting up the terminal.
-    pub fn new() -> Result<IOICursesUI, Error> {
+    pub fn new(task: UIMessage) -> Result<IOICursesUI, Error> {
         let stdout = io::stdout().into_raw_mode()?;
         let stdout = MouseTerminal::from(stdout);
         let stdout = AlternateScreen::from(stdout);
@@ -35,7 +41,7 @@ impl IOICursesUI {
         let mut terminal = Terminal::new(backend)?;
         terminal.hide_cursor()?;
 
-        let state = Arc::new(RwLock::new(ioi_state::IOIUIState::new()));
+        let state = Arc::new(RwLock::new(IOIUIState::new(task)));
         let state2 = state.clone();
         let stop = Arc::new(AtomicBool::new(false));
         let stop2 = stop.clone();
@@ -67,22 +73,107 @@ impl Drop for IOICursesUI {
 }
 
 /// WIP: the main function of the UI thread.
-fn ui_body(
-    mut terminal: TerminalType,
-    state: Arc<RwLock<ioi_state::IOIUIState>>,
-    stop: Arc<AtomicBool>,
-) {
+fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<IOIUIState>>, stop: Arc<AtomicBool>) {
+    let header = {
+        let state = state.read().unwrap();
+        [
+            Text::styled(
+                state.title.clone(),
+                Style::default().modifier(Modifier::BOLD),
+            ),
+            Text::raw(" ("),
+            Text::raw(state.name.clone()),
+            Text::raw(")\n"),
+        ]
+    };
+    let loading = vec!['◐', '◓', '◑', '◒'];
+    let mut loading_index = 0;
     while !stop.load(Ordering::Relaxed) {
-        let text = Text::raw(format!("Num events: {}", state.read().unwrap().num_events));
+        let loading = loading[loading_index % loading.len()];
+        loading_index += 1;
         terminal
             .draw(|mut f| {
-                let size = f.size();
-                Paragraph::new([text].iter())
+                let state = state.read().unwrap();
+                let chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints(
+                        [
+                            Constraint::Length(2),
+                            Constraint::Length(state.compilations.len() as u16 + 2),
+                            Constraint::Min(0),
+                        ]
+                        .as_ref(),
+                    )
+                    .split(f.size());
+                Paragraph::new(header.iter())
                     .block(Block::default().borders(Borders::NONE))
-                    .wrap(true)
-                    .render(&mut f, size)
+                    .wrap(false)
+                    .render(&mut f, chunks[0]);
+                Block::default()
+                    .title(" Compilations ")
+                    .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
+                    .borders(Borders::ALL)
+                    .render(&mut f, chunks[1]);
+                draw_compilations(&mut f, inner_block(chunks[1]), &state, loading);
+                Block::default()
+                    .title(" Generation ")
+                    .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
+                    .borders(Borders::ALL)
+                    .render(&mut f, chunks[2]);
             })
             .unwrap();
-        std::thread::sleep_ms(1000);
+        std::thread::sleep(std::time::Duration::from_micros(1_000_000 / FPS));
+    }
+}
+
+/// Get the rect of the inner rect of a block with the borders.
+fn inner_block(rect: Rect) -> Rect {
+    Rect::new(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2)
+}
+
+/// Draw the content of the compilation box.
+fn draw_compilations<B>(frame: &mut Frame<B>, rect: Rect, state: &IOIUIState, loading: char)
+where
+    B: Backend,
+{
+    let max_len = state
+        .compilations
+        .keys()
+        .map(|k| k.as_os_str().len())
+        .max()
+        .unwrap_or(0)
+        + 4;
+    let text: Vec<Text> = state
+        .compilations
+        .iter()
+        .flat_map(|(file, status)| {
+            vec![
+                Text::raw(format!(
+                    "{:<max_len$}",
+                    file.to_string_lossy(),
+                    max_len = max_len
+                )),
+                compilation_status_text(status, loading),
+                Text::raw("\n"),
+            ]
+        })
+        .collect();
+    Paragraph::new(text.iter()).wrap(false).render(frame, rect);
+}
+
+/// Get the Text relative to the compilation status of a file.
+fn compilation_status_text(status: &CompilationStatus, loading: char) -> Text<'static> {
+    match status {
+        CompilationStatus::Pending => Text::raw("..."),
+        CompilationStatus::Running => Text::raw(format!("{}", loading)),
+        CompilationStatus::Done => Text::styled(
+            "OK",
+            Style::default().fg(Color::Green).modifier(Modifier::BOLD),
+        ),
+        CompilationStatus::Failed => Text::styled(
+            "FAIL",
+            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
+        ),
+        CompilationStatus::Skipped => Text::styled("skipped", Style::default().fg(Color::Yellow)),
     }
 }
