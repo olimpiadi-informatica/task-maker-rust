@@ -3,6 +3,7 @@
 #![allow(clippy::module_inception)]
 #![allow(clippy::cyclomatic_complexity)]
 #![allow(clippy::too_many_arguments)]
+#![allow(clippy::type_complexity)]
 
 extern crate serde;
 extern crate serde_json;

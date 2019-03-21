@@ -1,6 +1,7 @@
 use crate::ui::ioi_state::*;
 use crate::ui::*;
 use failure::Error;
+use itertools::Itertools;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
@@ -100,6 +101,7 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<IOIUIState>>, stop: Arc
                         [
                             Constraint::Length(2),
                             Constraint::Length(state.compilations.len() as u16 + 2),
+                            Constraint::Length(3),
                             Constraint::Min(0),
                         ]
                         .as_ref(),
@@ -120,6 +122,7 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<IOIUIState>>, stop: Arc
                     .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
                     .borders(Borders::ALL)
                     .render(&mut f, chunks[2]);
+                draw_generations(&mut f, inner_block(chunks[2]), &state, loading);
             })
             .unwrap();
         std::thread::sleep(std::time::Duration::from_micros(1_000_000 / FPS));
@@ -146,6 +149,7 @@ where
     let text: Vec<Text> = state
         .compilations
         .iter()
+        .sorted_by_key(|(k, _)| *k)
         .flat_map(|(file, status)| {
             vec![
                 Text::raw(format!(
@@ -175,5 +179,55 @@ fn compilation_status_text(status: &CompilationStatus, loading: char) -> Text<'s
             Style::default().fg(Color::Red).modifier(Modifier::BOLD),
         ),
         CompilationStatus::Skipped => Text::styled("skipped", Style::default().fg(Color::Yellow)),
+    }
+}
+
+/// Draw the content of the generation box.
+fn draw_generations<B>(frame: &mut Frame<B>, rect: Rect, state: &IOIUIState, loading: char)
+where
+    B: Backend,
+{
+    let text: Vec<Text> = state
+        .generations
+        .iter()
+        .sorted_by_key(|(k, _)| *k)
+        .flat_map(|(_, subtask)| {
+            let mut testcases: Vec<Text> = subtask
+                .iter()
+                .sorted_by_key(|(k, _)| *k)
+                .map(|(_, tc)| generation_status_text(tc, loading))
+                .collect();
+            let mut res = vec![Text::raw("[")];
+            res.append(&mut testcases);
+            res.push(Text::raw("]"));
+            res
+        })
+        .collect();
+    Paragraph::new(text.iter()).wrap(false).render(frame, rect);
+}
+
+fn generation_status_text(status: &TestcaseGenerationStatus, loading: char) -> Text {
+    match status {
+        TestcaseGenerationStatus::Pending => Text::raw("."),
+        TestcaseGenerationStatus::Generating => Text::raw(format!("{}", loading)),
+        TestcaseGenerationStatus::Generated => Text::styled(
+            "G",
+            Style::default().fg(Color::Green).modifier(Modifier::BOLD),
+        ),
+        TestcaseGenerationStatus::Validating => Text::raw(format!("{}", loading)),
+        TestcaseGenerationStatus::Validated => Text::styled(
+            "V",
+            Style::default().fg(Color::Green).modifier(Modifier::BOLD),
+        ),
+        TestcaseGenerationStatus::Solving => Text::raw(format!("{}", loading)),
+        TestcaseGenerationStatus::Solved => Text::styled(
+            "S",
+            Style::default().fg(Color::Green).modifier(Modifier::BOLD),
+        ),
+        TestcaseGenerationStatus::Failed => Text::styled(
+            "F",
+            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
+        ),
+        TestcaseGenerationStatus::Skipped => Text::styled("s", Style::default().fg(Color::Yellow)),
     }
 }
