@@ -1,6 +1,7 @@
 use crate::evaluation::*;
 use crate::execution::*;
 use crate::languages::*;
+use crate::task_types::*;
 use crate::ui::*;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -15,18 +16,21 @@ pub struct SourceFile {
     pub language: Arc<Language>,
     /// Handle to the executable after the compilation/provided file.
     pub executable: Arc<Mutex<Option<File>>>,
+    /// An optional handler to the map of the graders.
+    pub grader_map: Option<Arc<GraderMap>>,
 }
 
 impl SourceFile {
     /// Make a new SourceFile from the provided file. Will return None if the
     /// language is unknown.
-    pub fn new(path: &Path) -> Option<SourceFile> {
+    pub fn new(path: &Path, grader_map: Option<Arc<GraderMap>>) -> Option<SourceFile> {
         let lang = LanguageManager::detect_language(path);
         lang.as_ref()?;
         Some(SourceFile {
             path: path.to_owned(),
             language: lang.unwrap(),
             executable: Arc::new(Mutex::new(None)),
+            grader_map,
         })
     }
 
@@ -54,6 +58,13 @@ impl SourceFile {
             exec.input(&dep.file, &dep.sandbox_path, dep.executable);
             eval.dag.provide_file(dep.file, &dep.local_path);
         }
+        if let Some(grader_map) = self.grader_map.as_ref() {
+            for dep in grader_map.get_runtime_deps(self.language.as_ref()) {
+                exec.input(&dep.file, &dep.sandbox_path, dep.executable);
+                exec.args = self.language.runtime_add_file(exec.args, &dep.sandbox_path);
+                eval.dag.provide_file(dep.file, &dep.local_path);
+            }
+        }
         exec
     }
 
@@ -80,6 +91,15 @@ impl SourceFile {
             for dep in self.language.compilation_dependencies(&self.path) {
                 comp.input(&dep.file, &dep.sandbox_path, dep.executable);
                 eval.dag.provide_file(dep.file, &dep.local_path);
+            }
+            if let Some(grader_map) = self.grader_map.as_ref() {
+                for dep in grader_map.get_compilation_deps(self.language.as_ref()) {
+                    comp.input(&dep.file, &dep.sandbox_path, dep.executable);
+                    comp.args = self
+                        .language
+                        .compilation_add_file(comp.args, &dep.sandbox_path);
+                    eval.dag.provide_file(dep.file, &dep.local_path);
+                }
             }
             let exec = comp.output(&self.language.executable_name(&self.path));
             eval.dag.provide_file(source, &self.path);
@@ -119,7 +139,6 @@ impl SourceFile {
                     status: UIExecutionStatus::Pending,
                 })
                 .unwrap();
-            // TODO bind the compilation events
             *self.executable.lock().unwrap() = Some(exec);
         } else {
             let executable = File::new(&format!("Source file of {:?}", self.path));
@@ -147,7 +166,7 @@ mod tests {
             .unwrap()
             .write_all(source.as_bytes())
             .unwrap();
-        let source = SourceFile::new(&source_path).unwrap();
+        let source = SourceFile::new(&source_path, None).unwrap();
         let exec = source.execute(&mut eval, "Testing exec", vec![]);
 
         let exec_start = Arc::new(AtomicBool::new(false));

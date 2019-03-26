@@ -7,7 +7,7 @@ mod python;
 
 /// A dependency of an execution, all the sandbox paths must be relative and
 /// inside of the sandbox.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Dependency {
     /// The handle of the file.
     pub file: File,
@@ -47,6 +47,15 @@ pub trait Language: std::fmt::Debug {
         panic!("Language {} cannot be compiled!", self.name());
     }
 
+    /// Add a file to the compilation command if the language requires that.
+    /// That file can be any compile time dependency and it's relative to the
+    /// sandbox.
+    ///
+    /// Will panic if this language does not support compilation.
+    fn compilation_add_file(&self, _args: Vec<String>, _file: &Path) -> Vec<String> {
+        panic!("Language {} cannot be compiled!", self.name());
+    }
+
     /// The dependencies to put inside the compilation sandbox. This does not
     /// include the source file.
     fn compilation_dependencies(&self, _path: &Path) -> Vec<Dependency> {
@@ -60,6 +69,13 @@ pub trait Language: std::fmt::Debug {
 
     /// Arguments to pass to the executable to start the evaluation
     fn runtime_args(&self, _path: &Path, args: Vec<String>) -> Vec<String> {
+        args
+    }
+
+    /// Add a file to the runtime command if the language requires that.
+    /// That file can be any run time dependency and it's relative to the
+    /// sandbox.
+    fn runtime_add_file(&self, args: Vec<String>, _file: &Path) -> Vec<String> {
         args
     }
 

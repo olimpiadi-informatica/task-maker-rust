@@ -66,6 +66,11 @@ impl Language for LanguageCpp {
         args.into_iter().map(|s| s.to_owned()).collect()
     }
 
+    fn compilation_add_file(&self, mut args: Vec<String>, file: &Path) -> Vec<String> {
+        args.push(file.to_str().unwrap().to_owned());
+        args
+    }
+
     /// The executable name is the source file's one without the extension.
     fn executable_name(&self, path: &Path) -> PathBuf {
         let name = PathBuf::from(path.file_name().unwrap());

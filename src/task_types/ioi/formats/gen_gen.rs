@@ -1,5 +1,4 @@
 use crate::task_types::ioi::*;
-use crate::task_types::*;
 use failure::Error;
 use pest::Parser;
 use std::collections::HashMap;
@@ -35,6 +34,7 @@ pub fn parse_gen_gen(path: &Path) -> Result<(IOISubtasksInfo, IOITestcasesInfo),
             "gen/generator",
             "gen/generatore",
         ],
+        None,
     )
     .map(Arc::new);
 
@@ -46,6 +46,7 @@ pub fn parse_gen_gen(path: &Path) -> Result<(IOISubtasksInfo, IOITestcasesInfo),
             "gen/validator",
             "gen/valida",
         ],
+        None,
     )
     .map(Arc::new);
 

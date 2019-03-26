@@ -12,10 +12,12 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-pub mod common;
+mod common;
+mod grader_map;
 pub mod ioi;
 
 pub use common::*;
+pub use grader_map::*;
 
 type ScoreTypeShared<SubtaskId, TestcaseId> = Arc<Mutex<Box<dyn ScoreType<SubtaskId, TestcaseId>>>>;
 

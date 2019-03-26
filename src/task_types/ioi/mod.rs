@@ -1,7 +1,8 @@
-use crate::execution::*;
 use crate::languages::*;
+use crate::task_types::*;
 use glob::glob;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 mod batch;
 mod common;
@@ -27,11 +28,15 @@ pub fn list_files(cwd: &Path, patterns: Vec<&str>) -> Vec<PathBuf> {
 
 /// Make a SourceFile with the first file that matches the patterns provided
 /// that is in a recognised language.
-pub fn find_source_file(cwd: &Path, patterns: Vec<&str>) -> Option<SourceFile> {
+pub fn find_source_file(
+    cwd: &Path,
+    patterns: Vec<&str>,
+    grader_map: Option<Arc<GraderMap>>,
+) -> Option<SourceFile> {
     for file in list_files(cwd, patterns) {
         let path = cwd.join(file);
         if LanguageManager::detect_language(&path).is_some() {
-            return Some(SourceFile::new(&path).unwrap());
+            return Some(SourceFile::new(&path, grader_map).unwrap());
         }
     }
     None

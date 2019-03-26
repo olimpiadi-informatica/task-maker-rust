@@ -1,6 +1,5 @@
 use crate::task_types::ioi::formats::gen_gen::parse_gen_gen;
 use crate::task_types::ioi::*;
-use crate::task_types::*;
 use failure::Error;
 use std::path::Path;
 
@@ -73,9 +72,14 @@ impl TaskFormat for IOIItalianYaml {
 
         let sols = list_files(path, vec!["sol/*"]);
         let mut solutions = HashMap::new();
-        for sol in sols {
+        let graders = list_files(path, vec!["sol/grader.*", "sol/stub.*"]);
+        let grader_map = Arc::new(GraderMap::new(
+            graders.iter().map(|p| path.join(p)).collect(),
+        ));
+        warn!("The graders are {:?}", grader_map);
+        for sol in sols.into_iter().filter(|s| !graders.contains(s)) {
             let path = path.join(&sol);
-            let source = SourceFile::new(&path);
+            let source = SourceFile::new(&path, Some(grader_map.clone()));
             if let Some(source) = source {
                 solutions.insert(
                     sol,
@@ -96,6 +100,7 @@ impl TaskFormat for IOIItalianYaml {
                 "sol/solution",
                 "sol/soluzione",
             ],
+            Some(grader_map.clone()),
         );
         let official_solution = official.map(|s| {
             Box::new(IOISolution::new(
@@ -121,9 +126,7 @@ impl TaskFormat for IOIItalianYaml {
                     (
                         *id,
                         s.iter()
-                            .map(|(id, t)| {
-                                (*id, t as &TestcaseInfo<IOISubtaskId, IOITestcaseId>)
-                            })
+                            .map(|(id, t)| (*id, t as &TestcaseInfo<IOISubtaskId, IOITestcaseId>))
                             .collect(),
                     )
                 })

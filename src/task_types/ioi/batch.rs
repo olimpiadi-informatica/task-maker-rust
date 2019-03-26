@@ -1,5 +1,4 @@
 use crate::task_types::ioi::*;
-use crate::task_types::*;
 
 /// In a IOI Batch task each input file is evaluated by a single solution which
 /// takes the input file as an input (at stdin or at a file path) and writes
