@@ -3,6 +3,7 @@ use crate::ui::*;
 use failure::Error;
 use itertools::Itertools;
 use std::io;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::{Builder, JoinHandle};
@@ -123,6 +124,12 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<IOIUIState>>, stop: Arc
                     .borders(Borders::ALL)
                     .render(&mut f, chunks[2]);
                 draw_generations(&mut f, inner_block(chunks[2]), &state, loading);
+                Block::default()
+                    .title(" Evaluations ")
+                    .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
+                    .borders(Borders::ALL)
+                    .render(&mut f, chunks[3]);
+                draw_evaluations(&mut f, inner_block(chunks[3]), &state, loading);
             })
             .unwrap();
         std::thread::sleep(std::time::Duration::from_micros(1_000_000 / FPS));
@@ -206,6 +213,7 @@ where
     Paragraph::new(text.iter()).wrap(false).render(frame, rect);
 }
 
+/// Get the colored character corresponding to that status.
 fn generation_status_text(status: &TestcaseGenerationStatus, loading: char) -> Text {
     match status {
         TestcaseGenerationStatus::Pending => Text::raw("."),
@@ -229,5 +237,140 @@ fn generation_status_text(status: &TestcaseGenerationStatus, loading: char) -> T
             Style::default().fg(Color::Red).modifier(Modifier::BOLD),
         ),
         TestcaseGenerationStatus::Skipped => Text::styled("s", Style::default().fg(Color::Yellow)),
+    }
+}
+
+/// Draw the content of the generation box.
+fn draw_evaluations<B>(frame: &mut Frame<B>, rect: Rect, state: &IOIUIState, loading: char)
+where
+    B: Backend,
+{
+    let max_len = state
+        .evaluations
+        .keys()
+        .map(|k| k.as_os_str().len())
+        .max()
+        .unwrap_or(0)
+        + 4;
+    let text: Vec<Text> = state
+        .evaluations
+        .keys()
+        .sorted()
+        .flat_map(|file| {
+            let mut texts = vec![];
+            texts.push(Text::raw(format!(
+                "{:<max_len$}",
+                file.to_string_lossy(),
+                max_len = max_len
+            )));
+            texts.push(Text::raw("   42 "));
+            texts.append(&mut evaluation_line(state, file, loading));
+            texts.push(Text::raw("\n"));
+            texts
+        })
+        .collect();
+    Paragraph::new(text.iter()).wrap(false).render(frame, rect);
+}
+
+/// Get the line after the score of a solution.
+fn evaluation_line<'a>(state: &'a IOIUIState, solution: &Path, loading: char) -> Vec<Text<'a>> {
+    state
+        .subtasks
+        .keys()
+        .sorted()
+        .flat_map(|st| subtask_evaluation_status_text(state, solution, *st, loading))
+        .collect()
+}
+
+/// Get the status of a subtask, like [AATTR] where each letter corresponds to
+/// the status of a single testcase.
+fn subtask_evaluation_status_text<'a>(
+    state: &'a IOIUIState,
+    solution: &Path,
+    subtask: IOISubtaskId,
+    loading: char,
+) -> Vec<Text<'a>> {
+    let mut texts = vec![];
+    let subtasks = &state.evaluations[solution];
+    if !subtasks.contains_key(&subtask) {
+        return vec![Text::raw("[---]")];
+    }
+    let testcases = &subtasks[&subtask];
+    let mut all_succeded = true;
+    let mut all_completed = true;
+    let mut partial = false;
+    for testcase in testcases.values() {
+        if !testcase.is_success() {
+            all_succeded = false;
+        }
+        if !testcase.has_completed() {
+            all_completed = false;
+        }
+        if testcase.is_partial() {
+            partial = true;
+        }
+    }
+    let par_style = if all_completed {
+        if all_succeded {
+            Style::default().fg(Color::Green).modifier(Modifier::BOLD)
+        } else if partial {
+            Style::default().fg(Color::Yellow).modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Red).modifier(Modifier::BOLD)
+        }
+    } else {
+        Style::default()
+    };
+    texts.push(Text::styled("[", par_style));
+    for (_, testcase) in testcases.iter().sorted_by_key(|(k, _)| *k) {
+        texts.push(testcase_evaluation_status_text(testcase, loading));
+    }
+    texts.push(Text::styled("]", par_style));
+    texts
+}
+
+/// Get the colored character corresponding to that status.
+fn testcase_evaluation_status_text(status: &TestcaseEvaluationStatus, loading: char) -> Text {
+    match status {
+        TestcaseEvaluationStatus::Pending => Text::raw("."),
+        TestcaseEvaluationStatus::Solving => Text::raw(format!("{}", loading)),
+        TestcaseEvaluationStatus::Solved => Text::raw("s"),
+        TestcaseEvaluationStatus::Checking => Text::raw(format!("{}", loading)),
+        TestcaseEvaluationStatus::Accepted => Text::styled(
+            "A",
+            Style::default().fg(Color::Green).modifier(Modifier::BOLD),
+        ),
+        TestcaseEvaluationStatus::WrongAnswer => Text::styled(
+            "W",
+            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
+        ),
+        TestcaseEvaluationStatus::Partial => Text::styled(
+            "P",
+            Style::default().fg(Color::Yellow).modifier(Modifier::BOLD),
+        ),
+        TestcaseEvaluationStatus::TimeLimitExceeded => Text::styled(
+            "T",
+            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
+        ),
+        TestcaseEvaluationStatus::WallTimeLimitExceeded => Text::styled(
+            "T",
+            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
+        ),
+        TestcaseEvaluationStatus::MemoryLimitExceeded => Text::styled(
+            "M",
+            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
+        ),
+        TestcaseEvaluationStatus::RuntimeError => Text::styled(
+            "R",
+            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
+        ),
+        TestcaseEvaluationStatus::Failed => Text::styled(
+            "F",
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Red)
+                .modifier(Modifier::BOLD),
+        ),
+        TestcaseEvaluationStatus::Skipped => Text::raw("X"),
     }
 }

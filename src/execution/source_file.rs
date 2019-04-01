@@ -103,13 +103,13 @@ impl SourceFile {
             }
             let exec = comp.output(&self.language.executable_name(&self.path));
             eval.dag.provide_file(source, &self.path);
-            let (sender1, path1) = (eval.sender.clone(), self.name());
-            let (sender2, path2) = (eval.sender.clone(), self.name());
-            let (sender3, path3) = (eval.sender.clone(), self.name());
+            let (sender1, path1) = (eval.sender.clone(), self.path.clone());
+            let (sender2, path2) = (eval.sender.clone(), self.path.clone());
+            let (sender3, path3) = (eval.sender.clone(), self.path.clone());
             eval.dag.on_execution_start(&comp.uuid, move |worker| {
                 sender1
                     .send(UIMessage::Compilation {
-                        file: PathBuf::from(path1),
+                        file: path1,
                         status: UIExecutionStatus::Started {
                             worker: worker.to_string(),
                         },
@@ -119,7 +119,7 @@ impl SourceFile {
             eval.dag.on_execution_done(&comp.uuid, move |result| {
                 sender2
                     .send(UIMessage::Compilation {
-                        file: PathBuf::from(path2),
+                        file: path2,
                         status: UIExecutionStatus::Done { result },
                     })
                     .unwrap();
@@ -127,7 +127,7 @@ impl SourceFile {
             eval.dag.on_execution_skip(&comp.uuid, move || {
                 sender3
                     .send(UIMessage::Compilation {
-                        file: PathBuf::from(path3),
+                        file: path3,
                         status: UIExecutionStatus::Skipped,
                     })
                     .unwrap();
@@ -135,7 +135,7 @@ impl SourceFile {
             eval.dag.add_execution(comp);
             eval.sender
                 .send(UIMessage::Compilation {
-                    file: PathBuf::from(self.name()),
+                    file: self.path.clone(),
                     status: UIExecutionStatus::Pending,
                 })
                 .unwrap();

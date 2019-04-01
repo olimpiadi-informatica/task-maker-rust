@@ -37,6 +37,36 @@ pub enum TestcaseGenerationStatus {
     Skipped,
 }
 
+/// Status of the evalution of a solution on a testcase.
+pub enum TestcaseEvaluationStatus {
+    /// The solution has not started yet.
+    Pending,
+    /// The solution is running.
+    Solving,
+    /// The solution exited succesfully, waiting for the checker.
+    Solved,
+    /// Checker is running.
+    Checking,
+    /// The solution scored 100% of the testcase.
+    Accepted,
+    /// The output is wrong.
+    WrongAnswer,
+    /// The solution is partially correct.
+    Partial,
+    /// The solution timed out.
+    TimeLimitExceeded,
+    /// The solution exceeded the wall time limit.
+    WallTimeLimitExceeded,
+    /// The solution exceeded the memory limit.
+    MemoryLimitExceeded,
+    /// The solution crashed.
+    RuntimeError,
+    /// Something went wrong.
+    Failed,
+    /// The evaluation has been skipped.
+    Skipped,
+}
+
 /// The state of a IOI task, all the information for the UI are stored here.
 pub struct IOIUIState {
     /// The name of the task.
@@ -53,6 +83,38 @@ pub struct IOIUIState {
     pub compilations: HashMap<PathBuf, CompilationStatus>,
     /// The status of the generation of the testcases.
     pub generations: HashMap<IOISubtaskId, HashMap<IOITestcaseId, TestcaseGenerationStatus>>,
+    /// The status of the evaluations of the solutions.
+    pub evaluations:
+        HashMap<PathBuf, HashMap<IOISubtaskId, HashMap<IOITestcaseId, TestcaseEvaluationStatus>>>,
+}
+
+impl TestcaseEvaluationStatus {
+    /// Whether the testcase evalution has completed, either successfully or not.
+    pub fn has_completed(&self) -> bool {
+        match self {
+            TestcaseEvaluationStatus::Pending
+            | TestcaseEvaluationStatus::Solving
+            | TestcaseEvaluationStatus::Solved
+            | TestcaseEvaluationStatus::Checking => false,
+            _ => true,
+        }
+    }
+
+    /// Whether the testcase evaluation has completed successfully.
+    pub fn is_success(&self) -> bool {
+        match self {
+            TestcaseEvaluationStatus::Accepted => true,
+            _ => false,
+        }
+    }
+
+    /// Whether the testcase evaluation has completed with a partial score.
+    pub fn is_partial(&self) -> bool {
+        match self {
+            TestcaseEvaluationStatus::Partial => true,
+            _ => false,
+        }
+    }
 }
 
 impl IOIUIState {
@@ -74,6 +136,7 @@ impl IOIUIState {
                 testcases,
                 compilations: HashMap::new(),
                 generations: HashMap::new(),
+                evaluations: HashMap::new(),
             }
         } else {
             panic!("IOIUIState::new called with an invalid task type");
@@ -184,6 +247,92 @@ impl IOIUIState {
                         } else {
                             *gen = TestcaseGenerationStatus::Skipped;
                         }
+                    }
+                }
+            }
+            UIMessage::IOIEvaluation {
+                subtask,
+                testcase,
+                solution,
+                status,
+            } => {
+                let eval = self
+                    .evaluations
+                    .entry(solution)
+                    .or_default()
+                    .entry(subtask)
+                    .or_default()
+                    .entry(testcase)
+                    .or_insert(TestcaseEvaluationStatus::Pending);
+                match status {
+                    UIExecutionStatus::Pending => *eval = TestcaseEvaluationStatus::Pending,
+                    UIExecutionStatus::Started { .. } => *eval = TestcaseEvaluationStatus::Solving,
+                    UIExecutionStatus::Done { result } => match result.result.status {
+                        ExecutionStatus::Success => *eval = TestcaseEvaluationStatus::Solved,
+                        ExecutionStatus::ReturnCode(_) => {
+                            *eval = TestcaseEvaluationStatus::RuntimeError
+                        }
+                        ExecutionStatus::Signal(_, _) => {
+                            *eval = TestcaseEvaluationStatus::RuntimeError
+                        }
+                        ExecutionStatus::TimeLimitExceeded => {
+                            *eval = TestcaseEvaluationStatus::TimeLimitExceeded
+                        }
+                        ExecutionStatus::SysTimeLimitExceeded => {
+                            *eval = TestcaseEvaluationStatus::TimeLimitExceeded
+                        }
+                        ExecutionStatus::WallTimeLimitExceeded => {
+                            *eval = TestcaseEvaluationStatus::WallTimeLimitExceeded
+                        }
+                        ExecutionStatus::MemoryLimitExceeded => {
+                            *eval = TestcaseEvaluationStatus::MemoryLimitExceeded
+                        }
+                        ExecutionStatus::InternalError(_) => {
+                            *eval = TestcaseEvaluationStatus::Failed
+                        }
+                    },
+                    UIExecutionStatus::Skipped => *eval = TestcaseEvaluationStatus::Skipped,
+                }
+            }
+            UIMessage::IOIChecker {
+                subtask,
+                testcase,
+                solution,
+                status,
+            } => {
+                let eval = self
+                    .evaluations
+                    .entry(solution)
+                    .or_default()
+                    .entry(subtask)
+                    .or_default()
+                    .entry(testcase)
+                    .or_insert(TestcaseEvaluationStatus::Pending);
+                if let UIExecutionStatus::Started { .. } = status {
+                    *eval = TestcaseEvaluationStatus::Checking;
+                }
+            }
+            UIMessage::IOITestcaseScore {
+                subtask,
+                testcase,
+                solution,
+                score,
+            } => {
+                let eval = self
+                    .evaluations
+                    .entry(solution)
+                    .or_default()
+                    .entry(subtask)
+                    .or_default()
+                    .entry(testcase)
+                    .or_insert(TestcaseEvaluationStatus::Pending);
+                if let TestcaseEvaluationStatus::Checking = eval {
+                    if score == 0.0 {
+                        *eval = TestcaseEvaluationStatus::WrongAnswer;
+                    } else if (score - 1.0).abs() < 0.001 {
+                        *eval = TestcaseEvaluationStatus::Accepted;
+                    } else {
+                        *eval = TestcaseEvaluationStatus::Partial;
                     }
                 }
             }
