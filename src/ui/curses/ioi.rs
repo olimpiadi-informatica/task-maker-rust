@@ -256,20 +256,44 @@ where
         .evaluations
         .keys()
         .sorted()
-        .flat_map(|file| {
+        .flat_map(|solution| {
             let mut texts = vec![];
             texts.push(Text::raw(format!(
                 "{:<max_len$}",
-                file.to_string_lossy(),
+                solution.to_string_lossy(),
                 max_len = max_len
             )));
-            texts.push(Text::raw("   42 "));
-            texts.append(&mut evaluation_line(state, file, loading));
+            texts.push(evaluation_score(state, solution, loading));
+            texts.append(&mut evaluation_line(state, solution, loading));
             texts.push(Text::raw("\n"));
             texts
         })
         .collect();
     Paragraph::new(text.iter()).wrap(false).render(frame, rect);
+}
+
+/// Get the colored score of a solution.
+fn evaluation_score<'a>(state: &'a IOIUIState, solution: &Path, loading: char) -> Text<'a> {
+    if let Some(Some(score)) = state.solution_scores.get(solution) {
+        if *score == 0.0 {
+            Text::styled(
+                format!(" {:>3} ", score),
+                Style::default().fg(Color::Red).modifier(Modifier::BOLD),
+            )
+        } else if (score - state.max_score).abs() < 0.001 {
+            Text::styled(
+                format!(" {:>3} ", score),
+                Style::default().fg(Color::Green).modifier(Modifier::BOLD),
+            )
+        } else {
+            Text::styled(
+                format!(" {:>3} ", score),
+                Style::default().fg(Color::Yellow).modifier(Modifier::BOLD),
+            )
+        }
+    } else {
+        Text::raw(format!("  {}  ", loading))
+    }
 }
 
 /// Get the line after the score of a solution.

@@ -75,6 +75,8 @@ pub struct IOIUIState {
     pub title: String,
     /// The path where the task is stored on disk.
     pub path: PathBuf,
+    /// The maximum score of this task.
+    pub max_score: f64,
     /// The list of known subtasks.
     pub subtasks: HashMap<IOISubtaskId, IOISubtaskInfo>,
     /// The list of known testcases.
@@ -86,6 +88,8 @@ pub struct IOIUIState {
     /// The status of the evaluations of the solutions.
     pub evaluations:
         HashMap<PathBuf, HashMap<IOISubtaskId, HashMap<IOITestcaseId, TestcaseEvaluationStatus>>>,
+    /// The scores of the solutions.
+    pub solution_scores: HashMap<PathBuf, Option<f64>>,
 }
 
 impl TestcaseEvaluationStatus {
@@ -132,11 +136,13 @@ impl IOIUIState {
                 name,
                 title,
                 path,
+                max_score: subtasks.values().map(|s| s.max_score).sum(),
                 subtasks,
                 testcases,
                 compilations: HashMap::new(),
                 generations: HashMap::new(),
                 evaluations: HashMap::new(),
+                solution_scores: HashMap::new(),
             }
         } else {
             panic!("IOIUIState::new called with an invalid task type");
@@ -149,7 +155,7 @@ impl IOIUIState {
             UIMessage::Compilation { file, status } => {
                 let comp = self
                     .compilations
-                    .entry(file)
+                    .entry(file.clone())
                     .or_insert(CompilationStatus::Pending);
                 match status {
                     UIExecutionStatus::Pending => *comp = CompilationStatus::Pending,
@@ -158,6 +164,9 @@ impl IOIUIState {
                         if let ExecutionStatus::Success = result.result.status {
                             *comp = CompilationStatus::Done;
                         } else {
+                            if self.solution_scores.contains_key(&file) {
+                                *self.solution_scores.get_mut(&file).unwrap() = Some(0.0);
+                            }
                             *comp = CompilationStatus::Failed;
                         }
                     }
@@ -256,6 +265,7 @@ impl IOIUIState {
                 solution,
                 status,
             } => {
+                self.solution_scores.entry(solution.clone()).or_default();
                 let eval = self
                     .evaluations
                     .entry(solution)
@@ -335,6 +345,9 @@ impl IOIUIState {
                         *eval = TestcaseEvaluationStatus::Partial;
                     }
                 }
+            }
+            UIMessage::IOITaskScore { solution, score } => {
+                *self.solution_scores.entry(solution).or_default() = Some(score);
             }
             _ => {}
         }

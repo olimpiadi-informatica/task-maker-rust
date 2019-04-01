@@ -12,15 +12,14 @@ pub use batch::*;
 pub use common::*;
 
 /// List all the files inside `cwd` that matches a list of glob patterns. The
-/// results are in the same order of the patterns and all the returned paths
-/// are relative to cwd.
+/// results are in the same order of the patterns.
 pub fn list_files(cwd: &Path, patterns: Vec<&str>) -> Vec<PathBuf> {
     let mut results = Vec::new();
     for pattern in patterns.into_iter() {
         for file in
             glob(cwd.join(pattern).to_str().unwrap()).expect("Invalid pattern for list_files")
         {
-            results.push(file.unwrap().strip_prefix(cwd).unwrap().to_owned());
+            results.push(file.unwrap().to_owned());
         }
     }
     results
@@ -33,8 +32,7 @@ pub fn find_source_file(
     patterns: Vec<&str>,
     grader_map: Option<Arc<GraderMap>>,
 ) -> Option<SourceFile> {
-    for file in list_files(cwd, patterns) {
-        let path = cwd.join(file);
+    for path in list_files(cwd, patterns) {
         if LanguageManager::detect_language(&path).is_some() {
             return Some(SourceFile::new(&path, grader_map).unwrap());
         }

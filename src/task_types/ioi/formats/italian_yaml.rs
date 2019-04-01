@@ -73,13 +73,10 @@ impl TaskFormat for IOIItalianYaml {
         let sols = list_files(path, vec!["sol/*"]);
         let mut solutions = HashMap::new();
         let graders = list_files(path, vec!["sol/grader.*", "sol/stub.*"]);
-        let grader_map = Arc::new(GraderMap::new(
-            graders.iter().map(|p| path.join(p)).collect(),
-        ));
+        let grader_map = Arc::new(GraderMap::new(graders.clone()));
         warn!("The graders are {:?}", grader_map);
         for sol in sols.into_iter().filter(|s| !graders.contains(s)) {
-            let path = path.join(&sol);
-            let source = SourceFile::new(&path, Some(grader_map.clone()));
+            let source = SourceFile::new(&sol, Some(grader_map.clone()));
             if let Some(source) = source {
                 solutions.insert(
                     sol,
