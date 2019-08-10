@@ -4,9 +4,9 @@ pub mod test_utils {
     use crate::executor::*;
     use crate::store::*;
     use std::path::Path;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc::channel;
     use std::sync::{Arc, Mutex};
-    use std::sync::atomic::{AtomicBool, Ordering};
     use std::thread;
     use tempdir::TempDir;
 

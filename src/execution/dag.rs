@@ -100,9 +100,7 @@ impl ExecutionDAG {
     /// Add an execution to the DAG and returns a Builder for adding the
     /// callbacks
     pub fn add_execution(&mut self, execution: Execution) {
-        self.data
-            .executions
-            .insert(execution.uuid, execution);
+        self.data.executions.insert(execution.uuid, execution);
     }
 
     /// When `file` is ready it will be written to `path`. The file must be
@@ -187,7 +185,10 @@ pub fn check_dag(
     let mut ready_files: VecDeque<FileUuid> = VecDeque::new();
 
     let mut add_dependency = |file: FileUuid, exec: ExecutionUuid| {
-        dependencies.entry(file).or_insert_with(|| vec![]).push(exec);
+        dependencies
+            .entry(file)
+            .or_insert_with(|| vec![])
+            .push(exec);
     };
 
     // add the exectutions and check for duplicated UUIDs
@@ -204,9 +205,7 @@ pub fn check_dag(
             }
         }
         if num_dependencies.insert(*exec_uuid, count).is_some() {
-            return Err(DAGError::DuplicateExecutionUUID {
-                uuid: *exec_uuid,
-            });
+            return Err(DAGError::DuplicateExecutionUUID { uuid: *exec_uuid });
         }
         if count == 0 {
             ready_execs.push_back(exec_uuid.clone());

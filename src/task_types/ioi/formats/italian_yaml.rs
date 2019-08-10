@@ -100,12 +100,12 @@ impl TaskFormat for IOIItalianYaml {
             Some(grader_map.clone()),
         );
         let official_solution = official.map(|s| {
-            Box::new(IOISolution::new(
+            Arc::new(IOISolution::new(
                 Arc::new(s),
                 infile,
                 outfile,
                 ExecutionLimits::default(), // the official solution does not have limits
-            )) as Box<Solution<IOISubtaskId, IOITestcaseId>>
+            )) as Arc<Solution<IOISubtaskId, IOITestcaseId>>
         });
 
         let get_score_type = |subtasks: &HashMap<IOISubtaskId, IOISubtaskInfo>,
@@ -135,7 +135,8 @@ impl TaskFormat for IOIItalianYaml {
         };
 
         if path.join("gen").join("GEN").exists() {
-            let (subtasks, testcases) = parse_gen_gen(&path.join("gen").join("GEN"))?;
+            let (subtasks, testcases) =
+                parse_gen_gen(&path.join("gen").join("GEN"), official_solution)?;
             let info = IOITaskInfo {
                 path: path.to_owned(),
                 score_type: get_score_type(&subtasks, &testcases),
@@ -144,11 +145,7 @@ impl TaskFormat for IOIItalianYaml {
                 testcases,
                 checker: Box::new(WhiteDiffChecker::new()),
             };
-            let task = IOIBatchTask {
-                info,
-                solutions,
-                official_solution,
-            };
+            let task = IOIBatchTask { info, solutions };
             info!("Task: {:#?}", task);
             Ok(Box::new(task))
         } else {

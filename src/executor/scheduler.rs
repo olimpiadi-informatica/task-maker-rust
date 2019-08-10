@@ -72,12 +72,7 @@ impl Scheduler {
 
         for (worker, exec) in free_workers.into_iter().zip(assigned.into_iter()) {
             doing_workers += 1;
-            let execution = data
-                .dag
-                .as_ref()
-                .unwrap()
-                .executions[&exec]
-                .clone();
+            let execution = data.dag.as_ref().unwrap().executions[&exec].clone();
             let dep_keys = execution
                 .dependencies()
                 .iter()

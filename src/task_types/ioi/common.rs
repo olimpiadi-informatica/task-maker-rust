@@ -95,6 +95,8 @@ pub struct IOITestcaseInfo {
     pub generator: Arc<Generator<IOISubtaskId, IOITestcaseId>>,
     /// The validator of this testcase
     pub validator: Option<Arc<Validator<IOISubtaskId, IOITestcaseId>>>,
+    /// The official solution of this testcase
+    pub solution: Arc<Solution<IOISubtaskId, IOITestcaseId>>,
 }
 
 /// A generator formed by a source file and a list of arguments to pass to it.
@@ -183,6 +185,10 @@ impl TestcaseInfo<IOISubtaskId, IOITestcaseId> for IOITestcaseInfo {
 
     fn validator(&self) -> Option<Arc<Validator<IOISubtaskId, IOITestcaseId>>> {
         self.validator.clone()
+    }
+
+    fn solution(&self) -> Arc<Solution<IOISubtaskId, IOITestcaseId>> {
+        self.solution.clone()
     }
 }
 

@@ -144,6 +144,9 @@ pub trait TestcaseInfo<
 
     /// The optional validator that will validate that testcase
     fn validator(&self) -> Option<Arc<Validator<SubtaskId, TestcaseId>>>;
+
+    /// The solution of the testcase.
+    fn solution(&self) -> Arc<Solution<SubtaskId, TestcaseId>>;
 }
 
 /// The options for an evaluation
@@ -273,13 +276,6 @@ pub trait Task<
     /// The list of known solution files
     fn solutions(&self) -> &HashMap<PathBuf, Box<Solution<SubtaskId, TestcaseId>>>;
 
-    /// The optional official solution that will generate the output file
-    fn official_solution(
-        &self,
-        subtask: SubtaskId,
-        testcase: TestcaseId,
-    ) -> &Option<Box<Solution<SubtaskId, TestcaseId>>>;
-
     /// The optional checker that will check the output file
     fn checker(
         &self,
@@ -363,23 +359,19 @@ pub trait Task<
                     None
                 };
 
-                // STEP 3: generate the output file if there is an official solutions
-                let output = if let Some(solution) = self.official_solution(*st_num, *tc_num) {
-                    let (output, exec) = solution.solve(
-                        &mut eval,
-                        input.clone(),
-                        val.as_ref().cloned(),
-                        *st_num,
-                        *tc_num,
-                    );
-                    if let Some(exec) = exec {
-                        bind_solution_callbacks(&interface, exec, &mut eval, *st_num, *tc_num);
-                    }
-                    Some(output)
-                } else {
-                    None
-                };
-                if let (Some(ref output), Some(ref path)) = (&output, &tc.write_output_to()) {
+                // STEP 3: generate the output file
+                let solution = tc.solution();
+                let (output, exec) = solution.solve(
+                    &mut eval,
+                    input.clone(),
+                    val.as_ref().cloned(),
+                    *st_num,
+                    *tc_num,
+                );
+                if let Some(exec) = exec {
+                    bind_solution_callbacks(&interface, exec, &mut eval, *st_num, *tc_num);
+                }
+                if let Some(ref path) = &tc.write_output_to() {
                     if !options.dry_run() {
                         eval.dag.write_file_to(&output, &self.path().join(path));
                     }
@@ -411,7 +403,7 @@ pub trait Task<
                     let exec = self.checker(*st_num, *tc_num).check(
                         &mut eval,
                         input.clone(),
-                        output.clone(),
+                        Some(output.clone()),
                         sol_output,
                         *st_num,
                         *tc_num,

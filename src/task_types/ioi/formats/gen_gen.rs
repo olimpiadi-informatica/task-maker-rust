@@ -1,5 +1,5 @@
 use crate::task_types::ioi::*;
-use failure::Error;
+use failure::{Error, bail};
 use pest::Parser;
 use std::collections::HashMap;
 use std::path::Path;
@@ -13,7 +13,10 @@ pub type IOISubtasksInfo = HashMap<IOISubtaskId, IOISubtaskInfo>;
 pub type IOITestcasesInfo = HashMap<IOISubtaskId, HashMap<IOITestcaseId, IOITestcaseInfo>>;
 
 /// Parse the gen/GEN file extracting the subtasks and the testcases
-pub fn parse_gen_gen(path: &Path) -> Result<(IOISubtasksInfo, IOITestcasesInfo), Error> {
+pub fn parse_gen_gen(
+    path: &Path,
+    official_solution: Option<Arc<Solution<IOISubtaskId, IOITestcaseId>>>,
+) -> Result<(IOISubtasksInfo, IOITestcasesInfo), Error> {
     let task_dir = path.parent().unwrap().parent().unwrap();
     let content = std::fs::read_to_string(path)?;
     let mut file = GENParser::parse(Rule::file, &content)?;
@@ -59,6 +62,21 @@ pub fn parse_gen_gen(path: &Path) -> Result<(IOISubtasksInfo, IOITestcasesInfo),
         })
     };
 
+    let get_solution = |st: IOITestcaseId| {
+        if let Some(official) = official_solution.as_ref() {
+            Ok(official.clone())
+        } else {
+            let static_file = task_dir.join("output").join(format!("output{}.txt", st));
+            if !static_file.exists() {
+                bail!("Static output file does not exists! {:?}", static_file);
+            }
+            Ok(Arc::new(StaticFileProvider::new(
+                format!("Static output of testcase {}", st),
+                static_file,
+            )) as Arc<Solution<IOISubtaskId, IOITestcaseId>>)
+        }
+    };
+
     for line in file.into_inner() {
         match line.as_rule() {
             Rule::line => {
@@ -91,6 +109,7 @@ pub fn parse_gen_gen(path: &Path) -> Result<(IOISubtasksInfo, IOITestcasesInfo),
                                     task_dir.join(what),
                                 )),
                                 validator: get_validator(subtasks.len() as IOISubtaskId),
+                                solution: get_solution(testcase_count)?,
                             },
                         );
                         testcase_count += 1;
@@ -111,6 +130,7 @@ pub fn parse_gen_gen(path: &Path) -> Result<(IOISubtasksInfo, IOITestcasesInfo),
                                     cmd,
                                 )),
                                 validator: get_validator(subtasks.len() as IOISubtaskId),
+                                solution: get_solution(testcase_count)?,
                             },
                         );
                         testcase_count += 1;

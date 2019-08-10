@@ -12,8 +12,6 @@ pub struct IOIBatchTask {
     pub info: IOITaskInfo,
     /// List of the known solutions
     pub solutions: HashMap<PathBuf, Box<Solution<IOISubtaskId, IOITestcaseId>>>,
-    /// The official solution, may be None if the task has static outputs.
-    pub official_solution: Option<Box<Solution<IOISubtaskId, IOITestcaseId>>>,
 }
 
 /// The interface between a IOI task and the UI.
@@ -54,14 +52,6 @@ impl Task<IOISubtaskId, IOITestcaseId, IOISubtaskInfo, IOITestcaseInfo> for IOIB
 
     fn solutions(&self) -> &HashMap<PathBuf, Box<Solution<IOISubtaskId, IOITestcaseId>>> {
         &self.solutions
-    }
-
-    fn official_solution(
-        &self,
-        _subtask: IOISubtaskId,
-        _testcase: IOITestcaseId,
-    ) -> &Option<Box<Solution<IOISubtaskId, IOITestcaseId>>> {
-        &self.official_solution
     }
 
     fn checker(
