@@ -9,9 +9,9 @@ pub enum CompilationStatus {
     /// The compilation is running on a worker.
     Running,
     /// The compilation has completed.
-    Done,
+    Done { result: WorkerResult },
     /// The compilation has failed.
-    Failed,
+    Failed { result: WorkerResult },
     /// The compilation has been skipped.
     Skipped,
 }
@@ -70,6 +70,93 @@ pub enum TestcaseEvaluationStatus {
     Skipped,
 }
 
+/// State of the generation of a testcases.
+#[derive(Debug)]
+pub struct TestcaseGenerationState {
+    /// Status of the generation.
+    pub status: TestcaseGenerationStatus,
+    /// Result of the generation.
+    pub generation: Option<WorkerResult>,
+    /// Result of the validation.
+    pub validation: Option<WorkerResult>,
+    /// Result of the solution.
+    pub solution: Option<WorkerResult>,
+}
+
+/// State of the generation of a subtask.
+#[derive(Debug)]
+pub struct SubtaskGenerationState {
+    /// State of the testcases of this subtask.
+    pub testcases: HashMap<IOITestcaseId, TestcaseGenerationState>,
+}
+
+/// State of the evaluation of a testcase.
+#[derive(Debug)]
+pub struct SolutionTestcaseEvaluationState {
+    /// The score on that testcase
+    pub score: Option<f64>,
+    /// The status of the execution.
+    pub status: TestcaseEvaluationStatus,
+    /// The result of the solution.
+    pub result: Option<WorkerResult>,
+    /// The result of the checker.
+    pub checker: Option<WorkerResult>,
+}
+
+/// State of the evaluation of a subtask.
+#[derive(Debug)]
+pub struct SolutionSubtaskEvaluationState {
+    /// Score of the subtask.
+    pub score: Option<f64>,
+    /// The state of the evaluation of the testcases.
+    pub testcases: HashMap<IOITestcaseId, SolutionTestcaseEvaluationState>,
+}
+
+/// State of the evaluation of a solution.
+#[derive(Debug)]
+pub struct SolutionEvaluationState {
+    /// Score of the solution.
+    pub score: Option<f64>,
+    /// The state of the evaluation of the subtasks.
+    pub subtasks: HashMap<IOISubtaskId, SolutionSubtaskEvaluationState>,
+}
+
+impl SolutionEvaluationState {
+    /// Make a new, empty, SolutionEvaluationState.
+    pub fn new(
+        testcases: &HashMap<IOISubtaskId, HashSet<IOITestcaseId>>,
+    ) -> SolutionEvaluationState {
+        SolutionEvaluationState {
+            score: None,
+            subtasks: testcases
+                .iter()
+                .map(|(st_num, testcases)| {
+                    (
+                        *st_num,
+                        SolutionSubtaskEvaluationState {
+                            score: None,
+                            testcases: testcases
+                                .iter()
+                                .map(|tc_num| {
+                                    (
+                                        *tc_num,
+                                        SolutionTestcaseEvaluationState {
+                                            score: None,
+                                            status: TestcaseEvaluationStatus::Pending,
+                                            result: None,
+                                            checker: None,
+                                        },
+                                    )
+                                })
+                                .collect(),
+                        },
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
 /// The state of a IOI task, all the information for the UI are stored here.
 #[derive(Debug)]
 pub struct IOIUIState {
@@ -87,13 +174,10 @@ pub struct IOIUIState {
     pub testcases: HashMap<IOISubtaskId, HashSet<IOITestcaseId>>,
     /// The status of the compilations.
     pub compilations: HashMap<PathBuf, CompilationStatus>,
-    /// The status of the generation of the testcases.
-    pub generations: HashMap<IOISubtaskId, HashMap<IOITestcaseId, TestcaseGenerationStatus>>,
+    /// The state of the generation of the testcases.
+    pub generations: HashMap<IOISubtaskId, SubtaskGenerationState>,
     /// The status of the evaluations of the solutions.
-    pub evaluations:
-        HashMap<PathBuf, HashMap<IOISubtaskId, HashMap<IOITestcaseId, TestcaseEvaluationStatus>>>,
-    /// The scores of the solutions.
-    pub solution_scores: HashMap<PathBuf, Option<f64>>,
+    pub evaluations: HashMap<PathBuf, SolutionEvaluationState>,
 }
 
 impl TestcaseEvaluationStatus {
@@ -136,6 +220,30 @@ impl IOIUIState {
             testcases,
         } = task
         {
+            let generations = testcases
+                .iter()
+                .map(|(st_num, testcases)| {
+                    (
+                        *st_num,
+                        SubtaskGenerationState {
+                            testcases: testcases
+                                .iter()
+                                .map(|tc_num| {
+                                    (
+                                        *tc_num,
+                                        TestcaseGenerationState {
+                                            status: TestcaseGenerationStatus::Pending,
+                                            generation: None,
+                                            validation: None,
+                                            solution: None,
+                                        },
+                                    )
+                                })
+                                .collect(),
+                        },
+                    )
+                })
+                .collect();
             IOIUIState {
                 name,
                 title,
@@ -144,9 +252,8 @@ impl IOIUIState {
                 subtasks,
                 testcases,
                 compilations: HashMap::new(),
-                generations: HashMap::new(),
+                generations,
                 evaluations: HashMap::new(),
-                solution_scores: HashMap::new(),
             }
         } else {
             panic!("IOIUIState::new called with an invalid task type");
@@ -166,12 +273,9 @@ impl IOIUIState {
                     UIExecutionStatus::Started { .. } => *comp = CompilationStatus::Running,
                     UIExecutionStatus::Done { result } => {
                         if let ExecutionStatus::Success = result.result.status {
-                            *comp = CompilationStatus::Done;
+                            *comp = CompilationStatus::Done { result };
                         } else {
-                            if self.solution_scores.contains_key(&file) {
-                                *self.solution_scores.get_mut(&file).unwrap() = Some(0.0);
-                            }
-                            *comp = CompilationStatus::Failed;
+                            *comp = CompilationStatus::Failed { result };
                         }
                     }
                     UIExecutionStatus::Skipped => *comp = CompilationStatus::Skipped,
@@ -184,23 +288,25 @@ impl IOIUIState {
             } => {
                 let gen = self
                     .generations
-                    .entry(subtask)
-                    .or_default()
-                    .entry(testcase)
-                    .or_insert(TestcaseGenerationStatus::Pending);
+                    .get_mut(&subtask)
+                    .unwrap()
+                    .testcases
+                    .get_mut(&testcase)
+                    .unwrap();
                 match status {
-                    UIExecutionStatus::Pending => *gen = TestcaseGenerationStatus::Pending,
+                    UIExecutionStatus::Pending => gen.status = TestcaseGenerationStatus::Pending,
                     UIExecutionStatus::Started { .. } => {
-                        *gen = TestcaseGenerationStatus::Generating
+                        gen.status = TestcaseGenerationStatus::Generating
                     }
                     UIExecutionStatus::Done { result } => {
                         if let ExecutionStatus::Success = result.result.status {
-                            *gen = TestcaseGenerationStatus::Generated;
+                            gen.status = TestcaseGenerationStatus::Generated;
                         } else {
-                            *gen = TestcaseGenerationStatus::Failed;
+                            gen.status = TestcaseGenerationStatus::Failed;
                         }
+                        gen.generation = Some(result);
                     }
-                    UIExecutionStatus::Skipped => *gen = TestcaseGenerationStatus::Skipped,
+                    UIExecutionStatus::Skipped => gen.status = TestcaseGenerationStatus::Skipped,
                 }
             }
             UIMessage::IOIValidation {
@@ -210,26 +316,28 @@ impl IOIUIState {
             } => {
                 let gen = self
                     .generations
-                    .entry(subtask)
-                    .or_default()
-                    .entry(testcase)
-                    .or_insert(TestcaseGenerationStatus::Pending);
+                    .get_mut(&subtask)
+                    .unwrap()
+                    .testcases
+                    .get_mut(&testcase)
+                    .unwrap();
                 match status {
-                    UIExecutionStatus::Pending => *gen = TestcaseGenerationStatus::Pending,
+                    UIExecutionStatus::Pending => gen.status = TestcaseGenerationStatus::Pending,
                     UIExecutionStatus::Started { .. } => {
-                        *gen = TestcaseGenerationStatus::Validating
+                        gen.status = TestcaseGenerationStatus::Validating
                     }
                     UIExecutionStatus::Done { result } => {
                         if let ExecutionStatus::Success = result.result.status {
-                            *gen = TestcaseGenerationStatus::Validated;
+                            gen.status = TestcaseGenerationStatus::Validated;
                         } else {
-                            *gen = TestcaseGenerationStatus::Failed;
+                            gen.status = TestcaseGenerationStatus::Failed;
                         }
+                        gen.validation = Some(result);
                     }
                     UIExecutionStatus::Skipped => {
-                        if let TestcaseGenerationStatus::Failed = *gen {
+                        if let TestcaseGenerationStatus::Failed = gen.status {
                         } else {
-                            *gen = TestcaseGenerationStatus::Skipped;
+                            gen.status = TestcaseGenerationStatus::Skipped;
                         }
                     }
                 }
@@ -241,24 +349,28 @@ impl IOIUIState {
             } => {
                 let gen = self
                     .generations
-                    .entry(subtask)
-                    .or_default()
-                    .entry(testcase)
-                    .or_insert(TestcaseGenerationStatus::Pending);
+                    .get_mut(&subtask)
+                    .unwrap()
+                    .testcases
+                    .get_mut(&testcase)
+                    .unwrap();
                 match status {
-                    UIExecutionStatus::Pending => *gen = TestcaseGenerationStatus::Pending,
-                    UIExecutionStatus::Started { .. } => *gen = TestcaseGenerationStatus::Solving,
+                    UIExecutionStatus::Pending => gen.status = TestcaseGenerationStatus::Pending,
+                    UIExecutionStatus::Started { .. } => {
+                        gen.status = TestcaseGenerationStatus::Solving
+                    }
                     UIExecutionStatus::Done { result } => {
                         if let ExecutionStatus::Success = result.result.status {
-                            *gen = TestcaseGenerationStatus::Solved;
+                            gen.status = TestcaseGenerationStatus::Solved;
                         } else {
-                            *gen = TestcaseGenerationStatus::Failed;
+                            gen.status = TestcaseGenerationStatus::Failed;
                         }
+                        gen.solution = Some(result);
                     }
                     UIExecutionStatus::Skipped => {
-                        if let TestcaseGenerationStatus::Failed = *gen {
+                        if let TestcaseGenerationStatus::Failed = gen.status {
                         } else {
-                            *gen = TestcaseGenerationStatus::Skipped;
+                            gen.status = TestcaseGenerationStatus::Skipped;
                         }
                     }
                 }
@@ -269,43 +381,52 @@ impl IOIUIState {
                 solution,
                 status,
             } => {
-                self.solution_scores.entry(solution.clone()).or_default();
                 let eval = self
                     .evaluations
                     .entry(solution)
-                    .or_default()
-                    .entry(subtask)
-                    .or_default()
-                    .entry(testcase)
-                    .or_insert(TestcaseEvaluationStatus::Pending);
+                    .or_insert(SolutionEvaluationState::new(&self.testcases));
+                let subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
+                let mut testcase = subtask
+                    .testcases
+                    .get_mut(&testcase)
+                    .expect("Missing testcase");
                 match status {
-                    UIExecutionStatus::Pending => *eval = TestcaseEvaluationStatus::Pending,
-                    UIExecutionStatus::Started { .. } => *eval = TestcaseEvaluationStatus::Solving,
-                    UIExecutionStatus::Done { result } => match result.result.status {
-                        ExecutionStatus::Success => *eval = TestcaseEvaluationStatus::Solved,
-                        ExecutionStatus::ReturnCode(_) => {
-                            *eval = TestcaseEvaluationStatus::RuntimeError
+                    UIExecutionStatus::Pending => {}
+                    UIExecutionStatus::Started { .. } => {
+                        testcase.status = TestcaseEvaluationStatus::Solving
+                    }
+                    UIExecutionStatus::Done { result } => {
+                        match result.result.status {
+                            ExecutionStatus::Success => {
+                                testcase.status = TestcaseEvaluationStatus::Solved
+                            }
+                            ExecutionStatus::ReturnCode(_) => {
+                                testcase.status = TestcaseEvaluationStatus::RuntimeError
+                            }
+                            ExecutionStatus::Signal(_, _) => {
+                                testcase.status = TestcaseEvaluationStatus::RuntimeError
+                            }
+                            ExecutionStatus::TimeLimitExceeded => {
+                                testcase.status = TestcaseEvaluationStatus::TimeLimitExceeded
+                            }
+                            ExecutionStatus::SysTimeLimitExceeded => {
+                                testcase.status = TestcaseEvaluationStatus::TimeLimitExceeded
+                            }
+                            ExecutionStatus::WallTimeLimitExceeded => {
+                                testcase.status = TestcaseEvaluationStatus::WallTimeLimitExceeded
+                            }
+                            ExecutionStatus::MemoryLimitExceeded => {
+                                testcase.status = TestcaseEvaluationStatus::MemoryLimitExceeded
+                            }
+                            ExecutionStatus::InternalError(_) => {
+                                testcase.status = TestcaseEvaluationStatus::Failed
+                            }
                         }
-                        ExecutionStatus::Signal(_, _) => {
-                            *eval = TestcaseEvaluationStatus::RuntimeError
-                        }
-                        ExecutionStatus::TimeLimitExceeded => {
-                            *eval = TestcaseEvaluationStatus::TimeLimitExceeded
-                        }
-                        ExecutionStatus::SysTimeLimitExceeded => {
-                            *eval = TestcaseEvaluationStatus::TimeLimitExceeded
-                        }
-                        ExecutionStatus::WallTimeLimitExceeded => {
-                            *eval = TestcaseEvaluationStatus::WallTimeLimitExceeded
-                        }
-                        ExecutionStatus::MemoryLimitExceeded => {
-                            *eval = TestcaseEvaluationStatus::MemoryLimitExceeded
-                        }
-                        ExecutionStatus::InternalError(_) => {
-                            *eval = TestcaseEvaluationStatus::Failed
-                        }
-                    },
-                    UIExecutionStatus::Skipped => *eval = TestcaseEvaluationStatus::Skipped,
+                        testcase.result = Some(result);
+                    }
+                    UIExecutionStatus::Skipped => {
+                        testcase.status = TestcaseEvaluationStatus::Skipped
+                    }
                 }
             }
             UIMessage::IOIChecker {
@@ -317,13 +438,20 @@ impl IOIUIState {
                 let eval = self
                     .evaluations
                     .entry(solution)
-                    .or_default()
-                    .entry(subtask)
-                    .or_default()
-                    .entry(testcase)
-                    .or_insert(TestcaseEvaluationStatus::Pending);
-                if let UIExecutionStatus::Started { .. } = status {
-                    *eval = TestcaseEvaluationStatus::Checking;
+                    .or_insert(SolutionEvaluationState::new(&self.testcases));
+                let subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
+                let mut testcase = subtask
+                    .testcases
+                    .get_mut(&testcase)
+                    .expect("Missing testcase");
+                match status {
+                    UIExecutionStatus::Started { .. } => {
+                        testcase.status = TestcaseEvaluationStatus::Checking;
+                    }
+                    UIExecutionStatus::Done { result } => {
+                        testcase.checker = Some(result);
+                    }
+                    _ => {}
                 }
             }
             UIMessage::IOITestcaseScore {
@@ -335,23 +463,41 @@ impl IOIUIState {
                 let eval = self
                     .evaluations
                     .entry(solution)
-                    .or_default()
-                    .entry(subtask)
-                    .or_default()
-                    .entry(testcase)
-                    .or_insert(TestcaseEvaluationStatus::Pending);
-                if let TestcaseEvaluationStatus::Checking = eval {
+                    .or_insert(SolutionEvaluationState::new(&self.testcases));
+                let subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
+                let mut testcase = subtask
+                    .testcases
+                    .get_mut(&testcase)
+                    .expect("Missing testcase");
+                testcase.score = Some(score);
+                if let TestcaseEvaluationStatus::Checking = testcase.status {
                     if score == 0.0 {
-                        *eval = TestcaseEvaluationStatus::WrongAnswer;
+                        testcase.status = TestcaseEvaluationStatus::WrongAnswer;
                     } else if (score - 1.0).abs() < 0.001 {
-                        *eval = TestcaseEvaluationStatus::Accepted;
+                        testcase.status = TestcaseEvaluationStatus::Accepted;
                     } else {
-                        *eval = TestcaseEvaluationStatus::Partial;
+                        testcase.status = TestcaseEvaluationStatus::Partial;
                     }
                 }
             }
+            UIMessage::IOISubtaskScore {
+                subtask,
+                solution,
+                score,
+            } => {
+                let eval = self
+                    .evaluations
+                    .entry(solution)
+                    .or_insert(SolutionEvaluationState::new(&self.testcases));
+                let mut subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
+                subtask.score = Some(score);
+            }
             UIMessage::IOITaskScore { solution, score } => {
-                *self.solution_scores.entry(solution).or_default() = Some(score);
+                let eval = self
+                    .evaluations
+                    .entry(solution)
+                    .or_insert(SolutionEvaluationState::new(&self.testcases));
+                eval.score = Some(score);
             }
             _ => {}
         }

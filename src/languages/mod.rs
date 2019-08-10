@@ -108,7 +108,7 @@ impl LanguageManager {
                 Arc::new(python::LanguagePython::new(
                     python::LanguagePythonVersion::Autodetect,
                 )),
-                Arc::new(shell::LanguageShell::new())
+                Arc::new(shell::LanguageShell::new()),
             ],
         }
     }

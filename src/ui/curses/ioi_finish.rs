@@ -1,9 +1,6 @@
-use crate::task_types::ioi::{IOISubtaskId, IOITestcaseId};
-use crate::ui::ioi_state::IOIUIState;
-use crate::ui::ioi_state::TestcaseEvaluationStatus;
+use crate::ui::ioi_state::{CompilationStatus, IOIUIState, SolutionEvaluationState};
 use failure::Error;
 use itertools::Itertools;
-use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
 
@@ -35,9 +32,21 @@ fn print_compilations(stdout: &mut StandardStream, state: &IOIUIState) -> Result
     for (path, status) in &state.compilations {
         writeln!(
             stdout,
-            "{:20} {:?}",
+            "{:20} {}",
             path.file_name().unwrap().to_string_lossy(),
-            status
+            match status {
+                CompilationStatus::Done { result } => format!(
+                    "Done | {:.3}s | {:.1}MiB",
+                    result.result.resources.cpu_time,
+                    (result.result.resources.memory as f64) / 1024.0
+                ),
+                CompilationStatus::Failed { result } => format!(
+                    "Fail | {:.3}s | {:.1}MiB",
+                    result.result.resources.cpu_time,
+                    (result.result.resources.memory as f64) / 1024.0
+                ),
+                _ => format!("{:?}", status),
+            }
         )?;
     }
     writeln!(stdout)?;
@@ -49,8 +58,18 @@ fn print_generations(stdout: &mut StandardStream, state: &IOIUIState) -> Result 
     writeln!(stdout, "Generations")?;
     for (st_num, subtask) in state.generations.iter().sorted_by_key(|(n, _)| *n) {
         writeln!(stdout, "Subtask {}", st_num)?;
-        for (tc_num, testcase) in subtask.iter().sorted_by_key(|(n, _)| *n) {
-            writeln!(stdout, "  Testcase {:3} {:?}", tc_num, testcase)?;
+        for (tc_num, testcase) in subtask.testcases.iter().sorted_by_key(|(n, _)| *n) {
+            let mut state = vec![];
+            if testcase.generation.is_some() {
+                state.push("Generated");
+            }
+            if testcase.validation.is_some() {
+                state.push("Validated");
+            }
+            if testcase.solution.is_some() {
+                state.push("Solved");
+            }
+            writeln!(stdout, "  Testcase {:<3}    {}", tc_num, state.join(" | "))?;
         }
     }
     writeln!(stdout)?;
@@ -61,8 +80,7 @@ fn print_generations(stdout: &mut StandardStream, state: &IOIUIState) -> Result 
 fn print_evaluations(stdout: &mut StandardStream, state: &IOIUIState) -> Result {
     writeln!(stdout, "Evaluations")?;
     for (path, eval) in &state.evaluations {
-        let score = state.solution_scores.get(path).unwrap();
-        print_evaluation(stdout, path, score, state.max_score, eval)?;
+        print_evaluation(stdout, path, &eval.score, state.max_score, eval, state)?;
     }
     Ok(())
 }
@@ -73,7 +91,8 @@ fn print_evaluation(
     path: &Path,
     score: &Option<f64>,
     max_score: f64,
-    eval: &HashMap<IOISubtaskId, HashMap<IOITestcaseId, TestcaseEvaluationStatus>>,
+    eval: &SolutionEvaluationState,
+    state: &IOIUIState,
 ) -> Result {
     writeln!(stdout)?;
     writeln!(
@@ -83,10 +102,33 @@ fn print_evaluation(
         score.unwrap_or(0.0),
         max_score
     )?;
-    for (st_num, subtask) in eval.iter().sorted_by_key(|(n, _)| *n) {
-        writeln!(stdout, "Subtask #{}: ?? / ??", st_num)?;
-        for (tc_num, testcase) in subtask.iter().sorted_by_key(|(n, _)| *n) {
-            writeln!(stdout, "{:>3}) {:?}", tc_num, testcase)?;
+    for (st_num, subtask) in eval.subtasks.iter().sorted_by_key(|(n, _)| *n) {
+        writeln!(
+            stdout,
+            "Subtask #{}: {:.2} / {:.2}",
+            st_num,
+            subtask.score.unwrap_or(0.0),
+            state.subtasks.get(st_num).unwrap().max_score
+        )?;
+        for (tc_num, testcase) in subtask.testcases.iter().sorted_by_key(|(n, _)| *n) {
+            writeln!(
+                stdout,
+                "{:>3}) [{:.2}] [{:.3}s | {:.1}MiB] {}",
+                tc_num,
+                testcase.score.unwrap_or(0.0),
+                testcase
+                    .result
+                    .as_ref()
+                    .map(|r| r.result.resources.cpu_time)
+                    .unwrap_or(0.0),
+                (testcase
+                    .result
+                    .as_ref()
+                    .map(|r| r.result.resources.memory)
+                    .unwrap_or(0) as f64)
+                    / 1024.0,
+                format!("{:?}", testcase.status)
+            )?;
         }
     }
 

@@ -188,11 +188,11 @@ fn compilation_status_text(status: &CompilationStatus, loading: char) -> Text<'s
     match status {
         CompilationStatus::Pending => Text::raw("..."),
         CompilationStatus::Running => Text::raw(format!("{}", loading)),
-        CompilationStatus::Done => Text::styled(
+        CompilationStatus::Done { .. } => Text::styled(
             "OK",
             Style::default().fg(Color::Green).modifier(Modifier::BOLD),
         ),
-        CompilationStatus::Failed => Text::styled(
+        CompilationStatus::Failed { .. } => Text::styled(
             "FAIL",
             Style::default().fg(Color::Red).modifier(Modifier::BOLD),
         ),
@@ -211,9 +211,10 @@ where
         .sorted_by_key(|(k, _)| *k)
         .flat_map(|(_, subtask)| {
             let mut testcases: Vec<Text> = subtask
+                .testcases
                 .iter()
                 .sorted_by_key(|(k, _)| *k)
-                .map(|(_, tc)| generation_status_text(tc, loading))
+                .map(|(_, tc)| generation_status_text(&tc.status, loading))
                 .collect();
             let mut res = vec![Text::raw("[")];
             res.append(&mut testcases);
@@ -285,8 +286,8 @@ where
 
 /// Get the colored score of a solution.
 fn evaluation_score<'a>(state: &'a IOIUIState, solution: &Path, loading: char) -> Text<'a> {
-    if let Some(Some(score)) = state.solution_scores.get(solution) {
-        if *score == 0.0 {
+    if let Some(Some(score)) = state.evaluations.get(solution).map(|s| s.score) {
+        if score == 0.0 {
             Text::styled(
                 format!(" {:>3} ", score),
                 Style::default().fg(Color::Red).modifier(Modifier::BOLD),
@@ -326,22 +327,22 @@ fn subtask_evaluation_status_text<'a>(
     loading: char,
 ) -> Vec<Text<'a>> {
     let mut texts = vec![];
-    let subtasks = &state.evaluations[solution];
-    if !subtasks.contains_key(&subtask) {
+    let solution = &state.evaluations[solution];
+    if !solution.subtasks.contains_key(&subtask) {
         return vec![Text::raw("[---]")];
     }
-    let testcases = &subtasks[&subtask];
+    let subtask = &solution.subtasks[&subtask];
     let mut all_succeded = true;
     let mut all_completed = true;
     let mut partial = false;
-    for testcase in testcases.values() {
-        if !testcase.is_success() {
+    for testcase in subtask.testcases.values() {
+        if !testcase.status.is_success() {
             all_succeded = false;
         }
-        if !testcase.has_completed() {
+        if !testcase.status.has_completed() {
             all_completed = false;
         }
-        if testcase.is_partial() {
+        if testcase.status.is_partial() {
             partial = true;
         }
     }
@@ -357,8 +358,8 @@ fn subtask_evaluation_status_text<'a>(
         Style::default()
     };
     texts.push(Text::styled("[", par_style));
-    for (_, testcase) in testcases.iter().sorted_by_key(|(k, _)| *k) {
-        texts.push(testcase_evaluation_status_text(testcase, loading));
+    for (_, testcase) in subtask.testcases.iter().sorted_by_key(|(k, _)| *k) {
+        texts.push(testcase_evaluation_status_text(&testcase.status, loading));
     }
     texts.push(Text::styled("]", par_style));
     texts
