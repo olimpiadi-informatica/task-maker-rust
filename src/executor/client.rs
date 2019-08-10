@@ -26,12 +26,7 @@ impl ExecutorClient {
         trace!("ExecutorClient started");
         // list all the files/executions that want callbacks
         let dag_callbacks = ExecutionDAGCallbacks {
-            executions: eval
-                .dag
-                .execution_callbacks
-                .keys()
-                .cloned()
-                .collect(),
+            executions: eval.dag.execution_callbacks.keys().cloned().collect(),
             files: eval.dag.file_callbacks.keys().cloned().collect(),
         };
         let provided_files = eval.dag.data.provided_files.clone();
@@ -65,7 +60,10 @@ impl ExecutorClient {
                             .unwrap_or(0);
                         let mut buffer: Vec<u8> = Vec::new();
                         let mut file = match &callback.write_to {
-                            Some(path) => Some(std::fs::File::create(path)?),
+                            Some(path) => {
+                                std::fs::create_dir_all(path.parent().unwrap())?;
+                                Some(std::fs::File::create(path)?)
+                            }
                             None => None,
                         };
                         for chunk in iterator {
