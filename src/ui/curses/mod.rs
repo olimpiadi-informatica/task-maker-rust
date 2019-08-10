@@ -1,6 +1,7 @@
 use crate::ui::*;
 
 mod ioi;
+mod ioi_finish;
 
 /// A UI that, using curses, prints to screen a cool animation with the status
 /// of the evaluation.
@@ -28,5 +29,12 @@ impl UI for CursesUI {
                 .expect("Received message before the task")
                 .on_message(message);
         }
+    }
+
+    fn finish(&mut self) {
+        self.ui
+            .as_mut()
+            .expect("Received finish before the task")
+            .finish();
     }
 }

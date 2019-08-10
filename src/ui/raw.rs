@@ -15,4 +15,8 @@ impl UI for RawUI {
     fn on_message(&mut self, message: UIMessage) {
         println!("{:?}", message);
     }
+
+    fn finish(&mut self) {
+        println!("UI finished");
+    }
 }

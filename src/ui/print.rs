@@ -244,4 +244,8 @@ impl UI for PrintUI {
         };
         writeln!(&mut self.stdout).unwrap();
     }
+
+    fn finish(&mut self) {
+        println!("UI finished");
+    }
 }

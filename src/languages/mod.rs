@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 mod cpp;
 mod python;
+mod shell;
 
 /// A dependency of an execution, all the sandbox paths must be relative and
 /// inside of the sandbox.
@@ -107,6 +108,7 @@ impl LanguageManager {
                 Arc::new(python::LanguagePython::new(
                     python::LanguagePythonVersion::Autodetect,
                 )),
+                Arc::new(shell::LanguageShell::new())
             ],
         }
     }

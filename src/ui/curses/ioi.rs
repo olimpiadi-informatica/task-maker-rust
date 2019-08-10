@@ -1,3 +1,4 @@
+use crate::ui::curses::ioi_finish::print_final_state;
 use crate::ui::ioi_state::*;
 use crate::ui::*;
 use failure::Error;
@@ -64,13 +65,23 @@ impl UI for IOICursesUI {
     fn on_message(&mut self, message: UIMessage) {
         self.state.write().unwrap().apply(message);
     }
+
+    fn finish(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        self.ui_thread.take().unwrap().join().unwrap();
+        // at this point the terminal should be restored
+        let state = self.state.read().unwrap();
+        print_final_state(&state);
+    }
 }
 
 impl Drop for IOICursesUI {
     fn drop(&mut self) {
         // tell the ui to stop and wait for it, the terminal will be released.
         self.stop.store(true, Ordering::Relaxed);
-        self.ui_thread.take().unwrap().join().unwrap();
+        if self.ui_thread.is_some() {
+            self.ui_thread.take().unwrap().join().unwrap();
+        }
     }
 }
 
@@ -149,7 +160,7 @@ where
     let max_len = state
         .compilations
         .keys()
-        .map(|k| k.as_os_str().len())
+        .map(|k| k.file_name().unwrap().len())
         .max()
         .unwrap_or(0)
         + 4;
@@ -161,7 +172,7 @@ where
             vec![
                 Text::raw(format!(
                     "{:<max_len$}",
-                    file.to_string_lossy(),
+                    file.file_name().unwrap().to_string_lossy(),
                     max_len = max_len
                 )),
                 compilation_status_text(status, loading),
@@ -248,7 +259,7 @@ where
     let max_len = state
         .evaluations
         .keys()
-        .map(|k| k.as_os_str().len())
+        .map(|k| k.file_name().unwrap().len())
         .max()
         .unwrap_or(0)
         + 4;
@@ -260,7 +271,7 @@ where
             let mut texts = vec![];
             texts.push(Text::raw(format!(
                 "{:<max_len$}",
-                solution.to_string_lossy(),
+                solution.file_name().unwrap().to_string_lossy(),
                 max_len = max_len
             )));
             texts.push(evaluation_score(state, solution, loading));

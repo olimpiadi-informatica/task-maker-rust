@@ -2,6 +2,7 @@ use crate::execution::*;
 use crate::ui::*;
 
 /// The status of the compilation of a file.
+#[derive(Debug)]
 pub enum CompilationStatus {
     /// The compilation is known but it has not started yet.
     Pending,
@@ -16,6 +17,7 @@ pub enum CompilationStatus {
 }
 
 /// Status of the generation of a testcase input and output.
+#[derive(Debug)]
 pub enum TestcaseGenerationStatus {
     /// The generation has not started yet.
     Pending,
@@ -38,6 +40,7 @@ pub enum TestcaseGenerationStatus {
 }
 
 /// Status of the evalution of a solution on a testcase.
+#[derive(Debug)]
 pub enum TestcaseEvaluationStatus {
     /// The solution has not started yet.
     Pending,
@@ -68,6 +71,7 @@ pub enum TestcaseEvaluationStatus {
 }
 
 /// The state of a IOI task, all the information for the UI are stored here.
+#[derive(Debug)]
 pub struct IOIUIState {
     /// The name of the task.
     pub name: String,

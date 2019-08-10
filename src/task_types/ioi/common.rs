@@ -68,8 +68,10 @@ pub struct IOITaskYAML {
     /// autodetected from the testcase definition.
     pub total_value: Option<f64>,
     /// The input file for the solutions, usually 'input.txt' or '' (stdin)
+    #[serde(default = "String::default")]
     pub infile: String,
     /// The output file for the solutions, usually 'output.txt' or '' (stdout).
+    #[serde(default = "String::default")]
     pub outfile: String,
     /// The primary language for this task.
     pub primary_language: Option<String>,

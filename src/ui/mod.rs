@@ -48,6 +48,7 @@ pub enum UIMessage {
         title: String,
         /// The path to the task on the client disk.
         path: PathBuf,
+        // TODO: time/mem limits
         /// The list of the subtasks with their information.
         subtasks: HashMap<IOISubtaskId, IOISubtaskInfo>,
         /// The set of testcases for each subtask.
@@ -162,6 +163,8 @@ impl UIMessageSender {
 pub trait UI {
     /// Process a new UI message.
     fn on_message(&mut self, message: UIMessage);
+    /// Make the UI print the ending results.
+    fn finish(&mut self);
 }
 
 /// The type of the UI to use, it enumerates all the known UI interfaces.
@@ -185,6 +188,7 @@ impl UIType {
         while let Ok(message) = receiver.recv() {
             ui.on_message(message);
         }
+        ui.finish();
     }
 }
 
