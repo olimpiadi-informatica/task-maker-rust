@@ -23,4 +23,5 @@ script:
   - cargo clippy --all-targets --all-features -- -A clippy::module_inception -A clippy::new_without_default -A clippy::borrowed_box
   - cargo build --all
   - RUST_BACKTRACE=1 cargo test --all
+  - (cd task-maker-store && RUST_BACKTRACE=1 cargo test --all)
 cache: cargo

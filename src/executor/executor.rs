@@ -1,7 +1,7 @@
 use crate::execution::*;
 use crate::executor::scheduler::Scheduler;
 use crate::executor::*;
-use crate::store::*;
+use task_maker_store::*;
 use failure::Error;
 use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashMap};

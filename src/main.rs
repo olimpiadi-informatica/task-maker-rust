@@ -5,16 +5,15 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
 
+extern crate task_maker_store;
+
 extern crate serde;
 extern crate serde_json;
 extern crate serde_yaml;
 extern crate uuid;
 #[macro_use]
 extern crate log;
-extern crate chrono;
 extern crate env_logger;
-extern crate fs2;
-extern crate hex;
 extern crate pest;
 #[macro_use]
 extern crate pest_derive;
@@ -38,7 +37,6 @@ pub mod execution;
 pub mod executor;
 pub mod languages;
 pub mod score_types;
-pub mod store;
 pub mod task_types;
 #[cfg(test)]
 mod test_utils;
@@ -68,7 +66,7 @@ fn main() {
 
     use crate::evaluation::*;
     use crate::executor::*;
-    use crate::store::*;
+    use task_maker_store::*;
     use crate::task_types::ioi::*;
     use std::sync::{Arc, Mutex};
 

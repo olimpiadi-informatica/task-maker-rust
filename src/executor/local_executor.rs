@@ -1,5 +1,5 @@
 use crate::executor::*;
-use crate::store::*;
+use task_maker_store::*;
 use failure::Error;
 use std::sync::{Arc, Mutex};
 use std::thread;

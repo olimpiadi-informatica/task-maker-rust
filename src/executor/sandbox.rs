@@ -1,5 +1,5 @@
 use crate::execution::*;
-use crate::store::*;
+use task_maker_store::*;
 use failure::Error;
 use serde::Deserialize;
 use std::collections::HashMap;

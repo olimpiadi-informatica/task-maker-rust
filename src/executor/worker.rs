@@ -1,6 +1,6 @@
 use crate::execution::*;
 use crate::executor::*;
-use crate::store::*;
+use task_maker_store::*;
 use failure::{Error, Fail};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;

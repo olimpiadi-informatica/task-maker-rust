@@ -9,7 +9,24 @@ const READ_FILE_BUFFER_SIZE: usize = 8 * 1024;
 type ReadFileBuffer = [u8; READ_FILE_BUFFER_SIZE];
 
 /// Struct implementing the Iterator trait which will iterate over the content
-/// of a file
+/// of a file.
+/// 
+/// # Example
+///
+/// ```
+/// use task_maker_store::ReadFileIterator;
+///
+/// # use failure::Error;
+/// # fn main() -> Result<(), Error> {
+/// std::fs::write("/tmp/file.txt", "hello world")?;
+/// let iter = ReadFileIterator::new("/tmp/file.txt")?;
+/// let content: Vec<u8> = iter.flat_map(|v| v).collect();
+/// println!("The content is {}", std::str::from_utf8(&content[..])?);
+/// # // clear the test data
+/// # std::fs::remove_file("/tmp/file.txt")?;
+/// # Ok(())
+/// # }
+/// ```
 pub struct ReadFileIterator {
     /// Reader used to read the file
     buf_reader: BufReader<File>,
@@ -19,8 +36,8 @@ pub struct ReadFileIterator {
 
 impl ReadFileIterator {
     /// Make a new iterator reading the file at that path
-    pub fn new(path: &Path) -> Result<ReadFileIterator, Error> {
-        let file = std::fs::File::open(path)?;
+    pub fn new<P: AsRef<Path>>(path: P) -> Result<ReadFileIterator, Error> {
+        let file = std::fs::File::open(path.as_ref())?;
         Ok(ReadFileIterator {
             buf_reader: BufReader::new(file),
             buf: [0; READ_FILE_BUFFER_SIZE],
@@ -42,13 +59,12 @@ impl Iterator for ReadFileIterator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::*;
     use pretty_assertions::assert_eq;
     use std::io::Write;
     use tempdir::TempDir;
 
     fn get_cwd() -> TempDir {
-        setup_test()
+        TempDir::new("tm-test").unwrap()
     }
 
     fn fake_file(path: &Path, content: Vec<u8>) {

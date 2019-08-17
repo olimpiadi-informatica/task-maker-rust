@@ -2,7 +2,7 @@
 pub mod test_utils {
     use crate::evaluation::*;
     use crate::executor::*;
-    use crate::store::*;
+    use task_maker_store::*;
     use std::path::Path;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc::channel;

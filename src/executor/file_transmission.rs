@@ -1,5 +1,5 @@
 use crate::executor::*;
-use crate::store::ReadFileIterator;
+use task_maker_store::ReadFileIterator;
 use failure::Error;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
