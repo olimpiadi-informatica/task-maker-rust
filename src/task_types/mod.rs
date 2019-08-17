@@ -1,5 +1,4 @@
 use crate::evaluation::*;
-use crate::executor::*;
 use crate::score_types::*;
 use crate::ui::*;
 use boxfnonce::BoxFnOnce;
@@ -11,6 +10,8 @@ use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use task_maker_dag::*;
+use task_maker_exec::executors::*;
+use task_maker_exec::*;
 
 mod common;
 mod grader_map;
@@ -432,7 +433,7 @@ pub trait Task<
         let server = thread::spawn(move || {
             executor.evaluate(tx_remote, rx_remote).unwrap();
         });
-        ExecutorClient::evaluate(eval, tx, rx).unwrap();
+        ExecutorClient::evaluate(eval.dag, tx, rx).unwrap();
         server.join().expect("Server paniced");
     }
 }

@@ -9,61 +9,62 @@ use task_maker_dag::*;
 use task_maker_store::*;
 use tempdir::TempDir;
 
-/// Result of the execution of the sandbox
+/// The list of all the system-wide readable directories inside the sandbox.
+const READABLE_DIRS: &'static [&'static str] = &["/lib", "/lib64", "/usr", "/bin"];
+
+/// Result of the execution of the sandbox.
 #[derive(Debug)]
 pub enum SandboxResult {
-    /// The sandbox exited succesfully, the statistics about the sandboxed
-    /// process are reported
+    /// The sandbox exited successfully, the statistics about the sandboxed process are reported.
     Success {
-        /// The exit status of the process
+        /// The exit status of the process.
         exit_status: u32,
-        /// The signal that caused the process to exit
+        /// The signal that caused the process to exit.
         signal: Option<u32>,
-        /// Resources used by the process
+        /// Resources used by the process.
         resources: ExecutionResourcesUsage,
     },
-    /// The sandbox failed to execute the process, an error message is reported
+    /// The sandbox failed to execute the process, an error message is reported. Note that this
+    /// represents a sandbox error, not the process failure.
     Failed {
-        /// The error reported by the sandbox
+        /// The error reported by the sandbox.
         error: String,
     },
 }
 
-/// Internals of the sandbox
+/// Internals of the sandbox.
 #[derive(Debug)]
 struct SandboxData {
-    /// Handle to the temporary directory, will be deleted on drop
+    /// Handle to the temporary directory, will be deleted on drop.
     boxdir: TempDir,
 }
 
-/// Wrapper around the sandbox. Cloning this struct will keep the reference of
-/// the same sandbox, keeping the content alive.
+/// Wrapper around the sandbox. Cloning this struct will keep the reference of the same sandbox,
+/// keeping the content alive.
 ///
-/// This sandbox works only on Unix systems because it needs to set the
-/// executable bit on some files.
+/// This sandbox works only on Unix systems because it needs to set the executable bit on some
+/// files.
 #[derive(Debug, Clone)]
 pub struct Sandbox {
-    /// Internal data of the sandbox
+    /// Internal data of the sandbox.
     data: Arc<Mutex<SandboxData>>,
-    /// Execution to run
+    /// Execution to run.
     execution: Execution,
 }
 
-/// The outcome from tmbox. If the sandbox fails to run only `error` and
-/// `message` are set, otherwise all the fields are present except for
-/// `message`.
+/// The outcome from `tmbox`. If the sandbox fails to run only `error` and `message` are set,
+/// otherwise all the fields are present except for `message`.
 #[derive(Debug, Deserialize)]
 struct TMBoxResult {
-    /// Whether the sandbox failed to execute the subprocess, will set
-    /// `message`.
+    /// Whether the sandbox failed to execute the subprocess, will set `message`.
     error: bool,
     /// Error message from the sandbox.
     message: Option<String>,
-    /// Total CPU time in userspace.
+    /// Total CPU time in user space, in seconds.
     cpu_time: Option<f64>,
-    /// Total CPU time in kernelspace.
+    /// Total CPU time in kernel space, in seconds.
     sys_time: Option<f64>,
-    /// Total time from the start to the end of the process.
+    /// Total time from the start to the end of the process, in seconds.
     wall_time: Option<f64>,
     /// Peak memory usage of the process in KiB.
     memory_usage: Option<u64>,
@@ -76,8 +77,8 @@ struct TMBoxResult {
 }
 
 impl Sandbox {
-    /// Make a new sandbox for the specified execution, copying all the
-    /// required files. To start the sandbox call `run`.
+    /// Make a new sandbox for the specified execution, copying all the required files. To start the
+    /// sandbox call `run`.
     pub fn new(
         sandboxes_dir: &Path,
         execution: &Execution,
@@ -93,7 +94,7 @@ impl Sandbox {
         })
     }
 
-    /// Starts the sandbox and blocks the thread until the sandbox exists.
+    /// Starts the sandbox and blocks the thread until the sandbox exits.
     pub fn run(&self) -> Result<SandboxResult, Error> {
         let boxdir = self.data.lock().unwrap().boxdir.path().to_owned();
         trace!("Running sandbox at {:?}", boxdir);
@@ -141,6 +142,10 @@ impl Sandbox {
                 sandbox.arg("--multiprocess");
             }
         }
+        // allow reading some basic directories
+        for dir in READABLE_DIRS {
+            sandbox.arg("--readable-dir").arg(dir);
+        }
         sandbox.arg("--");
         match &self.execution.command {
             ExecutionCommand::System(cmd) => {
@@ -184,8 +189,8 @@ impl Sandbox {
         }
     }
 
-    /// Tell the sandbox process to kill the underlying process, this will make
-    /// `run` terminate more quickly.
+    /// Tell the sandbox process to kill the underlying process, this will make `run` terminate more
+    /// quickly.
     pub fn kill(&self) {
         info!(
             "Sandbox at {:?} got killed",
@@ -194,23 +199,22 @@ impl Sandbox {
         unimplemented!();
     }
 
-    /// Make the sandbox persistent, the sandbox directory won't be deleted
-    /// after the execution.
+    /// Make the sandbox persistent, the sandbox directory won't be deleted after the execution.
     pub fn keep(&self) {
         unimplemented!();
     }
 
-    /// Path of the file where the standard output is written to
+    /// Path of the file where the standard output is written to.
     pub fn stdout_path(&self) -> PathBuf {
         self.data.lock().unwrap().boxdir.path().join("stdout")
     }
 
-    /// Path of the file where the standard error is written to
+    /// Path of the file where the standard error is written to.
     pub fn stderr_path(&self) -> PathBuf {
         self.data.lock().unwrap().boxdir.path().join("stderr")
     }
 
-    /// Path of the file where that output file is written to
+    /// Path of the file where that output file is written to.
     pub fn output_path(&self, output: &Path) -> PathBuf {
         self.data
             .lock()
@@ -221,51 +225,54 @@ impl Sandbox {
             .join(output)
     }
 
-    /// Setup the sandbox directory with all the files required for the
-    /// execution
-    fn setup(
-        dir: &Path,
+    /// Setup the sandbox directory with all the files required for the execution.
+    fn setup<P: AsRef<Path>>(
+        box_dir: P,
         execution: &Execution,
         dep_keys: &HashMap<FileUuid, FileStoreKey>,
         file_store: &mut FileStore,
     ) -> Result<(), Error> {
         trace!(
             "Setting up sandbox at {:?} for '{}'",
-            dir,
+            box_dir.as_ref(),
             execution.description
         );
-        std::fs::create_dir_all(dir.join("box"))?;
+        std::fs::create_dir_all(box_dir.as_ref().join("box"))?;
         if let Some(stdin) = execution.stdin {
             Sandbox::write_sandbox_file(
-                &dir.join("stdin"),
+                &box_dir.as_ref().join("stdin"),
                 dep_keys.get(&stdin).expect("stdin not provided"),
                 false,
                 file_store,
             )?;
         }
         if execution.stdout.is_some() {
-            Sandbox::touch_file(&dir.join("stdout"), 0o600)?;
+            Sandbox::touch_file(&box_dir.as_ref().join("stdout"), 0o600)?;
         }
         if execution.stderr.is_some() {
-            Sandbox::touch_file(&dir.join("stderr"), 0o600)?;
+            Sandbox::touch_file(&box_dir.as_ref().join("stderr"), 0o600)?;
         }
         for (path, input) in execution.inputs.iter() {
             Sandbox::write_sandbox_file(
-                &dir.join("box").join(&path),
+                &box_dir.as_ref().join("box").join(&path),
                 dep_keys.get(&input.file).expect("file not provided"),
                 input.executable,
                 file_store,
             )?;
         }
         for path in execution.outputs.keys() {
-            Sandbox::touch_file(&dir.join("box").join(&path), 0o600)?;
+            Sandbox::touch_file(&box_dir.as_ref().join("box").join(&path), 0o600)?;
         }
-        trace!("Sandbox at {:?} ready!", dir);
+        trace!("Sandbox at {:?} ready!", box_dir.as_ref());
         Ok(())
     }
 
-    /// Put a file inside the sandbox, creating the directories if needed and
-    /// making it executable if needed.
+    /// Put a file inside the sandbox, creating the directories if needed and making it executable
+    /// if needed.
+    ///
+    /// The file will have the most restrictive permissions possible:
+    /// - `r--------` (0o400) if not executable.
+    /// - `r-x------` (0o500) if executable.
     fn write_sandbox_file(
         dest: &Path,
         key: &FileStoreKey,

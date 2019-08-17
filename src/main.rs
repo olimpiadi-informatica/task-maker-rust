@@ -20,8 +20,6 @@ extern crate pest;
 extern crate pest_derive;
 #[cfg(test)]
 extern crate pretty_assertions;
-extern crate tempdir;
-extern crate which;
 #[macro_use]
 extern crate lazy_static;
 extern crate boxfnonce;
@@ -29,18 +27,16 @@ extern crate glob;
 extern crate itertools;
 extern crate regex;
 extern crate structopt;
+extern crate tempdir;
 extern crate termcolor;
 extern crate termion;
 extern crate tui;
 
 pub mod evaluation;
 pub mod execution;
-pub mod executor;
 pub mod languages;
 pub mod score_types;
 pub mod task_types;
-#[cfg(test)]
-mod test_utils;
 pub mod ui;
 
 use std::path::PathBuf;
@@ -66,9 +62,9 @@ fn main() {
     let opt = Opt::from_args();
 
     use crate::evaluation::*;
-    use crate::executor::*;
     use crate::task_types::ioi::*;
     use std::sync::{Arc, Mutex};
+    use task_maker_exec::executors::LocalExecutor;
     use task_maker_store::*;
 
     let (eval, receiver) = EvaluationData::new();

@@ -1,22 +1,22 @@
-use crate::executor::*;
+use crate::*;
 use failure::Error;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use task_maker_store::*;
 
-/// An Executor that runs locally
+/// An Executor that runs locally by spawning a number of threads with the workers inside.
 pub struct LocalExecutor {
-    /// The real Executor that does the work
+    /// The real Executor that does the actual work.
     executor: Executor,
-    /// A reference to the FileStore
+    /// A reference to the [`FileStore`](../../task_maker_store/struct.FileStore.html).
     file_store: Arc<Mutex<FileStore>>,
-    /// The number of local workers to spawn
+    /// The number of local workers to spawn.
     pub num_workers: usize,
 }
 
 impl LocalExecutor {
-    /// Make a new LocalExecutor based on a FileStore and ready to spawn that
-    /// number of workers
+    /// Make a new [`LocalExecutor`](struct.LocalExecutor.html) based on a
+    /// [`FileStore`](../../task_maker_store/struct.FileStore.html) and ready to spawn that number
+    /// of workers.
     pub fn new(file_store: Arc<Mutex<FileStore>>, num_workers: usize) -> LocalExecutor {
         LocalExecutor {
             executor: Executor::new(file_store.clone()),
@@ -25,11 +25,11 @@ impl LocalExecutor {
         }
     }
 
-    /// Starts the Executor spawning the workers on new threads and blocking on
-    /// the Executor thread.
+    /// Starts the Executor spawning the workers on new threads and blocking on the `Executor`
+    /// thread.
     ///
-    /// * `sender` - Channel that sends messages to the client
-    /// * `receiver` - Channel that receives messages from the client
+    /// * `sender` - Channel that sends messages to the client.
+    /// * `receiver` - Channel that receives messages from the client.
     pub fn evaluate(
         &mut self,
         sender: ChannelSender,

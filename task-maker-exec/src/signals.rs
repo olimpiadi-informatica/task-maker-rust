@@ -1,8 +1,8 @@
 /// Returns a string with the text representation of the signal.
 ///
 /// The values returned are based on the Linux x86 implementation:
-/// https://github.com/torvalds/linux/blob/6f0d349d922ba44e4348a17a78ea51b7135965b1/arch/x86/include/uapi/asm/signal.h
-pub fn strsignal(signal: u32) -> String {
+/// [signal.h](https://github.com/torvalds/linux/blob/6f0d349d922ba44e4348a17a78ea51b7135965b1/arch/x86/include/uapi/asm/signal.h)
+pub(crate) fn strsignal(signal: u32) -> String {
     format!(
         "Signal {} ({})",
         signal,

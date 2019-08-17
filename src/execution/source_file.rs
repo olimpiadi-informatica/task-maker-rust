@@ -153,13 +153,14 @@ impl SourceFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::*;
     use std::io::Write;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use task_maker_exec::eval_dag_locally;
+    use tempdir::TempDir;
 
     #[test]
     fn test_source_file_cpp() {
-        let cwd = setup_test();
+        let cwd = TempDir::new("tm-test").unwrap();
 
         let (mut eval, _receiver) = EvaluationData::new();
         let source = "int main() {return 0;}";
@@ -188,7 +189,7 @@ mod tests {
         });
         eval.dag.add_execution(exec);
 
-        eval_dag_locally(eval, cwd.path());
+        eval_dag_locally(eval.dag, cwd.path(), 2);
 
         assert!(exec_start2.load(Ordering::Relaxed));
         assert!(exec_done2.load(Ordering::Relaxed));

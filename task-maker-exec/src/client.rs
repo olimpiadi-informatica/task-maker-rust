@@ -1,38 +1,66 @@
-use crate::evaluation::*;
-use crate::executor::*;
+use crate::proto::*;
+use crate::*;
 use failure::Error;
 use std::io::Write;
-use task_maker_dag::*;
 use task_maker_store::*;
 
-/// This is a client of the Executor, the client is who sends a DAG for an
-/// evaluation, provides some files and receives the callbacks from the server.
-/// When the server notifies a callback function is called by the client.
+/// This is a client of the `Executor`, the client is who sends a DAG for an evaluation, provides
+/// some files and receives the callbacks from the server. When the server notifies a callback
+/// function is called by the client.
 pub struct ExecutorClient;
 
 impl ExecutorClient {
-    /// Begin the evaluation sending the DAG to the server, sending the files
-    /// as needed and storing the files from the server. This method is
-    /// blocking until the server ends the computation.
+    /// Begin the evaluation sending the DAG to the server, sending the files as needed and storing
+    /// the files from the server.
     ///
-    /// * `eval` - The EvaluationData to evaluate
-    /// * `sender` - A channel that sends messages to the server
-    /// * `receiver` - A channel that receives messages from the server
+    /// This method is blocking until the server ends the computation.
+    ///
+    /// * `eval` - The EvaluationData to evaluate.
+    /// * `sender` - A channel that sends messages to the server.
+    /// * `receiver` - A channel that receives messages from the server.
+    ///
+    /// ```
+    /// use task_maker_dag::ExecutionDAG;
+    /// use task_maker_store::FileStore;
+    /// use task_maker_exec::{executors::LocalExecutor, ExecutorClient};
+    /// use std::sync::mpsc::channel;
+    /// use std::sync::{Arc, Mutex};
+    /// use std::thread;
+    /// use std::path::PathBuf;
+    ///
+    /// // make a new, empty, DAG
+    /// let dag = ExecutionDAG::new();
+    /// // setup the communication channels
+    /// let (tx, rx_remote) = channel();
+    /// let (tx_remote, rx) = channel();
+    /// // make a new local executor in a second thread
+    /// let server = thread::spawn(move || {
+    ///     let file_store = FileStore::new("/tmp/store").expect("Cannot create the file store");
+    ///     let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
+    ///     executor.evaluate(tx_remote, rx_remote).unwrap();
+    /// });
+    ///
+    /// ExecutorClient::evaluate(dag, tx, rx).unwrap(); // this will block!
+    ///
+    /// server.join().expect("Server paniced");
+    /// # // cleanup
+    /// # std::fs::remove_dir_all("/tmp/store").unwrap();
+    /// ```
     pub fn evaluate(
-        mut eval: EvaluationData,
+        mut dag: ExecutionDAG,
         sender: ChannelSender,
         receiver: ChannelReceiver,
     ) -> Result<(), Error> {
         trace!("ExecutorClient started");
         // list all the files/executions that want callbacks
-        let dag_callbacks = ExecutionDAGCallbacks {
-            executions: eval.dag.execution_callbacks.keys().cloned().collect(),
-            files: eval.dag.file_callbacks.keys().cloned().collect(),
+        let dag_callbacks = ExecutionDAGWatchSet {
+            executions: dag.execution_callbacks.keys().cloned().collect(),
+            files: dag.file_callbacks.keys().cloned().collect(),
         };
-        let provided_files = eval.dag.data.provided_files.clone();
+        let provided_files = dag.data.provided_files.clone();
         serialize_into(
             &ExecutorClientMessage::Evaluate {
-                dag: eval.dag.data,
+                dag: dag.data,
                 callbacks: dag_callbacks,
             },
             &sender,
@@ -52,7 +80,7 @@ impl ExecutorClient {
                 Ok(ExecutorServerMessage::ProvideFile(uuid)) => {
                     info!("Server sent the file {}", uuid);
                     let iterator = ChannelFileIterator::new(&receiver);
-                    if let Some(callback) = eval.dag.file_callbacks.get_mut(&uuid) {
+                    if let Some(callback) = dag.file_callbacks.get_mut(&uuid) {
                         let limit = callback
                             .get_content
                             .as_ref()
@@ -72,7 +100,7 @@ impl ExecutorClient {
                             }
                             if buffer.len() < limit {
                                 let len = std::cmp::min(chunk.len(), limit - buffer.len());
-                                buffer.extend_from_slice(&chunk[0..len - 1]);
+                                buffer.extend_from_slice(&chunk[..len]);
                             }
                         }
 
@@ -85,7 +113,7 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::NotifyStart(uuid, worker)) => {
                     info!("Execution {} started on {}", uuid, worker);
-                    if let Some(callbacks) = eval.dag.execution_callbacks.get_mut(&uuid) {
+                    if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
                         for callback in callbacks.on_start.drain(..) {
                             callback.call(worker);
                         }
@@ -93,7 +121,7 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::NotifyDone(uuid, result)) => {
                     info!("Execution {} completed with {:?}", uuid, result);
-                    if let Some(callbacks) = eval.dag.execution_callbacks.get_mut(&uuid) {
+                    if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
                         for callback in callbacks.on_done.drain(..) {
                             callback.call(result.clone());
                         }
@@ -101,7 +129,7 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::NotifySkip(uuid)) => {
                     info!("Execution {} skipped", uuid);
-                    if let Some(callbacks) = eval.dag.execution_callbacks.get_mut(&uuid) {
+                    if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
                         for callback in callbacks.on_skip.drain(..) {
                             callback.call();
                         }
