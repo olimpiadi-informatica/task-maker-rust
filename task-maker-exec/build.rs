@@ -15,6 +15,7 @@ fn main() {
     let status = Command::new("make")
         .arg(format!("TARGET={}", out_dir))
         .arg(format!("CXX={}", cxx))
+        .arg(format!("SHELL=/bin/bash"))
         .arg("-j")
         .arg(num_jobs.to_string())
         .current_dir(Path::new("tmbox"))
