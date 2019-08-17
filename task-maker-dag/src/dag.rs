@@ -1,76 +1,81 @@
-use crate::execution::execution::*;
-use crate::execution::file::*;
-use crate::executor::*;
-use task_maker_store::*;
+use crate::file::*;
+use crate::*;
 use boxfnonce::BoxFnOnce;
-use failure::Fail;
+use failure::{Error, Fail};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use task_maker_store::*;
 
 /// A wrapper around a File provided by the client, this means that the client
-/// knows the FileStoreKey and the path to that file
+/// knows the FileStoreKey and the path to that file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProvidedFile {
-    /// The file handle
+    /// The file handle.
     pub file: File,
-    /// The key in the FileStore
+    /// The key in the FileStore.
     pub key: FileStoreKey,
-    /// Path to the file in the client
+    /// Path to the file in the client.
     pub local_path: PathBuf,
 }
 
-/// Serializable part of the execution DAG, this is sent to the server.
+/// Serializable part of the execution DAG: everything except the callbacks (which are not
+/// serializable).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExecutionDAGData {
-    /// List of the files provided by the client
+    /// All the files provided by the client.
     pub provided_files: HashMap<FileUuid, ProvidedFile>,
-    /// List of the executions to run
+    /// All the executions to run.
     pub executions: HashMap<ExecutionUuid, Execution>,
 }
 
-/// List of the "interesting" files and executions, only the callbacks listed
-/// here will be called by the server
+/// List of the _interesting_ files and executions, only the callbacks listed here will be called by
+/// the server. Every other callback is not sent to the client for performance reasons.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExecutionDAGCallbacks {
-    /// Set of the handles of the executions that have at least a callback
-    /// bound
+    /// Set of the handles of the executions that have at least a callback bound.
     pub executions: HashSet<ExecutionUuid>,
-    /// Set of the handles of the files that have at least a callback bound
+    /// Set of the handles of the files that have at least a callback bound.
     pub files: HashSet<FileUuid>,
 }
 
-/// A computation DAG, this is not serializable because it contains the
-/// callbacks of the client
+/// A computation DAG, this is not serializable because it contains the callbacks of the client.
 #[derive(Debug)]
 pub struct ExecutionDAG {
-    /// Serializable part of the DAG with all the exections and files
+    /// Serializable part of the DAG with all the executions and files.
     pub data: ExecutionDAGData,
-    /// Actual callbacks of the executions
+    /// Actual callbacks of the executions.
     pub execution_callbacks: HashMap<ExecutionUuid, ExecutionCallbacks>,
-    /// Actual callbacks of the files
+    /// Actual callbacks of the files.
     pub file_callbacks: HashMap<FileUuid, FileCallbacks>,
 }
 
+/// An error in the DAG structure.
 #[derive(Debug, Fail)]
 pub enum DAGError {
+    /// A file is used as input in an execution but it's missing, or a callback is registered on a
+    /// file but it's missing.
     #[fail(display = "missing file {} ({})", description, uuid)]
     MissingFile { uuid: FileUuid, description: String },
+    /// A callback is registered on an execution but it's missing.
     #[fail(display = "missing execution {}", uuid)]
     MissingExecution { uuid: FileUuid },
+    /// There is a dependency cycle in the DAG.
     #[fail(
         display = "detected dependency cycle, '{}' is in the cycle",
         description
     )]
     CycleDetected { description: String },
+    /// There is a duplicate execution UUID.
     #[fail(display = "duplicate execution UUID {}", uuid)]
     DuplicateExecutionUUID { uuid: ExecutionUuid },
+    /// There is a duplicate file UUID.
     #[fail(display = "duplicate file UUID {}", uuid)]
     DuplicateFileUUID { uuid: FileUuid },
 }
 
 impl ExecutionDAG {
-    /// Create an empty ExecutionDAG
+    /// Create an empty ExecutionDAG, without files and executions.
     pub fn new() -> ExecutionDAG {
         ExecutionDAG {
             data: ExecutionDAGData {
@@ -82,44 +87,42 @@ impl ExecutionDAG {
         }
     }
 
-    /// Provide a file for the computation
-    ///
-    /// Will panic if the file doesn't exists or it's not readable
-    pub fn provide_file(&mut self, file: File, path: &Path) {
+    /// Provide a file for the computation.
+    pub fn provide_file<P: Into<PathBuf>>(&mut self, file: File, path: P) -> Result<(), Error> {
+        let path = path.into();
         self.data.provided_files.insert(
             file.uuid,
             ProvidedFile {
                 file,
-                key: FileStoreKey::from_file(path)
-                    .unwrap_or_else(|_| panic!("Cannot compute FileStoreKey for {:?}", path)),
-                local_path: path.to_owned(),
+                key: FileStoreKey::from_file(&path)?,
+                local_path: path,
             },
         );
+        Ok(())
     }
 
-    /// Add an execution to the DAG and returns a Builder for adding the
-    /// callbacks
+    /// Add an execution to the DAG.
     pub fn add_execution(&mut self, execution: Execution) {
         self.data.executions.insert(execution.uuid, execution);
     }
 
-    /// When `file` is ready it will be written to `path`. The file must be
-    /// present in the dag before the evaluation starts.
-    pub fn write_file_to(&mut self, file: &File, path: &Path) {
-        self.file_callback(&file.uuid).write_to = Some(path.to_owned());
+    /// When `file` is ready it will be written to `path`. The file must be present in the dag
+    /// before the evaluation starts.
+    pub fn write_file_to<F: Into<FileUuid>, P: Into<PathBuf>>(&mut self, file: F, path: P) {
+        self.file_callback(file.into()).write_to = Some(path.into());
     }
 
     /// Call `callback` with the first `limit` bytes of the file when it's
-    /// ready. The file must be present in the dag before the evaluation
+    /// ready. The file must be present in the DAG before the evaluation
     /// starts.
-    pub fn get_file_content<F>(&mut self, file: &File, limit: usize, callback: F)
+    pub fn get_file_content<G: Into<FileUuid>, F>(&mut self, file: G, limit: usize, callback: F)
     where
-        F: (Fn(Vec<u8>) -> ()) + 'static,
+        F: (FnOnce(Vec<u8>) -> ()) + 'static,
     {
-        self.file_callback(&file.uuid).get_content = Some((limit, Box::new(callback)));
+        self.file_callback(file.into()).get_content = Some((limit, BoxFnOnce::from(callback)));
     }
 
-    /// Add a callback that will be called when the execution starts
+    /// Add a callback that will be called when the execution starts.
     pub fn on_execution_start<F>(&mut self, execution: &ExecutionUuid, callback: F)
     where
         F: (FnOnce(WorkerUuid) -> ()) + 'static,
@@ -129,17 +132,17 @@ impl ExecutionDAG {
             .push(BoxFnOnce::from(callback));
     }
 
-    /// Add a callback that will be called when the execution ends
+    /// Add a callback that will be called when the execution ends.
     pub fn on_execution_done<F>(&mut self, execution: &ExecutionUuid, callback: F)
     where
-        F: (FnOnce(WorkerResult) -> ()) + 'static,
+        F: (FnOnce(ExecutionResult) -> ()) + 'static,
     {
         self.execution_callback(execution)
             .on_done
             .push(BoxFnOnce::from(callback));
     }
 
-    /// Add a callback that will be called when the execution is skipped
+    /// Add a callback that will be called when the execution is skipped.
     pub fn on_execution_skip<F>(&mut self, execution: &ExecutionUuid, callback: F)
     where
         F: (FnOnce() -> ()) + 'static,
@@ -149,24 +152,14 @@ impl ExecutionDAG {
             .push(BoxFnOnce::from(callback));
     }
 
-    /// Makes sure that a callback item exists for that file and returns a &mut
-    /// to it.
-    fn file_callback(&mut self, file: &FileUuid) -> &mut FileCallbacks {
-        if !self.file_callbacks.contains_key(file) {
-            self.file_callbacks
-                .insert(file.clone(), FileCallbacks::default());
-        }
-        self.file_callbacks.get_mut(&file).unwrap()
+    /// Makes sure that a callback item exists for that file and returns a &mut to it.
+    fn file_callback<F: Into<FileUuid>>(&mut self, file: F) -> &mut FileCallbacks {
+        self.file_callbacks.entry(file.into()).or_default()
     }
 
-    /// Makes sure that a callback item exists for that exection and returns a
-    /// &mut to it.
+    /// Makes sure that a callback item exists for that execution and returns a &mut to it.
     fn execution_callback(&mut self, execution: &ExecutionUuid) -> &mut ExecutionCallbacks {
-        if !self.execution_callbacks.contains_key(execution) {
-            self.execution_callbacks
-                .insert(execution.clone(), ExecutionCallbacks::default());
-        }
-        self.execution_callbacks.get_mut(execution).unwrap()
+        self.execution_callbacks.entry(*execution).or_default()
     }
 }
 
@@ -191,7 +184,7 @@ pub fn check_dag(
             .push(exec);
     };
 
-    // add the exectutions and check for duplicated UUIDs
+    // add the executions and check for duplicated UUIDs
     for exec_uuid in dag.executions.keys() {
         let exec = dag.executions.get(exec_uuid).expect("No such exec");
         let deps = exec.dependencies();

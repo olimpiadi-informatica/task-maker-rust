@@ -1,12 +1,12 @@
-use crate::execution::*;
 use crate::executor::scheduler::Scheduler;
 use crate::executor::*;
-use task_maker_store::*;
 use failure::Error;
 use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashMap};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
+use task_maker_dag::*;
+use task_maker_store::*;
 
 /// A job that is sent to a worker, this should include all the information
 /// the worker needs to start the evaluation
@@ -16,13 +16,6 @@ pub struct WorkerJob {
     pub execution: Execution,
     /// The FileStoreKeys the worker has to know to start the evaluation
     pub dep_keys: HashMap<FileUuid, FileStoreKey>,
-}
-
-/// The result of a worker job
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkerResult {
-    /// The result of the evaluation
-    pub result: ExecutionResult,
 }
 
 /// Messages that the client sends to the server
@@ -53,7 +46,7 @@ pub enum ExecutorServerMessage {
     /// The execution has started on a worker
     NotifyStart(ExecutionUuid, WorkerUuid),
     /// The execution has completed with that result
-    NotifyDone(ExecutionUuid, WorkerResult),
+    NotifyDone(ExecutionUuid, ExecutionResult),
     /// The execution has been skipped
     NotifySkip(ExecutionUuid),
     /// There was an error during the evaluation
@@ -71,7 +64,7 @@ pub enum WorkerClientMessage {
     /// The worker is ready for some job
     GetWork,
     /// The worker completed the job with this result
-    WorkerDone(WorkerResult),
+    WorkerDone(ExecutionResult),
     /// The worker is sending a file to the server. After this message there
     /// is a protocol switch for the file transmission
     ProvideFile(FileUuid, FileStoreKey),
@@ -354,7 +347,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                     }
                     exec_uuid
                 };
-                match result.result.status {
+                match result.status {
                     ExecutionStatus::Success => {}
                     _ => Scheduler::exec_failed(executor.clone(), exec_uuid),
                 }

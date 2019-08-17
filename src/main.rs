@@ -5,6 +5,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
 
+extern crate task_maker_dag;
 extern crate task_maker_store;
 
 extern crate serde;
@@ -66,9 +67,9 @@ fn main() {
 
     use crate::evaluation::*;
     use crate::executor::*;
-    use task_maker_store::*;
     use crate::task_types::ioi::*;
     use std::sync::{Arc, Mutex};
+    use task_maker_store::*;
 
     let (eval, receiver) = EvaluationData::new();
     let ui = opt.ui;

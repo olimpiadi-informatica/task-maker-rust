@@ -1,7 +1,7 @@
-use crate::execution::*;
 use crate::executor::*;
 use std::collections::{BinaryHeap, HashMap};
 use std::sync::{Arc, Mutex};
+use task_maker_dag::*;
 
 /// A set of utilites to schedule tasks between workers
 pub struct Scheduler;

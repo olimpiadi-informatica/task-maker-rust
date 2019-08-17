@@ -1,9 +1,9 @@
 use crate::evaluation::*;
-use crate::execution::*;
 use crate::executor::*;
-use task_maker_store::*;
 use failure::Error;
 use std::io::Write;
+use task_maker_dag::*;
+use task_maker_store::*;
 
 /// This is a client of the Executor, the client is who sends a DAG for an
 /// evaluation, provides some files and receives the callbacks from the server.
@@ -52,7 +52,7 @@ impl ExecutorClient {
                 Ok(ExecutorServerMessage::ProvideFile(uuid)) => {
                     info!("Server sent the file {}", uuid);
                     let iterator = ChannelFileIterator::new(&receiver);
-                    if let Some(callback) = eval.dag.file_callbacks.get(&uuid) {
+                    if let Some(callback) = eval.dag.file_callbacks.get_mut(&uuid) {
                         let limit = callback
                             .get_content
                             .as_ref()
@@ -76,8 +76,8 @@ impl ExecutorClient {
                             }
                         }
 
-                        if let Some(get_content) = callback.get_content.as_ref().map(|(_, f)| f) {
-                            get_content(buffer);
+                        if let Some(get_content) = callback.get_content.take().map(|(_, f)| f) {
+                            get_content.call(buffer);
                         }
                     } else {
                         iterator.last();

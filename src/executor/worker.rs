@@ -1,16 +1,12 @@
-use crate::execution::*;
 use crate::executor::*;
-use task_maker_store::*;
 use failure::{Error, Fail};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use task_maker_dag::*;
+use task_maker_store::*;
 use uuid::Uuid;
-
-/// The identifier of a worker, it's globally unique and identifies the worker
-/// during a single connection.
-pub type WorkerUuid = Uuid;
 
 /// The information about the current job the worker is doing
 struct WorkerCurrentJob {
@@ -203,11 +199,7 @@ fn execute_job(
             let result = compute_execution_result(&job.execution, result);
             let status = result.status.clone();
 
-            serialize_into(
-                &WorkerClientMessage::WorkerDone(WorkerResult { result }),
-                &sender,
-            )
-            .unwrap();
+            serialize_into(&WorkerClientMessage::WorkerDone(result), &sender).unwrap();
 
             let send_file = |uuid: FileUuid, path: PathBuf| {
                 serialize_into(

@@ -1,4 +1,5 @@
 use crate::evaluation::*;
+use crate::execution::SourceFile;
 use crate::task_types::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -199,11 +200,14 @@ impl Generator<IOISubtaskId, IOITestcaseId> for IOIGenerator {
         subtask: IOISubtaskId,
         testcase: IOITestcaseId,
     ) -> (File, Option<Execution>) {
-        let mut exec = self.source_file.execute(
-            eval,
-            &format!("Generation of testcase {}", testcase),
-            self.args.clone(),
-        );
+        let mut exec = self
+            .source_file
+            .execute(
+                eval,
+                &format!("Generation of testcase {}", testcase),
+                self.args.clone(),
+            )
+            .expect("Failed to generate source file");
         let stdout = exec.stdout();
         eval.sender
             .send(UIMessage::IOIGeneration {
@@ -224,11 +228,14 @@ impl Validator<IOISubtaskId, IOITestcaseId> for IOIValidator {
         _subtask: IOISubtaskId,
         testcase: IOITestcaseId,
     ) -> (File, Option<Execution>) {
-        let mut exec = self.source_file.execute(
-            eval,
-            &format!("Validation of testcase {}", testcase),
-            self.args.clone(),
-        );
+        let mut exec = self
+            .source_file
+            .execute(
+                eval,
+                &format!("Validation of testcase {}", testcase),
+                self.args.clone(),
+            )
+            .expect("Failed to validate source file");
         exec.stdin(&input);
         exec.input(&input, Path::new("input.txt"), false);
         let stdout = exec.stdout();
@@ -245,15 +252,18 @@ impl Solution<IOISubtaskId, IOITestcaseId> for IOISolution {
         _subtask: IOISubtaskId,
         testcase: IOITestcaseId,
     ) -> (File, Option<Execution>) {
-        let mut exec = self.source_file.execute(
-            eval,
-            &format!(
-                "Execution of {} on testcase {}",
-                self.source_file.name(),
-                testcase
-            ),
-            vec![],
-        );
+        let mut exec = self
+            .source_file
+            .execute(
+                eval,
+                &format!(
+                    "Execution of {} on testcase {}",
+                    self.source_file.name(),
+                    testcase
+                ),
+                vec![],
+            )
+            .expect("Failed to solve source file");
         if let Some(infile) = &self.infile {
             exec.input(&input, infile, false);
         } else {

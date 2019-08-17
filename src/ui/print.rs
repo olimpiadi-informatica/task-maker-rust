@@ -1,7 +1,7 @@
-use crate::execution::ExecutionStatus;
 use crate::ui::*;
 use itertools::Itertools;
 use std::io::Write;
+use task_maker_dag::ExecutionStatus;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 /// A simple UI that will print to stdout the human readable messages. Useful
@@ -48,7 +48,7 @@ impl PrintUI {
         match status {
             UIExecutionStatus::Pending => write!(&mut self.stdout, "[PENDING] ").unwrap(),
             UIExecutionStatus::Started { .. } => write!(&mut self.stdout, "[STARTED] ").unwrap(),
-            UIExecutionStatus::Done { result } => match result.result.status {
+            UIExecutionStatus::Done { result } => match result.status {
                 ExecutionStatus::Success => self.write_info("[DONE]    ".to_owned()),
                 _ => self.write_warning("[DONE]    ".to_owned()),
             },
@@ -65,7 +65,7 @@ impl PrintUI {
                 write!(&mut self.stdout, "Worker: {:?}", worker).unwrap();
             }
             UIExecutionStatus::Done { result } => {
-                self.write_execution_status(&result.result.status);
+                self.write_execution_status(&result.status);
             }
             UIExecutionStatus::Skipped => {}
         }

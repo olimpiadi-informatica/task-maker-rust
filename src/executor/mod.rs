@@ -45,11 +45,11 @@ where
 #[cfg(test)]
 mod tests {
     use crate::evaluation::*;
-    use crate::execution::*;
     use crate::test_utils::*;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use task_maker_dag::*;
 
     #[test]
     fn test_local_evaluation() {
@@ -83,7 +83,7 @@ mod tests {
         let exec2_start2 = exec2_start.clone();
         let exec3_skipped = Arc::new(AtomicBool::new(false));
         let exec3_skipped2 = exec3_skipped.clone();
-        eval.dag.provide_file(file, Path::new("/dev/null"));
+        eval.dag.provide_file(file, Path::new("/dev/null")).unwrap();
         eval.dag.on_execution_done(&exec.uuid, move |_res| {
             exec_done.store(true, Ordering::Relaxed)
         });

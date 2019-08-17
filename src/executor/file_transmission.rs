@@ -1,8 +1,8 @@
 use crate::executor::*;
-use task_maker_store::ReadFileIterator;
 use failure::Error;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use task_maker_store::ReadFileIterator;
 
 /// Messages sent during the FileProtocol operation, ie during the transfer
 /// of a file

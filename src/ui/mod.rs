@@ -1,10 +1,10 @@
-use crate::executor::*;
 use crate::task_types::ioi::*;
 use failure::Error;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use task_maker_dag::ExecutionResult;
 
 mod curses;
 mod ioi_state;
@@ -23,7 +23,7 @@ pub enum UIExecutionStatus {
     /// The Execution has been started on a worker.
     Started { worker: String },
     /// The Execution has been completed.
-    Done { result: WorkerResult },
+    Done { result: ExecutionResult },
     /// At least one of its dependencies have failed, the Execution has been
     /// skipped.
     Skipped,

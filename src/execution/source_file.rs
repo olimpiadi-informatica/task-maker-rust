@@ -1,10 +1,11 @@
 use crate::evaluation::*;
-use crate::execution::*;
 use crate::languages::*;
 use crate::task_types::*;
 use crate::ui::*;
+use failure::Error;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use task_maker_dag::*;
 
 /// A source file that will be able to be execute (with an optional
 /// compilation step).
@@ -45,8 +46,8 @@ impl SourceFile {
         eval: &mut EvaluationData,
         description: &str,
         args: Vec<String>,
-    ) -> Execution {
-        self.prepare(eval);
+    ) -> Result<Execution, Error> {
+        self.prepare(eval)?;
         let mut exec = Execution::new(description, self.language.runtime_command(&self.path));
         exec.args = self.language.runtime_args(&self.path, args);
         exec.input(
@@ -56,16 +57,16 @@ impl SourceFile {
         );
         for dep in self.language.runtime_dependencies(&self.path) {
             exec.input(&dep.file, &dep.sandbox_path, dep.executable);
-            eval.dag.provide_file(dep.file, &dep.local_path);
+            eval.dag.provide_file(dep.file, &dep.local_path)?;
         }
         if let Some(grader_map) = self.grader_map.as_ref() {
             for dep in grader_map.get_runtime_deps(self.language.as_ref()) {
                 exec.input(&dep.file, &dep.sandbox_path, dep.executable);
                 exec.args = self.language.runtime_add_file(exec.args, &dep.sandbox_path);
-                eval.dag.provide_file(dep.file, &dep.local_path);
+                eval.dag.provide_file(dep.file, &dep.local_path)?;
             }
         }
-        exec
+        Ok(exec)
     }
 
     /// The name of the source file, it's based on the name of the file.
@@ -75,9 +76,9 @@ impl SourceFile {
 
     /// Prepare the source file setting the `executable` and eventually
     /// compiling the source file.
-    fn prepare(&self, eval: &mut EvaluationData) {
+    fn prepare(&self, eval: &mut EvaluationData) -> Result<(), Error> {
         if self.executable.lock().unwrap().is_some() {
-            return;
+            return Ok(());
         }
         if self.language.need_compilation() {
             let mut comp = Execution::new(
@@ -90,7 +91,7 @@ impl SourceFile {
             comp.limits.nproc = None;
             for dep in self.language.compilation_dependencies(&self.path) {
                 comp.input(&dep.file, &dep.sandbox_path, dep.executable);
-                eval.dag.provide_file(dep.file, &dep.local_path);
+                eval.dag.provide_file(dep.file, &dep.local_path)?;
             }
             if let Some(grader_map) = self.grader_map.as_ref() {
                 for dep in grader_map.get_compilation_deps(self.language.as_ref()) {
@@ -98,11 +99,11 @@ impl SourceFile {
                     comp.args = self
                         .language
                         .compilation_add_file(comp.args, &dep.sandbox_path);
-                    eval.dag.provide_file(dep.file, &dep.local_path);
+                    eval.dag.provide_file(dep.file, &dep.local_path)?;
                 }
             }
             let exec = comp.output(&self.language.executable_name(&self.path));
-            eval.dag.provide_file(source, &self.path);
+            eval.dag.provide_file(source, &self.path)?;
             let (sender1, path1) = (eval.sender.clone(), self.path.clone());
             let (sender2, path2) = (eval.sender.clone(), self.path.clone());
             let (sender3, path3) = (eval.sender.clone(), self.path.clone());
@@ -143,8 +144,9 @@ impl SourceFile {
         } else {
             let executable = File::new(&format!("Source file of {:?}", self.path));
             *self.executable.lock().unwrap() = Some(executable.clone());
-            eval.dag.provide_file(executable, &self.path);
+            eval.dag.provide_file(executable, &self.path)?;
         }
+        Ok(())
     }
 }
 
@@ -167,7 +169,7 @@ mod tests {
             .write_all(source.as_bytes())
             .unwrap();
         let source = SourceFile::new(&source_path, None).unwrap();
-        let exec = source.execute(&mut eval, "Testing exec", vec![]);
+        let exec = source.execute(&mut eval, "Testing exec", vec![]).unwrap();
 
         let exec_start = Arc::new(AtomicBool::new(false));
         let exec_start2 = exec_start.clone();

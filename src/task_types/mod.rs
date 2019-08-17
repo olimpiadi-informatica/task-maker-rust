@@ -1,5 +1,4 @@
 use crate::evaluation::*;
-use crate::execution::*;
 use crate::executor::*;
 use crate::score_types::*;
 use crate::ui::*;
@@ -11,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use task_maker_dag::*;
 
 mod common;
 mod grader_map;
@@ -647,7 +647,7 @@ fn bind_evaluation_callbacks<SubtaskId, TestcaseId>(
     eval.dag.on_execution_done(&exec.uuid, move |result| {
         // if the solution failed the checker won't run and the score of
         // this testcase won't be set, manually set it to zero.
-        match result.result.status {
+        match result.status {
             ExecutionStatus::Success => {}
             _ => {
                 score_type

@@ -45,7 +45,9 @@ where
         _testcase: TestcaseId,
     ) -> (File, Option<Execution>) {
         let file = File::new(&self.description);
-        eval.dag.provide_file(file.clone(), &self.path);
+        eval.dag
+            .provide_file(file.clone(), &self.path)
+            .expect("Failed to provide the file");
         (file, None)
     }
 }
@@ -64,7 +66,9 @@ where
         _testcase: TestcaseId,
     ) -> (File, Option<Execution>) {
         let file = File::new(&self.description);
-        eval.dag.provide_file(file.clone(), &self.path);
+        eval.dag
+            .provide_file(file.clone(), &self.path)
+            .expect("Failed to provide the file");
         (file, None)
     }
 }
@@ -97,7 +101,7 @@ where
         exec.input(&output, Path::new("correct"), false);
         exec.input(&test, Path::new("test"), false);
         eval.dag
-            .on_execution_done(&exec.uuid, move |result| match result.result.status {
+            .on_execution_done(&exec.uuid, move |result| match result.status {
                 ExecutionStatus::Success => callback.call(CheckerResult::new(1.0, None)),
                 _ => callback.call(CheckerResult::new(0.0, None)),
             });

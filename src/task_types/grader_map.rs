@@ -1,7 +1,7 @@
-use crate::execution::*;
 use crate::languages::{Dependency, Language, LanguageManager};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use task_maker_dag::*;
 
 /// The storage of the compilation/runtime graders of the solutions.
 #[derive(Debug)]

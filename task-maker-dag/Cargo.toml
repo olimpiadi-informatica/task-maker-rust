@@ -1,0 +1,12 @@
+[package]
+name = "task-maker-dag"
+version = "0.1.0"
+authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+task-maker-store = { path = "../task-maker-store" }
+serde = { version = "1.0", features = ["derive", "rc"] }
+boxfnonce = "0.1"
+uuid = { version = "0.7", features = ["v4", "serde"] }
+failure = "0.1"

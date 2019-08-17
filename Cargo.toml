@@ -7,6 +7,7 @@ build = "build.rs"
 
 [dependencies]
 task-maker-store = { path = "./task-maker-store" }
+task-maker-dag = { path = "./task-maker-dag" }
 serde = { version = "1.0.88", features = ["derive", "rc"] }
 serde_json = "1.0"
 serde_yaml = "0.8"

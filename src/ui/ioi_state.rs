@@ -1,5 +1,5 @@
-use crate::execution::*;
 use crate::ui::*;
+use task_maker_dag::*;
 
 /// The status of the compilation of a file.
 #[derive(Debug)]
@@ -9,9 +9,9 @@ pub enum CompilationStatus {
     /// The compilation is running on a worker.
     Running,
     /// The compilation has completed.
-    Done { result: WorkerResult },
+    Done { result: ExecutionResult },
     /// The compilation has failed.
-    Failed { result: WorkerResult },
+    Failed { result: ExecutionResult },
     /// The compilation has been skipped.
     Skipped,
 }
@@ -76,11 +76,11 @@ pub struct TestcaseGenerationState {
     /// Status of the generation.
     pub status: TestcaseGenerationStatus,
     /// Result of the generation.
-    pub generation: Option<WorkerResult>,
+    pub generation: Option<ExecutionResult>,
     /// Result of the validation.
-    pub validation: Option<WorkerResult>,
+    pub validation: Option<ExecutionResult>,
     /// Result of the solution.
-    pub solution: Option<WorkerResult>,
+    pub solution: Option<ExecutionResult>,
 }
 
 /// State of the generation of a subtask.
@@ -98,9 +98,9 @@ pub struct SolutionTestcaseEvaluationState {
     /// The status of the execution.
     pub status: TestcaseEvaluationStatus,
     /// The result of the solution.
-    pub result: Option<WorkerResult>,
+    pub result: Option<ExecutionResult>,
     /// The result of the checker.
-    pub checker: Option<WorkerResult>,
+    pub checker: Option<ExecutionResult>,
 }
 
 /// State of the evaluation of a subtask.
@@ -272,7 +272,7 @@ impl IOIUIState {
                     UIExecutionStatus::Pending => *comp = CompilationStatus::Pending,
                     UIExecutionStatus::Started { .. } => *comp = CompilationStatus::Running,
                     UIExecutionStatus::Done { result } => {
-                        if let ExecutionStatus::Success = result.result.status {
+                        if let ExecutionStatus::Success = result.status {
                             *comp = CompilationStatus::Done { result };
                         } else {
                             *comp = CompilationStatus::Failed { result };
@@ -299,7 +299,7 @@ impl IOIUIState {
                         gen.status = TestcaseGenerationStatus::Generating
                     }
                     UIExecutionStatus::Done { result } => {
-                        if let ExecutionStatus::Success = result.result.status {
+                        if let ExecutionStatus::Success = result.status {
                             gen.status = TestcaseGenerationStatus::Generated;
                         } else {
                             gen.status = TestcaseGenerationStatus::Failed;
@@ -327,7 +327,7 @@ impl IOIUIState {
                         gen.status = TestcaseGenerationStatus::Validating
                     }
                     UIExecutionStatus::Done { result } => {
-                        if let ExecutionStatus::Success = result.result.status {
+                        if let ExecutionStatus::Success = result.status {
                             gen.status = TestcaseGenerationStatus::Validated;
                         } else {
                             gen.status = TestcaseGenerationStatus::Failed;
@@ -360,7 +360,7 @@ impl IOIUIState {
                         gen.status = TestcaseGenerationStatus::Solving
                     }
                     UIExecutionStatus::Done { result } => {
-                        if let ExecutionStatus::Success = result.result.status {
+                        if let ExecutionStatus::Success = result.status {
                             gen.status = TestcaseGenerationStatus::Solved;
                         } else {
                             gen.status = TestcaseGenerationStatus::Failed;
@@ -396,7 +396,7 @@ impl IOIUIState {
                         testcase.status = TestcaseEvaluationStatus::Solving
                     }
                     UIExecutionStatus::Done { result } => {
-                        match result.result.status {
+                        match result.status {
                             ExecutionStatus::Success => {
                                 testcase.status = TestcaseEvaluationStatus::Solved
                             }

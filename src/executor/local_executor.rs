@@ -1,8 +1,8 @@
 use crate::executor::*;
-use task_maker_store::*;
 use failure::Error;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use task_maker_store::*;
 
 /// An Executor that runs locally
 pub struct LocalExecutor {

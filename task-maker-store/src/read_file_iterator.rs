@@ -10,7 +10,7 @@ type ReadFileBuffer = [u8; READ_FILE_BUFFER_SIZE];
 
 /// Struct implementing the Iterator trait which will iterate over the content
 /// of a file.
-/// 
+///
 /// # Example
 ///
 /// ```

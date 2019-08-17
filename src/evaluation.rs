@@ -1,7 +1,7 @@
-use crate::execution::*;
 use crate::ui::*;
 use failure::Error;
 use std::sync::{Arc, Mutex};
+use task_maker_dag::*;
 
 /// The data for an evaluation, including the DAG and the UI channel.
 pub struct EvaluationData {

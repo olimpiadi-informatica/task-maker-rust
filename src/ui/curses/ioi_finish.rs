@@ -37,13 +37,13 @@ fn print_compilations(stdout: &mut StandardStream, state: &IOIUIState) -> Result
             match status {
                 CompilationStatus::Done { result } => format!(
                     "Done | {:.3}s | {:.1}MiB",
-                    result.result.resources.cpu_time,
-                    (result.result.resources.memory as f64) / 1024.0
+                    result.resources.cpu_time,
+                    (result.resources.memory as f64) / 1024.0
                 ),
                 CompilationStatus::Failed { result } => format!(
                     "Fail | {:.3}s | {:.1}MiB",
-                    result.result.resources.cpu_time,
-                    (result.result.resources.memory as f64) / 1024.0
+                    result.resources.cpu_time,
+                    (result.resources.memory as f64) / 1024.0
                 ),
                 _ => format!("{:?}", status),
             }
@@ -119,12 +119,12 @@ fn print_evaluation(
                 testcase
                     .result
                     .as_ref()
-                    .map(|r| r.result.resources.cpu_time)
+                    .map(|r| r.resources.cpu_time)
                     .unwrap_or(0.0),
                 (testcase
                     .result
                     .as_ref()
-                    .map(|r| r.result.resources.memory)
+                    .map(|r| r.resources.memory)
                     .unwrap_or(0) as f64)
                     / 1024.0,
                 format!("{:?}", testcase.status)

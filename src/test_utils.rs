@@ -2,12 +2,12 @@
 pub mod test_utils {
     use crate::evaluation::*;
     use crate::executor::*;
-    use task_maker_store::*;
     use std::path::Path;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc::channel;
     use std::sync::{Arc, Mutex};
     use std::thread;
+    use task_maker_store::*;
     use tempdir::TempDir;
 
     pub fn setup_test() -> TempDir {
