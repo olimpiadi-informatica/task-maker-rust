@@ -15,6 +15,8 @@
 //! All the tasks are run inside a [`Sandbox`](struct.Sandbox.html) provided by
 //! [`tmbox`](https://github.com/veluca93/tmbox).
 
+#![deny(missing_docs)]
+
 extern crate failure;
 #[macro_use]
 extern crate log;

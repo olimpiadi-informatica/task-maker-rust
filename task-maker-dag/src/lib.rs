@@ -37,6 +37,8 @@
 //! dag.get_file_content(&output, 1000, |date| println!("The date is: {}", std::str::from_utf8(&date).unwrap()));
 //! ```
 
+#![deny(missing_docs)]
+
 extern crate boxfnonce;
 extern crate failure;
 extern crate serde;

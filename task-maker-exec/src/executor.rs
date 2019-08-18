@@ -17,22 +17,39 @@ pub enum DAGError {
     /// A file is used as input in an execution but it's missing, or a callback is registered on a
     /// file but it's missing.
     #[fail(display = "missing file {} ({})", description, uuid)]
-    MissingFile { uuid: FileUuid, description: String },
+    MissingFile {
+        /// The UUID of the missing file.
+        uuid: FileUuid,
+        /// The description of the missing file.
+        description: String
+    },
     /// A callback is registered on an execution but it's missing.
     #[fail(display = "missing execution {}", uuid)]
-    MissingExecution { uuid: FileUuid },
+    MissingExecution {
+        /// The UUID of the missing execution.
+        uuid: ExecutionUuid
+    },
     /// There is a dependency cycle in the DAG.
     #[fail(
         display = "detected dependency cycle, '{}' is in the cycle",
         description
     )]
-    CycleDetected { description: String },
+    CycleDetected {
+        /// The description of an execution inside the cycle.
+        description: String
+    },
     /// There is a duplicate execution UUID.
     #[fail(display = "duplicate execution UUID {}", uuid)]
-    DuplicateExecutionUUID { uuid: ExecutionUuid },
+    DuplicateExecutionUUID {
+        /// The duplicated UUID.
+        uuid: ExecutionUuid
+    },
     /// There is a duplicate file UUID.
     #[fail(display = "duplicate file UUID {}", uuid)]
-    DuplicateFileUUID { uuid: FileUuid },
+    DuplicateFileUUID {
+        /// The duplicated UUID.
+        uuid: FileUuid
+    },
 }
 
 /// List of the _interesting_ files and executions, only the callbacks listed here will be called by

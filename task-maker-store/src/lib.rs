@@ -33,6 +33,8 @@
 //! # }
 //! ```
 
+#![deny(missing_docs)]
+
 extern crate blake2;
 extern crate chrono;
 extern crate failure;
