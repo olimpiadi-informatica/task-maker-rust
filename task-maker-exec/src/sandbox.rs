@@ -10,7 +10,15 @@ use task_maker_store::*;
 use tempdir::TempDir;
 
 /// The list of all the system-wide readable directories inside the sandbox.
-const READABLE_DIRS: &'static [&'static str] = &["/lib", "/lib64", "/usr", "/bin"];
+const READABLE_DIRS: &[&str] = &[
+    "/lib",
+    "/lib64",
+    "/usr",
+    "/bin",
+    // update-alternatives stuff, sometimes the executables are symlinked here
+    "/var/lib/dpkg/alternatives/",
+    "/etc/alternatives/",
+];
 
 /// Result of the execution of the sandbox.
 #[derive(Debug)]
@@ -144,7 +152,9 @@ impl Sandbox {
         }
         // allow reading some basic directories
         for dir in READABLE_DIRS {
-            sandbox.arg("--readable-dir").arg(dir);
+            if Path::new(dir).is_dir() {
+                sandbox.arg("--readable-dir").arg(dir);
+            }
         }
         sandbox.arg("--");
         match &self.execution.command {
