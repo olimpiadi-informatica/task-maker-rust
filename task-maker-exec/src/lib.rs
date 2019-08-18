@@ -29,11 +29,11 @@ extern crate uuid;
 extern crate which;
 
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use task_maker_store::FileStore;
 use task_maker_dag::ExecutionDAG;
+use task_maker_store::FileStore;
 
 pub use client::*;
 pub use executor::*;
@@ -84,7 +84,8 @@ pub fn eval_dag_locally<P: Into<PathBuf>>(dag: ExecutionDAG, store_dir: P, num_c
     let store_dir = store_dir.into();
     let server = thread::spawn(move || {
         let file_store = FileStore::new(store_dir).expect("Cannot create the file store");
-        let mut executor = executors::LocalExecutor::new(Arc::new(Mutex::new(file_store)), num_cores);
+        let mut executor =
+            executors::LocalExecutor::new(Arc::new(Mutex::new(file_store)), num_cores);
         executor.evaluate(tx_remote, rx_remote).unwrap();
     });
     ExecutorClient::evaluate(dag, tx, rx).unwrap();
@@ -101,8 +102,8 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc::channel;
     use std::sync::Arc;
-    use tempdir::TempDir;
     use task_maker_dag::*;
+    use tempdir::TempDir;
 
     use super::*;
 

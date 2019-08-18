@@ -83,7 +83,10 @@ impl Worker {
     /// Make a new worker attached to a [`FileStore`](../task_maker_store/struct.FileStore.html),
     /// will return a pair with the actual `Worker` and an handle with the channels to connect to
     /// communicate with the worker.
-    pub fn new<S: Into<String> + Clone>(name: S, file_store: Arc<Mutex<FileStore>>) -> (Worker, WorkerConn) {
+    pub fn new<S: Into<String> + Clone>(
+        name: S,
+        file_store: Arc<Mutex<FileStore>>,
+    ) -> (Worker, WorkerConn) {
         let (tx, rx_worker) = channel();
         let (tx_worker, rx) = channel();
         let uuid = Uuid::new_v4();

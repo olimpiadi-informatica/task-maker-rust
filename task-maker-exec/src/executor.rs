@@ -21,13 +21,13 @@ pub enum DAGError {
         /// The UUID of the missing file.
         uuid: FileUuid,
         /// The description of the missing file.
-        description: String
+        description: String,
     },
     /// A callback is registered on an execution but it's missing.
     #[fail(display = "missing execution {}", uuid)]
     MissingExecution {
         /// The UUID of the missing execution.
-        uuid: ExecutionUuid
+        uuid: ExecutionUuid,
     },
     /// There is a dependency cycle in the DAG.
     #[fail(
@@ -36,19 +36,19 @@ pub enum DAGError {
     )]
     CycleDetected {
         /// The description of an execution inside the cycle.
-        description: String
+        description: String,
     },
     /// There is a duplicate execution UUID.
     #[fail(display = "duplicate execution UUID {}", uuid)]
     DuplicateExecutionUUID {
         /// The duplicated UUID.
-        uuid: ExecutionUuid
+        uuid: ExecutionUuid,
     },
     /// There is a duplicate file UUID.
     #[fail(display = "duplicate file UUID {}", uuid)]
     DuplicateFileUUID {
         /// The duplicated UUID.
-        uuid: FileUuid
+        uuid: FileUuid,
     },
 }
 

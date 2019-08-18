@@ -39,7 +39,7 @@ where
     TestcaseId: Eq + PartialOrd + Hash + Copy,
 {
     fn generate(
-        &self,
+        &mut self,
         eval: &mut EvaluationData,
         _subtask: SubtaskId,
         _testcase: TestcaseId,
@@ -58,7 +58,7 @@ where
     TestcaseId: Eq + PartialOrd + Hash + Copy,
 {
     fn solve(
-        &self,
+        &mut self,
         eval: &mut EvaluationData,
         _input: File,
         _validation: Option<File>,
@@ -79,7 +79,7 @@ where
     TestcaseId: Eq + PartialOrd + Hash + Copy,
 {
     fn check(
-        &self,
+        &mut self,
         eval: &mut EvaluationData,
         _input: File,
         output: Option<File>,

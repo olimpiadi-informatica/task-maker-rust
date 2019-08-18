@@ -14,11 +14,9 @@ use task_maker_exec::executors::*;
 use task_maker_exec::*;
 
 mod common;
-mod grader_map;
 pub mod ioi;
 
 pub use common::*;
-pub use grader_map::*;
 
 type ScoreTypeShared<SubtaskId, TestcaseId> = Arc<Mutex<Box<dyn ScoreType<SubtaskId, TestcaseId>>>>;
 
@@ -51,7 +49,7 @@ where
     /// Generate an input file editing the DAG and returning the uuid of the
     /// file.
     fn generate(
-        &self,
+        &mut self,
         eval: &mut EvaluationData,
         subtask: SubtaskId,
         testcase: TestcaseId,
@@ -69,7 +67,7 @@ where
     /// Validate the input file editing the DAG and returing an artifact of the
     /// validator, something to keep tracks of the dependencies.
     fn validate(
-        &self,
+        &mut self,
         eval: &mut EvaluationData,
         input: File,
         subtask: SubtaskId,
@@ -88,7 +86,7 @@ where
     /// Generate the output file editing the DAG and returning the uuid of the
     /// output file.
     fn solve(
-        &self,
+        &mut self,
         eval: &mut EvaluationData,
         input: File,
         validation: Option<File>,
@@ -108,7 +106,7 @@ where
     /// Add the checking process to the DAG and call the callback when the
     /// checker is done
     fn check(
-        &self,
+        &mut self,
         eval: &mut EvaluationData,
         input: File,
         output: Option<File>,
@@ -295,146 +293,146 @@ pub trait Task<
         options: &EvaluationOptions,
         mut executor: LocalExecutor,
     ) {
-        let subtasks = self.subtasks();
-        let solutions = self.solutions();
-        let interface = self.get_ui_interface().clone();
-        interface.task_info(eval.sender.clone());
-        // the scores of the solutions, the values must be thread-safe because
-        // they are changed in other threads during the evaluation.
-        let solutions_scores: HashMap<PathBuf, ScoreTypeShared<SubtaskId, TestcaseId>> = solutions
-            .keys()
-            .map(|sol| {
-                let mut score_type = self.score_type().boxed();
-                let get_subtask_score_callback =
-                    |sender: Arc<Mutex<UIMessageSender>>,
-                     interface: Arc<TaskUIInterface<SubtaskId, TestcaseId>>,
-                     name: PathBuf| {
-                        move |subtask, score| {
-                            interface.subtask_score(sender.clone(), subtask, name.clone(), score);
-                        }
-                    };
-                score_type.get_subtask_score(Box::new(get_subtask_score_callback(
-                    eval.sender.clone(),
-                    interface.clone(),
-                    sol.clone(),
-                )));
-                let get_task_score_callback =
-                    |sender: Arc<Mutex<UIMessageSender>>,
-                     interface: Arc<TaskUIInterface<SubtaskId, TestcaseId>>,
-                     name: PathBuf| {
-                        move |score| {
-                            interface.task_score(sender.clone(), name.clone(), score);
-                        }
-                    };
-                score_type.get_task_score(Box::new(get_task_score_callback(
-                    eval.sender.clone(),
-                    interface.clone(),
-                    sol.clone(),
-                )));
-                (sol.clone(), Arc::new(Mutex::new(score_type)))
-            })
-            .collect();
-
-        for (st_num, _st) in subtasks.iter() {
-            for (tc_num, tc) in self.testcases(*st_num).iter() {
-                // STEP 1: generate the input file
-                let (input, exec) = tc.generator().generate(&mut eval, *st_num, *tc_num);
-                if let Some(path) = tc.write_input_to() {
-                    if !options.dry_run() {
-                        eval.dag.write_file_to(&input, &self.path().join(path));
-                    }
-                }
-                if let Some(exec) = exec {
-                    bind_generation_callbacks(&interface, exec, &mut eval, *st_num, *tc_num);
-                }
-
-                // STEP 2: validate the input file if there is a validator
-                let val = if let Some(validator) = tc.validator() {
-                    let (val, exec) =
-                        validator.validate(&mut eval, input.clone(), *st_num, *tc_num);
-                    if let Some(exec) = exec {
-                        bind_validation_callbacks(&interface, exec, &mut eval, *st_num, *tc_num);
-                    }
-                    Some(val)
-                } else {
-                    None
-                };
-
-                // STEP 3: generate the output file
-                let solution = tc.solution();
-                let (output, exec) = solution.solve(
-                    &mut eval,
-                    input.clone(),
-                    val.as_ref().cloned(),
-                    *st_num,
-                    *tc_num,
-                );
-                if let Some(exec) = exec {
-                    bind_solution_callbacks(&interface, exec, &mut eval, *st_num, *tc_num);
-                }
-                if let Some(ref path) = &tc.write_output_to() {
-                    if !options.dry_run() {
-                        eval.dag.write_file_to(&output, &self.path().join(path));
-                    }
-                }
-
-                // STEP 4: evaluate all the solutions on this testcase
-                for (sol_path, sol) in solutions.iter() {
-                    let score_type = solutions_scores[sol_path].clone();
-                    // STEP 4a: execute the solution with the input file
-                    let (sol_output, exec) =
-                        sol.solve(&mut eval, input.clone(), val.clone(), *st_num, *tc_num);
-                    if let Some(exec) = exec {
-                        bind_evaluation_callbacks(
-                            &interface,
-                            exec,
-                            &mut eval,
-                            *st_num,
-                            *tc_num,
-                            sol_path.clone(),
-                            score_type.clone(),
-                        );
-                    }
-                    let sol_path2 = sol_path.clone();
-                    let st_num2 = *st_num;
-                    let tc_num2 = *tc_num;
-                    let interface2 = interface.clone();
-                    let sender2 = eval.sender.clone();
-                    // STEP 4b: run the checker on the outcome and store the result.
-                    let exec = self.checker(*st_num, *tc_num).check(
-                        &mut eval,
-                        input.clone(),
-                        Some(output.clone()),
-                        sol_output,
-                        *st_num,
-                        *tc_num,
-                        BoxFnOnce::new(move |res: CheckerResult| {
-                            let mut score_type = score_type.lock().unwrap();
-                            score_type.testcase_score(st_num2, tc_num2, res.score);
-                            interface2
-                                .testcase_score(sender2, st_num2, tc_num2, sol_path2, res.score);
-                        }),
-                    );
-
-                    bind_checker_callbacks(
-                        &interface,
-                        exec,
-                        &mut eval,
-                        *st_num,
-                        *tc_num,
-                        sol_path.clone(),
-                    );
-                }
-            }
-        }
-
-        let (tx, rx_remote) = channel();
-        let (tx_remote, rx) = channel();
-        let server = thread::spawn(move || {
-            executor.evaluate(tx_remote, rx_remote).unwrap();
-        });
-        ExecutorClient::evaluate(eval.dag, tx, rx).unwrap();
-        server.join().expect("Server paniced");
+        //        let subtasks = self.subtasks();
+        //        let solutions = self.solutions();
+        //        let interface = self.get_ui_interface().clone();
+        //        interface.task_info(eval.sender.clone());
+        //        // the scores of the solutions, the values must be thread-safe because
+        //        // they are changed in other threads during the evaluation.
+        //        let solutions_scores: HashMap<PathBuf, ScoreTypeShared<SubtaskId, TestcaseId>> = solutions
+        //            .keys()
+        //            .map(|sol| {
+        //                let mut score_type = self.score_type().boxed();
+        //                let get_subtask_score_callback =
+        //                    |sender: Arc<Mutex<UIMessageSender>>,
+        //                     interface: Arc<TaskUIInterface<SubtaskId, TestcaseId>>,
+        //                     name: PathBuf| {
+        //                        move |subtask, score| {
+        //                            interface.subtask_score(sender.clone(), subtask, name.clone(), score);
+        //                        }
+        //                    };
+        //                score_type.get_subtask_score(Box::new(get_subtask_score_callback(
+        //                    eval.sender.clone(),
+        //                    interface.clone(),
+        //                    sol.clone(),
+        //                )));
+        //                let get_task_score_callback =
+        //                    |sender: Arc<Mutex<UIMessageSender>>,
+        //                     interface: Arc<TaskUIInterface<SubtaskId, TestcaseId>>,
+        //                     name: PathBuf| {
+        //                        move |score| {
+        //                            interface.task_score(sender.clone(), name.clone(), score);
+        //                        }
+        //                    };
+        //                score_type.get_task_score(Box::new(get_task_score_callback(
+        //                    eval.sender.clone(),
+        //                    interface.clone(),
+        //                    sol.clone(),
+        //                )));
+        //                (sol.clone(), Arc::new(Mutex::new(score_type)))
+        //            })
+        //            .collect();
+        //
+        //        for (st_num, _st) in subtasks.iter() {
+        //            for (tc_num, tc) in self.testcases(*st_num).iter() {
+        //                // STEP 1: generate the input file
+        //                let (input, exec) = tc.generator().generate(&mut eval, *st_num, *tc_num);
+        //                if let Some(path) = tc.write_input_to() {
+        //                    if !options.dry_run() {
+        //                        eval.dag.write_file_to(&input, &self.path().join(path));
+        //                    }
+        //                }
+        //                if let Some(exec) = exec {
+        //                    bind_generation_callbacks(&interface, exec, &mut eval, *st_num, *tc_num);
+        //                }
+        //
+        //                // STEP 2: validate the input file if there is a validator
+        //                let val = if let Some(validator) = tc.validator() {
+        //                    let (val, exec) =
+        //                        validator.validate(&mut eval, input.clone(), *st_num, *tc_num);
+        //                    if let Some(exec) = exec {
+        //                        bind_validation_callbacks(&interface, exec, &mut eval, *st_num, *tc_num);
+        //                    }
+        //                    Some(val)
+        //                } else {
+        //                    None
+        //                };
+        //
+        //                // STEP 3: generate the output file
+        //                let solution = tc.solution();
+        //                let (output, exec) = solution.solve(
+        //                    &mut eval,
+        //                    input.clone(),
+        //                    val.as_ref().cloned(),
+        //                    *st_num,
+        //                    *tc_num,
+        //                );
+        //                if let Some(exec) = exec {
+        //                    bind_solution_callbacks(&interface, exec, &mut eval, *st_num, *tc_num);
+        //                }
+        //                if let Some(ref path) = &tc.write_output_to() {
+        //                    if !options.dry_run() {
+        //                        eval.dag.write_file_to(&output, &self.path().join(path));
+        //                    }
+        //                }
+        //
+        //                // STEP 4: evaluate all the solutions on this testcase
+        //                for (sol_path, sol) in solutions.iter() {
+        //                    let score_type = solutions_scores[sol_path].clone();
+        //                    // STEP 4a: execute the solution with the input file
+        //                    let (sol_output, exec) =
+        //                        sol.solve(&mut eval, input.clone(), val.clone(), *st_num, *tc_num);
+        //                    if let Some(exec) = exec {
+        //                        bind_evaluation_callbacks(
+        //                            &interface,
+        //                            exec,
+        //                            &mut eval,
+        //                            *st_num,
+        //                            *tc_num,
+        //                            sol_path.clone(),
+        //                            score_type.clone(),
+        //                        );
+        //                    }
+        //                    let sol_path2 = sol_path.clone();
+        //                    let st_num2 = *st_num;
+        //                    let tc_num2 = *tc_num;
+        //                    let interface2 = interface.clone();
+        //                    let sender2 = eval.sender.clone();
+        //                    // STEP 4b: run the checker on the outcome and store the result.
+        //                    let exec = self.checker(*st_num, *tc_num).check(
+        //                        &mut eval,
+        //                        input.clone(),
+        //                        Some(output.clone()),
+        //                        sol_output,
+        //                        *st_num,
+        //                        *tc_num,
+        //                        BoxFnOnce::new(move |res: CheckerResult| {
+        //                            let mut score_type = score_type.lock().unwrap();
+        //                            score_type.testcase_score(st_num2, tc_num2, res.score);
+        //                            interface2
+        //                                .testcase_score(sender2, st_num2, tc_num2, sol_path2, res.score);
+        //                        }),
+        //                    );
+        //
+        //                    bind_checker_callbacks(
+        //                        &interface,
+        //                        exec,
+        //                        &mut eval,
+        //                        *st_num,
+        //                        *tc_num,
+        //                        sol_path.clone(),
+        //                    );
+        //                }
+        //            }
+        //        }
+        //
+        //        let (tx, rx_remote) = channel();
+        //        let (tx_remote, rx) = channel();
+        //        let server = thread::spawn(move || {
+        //            executor.evaluate(tx_remote, rx_remote).unwrap();
+        //        });
+        //        ExecutorClient::evaluate(eval.dag, tx, rx).unwrap();
+        //        server.join().expect("Server paniced");
     }
 }
 

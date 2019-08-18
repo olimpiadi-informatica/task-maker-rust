@@ -1,5 +1,4 @@
 use crate::evaluation::*;
-use crate::source_file::SourceFile;
 use crate::task_types::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -195,90 +194,92 @@ impl TestcaseInfo<IOISubtaskId, IOITestcaseId> for IOITestcaseInfo {
 
 impl Generator<IOISubtaskId, IOITestcaseId> for IOIGenerator {
     fn generate(
-        &self,
+        &mut self,
         eval: &mut EvaluationData,
         subtask: IOISubtaskId,
         testcase: IOITestcaseId,
     ) -> (File, Option<Execution>) {
-        let mut exec = self
-            .source_file
-            .execute(
-                eval,
-                &format!("Generation of testcase {}", testcase),
-                self.args.clone(),
-            )
-            .expect("Failed to generate source file");
-        let stdout = exec.stdout();
-        eval.sender
-            .send(UIMessage::IOIGeneration {
-                subtask,
-                testcase,
-                status: UIExecutionStatus::Pending,
-            })
-            .unwrap();
-        (stdout, Some(exec))
+        //        let mut exec = self.source_file
+        //            .execute(
+        //                eval,
+        //                &format!("Generation of testcase {}", testcase),
+        //                self.args.clone(),
+        //            )
+        //            .expect("Failed to generate source file");
+        //        let stdout = exec.stdout();
+        //        eval.sender
+        //            .send(UIMessage::IOIGeneration {
+        //                subtask,
+        //                testcase,
+        //                status: UIExecutionStatus::Pending,
+        //            })
+        //            .unwrap();
+        //        (stdout, Some(exec))
+        unimplemented!();
     }
 }
 
 impl Validator<IOISubtaskId, IOITestcaseId> for IOIValidator {
     fn validate(
-        &self,
+        &mut self,
         eval: &mut EvaluationData,
         input: File,
         _subtask: IOISubtaskId,
         testcase: IOITestcaseId,
     ) -> (File, Option<Execution>) {
-        let mut exec = self
-            .source_file
-            .execute(
-                eval,
-                &format!("Validation of testcase {}", testcase),
-                self.args.clone(),
-            )
-            .expect("Failed to validate source file");
-        exec.stdin(&input);
-        exec.input(&input, Path::new("input.txt"), false);
-        let stdout = exec.stdout();
-        (stdout, Some(exec))
+        //        let mut exec = self
+        //            .source_file
+        //            .execute(
+        //                eval,
+        //                &format!("Validation of testcase {}", testcase),
+        //                self.args.clone(),
+        //            )
+        //            .expect("Failed to validate source file");
+        //        exec.stdin(&input);
+        //        exec.input(&input, Path::new("input.txt"), false);
+        //        let stdout = exec.stdout();
+        //        (stdout, Some(exec))
+        unimplemented!();
     }
 }
 
 impl Solution<IOISubtaskId, IOITestcaseId> for IOISolution {
     fn solve(
-        &self,
+        &mut self,
         eval: &mut EvaluationData,
         input: File,
         validation: Option<File>,
         _subtask: IOISubtaskId,
         testcase: IOITestcaseId,
     ) -> (File, Option<Execution>) {
-        let mut exec = self
-            .source_file
-            .execute(
-                eval,
-                &format!(
-                    "Execution of {} on testcase {}",
-                    self.source_file.name(),
-                    testcase
-                ),
-                vec![],
-            )
-            .expect("Failed to solve source file");
-        if let Some(infile) = &self.infile {
-            exec.input(&input, infile, false);
-        } else {
-            exec.stdin(&input);
-        }
-        let output = if let Some(outfile) = &self.outfile {
-            exec.output(outfile)
-        } else {
-            exec.stdout()
-        };
-        if let Some(validation) = validation {
-            exec.input(&validation, Path::new("_tm_validation"), false);
-        }
-        exec.limits = self.limits.clone();
-        (output, Some(exec))
+        //        let mut exec = self
+        //            .source_file
+        //            .execute(
+        //                eval,
+        //                &format!(
+        //                    "Execution of {} on testcase {}",
+        //                    self.source_file.name(),
+        //                    testcase
+        //                ),
+        //                vec![],
+        //            )
+        //            .expect("Failed to solve source file");
+        //        if let Some(infile) = &self.infile {
+        //            exec.input(&input, infile, false);
+        //        } else {
+        //            exec.stdin(&input);
+        //        }
+        //        let output = if let Some(outfile) = &self.outfile {
+        //            exec.output(outfile)
+        //        } else {
+        //            exec.stdout()
+        //        };
+        //        if let Some(validation) = validation {
+        //            exec.input(&validation, Path::new("_tm_validation"), false);
+        //        }
+        //        exec.limits = self.limits.clone();
+        //        (output, Some(exec))
+        unimplemented!();
     }
 }
 

@@ -5,4 +5,5 @@ members = [
   "task-maker-dag",
   "task-maker-exec",
   "task-maker-store",
+  "task-maker-lang",
 ]

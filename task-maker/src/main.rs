@@ -6,6 +6,8 @@
 #![allow(clippy::type_complexity)]
 
 extern crate task_maker_dag;
+extern crate task_maker_exec;
+extern crate task_maker_lang;
 extern crate task_maker_store;
 
 extern crate serde;
@@ -18,14 +20,11 @@ extern crate env_logger;
 extern crate pest;
 #[macro_use]
 extern crate pest_derive;
-#[cfg(test)]
-extern crate pretty_assertions;
-#[macro_use]
-extern crate lazy_static;
 extern crate boxfnonce;
 extern crate glob;
 extern crate itertools;
-extern crate regex;
+#[cfg(test)]
+extern crate pretty_assertions;
 extern crate structopt;
 extern crate tempdir;
 extern crate termcolor;
@@ -33,8 +32,6 @@ extern crate termion;
 extern crate tui;
 
 pub mod evaluation;
-pub mod source_file;
-pub mod languages;
 pub mod score_types;
 pub mod task_types;
 pub mod ui;
