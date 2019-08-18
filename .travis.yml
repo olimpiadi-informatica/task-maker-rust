@@ -22,11 +22,9 @@ script:
   - export CC=gcc-7 CXX=g++-7
   - cargo clippy --all-targets --all-features -- -A clippy::module_inception -A clippy::new_without_default -A clippy::borrowed_box
   - cargo build --all
-  - for crate in . task-maker-*; do
-      (cd $crate && RUST_BACKTRACE=1 cargo test --all)
-    done
+  - RUST_BACKTRACE=1 cargo test --all
   - rm -rf target/doc  # make sure only our crates are present
-  - cargo doc --no-deps --package task-maker-rust $(CRATES=(task-maker-*) && echo ${CRATES[@]/#/--package })
+  - cargo doc --no-deps
   - echo '<meta http-equiv="Refresh" content="0; url=./task_maker/index.html">' > target/doc/index.html
 
 deploy:
