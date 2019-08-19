@@ -86,9 +86,7 @@ pub struct ExecutionCallbacks {
 /// let mut exec = Execution::new("some hard work", ExecutionCommand::Local("worker".into()));
 /// exec.stdin(&stdin);
 /// let stdout = exec.stdout();
-/// let mut limits = ExecutionLimits::default();
-/// limits.cpu_time(2.0).wall_time(3.0).memory(1024);
-/// exec.limits(limits);
+/// exec.limits_mut().cpu_time(2.0).wall_time(3.0).memory(1024);
 ///
 /// // second execution, will run after the first because it depends on its output, only if the
 /// // first is successful. Will take the stdout of the first as a file input and will capture the
@@ -471,18 +469,15 @@ impl Execution {
     /// use task_maker_dag::{Execution, ExecutionCommand, ExecutionLimits};
     ///
     /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::Local("foo".into()));
-    /// let mut limits = ExecutionLimits::default();
-    /// limits.cpu_time(2.0).sys_time(0.5).wall_time(3.0).memory(1024).nproc(10);
-    /// exec.limits(limits);
+    /// exec.limits_mut().cpu_time(2.0).sys_time(0.5).wall_time(3.0).memory(1024).nproc(10);
     /// assert_eq!(exec.limits.cpu_time, Some(2.0));
     /// assert_eq!(exec.limits.sys_time, Some(0.5));
     /// assert_eq!(exec.limits.wall_time, Some(3.0));
     /// assert_eq!(exec.limits.memory, Some(1024));
     /// assert_eq!(exec.limits.nproc, Some(10));
     /// ```
-    pub fn limits(&mut self, limits: ExecutionLimits) -> &mut Self {
-        self.limits = limits;
-        self
+    pub fn limits_mut(&mut self) -> &mut ExecutionLimits {
+        &mut self.limits
     }
 }
 
