@@ -14,21 +14,21 @@
 //!
 //! # use failure::Error;
 //! # use std::fs;
+//! # use tempdir::TempDir;
 //! # fn main() -> Result<(), Error> {
-//! # fs::write("/tmp/file.txt", "hello world")?;
+//! # let tmp = TempDir::new("tm-test").unwrap();
+//! # let store_dir = tmp.path().join("store");
+//! # let path = tmp.path().join("file.txt");
+//! # fs::write(&path, "hello world")?;
 //! // make a new store based on a directory, this will lock if the store is already in use
-//! let mut store = FileStore::new("/tmp/store")?;
+//! let mut store = FileStore::new(store_dir)?;
 //! // compute the key of a file and make an iterator over its content
-//! let key = FileStoreKey::from_file("/tmp/file.txt")?;
-//! let iter = ReadFileIterator::new("/tmp/file.txt")?;
+//! let key = FileStoreKey::from_file(&path)?;
+//! let iter = ReadFileIterator::new(&path)?;
 //! // store the file inside the file store
 //! store.store(&key, iter)?;
 //! // store.get(&key) will return the path on disk of the file if present inside the store
 //! assert!(store.get(&key)?.is_some());
-//! # // clear the test data
-//! # fs::remove_file("/tmp/file.txt")?;
-//! # std::mem::drop(store);
-//! # fs::remove_dir_all("/tmp/store")?;
 //! # Ok(())
 //! # }
 //! ```

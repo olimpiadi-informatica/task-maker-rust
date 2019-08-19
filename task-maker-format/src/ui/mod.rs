@@ -14,7 +14,9 @@ mod raw;
 pub use print::PrintUI;
 pub use raw::RawUI;
 
+/// Channel type for sending `UIMessage`s.
 pub type UIChannelSender = Sender<UIMessage>;
+/// Channel type for receiving `UIMessage`s.
 pub type UIChannelReceiver = Receiver<UIMessage>;
 
 /// The status of an execution.

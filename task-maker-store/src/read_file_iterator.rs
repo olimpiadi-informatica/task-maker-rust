@@ -15,15 +15,16 @@ type ReadFileBuffer = [u8; READ_FILE_BUFFER_SIZE];
 ///
 /// ```
 /// use task_maker_store::ReadFileIterator;
+/// # use tempdir::TempDir;
 ///
 /// # use failure::Error;
 /// # fn main() -> Result<(), Error> {
-/// std::fs::write("/tmp/file.txt", "hello world")?;
-/// let iter = ReadFileIterator::new("/tmp/file.txt")?;
+/// # let tmp = TempDir::new("tm-test").unwrap();
+/// # let path = tmp.path().join("file.txt");
+/// std::fs::write(&path, "hello world")?;
+/// let iter = ReadFileIterator::new(&path)?;
 /// let content: Vec<u8> = iter.flat_map(|v| v).collect();
 /// println!("The content is {}", std::str::from_utf8(&content[..])?);
-/// # // clear the test data
-/// # std::fs::remove_file("/tmp/file.txt")?;
 /// # Ok(())
 /// # }
 /// ```

@@ -1,4 +1,6 @@
-#[deny(missing_docs)]
+//! TODO rustdoc
+
+#![deny(missing_docs)]
 
 extern crate failure;
 extern crate glob;
@@ -65,6 +67,7 @@ impl EvaluationData {
 
 /// What can send [`UIMessage`](ui/enum.UIMessage.html)s.
 pub trait UISender {
+    /// Send that `UIMessage` to the UI.
     fn send(&self, message: ui::UIMessage) -> Result<(), Error>;
 }
 

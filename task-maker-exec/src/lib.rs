@@ -165,7 +165,7 @@ mod tests {
         dag.on_execution_done(&exec.uuid, move |_res| {
             exec_done.store(true, Ordering::Relaxed)
         });
-        dag.on_execution_skip(&exec.uuid, || assert!(false, "exec has been skipped"));
+        dag.on_execution_skip(&exec.uuid, || panic!("exec has been skipped"));
         dag.on_execution_start(&exec.uuid, move |_w| {
             exec_start.store(true, Ordering::Relaxed)
         });
@@ -173,19 +173,19 @@ mod tests {
         dag.on_execution_done(&exec2.uuid, move |_res| {
             exec2_done.store(true, Ordering::Relaxed)
         });
-        dag.on_execution_skip(&exec2.uuid, || assert!(false, "exec2 has been skipped"));
+        dag.on_execution_skip(&exec2.uuid, || panic!("exec2 has been skipped"));
         dag.on_execution_start(&exec2.uuid, move |_w| {
             exec2_start.store(true, Ordering::Relaxed)
         });
         dag.add_execution(exec2);
         dag.on_execution_done(&exec3.uuid, |_res| {
-            assert!(false, "exec3 has not been skipped")
+            panic!("exec3 has not been skipped")
         });
         dag.on_execution_skip(&exec3.uuid, move || {
             exec3_skipped.store(true, Ordering::Relaxed)
         });
         dag.on_execution_start(&exec3.uuid, |_w| {
-            assert!(false, "exec3 has not been skipped")
+            panic!("exec3 has not been skipped")
         });
         dag.add_execution(exec3);
         dag.write_file_to(&stdout, &cwd.path().join("stdout"));

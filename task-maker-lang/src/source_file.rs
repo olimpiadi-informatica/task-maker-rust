@@ -218,7 +218,8 @@ where
 #[cfg(test)]
 mod tests {
     use std::io::Write;
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     use tempdir::TempDir;
 
@@ -241,27 +242,27 @@ mod tests {
         let (comp, exec) = source.execute(&mut dag, "Testing exec", vec![]).unwrap();
         assert!(comp.is_some());
 
-        let exec_start = Arc::new(Mutex::new(false));
+        let exec_start = Arc::new(AtomicBool::new(false));
         let exec_start2 = exec_start.clone();
-        let exec_done = Arc::new(Mutex::new(false));
+        let exec_done = Arc::new(AtomicBool::new(false));
         let exec_done2 = exec_done.clone();
-        let exec_skipped = Arc::new(Mutex::new(false));
+        let exec_skipped = Arc::new(AtomicBool::new(false));
         let exec_skipped2 = exec_skipped.clone();
         dag.on_execution_start(&exec.uuid, move |_w| {
-            *exec_start2.lock().unwrap() = true;
+            exec_start2.store(true, Ordering::Relaxed)
         });
         dag.on_execution_done(&exec.uuid, move |_res| {
-            *exec_done2.lock().unwrap() = true;
+            exec_done2.store(true, Ordering::Relaxed)
         });
         dag.on_execution_skip(&exec.uuid, move || {
-            *exec_skipped2.lock().unwrap() = true;
+            exec_skipped2.store(true, Ordering::Relaxed)
         });
         dag.add_execution(exec);
 
         eval_dag_locally(dag, cwd.path(), 2);
 
-        assert!(!*exec_skipped.lock().unwrap());
-        assert!(*exec_start.lock().unwrap());
-        assert!(*exec_done.lock().unwrap());
+        assert!(exec_start.load(Ordering::Relaxed));
+        assert!(exec_done.load(Ordering::Relaxed));
+        assert!(!exec_skipped.load(Ordering::Relaxed));
     }
 }
