@@ -15,7 +15,7 @@ spaces = _{ whitespace+ }
 comment = { "# " ~ non_newline* }
 subtask = { "#ST:" ~ whitespace* ~ number }
 copy = { "#COPY:" ~ whitespace* ~ word }
-command = { !"#" ~ word ~ (spaces ~ word)* ~ whitespace* }
+command = { !"#" ~ whitespace* ~ word ~ (spaces ~ word)* ~ whitespace* }
 empty = { "" }
 
 line = { (subtask | copy | comment | command | empty) ~ NEWLINE }

@@ -1,19 +1,25 @@
-use crate::languages::*;
-use crate::{GraderMap, LanguageManager};
-use failure::Error;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+use failure::Error;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 use task_maker_dag::*;
+
+use crate::languages::*;
+use crate::{GraderMap, LanguageManager};
 
 /// A source file that will be able to be executed (with an optional compilation step).
 ///
 /// After creating a `SourceFile` using `new` you can add start using it via the `execute` method.
 /// Note that it may add to the DAG an extra execution for compiling the source file.
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceFile {
     /// Path to the source file.
     pub path: PathBuf,
     /// Language of the source file.
+    #[serde(serialize_with = "language_serializer")]
+    #[serde(deserialize_with = "language_deserializer")]
     language: Arc<dyn Language>,
     /// Handle to the executable after the compilation/provided file.
     executable: Option<File>,
@@ -189,13 +195,36 @@ impl SourceFile {
     }
 }
 
+/// Serializer for `Arc<dyn Language>`. It serializes just the name of the language, expecting the
+/// deserializer to know how to deserialize it.
+fn language_serializer<S>(lang: &Arc<dyn Language>, ser: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    ser.serialize_str(lang.name())
+}
+
+/// Deserializer for `Arc<dyn Language>`. It expects a `String` to be deserialized, searching in the
+/// `LanguageManager` know languages the instance of that language.
+fn language_deserializer<'de, D>(deser: D) -> Result<Arc<dyn Language>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    let lang_name = String::deserialize(deser)?;
+    Ok(LanguageManager::from_name(lang_name).ok_or(D::Error::custom("unknown language"))?)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::io::Write;
     use std::sync::{Arc, Mutex};
-    use task_maker_exec::eval_dag_locally;
+
     use tempdir::TempDir;
+
+    use task_maker_exec::eval_dag_locally;
+
+    use super::*;
 
     #[test]
     fn test_source_file_cpp() {

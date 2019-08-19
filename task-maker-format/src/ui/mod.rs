@@ -1,15 +1,18 @@
-use crate::task_types::ioi::*;
+//! The UI functionality for the task formats.
+
+use crate::ioi::*;
+use task_maker_dag::{ExecutionResult, WorkerUuid};
+
 use failure::Error;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
-use task_maker_dag::ExecutionResult;
 
-mod curses;
-mod ioi_state;
 mod print;
 mod raw;
+
+pub use print::PrintUI;
+pub use raw::RawUI;
 
 pub type UIChannelSender = Sender<UIMessage>;
 pub type UIChannelReceiver = Receiver<UIMessage>;
@@ -17,15 +20,20 @@ pub type UIChannelReceiver = Receiver<UIMessage>;
 /// The status of an execution.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum UIExecutionStatus {
-    /// The Execution is known to the DAG and when all its dependencies are
-    /// ready it will be started.
+    /// The `Execution` is known to the DAG and when all its dependencies are ready it will
+    /// started.
     Pending,
-    /// The Execution has been started on a worker.
-    Started { worker: String },
-    /// The Execution has been completed.
-    Done { result: ExecutionResult },
-    /// At least one of its dependencies have failed, the Execution has been
-    /// skipped.
+    /// The `Execution` has been started on a worker.
+    Started {
+        /// The UUID of the worker.
+        worker: WorkerUuid,
+    },
+    /// The `Execution` has been completed.
+    Done {
+        /// The result of the execution.
+        result: ExecutionResult,
+    },
+    /// At least one of its dependencies have failed, the `Execution` has been skipped.
     Skipped,
 }
 
@@ -42,55 +50,46 @@ pub enum UIMessage {
 
     /// The information about the task which is being run.
     IOITask {
-        /// The short name of the task.
-        name: String,
-        /// The long name of the task.
-        title: String,
-        /// The path to the task on the client disk.
-        path: PathBuf,
-        // TODO: time/mem limits
-        /// The list of the subtasks with their information.
-        subtasks: HashMap<IOISubtaskId, IOISubtaskInfo>,
-        /// The set of testcases for each subtask.
-        testcases: HashMap<IOISubtaskId, HashSet<IOITestcaseId>>,
+        /// The task information.
+        task: Task,
     },
 
     /// The generation of a testcase in a IOI task.
     IOIGeneration {
-        /// The id of the subtaks.
-        subtask: IOISubtaskId,
+        /// The id of the subtask.
+        subtask: SubtaskId,
         /// The id of the testcase.
-        testcase: IOITestcaseId,
+        testcase: TestcaseId,
         /// The status of the generation.
         status: UIExecutionStatus,
     },
 
     /// The validation of a testcase in a IOI task.
     IOIValidation {
-        /// The id of the subtaks.
-        subtask: IOISubtaskId,
+        /// The id of the subtask.
+        subtask: SubtaskId,
         /// The id of the testcase.
-        testcase: IOITestcaseId,
+        testcase: TestcaseId,
         /// The status of the validation.
         status: UIExecutionStatus,
     },
 
     /// The solution of a testcase in a IOI task.
     IOISolution {
-        /// The id of the subtaks.
-        subtask: IOISubtaskId,
+        /// The id of the subtask.
+        subtask: SubtaskId,
         /// The id of the testcase.
-        testcase: IOITestcaseId,
+        testcase: TestcaseId,
         /// The status of the solution.
         status: UIExecutionStatus,
     },
 
     /// The evaluation of a solution in a IOI task.
     IOIEvaluation {
-        /// The id of the subtaks.
-        subtask: IOISubtaskId,
+        /// The id of the subtask.
+        subtask: SubtaskId,
         /// The id of the testcase.
-        testcase: IOITestcaseId,
+        testcase: TestcaseId,
         /// The path of the solution.
         solution: PathBuf,
         /// The status of the solution.
@@ -99,10 +98,10 @@ pub enum UIMessage {
 
     /// The checking of a solution in a IOI task.
     IOIChecker {
-        /// The id of the subtaks.
-        subtask: IOISubtaskId,
+        /// The id of the subtask.
+        subtask: SubtaskId,
         /// The id of the testcase.
-        testcase: IOITestcaseId,
+        testcase: TestcaseId,
         /// The path of the solution.
         solution: PathBuf,
         /// The status of the solution. Note that a failure of this execution
@@ -112,10 +111,10 @@ pub enum UIMessage {
 
     /// The score of a testcase is ready.
     IOITestcaseScore {
-        /// The id of the subtaks.
-        subtask: IOISubtaskId,
+        /// The id of the subtask.
+        subtask: SubtaskId,
         /// The id of the testcase.
-        testcase: IOITestcaseId,
+        testcase: TestcaseId,
         /// The path of the solution.
         solution: PathBuf,
         /// The score of the testcase.
@@ -124,8 +123,8 @@ pub enum UIMessage {
 
     /// The score of a subtask is ready.
     IOISubtaskScore {
-        /// The id of the subtaks.
-        subtask: IOISubtaskId,
+        /// The id of the subtask.
+        subtask: SubtaskId,
         /// The path of the solution.
         solution: PathBuf,
         /// The score of the subtask.
@@ -160,7 +159,7 @@ impl UIMessageSender {
 }
 
 /// The trait that describes the UI functionalities.
-pub trait UI {
+pub trait UI: Send {
     /// Process a new UI message.
     fn on_message(&mut self, message: UIMessage);
     /// Make the UI print the ending results.
@@ -176,20 +175,6 @@ pub enum UIType {
     Raw,
     /// The CursesUI
     Curses,
-}
-
-impl UIType {
-    pub fn start(&self, receiver: UIChannelReceiver) {
-        let mut ui: Box<dyn UI> = match self {
-            UIType::Print => Box::new(print::PrintUI::new()),
-            UIType::Raw => Box::new(raw::RawUI::new()),
-            UIType::Curses => Box::new(curses::CursesUI::new()),
-        };
-        while let Ok(message) = receiver.recv() {
-            ui.on_message(message);
-        }
-        ui.finish();
-    }
 }
 
 impl std::str::FromStr for UIType {

@@ -5,99 +5,99 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// In IOI tasks the subtask numbers are non-negative integers
-pub type IOISubtaskId = u32;
-/// In IOI tasks the testcase numbers are non-negative integers
-pub type IOITestcaseId = u32;
+///// In IOI tasks the subtask numbers are non-negative integers
+//pub type IOISubtaskId = u32;
+///// In IOI tasks the testcase numbers are non-negative integers
+//pub type IOITestcaseId = u32;
 
-/// Information about a generic IOI task
-#[derive(Debug)]
-pub struct IOITaskInfo {
-    /// Path of the directory of the task.
-    pub path: PathBuf,
-    /// The information from the yaml file
-    pub yaml: IOITaskYAML,
-    /// The list of the subtasks
-    pub subtasks: HashMap<IOISubtaskId, IOISubtaskInfo>,
-    /// The list of the testcases of each subtask
-    pub testcases: HashMap<IOISubtaskId, HashMap<IOITestcaseId, IOITestcaseInfo>>,
-    /// The checker to use for this task
-    pub checker: Box<Checker<IOISubtaskId, IOITestcaseId>>,
-    /// The score type to use for this task
-    pub score_type: Box<ScoreType<IOISubtaskId, IOITestcaseId>>,
-}
+///// Information about a generic IOI task
+//#[derive(Debug)]
+//pub struct IOITaskInfo {
+//    /// Path of the directory of the task.
+//    pub path: PathBuf,
+//    /// The information from the yaml file
+//    pub yaml: IOITaskYAML,
+//    /// The list of the subtasks
+//    pub subtasks: HashMap<IOISubtaskId, IOISubtaskInfo>,
+//    /// The list of the testcases of each subtask
+//    pub testcases: HashMap<IOISubtaskId, HashMap<IOITestcaseId, IOITestcaseInfo>>,
+//    /// The checker to use for this task
+//    pub checker: Box<Checker<IOISubtaskId, IOITestcaseId>>,
+//    /// The score type to use for this task
+//    pub score_type: Box<ScoreType<IOISubtaskId, IOITestcaseId>>,
+//}
 
-/// Deserialized data from the task.yaml of a IOI format task
-#[derive(Debug, Serialize, Deserialize)]
-pub struct IOITaskYAML {
-    /// The name of the task (the short one)
-    #[serde(alias = "nome_breve")]
-    pub name: String,
-    /// The title of the task (the long one)
-    #[serde(alias = "nome")]
-    pub title: String,
-    /// The number of input files, if not provided will be autodetected
-    pub n_input: Option<u32>,
-    /// The score mode for this task, task-maker will ignore this.
-    pub score_mode: Option<String>,
-    /// The score type to use for this task.
-    pub score_type: Option<String>,
-    /// The token mode of this task.
-    ///
-    /// This is ignored by task-maker.
-    pub token_mode: Option<String>,
+///// Deserialized data from the task.yaml of a IOI format task
+//#[derive(Debug, Serialize, Deserialize)]
+//pub struct IOITaskYAML {
+//    /// The name of the task (the short one)
+//    #[serde(alias = "nome_breve")]
+//    pub name: String,
+//    /// The title of the task (the long one)
+//    #[serde(alias = "nome")]
+//    pub title: String,
+//    /// The number of input files, if not provided will be autodetected
+//    pub n_input: Option<u32>,
+//    /// The score mode for this task, task-maker will ignore this.
+//    pub score_mode: Option<String>,
+//    /// The score type to use for this task.
+//    pub score_type: Option<String>,
+//    /// The token mode of this task.
+//    ///
+//    /// This is ignored by task-maker.
+//    pub token_mode: Option<String>,
+//
+//    /// The timelimit for the execution of the solutions, if not set it's
+//    /// unlimited
+//    #[serde(alias = "timeout")]
+//    pub time_limit: Option<f64>,
+//    /// The memory limit in MiB of the execution of the solution, if not set
+//    /// it's unlimited.
+//    #[serde(alias = "memlimit")]
+//    pub memory_limit: Option<u64>,
+//    /// A list of comma separated numbers of the testcases with the feedback,
+//    /// can be set to "all".
+//    ///
+//    /// This is ignored by task-maker.
+//    #[serde(alias = "risultati")]
+//    pub public_testcases: Option<String>,
+//    /// Whether this is an output only task. Defaults to false.
+//    #[serde(default = "bool::default")]
+//    pub output_only: bool,
+//    /// The maximum score of this task, if it's not set it will be
+//    /// autodetected from the testcase definition.
+//    pub total_value: Option<f64>,
+//    /// The input file for the solutions, usually 'input.txt' or '' (stdin)
+//    #[serde(default = "String::default")]
+//    pub infile: String,
+//    /// The output file for the solutions, usually 'output.txt' or '' (stdout).
+//    #[serde(default = "String::default")]
+//    pub outfile: String,
+//    /// The primary language for this task.
+//    pub primary_language: Option<String>,
+//}
 
-    /// The timelimit for the execution of the solutions, if not set it's
-    /// unlimited
-    #[serde(alias = "timeout")]
-    pub time_limit: Option<f64>,
-    /// The memory limit in MiB of the execution of the solution, if not set
-    /// it's unlimited.
-    #[serde(alias = "memlimit")]
-    pub memory_limit: Option<u64>,
-    /// A list of comma separated numbers of the testcases with the feedback,
-    /// can be set to "all".
-    ///
-    /// This is ignored by task-maker.
-    #[serde(alias = "risultati")]
-    pub public_testcases: Option<String>,
-    /// Whether this is an output only task. Defaults to false.
-    #[serde(default = "bool::default")]
-    pub output_only: bool,
-    /// The maximum score of this task, if it's not set it will be
-    /// autodetected from the testcase definition.
-    pub total_value: Option<f64>,
-    /// The input file for the solutions, usually 'input.txt' or '' (stdin)
-    #[serde(default = "String::default")]
-    pub infile: String,
-    /// The output file for the solutions, usually 'output.txt' or '' (stdout).
-    #[serde(default = "String::default")]
-    pub outfile: String,
-    /// The primary language for this task.
-    pub primary_language: Option<String>,
-}
+///// A subtask of a IOI task
+//#[derive(Debug, Clone, Serialize, Deserialize)]
+//pub struct IOISubtaskInfo {
+//    /// The maximum score of the subtask, must be >= 0
+//    pub max_score: f64,
+//}
 
-/// A subtask of a IOI task
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IOISubtaskInfo {
-    /// The maximum score of the subtask, must be >= 0
-    pub max_score: f64,
-}
-
-/// A testcase of a IOI task. Every testcase has an input and an output that
-/// will be put in the input/ and output/ folders. The files are written there
-/// only if it's not a dry-run and if the files are not static.
-#[derive(Debug)]
-pub struct IOITestcaseInfo {
-    /// The number of the testcase
-    pub testcase: IOITestcaseId,
-    /// The generator of this testcase
-    pub generator: Arc<Generator<IOISubtaskId, IOITestcaseId>>,
-    /// The validator of this testcase
-    pub validator: Option<Arc<Validator<IOISubtaskId, IOITestcaseId>>>,
-    /// The official solution of this testcase
-    pub solution: Arc<Solution<IOISubtaskId, IOITestcaseId>>,
-}
+///// A testcase of a IOI task. Every testcase has an input and an output that
+///// will be put in the input/ and output/ folders. The files are written there
+///// only if it's not a dry-run and if the files are not static.
+//#[derive(Debug)]
+//pub struct IOITestcaseInfo {
+//    /// The number of the testcase
+//    pub testcase: IOITestcaseId,
+//    /// The generator of this testcase
+//    pub generator: Arc<Generator<IOISubtaskId, IOITestcaseId>>,
+//    /// The validator of this testcase
+//    pub validator: Option<Arc<Validator<IOISubtaskId, IOITestcaseId>>>,
+//    /// The official solution of this testcase
+//    pub solution: Arc<Solution<IOISubtaskId, IOITestcaseId>>,
+//}
 
 /// A generator formed by a source file and a list of arguments to pass to it.
 #[derive(Debug)]

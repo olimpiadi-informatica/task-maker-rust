@@ -463,7 +463,7 @@ impl Execution {
         self.outputs.entry(path.into()).or_insert(file).clone()
     }
 
-    /// Set the limits for the execution.
+    /// Get a mutable reference to the execution limits.
     ///
     /// ```
     /// use task_maker_dag::{Execution, ExecutionCommand, ExecutionLimits};

@@ -1,5 +1,6 @@
 use crate::languages::{Dependency, Language};
 use crate::LanguageManager;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use task_maker_dag::*;
@@ -9,10 +10,10 @@ use task_maker_dag::*;
 /// A source file may need some extra dependencies in order to be compiled and/or executed. For
 /// example a C++ file may need a second C++ file to be linked together, or a Python file may need
 /// a second Python file to be run.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GraderMap {
     /// The map from the name of the language to the file handle of the grader.
-    graders: HashMap<&'static str, Dependency>,
+    graders: HashMap<String, Dependency>,
 }
 
 impl GraderMap {
@@ -33,7 +34,7 @@ impl GraderMap {
             if let Some(lang) = lang {
                 let file = File::new(&format!("Grader for {}", lang.name()));
                 map.graders.insert(
-                    lang.name(),
+                    lang.name().into(),
                     Dependency {
                         file,
                         local_path: grader.clone(),

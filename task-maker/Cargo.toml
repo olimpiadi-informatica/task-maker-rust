@@ -9,20 +9,17 @@ task-maker-store = { path = "../task-maker-store" }
 task-maker-dag = { path = "../task-maker-dag" }
 task-maker-exec = { path = "../task-maker-exec" }
 task-maker-lang = { path = "../task-maker-lang" }
-serde = { version = "1.0.88", features = ["derive", "rc"] }
+task-maker-format = { path = "../task-maker-format" }
+serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 serde_yaml = "0.8"
 uuid = { version = "0.7", features = ["v4", "serde"] }
 byteorder = "1"
-failure = "0.1.5"
+failure = "0.1"
 log = "0.4"
 env_logger = "0.6"
 tempdir = "0.3"
-pest = "2.1"
-pest_derive = "2.1"
-glob = "0.2"
-boxfnonce = "0.1.1"
-termcolor = "1"
+boxfnonce = "0.1"
 structopt = "0.2"
 itertools = "0.8"
 tui = "0.5"

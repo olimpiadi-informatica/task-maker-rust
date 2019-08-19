@@ -1,0 +1,106 @@
+#[deny(missing_docs)]
+
+extern crate failure;
+extern crate glob;
+extern crate itertools;
+extern crate serde;
+extern crate serde_json;
+extern crate serde_yaml;
+extern crate task_maker_dag;
+extern crate task_maker_lang;
+extern crate termcolor;
+#[macro_use]
+extern crate log;
+extern crate pest;
+#[macro_use]
+extern crate pest_derive;
+
+use crate::ui::UI;
+
+pub mod ioi;
+mod source_file;
+pub mod ui;
+pub(crate) use source_file::SourceFile;
+
+use failure::Error;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use task_maker_dag::ExecutionDAG;
+use task_maker_lang::{GraderMap, LanguageManager};
+
+/// Trait that defines the capabilities of a task format, providing a UI and the parsing and
+/// execution abilities.
+pub trait TaskFormat {
+    /// Get an appropriate `UI` for this task.
+    fn ui(&self, ui_type: ui::UIType) -> Result<Box<dyn UI>, Error>;
+
+    /// Execute the evaluation of this task by adding the executions to the provided DAG.
+    ///
+    /// TODO: provide some options like dry_run, cache_mode, exclusive, extra_time, copy_exe, seed,
+    ///   ecc...
+    fn execute(&self, eval: &mut EvaluationData) -> Result<(), Error>;
+}
+
+/// The data for an evaluation, including the DAG and the UI channel.
+pub struct EvaluationData {
+    /// The DAG with the evaluation data.
+    pub dag: ExecutionDAG,
+    /// The sender of the UI.
+    pub sender: Arc<Mutex<ui::UIMessageSender>>,
+}
+
+impl EvaluationData {
+    /// Crate a new `EvaluationData` returning the data and the receiving part of the UI channel.
+    pub fn new() -> (EvaluationData, ui::UIChannelReceiver) {
+        let (sender, receiver) = ui::UIMessageSender::new();
+        (
+            EvaluationData {
+                dag: ExecutionDAG::new(),
+                sender: Arc::new(Mutex::new(sender)),
+            },
+            receiver,
+        )
+    }
+}
+
+/// What can send [`UIMessage`](ui/enum.UIMessage.html)s.
+pub trait UISender {
+    fn send(&self, message: ui::UIMessage) -> Result<(), Error>;
+}
+
+/// Implement `.send(message)` for `Mutex<UIMessageSender>` in order to do
+/// `EvaluationData.sender.send(message)`. This will lock the mutex and send the message to the UI.
+impl UISender for Mutex<ui::UIMessageSender> {
+    fn send(&self, message: ui::UIMessage) -> Result<(), Error> {
+        self.lock().unwrap().send(message)
+    }
+}
+
+/// List all the files inside `cwd` that matches a list of glob patterns. The results are in the
+/// same order of the patterns.
+pub(crate) fn list_files<P: AsRef<Path>, S: AsRef<str>>(cwd: P, patterns: Vec<S>) -> Vec<PathBuf> {
+    let mut results = Vec::new();
+    for pattern in patterns.into_iter() {
+        let pattern = cwd.as_ref().join(pattern.as_ref());
+        for file in glob::glob(&pattern.to_string_lossy()).expect("Invalid pattern for list_files")
+        {
+            results.push(file.unwrap().to_owned());
+        }
+    }
+    results
+}
+
+/// Make a `SourceFile` with the first file that matches the patterns provided that is in a
+/// recognised language. Returns `None` if no valid source file can be found.
+pub(crate) fn find_source_file<P: AsRef<Path>, S: AsRef<str>>(
+    cwd: P,
+    patterns: Vec<S>,
+    grader_map: Option<Arc<GraderMap>>,
+) -> Option<SourceFile> {
+    for path in list_files(cwd, patterns) {
+        if LanguageManager::detect_language(&path).is_some() {
+            return Some(SourceFile::new(&path, grader_map).unwrap());
+        }
+    }
+    None
+}

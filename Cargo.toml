@@ -6,4 +6,5 @@ members = [
   "task-maker-exec",
   "task-maker-store",
   "task-maker-lang",
+  "task-maker-format",
 ]

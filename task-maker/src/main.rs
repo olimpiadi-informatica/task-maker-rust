@@ -7,6 +7,7 @@
 
 extern crate task_maker_dag;
 extern crate task_maker_exec;
+extern crate task_maker_format;
 extern crate task_maker_lang;
 extern crate task_maker_store;
 
@@ -16,28 +17,23 @@ extern crate serde_yaml;
 extern crate uuid;
 #[macro_use]
 extern crate log;
-extern crate env_logger;
-extern crate pest;
-#[macro_use]
-extern crate pest_derive;
 extern crate boxfnonce;
-extern crate glob;
+extern crate env_logger;
 extern crate itertools;
 #[cfg(test)]
 extern crate pretty_assertions;
 extern crate structopt;
 extern crate tempdir;
-extern crate termcolor;
 extern crate termion;
 extern crate tui;
 
-pub mod evaluation;
-pub mod score_types;
-pub mod task_types;
-pub mod ui;
-
 use std::path::PathBuf;
+use std::sync::{mpsc::channel, Arc, Mutex};
+use std::thread;
 use structopt::StructOpt;
+use task_maker_exec::{executors::LocalExecutor, ExecutorClient};
+use task_maker_format::{ioi, EvaluationData, TaskFormat};
+use task_maker_store::*;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "task-maker")]
@@ -48,7 +44,7 @@ struct Opt {
 
     /// Which UI to use, available UIS are: print, raw, curses
     #[structopt(long = "ui", default_value = "print")]
-    ui: crate::ui::UIType,
+    ui: task_maker_format::ui::UIType,
 }
 
 fn main() {
@@ -58,31 +54,49 @@ fn main() {
 
     let opt = Opt::from_args();
 
-    use crate::evaluation::*;
-    use crate::task_types::ioi::*;
-    use std::sync::{Arc, Mutex};
-    use task_maker_exec::executors::LocalExecutor;
-    use task_maker_store::*;
+    // setup the task
+    let task: Box<dyn TaskFormat> = if let Ok(task) = ioi::Task::new(&opt.task_dir) {
+        debug!("The task is IOI: {:#?}", task);
+        Box::new(task)
+    } else {
+        panic!("Invalid task directory!");
+    };
 
-    let (eval, receiver) = EvaluationData::new();
-    let ui = opt.ui;
+    let (mut eval, receiver) = EvaluationData::new();
+
+    // setup the ui thread
+    let mut ui = task.ui(opt.ui).unwrap();
     let ui_thread = std::thread::Builder::new()
         .name("UI".to_owned())
         .spawn(move || {
-            ui.start(receiver);
+            while let Ok(message) = receiver.recv() {
+                ui.on_message(message);
+            }
+            ui.finish();
         })
         .unwrap();
 
-    use crate::task_types::TaskFormat;
-    if !task_types::ioi::formats::IOIItalianYaml::is_valid(&opt.task_dir) {
-        panic!("Invalid task directory!");
-    }
-    let task = task_types::ioi::formats::IOIItalianYaml::parse(&opt.task_dir).unwrap();
-
+    // setup the executor
     let cwd = tempdir::TempDir::new("task-maker").unwrap();
     let store_path = cwd.path().join("store");
     let file_store = FileStore::new(&store_path).expect("Cannot create the file store");
-    let executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
-    task.evaluate(eval, &IOIEvaluationOptions {}, executor);
-    ui_thread.join().unwrap();
+    let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
+
+    // build the DAG for the task
+    task.execute(&mut eval).unwrap();
+
+    // start the server and the client
+    let (tx, rx_remote) = channel();
+    let (tx_remote, rx) = channel();
+    let server = thread::Builder::new()
+        .name("Executor thread".into())
+        .spawn(move || {
+            executor.evaluate(tx_remote, rx_remote).unwrap();
+        })
+        .unwrap();
+    ExecutorClient::evaluate(eval.dag, tx, rx).unwrap();
+
+    // wait for the server and the ui to exit
+    server.join().expect("Executor panicked");
+    ui_thread.join().expect("UI panicked");
 }

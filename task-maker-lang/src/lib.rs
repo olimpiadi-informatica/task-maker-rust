@@ -94,6 +94,17 @@ impl LanguageManager {
         }
         None
     }
+
+    /// Search between the known languages the one with the specified name and return it if found.
+    pub(crate) fn from_name<S: AsRef<str>>(name: S) -> Option<Arc<dyn Language>> {
+        let manager = &LANGUAGE_MANAGER_SINGL;
+        for lang in manager.known_languages.iter() {
+            if lang.name() == name.as_ref() {
+                return Some(lang.clone());
+            }
+        }
+        None
+    }
 }
 
 lazy_static! {

@@ -129,17 +129,11 @@ impl UI for PrintUI {
                 self.write_message(format!("Compilation of {:?} ", file));
                 self.write_status_details(&status);
             }
-            UIMessage::IOITask {
-                name,
-                title,
-                path,
-                subtasks,
-                testcases,
-            } => {
-                self.write_bold(format!("Task {} ({})\n", title, name));
-                writeln!(&mut self.stdout, "Path: {:?}", path).unwrap();
+            UIMessage::IOITask { task } => {
+                self.write_bold(format!("Task {} ({})\n", task.title, task.name));
+                writeln!(&mut self.stdout, "Path: {:?}", task.path).unwrap();
                 writeln!(&mut self.stdout, "Subtasks").unwrap();
-                for (st_num, subtask) in subtasks.iter().sorted_by_key(|x| x.0) {
+                for (st_num, subtask) in task.subtasks.iter().sorted_by_key(|x| x.0) {
                     writeln!(
                         &mut self.stdout,
                         "  {}: {} points",
@@ -147,7 +141,7 @@ impl UI for PrintUI {
                     )
                     .unwrap();
                     write!(&mut self.stdout, "     testcases: [").unwrap();
-                    for tc_num in testcases[st_num].iter().sorted() {
+                    for tc_num in subtask.testcases.keys().sorted() {
                         write!(&mut self.stdout, " {}", tc_num).unwrap();
                     }
                     writeln!(&mut self.stdout, " ]").unwrap();

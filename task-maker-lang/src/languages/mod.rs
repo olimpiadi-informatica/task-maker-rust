@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use task_maker_dag::*;
 
@@ -6,7 +7,7 @@ pub(crate) mod python;
 pub(crate) mod shell;
 
 /// A dependency of an execution, all the sandbox paths must be relative and inside of the sandbox.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Dependency {
     /// The handle of the file.
     pub file: File,
@@ -29,7 +30,7 @@ pub struct Dependency {
 /// - `compilation_command`
 /// - `compilation_args`
 /// - `compilation_add_file`
-pub trait Language: std::fmt::Debug {
+pub trait Language: std::fmt::Debug + Send + Sync {
     /// Full name of the language. This must be unique between all the other languages.
     fn name(&self) -> &'static str;
 
