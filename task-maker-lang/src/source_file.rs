@@ -61,7 +61,7 @@ impl SourceFile {
     ///
     /// The returned execution has all the dependencies already set, but it **has not been added**
     /// to the DAG yet. In order for this execution to work it has to be manually added to the DAG
-    /// using [`add_execution`](../task_maker_dag/struct.ExecutionDAG.html#method.add_execution).
+    /// using [`ExecutionDAG::add_execution`](../task_maker_dag/struct.ExecutionDAG.html#method.add_execution).
     ///
     /// # Examples
     ///

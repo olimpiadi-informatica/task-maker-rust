@@ -43,7 +43,7 @@ impl UISender for Mutex<UIMessageSender> {
     }
 }
 
-/// Wrapper around [`task_maker_lang::SourceFile`](../task_maker_lang/struct.SourceFile.html) that
+/// Wrapper around [`task_maker_lang::SourceFile`](../../task_maker_lang/struct.SourceFile.html) that
 /// also sends to the UI the messages about the compilation, making the compilation completely
 /// transparent to the `SourceFile`.
 #[derive(Debug)]
@@ -53,7 +53,7 @@ pub struct SourceFile {
 
 impl SourceFile {
     /// Make a new `SourceFile`. See
-    /// [`task_maker_lang::SourceFile`](../task_maker_lang/struct.SourceFile.html) for the details.
+    /// [`task_maker_lang::SourceFile`](../../task_maker_lang/struct.SourceFile.html) for the details.
     pub fn new<P: Into<PathBuf>>(
         path: P,
         grader_map: Option<Arc<GraderMap>>,
@@ -66,7 +66,7 @@ impl SourceFile {
     /// Prepare an execution of the source file, eventually adding the compilation to the DAG.
     /// The compilation messages are sent to the UI.
     ///
-    /// See [`task_maker_lang::SourceFile`](../task_maker_lang/struct.SourceFile.html) for the
+    /// See [`task_maker_lang::SourceFile`](../../task_maker_lang/struct.SourceFile.html) for the
     /// details. Note that the return value is different because the compilation uuid is handled by
     /// this method.
     pub fn execute(

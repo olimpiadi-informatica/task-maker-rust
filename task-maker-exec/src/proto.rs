@@ -5,7 +5,7 @@
 //! The communication between the services is done using the abstraction of
 //! `std::sync::mpsc::channel`. The messages are serialized and then sent inside a `channel`. The
 //! way the messages are serialized is unspecified and
-//! [`serialize_into`](../task_maker_exec/fn.serialize_into.html)/[`deserialize_from`](task_maker_exec/fn.deserialize_from.html)
+//! [`serialize_into`](../../task_maker_exec/fn.serialize_into.html)/[`deserialize_from`](../../task_maker_exec/fn.deserialize_from.html)
 //! should be used instead of reading from / writing to the channels.
 //!
 //! There are 3 basic actors in the protocol:
