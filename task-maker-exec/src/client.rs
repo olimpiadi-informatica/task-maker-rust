@@ -40,7 +40,7 @@ impl ExecutorClient {
     ///     executor.evaluate(tx_remote, rx_remote).unwrap();
     /// });
     ///
-    /// ExecutorClient::evaluate(dag, tx, rx).unwrap(); // this will block!
+    /// ExecutorClient::evaluate(dag, tx, &rx).unwrap(); // this will block!
     ///
     /// server.join().expect("Server paniced");
     /// # // cleanup
@@ -49,7 +49,7 @@ impl ExecutorClient {
     pub fn evaluate(
         mut dag: ExecutionDAG,
         sender: ChannelSender,
-        receiver: ChannelReceiver,
+        receiver: &ChannelReceiver,
     ) -> Result<(), Error> {
         trace!("ExecutorClient started");
         // list all the files/executions that want callbacks
@@ -138,7 +138,6 @@ impl ExecutorClient {
                 Ok(ExecutorServerMessage::Error(error)) => {
                     info!("Error occurred: {}", error);
                     // TODO abort
-                    drop(receiver);
                     break;
                 }
                 Ok(ExecutorServerMessage::Status(status)) => {
@@ -146,7 +145,6 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::Done) => {
                     info!("Execution completed!");
-                    drop(receiver);
                     break;
                 }
                 Err(e) => {

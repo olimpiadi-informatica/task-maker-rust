@@ -40,10 +40,10 @@ impl Scheduler {
         let mut free_workers = vec![];
         let mut doing_workers = 0;
         for (worker_uuid, worker) in executor_data.workers.iter() {
-            if worker.job.lock().unwrap().is_none() {
-                free_workers.push(worker_uuid);
-            } else {
-                doing_workers += 1;
+            match *worker.job.lock().unwrap() {
+                WorkerWaitingState::Waiting => free_workers.push(worker_uuid),
+                WorkerWaitingState::GotJob(_) => doing_workers += 1,
+                _ => {}
             }
         }
         let mut assigned = vec![];
@@ -112,6 +112,7 @@ impl Scheduler {
             && doing_workers == 0
             && executor_data.client_sender.is_some()
         {
+            stop_all_workers(executor_data);
             serialize_into(
                 &ExecutorServerMessage::Done,
                 executor_data.client_sender.as_ref().unwrap(),
@@ -223,7 +224,7 @@ impl Scheduler {
     fn assign_job(worker: Arc<WorkerState>, work: WorkerJob, worker_uuid: WorkerUuid) {
         trace!("Assigning job {:?} to worker {}", work, worker_uuid);
         let mut lock = worker.job.lock().unwrap();
-        *lock = Some(work);
+        *lock = WorkerWaitingState::GotJob(work);
         worker.cv.notify_one();
     }
 }

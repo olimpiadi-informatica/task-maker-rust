@@ -1,5 +1,5 @@
 use crate::*;
-use failure::Error;
+use failure::{Error, format_err};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -36,17 +36,21 @@ impl LocalExecutor {
         receiver: ChannelReceiver,
     ) -> Result<(), Error> {
         info!("Spawning {} workers", self.num_workers);
+        let mut workers = vec![];
         for i in 0..self.num_workers {
             let (worker, conn) =
                 Worker::new(&format!("Local worker {}", i), self.file_store.clone());
-            self.executor.add_worker(conn);
-            thread::Builder::new()
+            workers.push(self.executor.add_worker(conn));
+            workers.push(thread::Builder::new()
                 .name(format!("Worker {}", worker))
                 .spawn(move || {
                     worker.work().expect("Worker failed");
-                })
-                .expect("Failed to spawn worker thread");
+                })?);
         }
-        self.executor.evaluate(sender, receiver)
+        self.executor.evaluate(sender, receiver)?;
+        for worker in workers.into_iter() {
+            worker.join().map_err(|e| format_err!("Worker panicked: {:?}", e))?;
+        }
+        Ok(())
     }
 }

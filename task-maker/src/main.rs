@@ -94,9 +94,10 @@ fn main() {
             executor.evaluate(tx_remote, rx_remote).unwrap();
         })
         .unwrap();
-    ExecutorClient::evaluate(eval.dag, tx, rx).unwrap();
+    ExecutorClient::evaluate(eval.dag, tx, &rx).unwrap();
 
     // wait for the server and the ui to exit
     server.join().expect("Executor panicked");
+    drop(eval.sender); // make the UI exit
     ui_thread.join().expect("UI panicked");
 }

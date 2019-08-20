@@ -88,7 +88,7 @@ pub fn eval_dag_locally<P: Into<PathBuf>>(dag: ExecutionDAG, store_dir: P, num_c
             executors::LocalExecutor::new(Arc::new(Mutex::new(file_store)), num_cores);
         executor.evaluate(tx_remote, rx_remote).unwrap();
     });
-    ExecutorClient::evaluate(dag, tx, rx).unwrap();
+    ExecutorClient::evaluate(dag, tx, &rx).unwrap();
     server.join().expect("Server panicked");
 }
 

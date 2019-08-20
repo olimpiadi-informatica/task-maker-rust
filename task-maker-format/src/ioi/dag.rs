@@ -314,7 +314,7 @@ impl Checker {
                     ),
                     ExecutionCommand::System("diff".into()),
                 );
-                exec.args(vec!["--ignore-all-spaces", "correct", "test"]);
+                exec.args(vec!["--ignore-all-space", "correct", "test"]);
                 exec.input(correct_output, "correct", false);
                 exec.input(test_output, "test", false);
                 bind_exec_callbacks!(
@@ -332,8 +332,8 @@ impl Checker {
                     match result.status {
                         // diff exits with 0 if the files are equal
                         ExecutionStatus::Success => callback(1.0, "Output is correct".into()),
-                        // any other return code means the files are different
-                        ExecutionStatus::ReturnCode(_) => {
+                        // return code 1 means the files are different
+                        ExecutionStatus::ReturnCode(1) => {
                             callback(0.0, "Output is incorrect".into())
                         }
                         _ => unreachable!("diff died badly?"),

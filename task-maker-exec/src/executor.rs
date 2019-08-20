@@ -10,6 +10,7 @@ use task_maker_store::*;
 use crate::proto::*;
 use crate::*;
 use std::ops::DerefMut;
+use std::thread::JoinHandle;
 
 /// An error in the DAG structure.
 #[derive(Debug, Fail)]
@@ -72,13 +73,24 @@ pub struct WorkerJob {
     pub dep_keys: HashMap<FileUuid, FileStoreKey>,
 }
 
+/// The state of a waiting worker.
+#[derive(Debug, Clone)]
+pub(crate) enum WorkerWaitingState {
+    /// The worker is waiting for some job which is not ready yet.
+    Waiting,
+    /// The worker got some job.
+    GotJob(WorkerJob),
+    /// The computation ended, the worker should exit now.
+    Exit
+}
+
 /// State of a worker as seen by the server.
 #[derive(Debug)]
 pub(crate) struct WorkerState {
     /// Name of the worker.
     pub name: String,
-    /// Current job of the worker, `None` if the worker is waiting for some job.
-    pub job: Mutex<Option<WorkerJob>>,
+    /// Current job of the worker.
+    pub job: Mutex<WorkerWaitingState>,
     /// Conditional variable the worker thread on the server is waiting for some work to be ready.
     /// Will be waked up when a job is present.
     pub cv: Condvar,
@@ -108,6 +120,8 @@ pub(crate) struct ExecutorData {
     /// The list of known [`FileStoreKey`](../task_maker_store/struct.FileStoreKey.html)s for the
     /// current DAG.
     pub file_keys: HashMap<FileUuid, FileStoreKey>,
+    /// True if the executor is shutting down and no more worker should be accepted.
+    pub shutting_down: bool,
 }
 
 /// The current status of the `Executor`, this is sent to the user when the server status is asked.
@@ -141,14 +155,14 @@ impl Executor {
 
     /// Connect a new worker to the server, this will spawn a new thread that will manage the
     /// connection with the worker.
-    pub fn add_worker(&mut self, worker: WorkerConn) {
+    pub fn add_worker(&mut self, worker: WorkerConn) -> JoinHandle<()> {
         let data = self.data.clone();
         thread::Builder::new()
             .name(format!("Executor worker thread for {}", worker))
             .spawn(move || {
                 worker_thread(data, worker).expect("Worker failed");
             })
-            .expect("Failed to spawn executor worker thread");
+            .expect("Failed to spawn executor worker thread")
     }
 
     /// Starts the `Executor` for a client, this will block and will manage the communication with
@@ -169,7 +183,6 @@ impl Executor {
                     if let Err(e) = check_dag(&dag, &callbacks) {
                         warn!("Invalid DAG: {:?}", e);
                         serialize_into(&ExecutorServerMessage::Error(e.to_string()), &sender)?;
-                        drop(receiver);
                         break;
                     } else {
                         trace!("DAG looks valid!");
@@ -210,7 +223,6 @@ impl Executor {
                             &ExecutorServerMessage::Error("Provided file before the DAG!".into()),
                             &sender,
                         )?;
-                        drop(receiver);
                         break;
                     }
                     data.file_store
@@ -232,7 +244,10 @@ impl Executor {
                                     (
                                         *uuid,
                                         worker.name.clone(),
-                                        worker.job.lock().unwrap().is_some(),
+                                        match *worker.job.lock().unwrap() {
+                                            WorkerWaitingState::GotJob(_) => true,
+                                            _ => false
+                                        }
                                     )
                                 })
                                 .collect(),
@@ -244,12 +259,11 @@ impl Executor {
                     )?;
                 }
                 Ok(ExecutorClientMessage::Stop) => {
-                    drop(receiver);
-                    // TODO stop all the workers
+                    // TODO stop and kill all the workers
                     break;
                 }
                 Err(e) => {
-                    // TODO stop all the workers
+                    // TODO stop and kill all the workers
                     let cause = e.find_root_cause().to_string();
                     if cause == "receiving on a closed channel" {
                         trace!("Connection closed: {}", cause);
@@ -260,6 +274,7 @@ impl Executor {
                 }
             }
         }
+        stop_all_workers(self.data.lock().unwrap().deref_mut());
         Ok(())
     }
 }
@@ -278,6 +293,7 @@ impl ExecutorData {
             dependents: HashMap::new(),
             file_store,
             file_keys: HashMap::new(),
+            shutting_down: false,
         }
     }
 }
@@ -295,32 +311,46 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                 assert!(!executor.lock().unwrap().workers.contains_key(&conn.uuid));
                 {
                     let mut executor = executor.lock().unwrap();
+                    // disallow new workers if the executor is shutting down
+                    if executor.shutting_down {
+                        break;
+                    }
                     executor.workers.insert(
                         conn.uuid,
                         Arc::new(WorkerState {
                             name: conn.name.clone(),
-                            job: Mutex::new(None),
+                            job: Mutex::new(WorkerWaitingState::Waiting),
                             cv: Condvar::new(),
                         }),
                     );
 
                     Scheduler::schedule(executor.deref_mut());
                 }
-                let job = wait_for_work(executor.clone(), &conn.uuid);
-                serialize_into(&WorkerServerMessage::Work(Box::new(job)), &conn.sender).unwrap();
+                match wait_for_work(executor.clone(), &conn.uuid) {
+                    WorkerWaitingState::GotJob(job) => {
+                        serialize_into(&WorkerServerMessage::Work(Box::new(job)), &conn.sender).unwrap();
+                    }
+                    WorkerWaitingState::Exit => {
+                        info!("Worker {} asked to exit", conn);
+                        break;
+                    }
+                    _ => unreachable!("wait_for_work returned without reason")
+                }
             }
             Ok(WorkerClientMessage::WorkerDone(result)) => {
                 info!("Worker {} completed with: {:?}", conn, result);
                 let mut data = executor.lock().unwrap();
-                let exec = data
+                let exec = if let WorkerWaitingState::GotJob(job) = data
                     .workers
                     .get(&conn.uuid)
                     .expect("Worker disappeared")
                     .job
                     .lock()
-                    .unwrap()
-                    .clone()
-                    .expect("Worker job disappeared");
+                    .unwrap().clone() {
+                    job
+                } else {
+                    panic!("Worker job disappeared");
+                };
                 let exec_uuid = exec.clone().execution.uuid;
                 data.workers.remove(&conn.uuid);
                 if data
@@ -378,10 +408,6 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
             Err(e) => {
                 let cause = e.find_root_cause().to_string();
                 if cause == "receiving on a closed channel" {
-                    let mut data = executor.lock().unwrap();
-                    data.workers.remove(&conn.uuid);
-                    info!("Removed worker {} from pool", conn);
-                    Scheduler::schedule(data.deref_mut());
                     break;
                 } else {
                     error!("Connection error: {}", cause);
@@ -389,17 +415,33 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
             }
         }
     }
+
+    let mut data = executor.lock().unwrap();
+    data.workers.remove(&conn.uuid);
+    info!("Removed worker {} from pool", conn);
+    Scheduler::schedule(data.deref_mut());
+
     Ok(())
 }
 
 /// Block the thread until there is something to do for this worker.
-fn wait_for_work(executor: Arc<Mutex<ExecutorData>>, uuid: &WorkerUuid) -> WorkerJob {
+fn wait_for_work(executor: Arc<Mutex<ExecutorData>>, uuid: &WorkerUuid) -> WorkerWaitingState {
     let worker = &*executor.lock().unwrap().workers[&uuid].clone();
     let mut job = worker.job.lock().unwrap();
-    while job.is_none() {
+    while let WorkerWaitingState::Waiting = *job {
         job = worker.cv.wait(job).unwrap();
     }
-    job.clone().unwrap()
+    job.clone()
+}
+
+/// Stop all the workers by removing their job and notifying them of the change. This wont stop the
+/// worker in the middle of a job. No more workers will be accepted.
+pub(crate) fn stop_all_workers(executor_data: &mut ExecutorData) {
+    executor_data.shutting_down = true;
+    for worker in executor_data.workers.values() {
+        *worker.job.lock().unwrap() = WorkerWaitingState::Exit;
+        worker.cv.notify_one();
+    }
 }
 
 /// Validate the DAG checking if all the required pieces are present and they actually make a DAG.
