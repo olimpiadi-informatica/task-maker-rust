@@ -83,7 +83,7 @@ impl LanguageManager {
             .as_ref()
             .extension()
             .map(|s| s.to_string_lossy())
-            .unwrap_or("".into())
+            .unwrap_or_else(|| "".into())
             .to_lowercase();
         for lang in manager.known_languages.iter() {
             for lang_ext in lang.extensions().iter() {

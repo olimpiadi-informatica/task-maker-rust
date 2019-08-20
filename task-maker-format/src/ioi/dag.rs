@@ -373,29 +373,27 @@ impl Checker {
                 let state_stderr = state_stdout.clone();
                 let callback_stdout = Arc::new(Mutex::new(Some(callback)));
                 let callback_stderr = callback_stdout.clone();
+                macro_rules! send_state {
+                    ($callback:expr, $state:expr) => {{
+                        // if both the score and the message are present
+                        if let (Some(ref score), Some(ref message)) = *$state {
+                            if let Some(f) = $callback.lock().unwrap().take() {
+                                f(*score, message.clone());
+                            }
+                        }
+                    }};
+                }
                 eval.dag.get_file_content(stdout, 128, move |content| {
                     let score = String::from_utf8_lossy(&content);
                     let score: f64 = score.parse().expect("Invalid score from checker");
                     let mut state = state_stdout.lock().unwrap();
                     state.0 = Some(score);
-                    if let (Some(ref score), Some(ref message)) = *state {
-                        callback_stdout
-                            .lock()
-                            .unwrap()
-                            .take()
-                            .map(|f| f(*score, message.clone()));
-                    }
+                    send_state!(callback_stdout, state);
                 });
                 eval.dag.get_file_content(stderr, 1024, move |content| {
                     let mut state = state_stderr.lock().unwrap();
                     state.1 = Some(String::from_utf8_lossy(&content).to_string());
-                    if let (Some(ref score), Some(ref message)) = *state {
-                        callback_stderr
-                            .lock()
-                            .unwrap()
-                            .take()
-                            .map(|f| f(*score, message.clone()));
-                    }
+                    send_state!(callback_stderr, state);
                 });
             }
         }
@@ -435,10 +433,10 @@ impl TaskType {
                 let limits = exec.limits_mut();
                 if let Some(time_limit) = task.time_limit {
                     limits.cpu_time(time_limit);
-                    limits.wall_time(time_limit * 1.5 + 1.0);  // some margin
+                    limits.wall_time(time_limit * 1.5 + 1.0); // some margin
                 }
                 if let Some(memory_limit) = task.memory_limit {
-                    limits.memory(memory_limit * 1024);  // MiB -> KiB
+                    limits.memory(memory_limit * 1024); // MiB -> KiB
                 }
                 bind_exec_callbacks!(
                     eval,
@@ -507,7 +505,7 @@ impl TestcaseScoreAggregator {
                         min = score;
                     }
                 }
-                return min;
+                min
             }
             TestcaseScoreAggregator::Sum => {
                 let mut sum = 1.0;
@@ -516,7 +514,7 @@ impl TestcaseScoreAggregator {
                     sum += score;
                     count += 1;
                 }
-                return sum / (count as f64);
+                sum / (f64::from(count))
             }
         }
     }

@@ -111,9 +111,9 @@ pub fn parse_task<P: AsRef<Path>>(task_dir: P) -> Result<Task, Error> {
     debug!("The yaml is {:#?}", yaml);
 
     let map_file = |file: String| -> Option<PathBuf> {
-        match file.is_empty() {
-            true => None,
-            false => Some(file.into()),
+        match file.as_ref() {
+            "" => None,
+            _ => Some(file.into()),
         }
     };
     let infile = map_file(yaml.infile);
