@@ -1,6 +1,6 @@
-use crate::ui::curses::ioi_finish::print_final_state;
-use crate::ui::ioi_state::*;
-use crate::ui::*;
+use crate::ioi::ui_state::*;
+use crate::ioi::*;
+use crate::ui::{UIMessage, UI};
 use failure::Error;
 use itertools::Itertools;
 use std::io;
@@ -16,6 +16,7 @@ use tui::layout::{Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, Paragraph, Text, Widget};
 use tui::{Frame, Terminal};
+use crate::ioi::finish_ui::print_final_state;
 
 /// The framerate of the UI.
 const FPS: u64 = 30;
@@ -24,19 +25,19 @@ const FPS: u64 = 30;
 type TerminalType =
     Terminal<TermionBackend<AlternateScreen<MouseTerminal<RawTerminal<io::Stdout>>>>>;
 
-/// The animated UI for IOI tasks
-pub struct IOICursesUI {
+/// An animated UI for IOI tasks, dynamically refreshing using curses as a backend.
+pub struct CursesUI {
     /// The thread where the UI lives.
     ui_thread: Option<JoinHandle<()>>,
     /// The state of the task for the UI.
-    state: Arc<RwLock<IOIUIState>>,
+    state: Arc<RwLock<UIState>>,
     /// When it becomes true the UI will stop.
     stop: Arc<AtomicBool>,
 }
 
-impl IOICursesUI {
-    /// Try to make a new IOICursesUI setting up the terminal.
-    pub fn new(task: UIMessage) -> Result<IOICursesUI, Error> {
+impl CursesUI {
+    /// Try to make a new CursesUI setting up the terminal. May fail on unsupported terminals.
+    pub fn new(task: &Task) -> Result<CursesUI, Error> {
         let stdout = io::stdout().into_raw_mode()?;
         let stdout = MouseTerminal::from(stdout);
         let stdout = AlternateScreen::from(stdout);
@@ -44,16 +45,16 @@ impl IOICursesUI {
         let mut terminal = Terminal::new(backend)?;
         terminal.hide_cursor()?;
 
-        let state = Arc::new(RwLock::new(IOIUIState::new(task)));
+        let state = Arc::new(RwLock::new(UIState::new(task)));
         let state2 = state.clone();
         let stop = Arc::new(AtomicBool::new(false));
         let stop2 = stop.clone();
         let handle = Builder::new()
-            .name("IOICursesUI thread".to_owned())
+            .name("CursesUI thread".to_owned())
             .spawn(move || {
                 ui_body(terminal, state2, stop2);
             })?;
-        Ok(IOICursesUI {
+        Ok(CursesUI {
             ui_thread: Some(handle),
             state,
             stop,
@@ -61,7 +62,7 @@ impl IOICursesUI {
     }
 }
 
-impl UI for IOICursesUI {
+impl UI for CursesUI {
     fn on_message(&mut self, message: UIMessage) {
         self.state.write().unwrap().apply(message);
     }
@@ -75,7 +76,7 @@ impl UI for IOICursesUI {
     }
 }
 
-impl Drop for IOICursesUI {
+impl Drop for CursesUI {
     fn drop(&mut self) {
         // tell the ui to stop and wait for it, the terminal will be released.
         self.stop.store(true, Ordering::Relaxed);
@@ -85,17 +86,18 @@ impl Drop for IOICursesUI {
     }
 }
 
-/// WIP: the main function of the UI thread.
-fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<IOIUIState>>, stop: Arc<AtomicBool>) {
+/// The main function of the UI thread. This will keep looping until the stop command is issued via
+/// the `stop` `AtomicBool`.
+fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<AtomicBool>) {
     let header = {
         let state = state.read().unwrap();
         [
             Text::styled(
-                state.title.clone(),
+                state.task.title.clone(),
                 Style::default().modifier(Modifier::BOLD),
             ),
             Text::raw(" ("),
-            Text::raw(state.name.clone()),
+            Text::raw(state.task.name.clone()),
             Text::raw(")\n"),
         ]
     };
@@ -143,6 +145,7 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<IOIUIState>>, stop: Arc
                 draw_evaluations(&mut f, inner_block(chunks[3]), &state, loading);
             })
             .unwrap();
+        // reduce the framerate to at most `FPS`
         std::thread::sleep(std::time::Duration::from_micros(1_000_000 / FPS));
     }
 }
@@ -152,8 +155,8 @@ fn inner_block(rect: Rect) -> Rect {
     Rect::new(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2)
 }
 
-/// Draw the content of the compilation box.
-fn draw_compilations<B>(frame: &mut Frame<B>, rect: Rect, state: &IOIUIState, loading: char)
+/// Draw the content of the compilation box inside the frame.
+fn draw_compilations<B>(frame: &mut Frame<B>, rect: Rect, state: &UIState, loading: char)
 where
     B: Backend,
 {
@@ -183,7 +186,7 @@ where
     Paragraph::new(text.iter()).wrap(false).render(frame, rect);
 }
 
-/// Get the Text relative to the compilation status of a file.
+/// Get the `Text` relative to the compilation status of a file.
 fn compilation_status_text(status: &CompilationStatus, loading: char) -> Text<'static> {
     match status {
         CompilationStatus::Pending => Text::raw("..."),
@@ -201,7 +204,7 @@ fn compilation_status_text(status: &CompilationStatus, loading: char) -> Text<'s
 }
 
 /// Draw the content of the generation box.
-fn draw_generations<B>(frame: &mut Frame<B>, rect: Rect, state: &IOIUIState, loading: char)
+fn draw_generations<B>(frame: &mut Frame<B>, rect: Rect, state: &UIState, loading: char)
 where
     B: Backend,
 {
@@ -225,7 +228,7 @@ where
     Paragraph::new(text.iter()).wrap(false).render(frame, rect);
 }
 
-/// Get the colored character corresponding to that status.
+/// Get the colored character corresponding to the status of the generation of a testcase.
 fn generation_status_text(status: &TestcaseGenerationStatus, loading: char) -> Text {
     match status {
         TestcaseGenerationStatus::Pending => Text::raw("."),
@@ -252,8 +255,8 @@ fn generation_status_text(status: &TestcaseGenerationStatus, loading: char) -> T
     }
 }
 
-/// Draw the content of the generation box.
-fn draw_evaluations<B>(frame: &mut Frame<B>, rect: Rect, state: &IOIUIState, loading: char)
+/// Draw the content of the evaluation box.
+fn draw_evaluations<B>(frame: &mut Frame<B>, rect: Rect, state: &UIState, loading: char)
 where
     B: Backend,
 {
@@ -285,7 +288,7 @@ where
 }
 
 /// Get the colored score of a solution.
-fn evaluation_score<'a>(state: &'a IOIUIState, solution: &Path, loading: char) -> Text<'a> {
+fn evaluation_score<'a>(state: &'a UIState, solution: &Path, loading: char) -> Text<'a> {
     if let Some(Some(score)) = state.evaluations.get(solution).map(|s| s.score) {
         if score == 0.0 {
             Text::styled(
@@ -308,9 +311,10 @@ fn evaluation_score<'a>(state: &'a IOIUIState, solution: &Path, loading: char) -
     }
 }
 
-/// Get the line after the score of a solution.
-fn evaluation_line<'a>(state: &'a IOIUIState, solution: &Path, loading: char) -> Vec<Text<'a>> {
+/// Get the line at the right of the score of a solution.
+fn evaluation_line<'a>(state: &'a UIState, solution: &Path, loading: char) -> Vec<Text<'a>> {
     state
+        .task
         .subtasks
         .keys()
         .sorted()
@@ -318,12 +322,12 @@ fn evaluation_line<'a>(state: &'a IOIUIState, solution: &Path, loading: char) ->
         .collect()
 }
 
-/// Get the status of a subtask, like [AATTR] where each letter corresponds to
+/// Get the status of a subtask, like `[AATTR]` where each letter corresponds to
 /// the status of a single testcase.
 fn subtask_evaluation_status_text<'a>(
-    state: &'a IOIUIState,
+    state: &'a UIState,
     solution: &Path,
-    subtask: IOISubtaskId,
+    subtask: SubtaskId,
     loading: char,
 ) -> Vec<Text<'a>> {
     let mut texts = vec![];
@@ -365,22 +369,22 @@ fn subtask_evaluation_status_text<'a>(
     texts
 }
 
-/// Get the colored character corresponding to that status.
+/// Get the colored character corresponding to the status of the evaluation of a testcase.
 fn testcase_evaluation_status_text(status: &TestcaseEvaluationStatus, loading: char) -> Text {
     match status {
         TestcaseEvaluationStatus::Pending => Text::raw("."),
         TestcaseEvaluationStatus::Solving => Text::raw(format!("{}", loading)),
         TestcaseEvaluationStatus::Solved => Text::raw("s"),
         TestcaseEvaluationStatus::Checking => Text::raw(format!("{}", loading)),
-        TestcaseEvaluationStatus::Accepted => Text::styled(
+        TestcaseEvaluationStatus::Accepted(_) => Text::styled(
             "A",
             Style::default().fg(Color::Green).modifier(Modifier::BOLD),
         ),
-        TestcaseEvaluationStatus::WrongAnswer => Text::styled(
+        TestcaseEvaluationStatus::WrongAnswer(_) => Text::styled(
             "W",
             Style::default().fg(Color::Red).modifier(Modifier::BOLD),
         ),
-        TestcaseEvaluationStatus::Partial => Text::styled(
+        TestcaseEvaluationStatus::Partial(_) => Text::styled(
             "P",
             Style::default().fg(Color::Yellow).modifier(Modifier::BOLD),
         ),

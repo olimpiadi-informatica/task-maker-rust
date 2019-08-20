@@ -476,7 +476,7 @@ impl TaskType {
                     eval,
                     subtask_id,
                     testcase_id,
-                    source_file.name(),
+                    source_file.path.clone(),
                     input,
                     correct_output,
                     output.uuid,

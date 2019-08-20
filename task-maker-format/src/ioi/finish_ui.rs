@@ -1,4 +1,4 @@
-use crate::ui::ioi_state::{CompilationStatus, IOIUIState, SolutionEvaluationState};
+use crate::ioi::ui_state::{CompilationStatus, UIState, SolutionEvaluationState};
 use failure::Error;
 use itertools::Itertools;
 use std::io::Write;
@@ -9,7 +9,7 @@ use termcolor::{ColorChoice, StandardStream};
 type Result = std::result::Result<(), Error>;
 
 /// Print the final state of the execution of a task.
-pub fn print_final_state(state: &IOIUIState) {
+pub fn print_final_state(state: &UIState) {
     let mut stdout = StandardStream::stdout(ColorChoice::Auto);
     print_task_info(&mut stdout, state).unwrap();
     print_compilations(&mut stdout, state).unwrap();
@@ -18,16 +18,16 @@ pub fn print_final_state(state: &IOIUIState) {
 }
 
 /// Print the basic task information.
-fn print_task_info(stdout: &mut StandardStream, state: &IOIUIState) -> Result {
-    writeln!(stdout, "{} ({})", state.title, state.name)?;
-    writeln!(stdout, "Path:      {}", state.path.to_string_lossy())?;
+fn print_task_info(stdout: &mut StandardStream, state: &UIState) -> Result {
+    writeln!(stdout, "{} ({})", state.task.title, state.task.name)?;
+    writeln!(stdout, "Path:      {}", state.task.path.to_string_lossy())?;
     writeln!(stdout, "Max score: {}", state.max_score)?;
     writeln!(stdout)?;
     Ok(())
 }
 
 /// Print the compilation info.
-fn print_compilations(stdout: &mut StandardStream, state: &IOIUIState) -> Result {
+fn print_compilations(stdout: &mut StandardStream, state: &UIState) -> Result {
     writeln!(stdout, "Compilations")?;
     for (path, status) in &state.compilations {
         writeln!(
@@ -54,7 +54,7 @@ fn print_compilations(stdout: &mut StandardStream, state: &IOIUIState) -> Result
 }
 
 /// Print the generation info.
-fn print_generations(stdout: &mut StandardStream, state: &IOIUIState) -> Result {
+fn print_generations(stdout: &mut StandardStream, state: &UIState) -> Result {
     writeln!(stdout, "Generations")?;
     for (st_num, subtask) in state.generations.iter().sorted_by_key(|(n, _)| *n) {
         writeln!(stdout, "Subtask {}", st_num)?;
@@ -77,7 +77,7 @@ fn print_generations(stdout: &mut StandardStream, state: &IOIUIState) -> Result 
 }
 
 /// Print the evaluation info of all the solutions.
-fn print_evaluations(stdout: &mut StandardStream, state: &IOIUIState) -> Result {
+fn print_evaluations(stdout: &mut StandardStream, state: &UIState) -> Result {
     writeln!(stdout, "Evaluations")?;
     for (path, eval) in &state.evaluations {
         print_evaluation(stdout, path, &eval.score, state.max_score, eval, state)?;
@@ -92,7 +92,7 @@ fn print_evaluation(
     score: &Option<f64>,
     max_score: f64,
     eval: &SolutionEvaluationState,
-    state: &IOIUIState,
+    state: &UIState,
 ) -> Result {
     writeln!(stdout)?;
     writeln!(
@@ -108,7 +108,7 @@ fn print_evaluation(
             "Subtask #{}: {:.2} / {:.2}",
             st_num,
             subtask.score.unwrap_or(0.0),
-            state.subtasks.get(st_num).unwrap().max_score
+            state.task.subtasks.get(st_num).unwrap().max_score
         )?;
         for (tc_num, testcase) in subtask.testcases.iter().sorted_by_key(|(n, _)| *n) {
             writeln!(

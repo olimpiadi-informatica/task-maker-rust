@@ -119,7 +119,7 @@ where
 mod tests {
     use crate::ioi::format::italian_yaml::gen_gen::parse_gen_gen;
     use crate::ioi::format::italian_yaml::TaskInputEntry;
-    use crate::ioi::{InputValidator, OutputGenerator, SubtaskId, TestcaseId, InputGenerator};
+    use crate::ioi::{InputGenerator, InputValidator, OutputGenerator, SubtaskId, TestcaseId};
     use pretty_assertions::assert_eq;
     use std::fs;
     use std::path::{Path, PathBuf};
@@ -167,7 +167,7 @@ mod tests {
             assert_eq!(testcase.id, 0);
             match &testcase.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
-                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
             panic!("Wrong entries returned: {:?}", entries);
@@ -184,7 +184,7 @@ mod tests {
             assert_eq!(testcase.id, 0);
             match &testcase.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
-                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
             panic!("Wrong entries returned: {:?}", entries);
@@ -201,7 +201,7 @@ mod tests {
             assert_eq!(testcase.id, 0);
             match &testcase.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
-                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
             panic!("Wrong entries returned: {:?}", entries);
@@ -219,11 +219,11 @@ mod tests {
             assert_eq!(testcase2.id, 1);
             match &testcase1.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
-                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
             match &testcase2.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["5678".to_string()]),
-                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
             panic!("Wrong entries returned: {:?}", entries);
@@ -245,7 +245,7 @@ mod tests {
             }
             match &testcase2.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["5678".to_string()]),
-                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
             panic!("Wrong entries returned: {:?}", entries);
@@ -256,7 +256,9 @@ mod tests {
     fn test_parser_subtasks() {
         let task = make_task("#ST: 123\n#COPY: random/file\n5678\n#ST: 321\n1234\n");
         let entries = get_entries(task.path());
-        if let [Subtask(subtask1), Testcase(testcase1), Testcase(testcase2), Subtask(subtask2), Testcase(testcase3)] = entries.as_slice() {
+        if let [Subtask(subtask1), Testcase(testcase1), Testcase(testcase2), Subtask(subtask2), Testcase(testcase3)] =
+            entries.as_slice()
+        {
             assert_eq!(subtask1.id, 0);
             assert_eq!(subtask1.max_score as u32, 123);
             assert_eq!(testcase1.id, 0);
@@ -269,11 +271,11 @@ mod tests {
             }
             match &testcase2.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["5678".to_string()]),
-                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
             match &testcase3.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
-                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
             panic!("Wrong entries returned: {:?}", entries);
@@ -291,11 +293,11 @@ mod tests {
             assert_eq!(testcase2.id, 1);
             match &testcase1.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
-                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
             match &testcase2.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["5678".to_string()]),
-                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
             panic!("Wrong entries returned: {:?}", entries);
@@ -312,7 +314,7 @@ mod tests {
             assert_eq!(testcase.id, 0);
             match &testcase.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
-                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
             panic!("Wrong entries returned: {:?}", entries);

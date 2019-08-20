@@ -22,6 +22,8 @@ extern crate log;
 extern crate pest;
 #[macro_use]
 extern crate pest_derive;
+extern crate termion;
+extern crate tui;
 
 use crate::ui::UI;
 

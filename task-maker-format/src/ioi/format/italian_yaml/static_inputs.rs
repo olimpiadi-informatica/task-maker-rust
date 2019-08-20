@@ -82,11 +82,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::ioi::{SubtaskId, InputValidator, OutputGenerator, TestcaseId};
-    use crate::ioi::format::italian_yaml::TaskInputEntry;
-    use tempdir::TempDir;
-    use std::fs;
     use super::*;
+    use crate::ioi::format::italian_yaml::TaskInputEntry;
+    use crate::ioi::{InputValidator, OutputGenerator, SubtaskId, TestcaseId};
+    use std::fs;
+    use tempdir::TempDir;
     use TaskInputEntry::*;
 
     fn get_validator(_subtask: SubtaskId) -> InputValidator {
@@ -97,11 +97,15 @@ mod tests {
         OutputGenerator::StaticFile(PathBuf::from("foooo"))
     }
 
-    fn make_task<I: IntoIterator<Item=N>, N: std::fmt::Display>(iter: I) -> TempDir {
+    fn make_task<I: IntoIterator<Item = N>, N: std::fmt::Display>(iter: I) -> TempDir {
         let dir = TempDir::new("tm-test").unwrap();
         fs::create_dir(dir.path().join("input")).unwrap();
         for tc in iter.into_iter() {
-            fs::write(dir.path().join("input").join(format!("input{}.txt", tc)), "").unwrap();
+            fs::write(
+                dir.path().join("input").join(format!("input{}.txt", tc)),
+                "",
+            )
+            .unwrap();
         }
         dir
     }
@@ -109,20 +113,29 @@ mod tests {
     #[test]
     fn test_some_inputs() {
         let task = make_task(&[0, 1, 2]);
-        let entries: Vec<_> = static_inputs(task.path(), get_validator, get_output_generator).collect();
-        if let [Subtask(subtask), Testcase(testcase0), Testcase(testcase1), Testcase(testcase2)] = entries.as_slice() {
+        let entries: Vec<_> =
+            static_inputs(task.path(), get_validator, get_output_generator).collect();
+        if let [Subtask(subtask), Testcase(testcase0), Testcase(testcase1), Testcase(testcase2)] =
+            entries.as_slice()
+        {
             assert_eq!(subtask.id, 0);
             assert_eq!(subtask.max_score as u32, 100);
             match &testcase0.input_generator {
-                InputGenerator::StaticFile(path) => assert_eq!(path, &task.path().join("input/input0.txt")),
+                InputGenerator::StaticFile(path) => {
+                    assert_eq!(path, &task.path().join("input/input0.txt"))
+                }
                 InputGenerator::Custom(_, _) => panic!("Invalid generator"),
             }
             match &testcase1.input_generator {
-                InputGenerator::StaticFile(path) => assert_eq!(path, &task.path().join("input/input1.txt")),
+                InputGenerator::StaticFile(path) => {
+                    assert_eq!(path, &task.path().join("input/input1.txt"))
+                }
                 InputGenerator::Custom(_, _) => panic!("Invalid generator"),
             }
             match &testcase2.input_generator {
-                InputGenerator::StaticFile(path) => assert_eq!(path, &task.path().join("input/input2.txt")),
+                InputGenerator::StaticFile(path) => {
+                    assert_eq!(path, &task.path().join("input/input2.txt"))
+                }
                 InputGenerator::Custom(_, _) => panic!("Invalid generator"),
             }
         } else {
@@ -133,7 +146,8 @@ mod tests {
     #[test]
     fn test_no_input() {
         let task = make_task(Vec::<i32>::new());
-        let entries: Vec<_> = static_inputs(task.path(), get_validator, get_output_generator).collect();
+        let entries: Vec<_> =
+            static_inputs(task.path(), get_validator, get_output_generator).collect();
         if let [Subtask(subtask)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
             assert_eq!(subtask.max_score as u32, 100);

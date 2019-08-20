@@ -24,8 +24,6 @@ extern crate itertools;
 extern crate pretty_assertions;
 extern crate structopt;
 extern crate tempdir;
-extern crate termion;
-extern crate tui;
 
 use std::path::PathBuf;
 use std::sync::{mpsc::channel, Arc, Mutex};

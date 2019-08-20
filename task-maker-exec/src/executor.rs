@@ -81,7 +81,7 @@ pub(crate) enum WorkerWaitingState {
     /// The worker got some job.
     GotJob(WorkerJob),
     /// The computation ended, the worker should exit now.
-    Exit
+    Exit,
 }
 
 /// State of a worker as seen by the server.
@@ -246,8 +246,8 @@ impl Executor {
                                         worker.name.clone(),
                                         match *worker.job.lock().unwrap() {
                                             WorkerWaitingState::GotJob(_) => true,
-                                            _ => false
-                                        }
+                                            _ => false,
+                                        },
                                     )
                                 })
                                 .collect(),
@@ -328,13 +328,14 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                 }
                 match wait_for_work(executor.clone(), &conn.uuid) {
                     WorkerWaitingState::GotJob(job) => {
-                        serialize_into(&WorkerServerMessage::Work(Box::new(job)), &conn.sender).unwrap();
+                        serialize_into(&WorkerServerMessage::Work(Box::new(job)), &conn.sender)
+                            .unwrap();
                     }
                     WorkerWaitingState::Exit => {
                         info!("Worker {} asked to exit", conn);
                         break;
                     }
-                    _ => unreachable!("wait_for_work returned without reason")
+                    _ => unreachable!("wait_for_work returned without reason"),
                 }
             }
             Ok(WorkerClientMessage::WorkerDone(result)) => {
@@ -346,7 +347,9 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                     .expect("Worker disappeared")
                     .job
                     .lock()
-                    .unwrap().clone() {
+                    .unwrap()
+                    .clone()
+                {
                     job
                 } else {
                     panic!("Worker job disappeared");

@@ -1,5 +1,5 @@
 use crate::*;
-use failure::{Error, format_err};
+use failure::{format_err, Error};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -41,15 +41,19 @@ impl LocalExecutor {
             let (worker, conn) =
                 Worker::new(&format!("Local worker {}", i), self.file_store.clone());
             workers.push(self.executor.add_worker(conn));
-            workers.push(thread::Builder::new()
-                .name(format!("Worker {}", worker))
-                .spawn(move || {
-                    worker.work().expect("Worker failed");
-                })?);
+            workers.push(
+                thread::Builder::new()
+                    .name(format!("Worker {}", worker))
+                    .spawn(move || {
+                        worker.work().expect("Worker failed");
+                    })?,
+            );
         }
         self.executor.evaluate(sender, receiver)?;
         for worker in workers.into_iter() {
-            worker.join().map_err(|e| format_err!("Worker panicked: {:?}", e))?;
+            worker
+                .join()
+                .map_err(|e| format_err!("Worker panicked: {:?}", e))?;
         }
         Ok(())
     }

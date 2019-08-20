@@ -29,9 +29,13 @@ use crate::ui::*;
 use crate::UISender;
 use crate::{list_files, EvaluationData, SourceFile, TaskFormat};
 
+mod curses_ui;
 mod dag;
 mod format;
+mod ui_state;
+mod finish_ui;
 
+use curses_ui::CursesUI;
 pub use dag::*;
 
 /// In IOI tasks the subtask numbers are non-negative 0-based integers.
@@ -123,7 +127,7 @@ impl TaskFormat for Task {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),
             UIType::Print => Ok(Box::new(PrintUI::new())),
-            _ => bail!("IOI task does not current support this ui: {:?}", ui_type),
+            UIType::Curses => Ok(Box::new(CursesUI::new(self)?)),
         }
     }
 

@@ -1,5 +1,8 @@
-use crate::ui::*;
+use crate::ioi::*;
+use std::collections::HashMap;
+use std::path::PathBuf;
 use task_maker_dag::*;
+use crate::ui::{UIMessage, UIExecutionStatus};
 
 /// The status of the compilation of a file.
 #[derive(Debug)]
@@ -9,9 +12,15 @@ pub enum CompilationStatus {
     /// The compilation is running on a worker.
     Running,
     /// The compilation has completed.
-    Done { result: ExecutionResult },
+    Done {
+        /// The result of the compilation.
+        result: ExecutionResult
+    },
     /// The compilation has failed.
-    Failed { result: ExecutionResult },
+    Failed {
+        /// The result of the compilation.
+        result: ExecutionResult
+    },
     /// The compilation has been skipped.
     Skipped,
 }
@@ -39,23 +48,23 @@ pub enum TestcaseGenerationStatus {
     Skipped,
 }
 
-/// Status of the evalution of a solution on a testcase.
+/// Status of the evaluation of a solution on a testcase.
 #[derive(Debug)]
 pub enum TestcaseEvaluationStatus {
     /// The solution has not started yet.
     Pending,
     /// The solution is running.
     Solving,
-    /// The solution exited succesfully, waiting for the checker.
+    /// The solution exited successfully, waiting for the checker.
     Solved,
     /// Checker is running.
     Checking,
     /// The solution scored 100% of the testcase.
-    Accepted,
+    Accepted(String),
     /// The output is wrong.
-    WrongAnswer,
+    WrongAnswer(String),
     /// The solution is partially correct.
-    Partial,
+    Partial(String),
     /// The solution timed out.
     TimeLimitExceeded,
     /// The solution exceeded the wall time limit.
@@ -87,7 +96,7 @@ pub struct TestcaseGenerationState {
 #[derive(Debug)]
 pub struct SubtaskGenerationState {
     /// State of the testcases of this subtask.
-    pub testcases: HashMap<IOITestcaseId, TestcaseGenerationState>,
+    pub testcases: HashMap<TestcaseId, TestcaseGenerationState>,
 }
 
 /// State of the evaluation of a testcase.
@@ -109,7 +118,7 @@ pub struct SolutionSubtaskEvaluationState {
     /// Score of the subtask.
     pub score: Option<f64>,
     /// The state of the evaluation of the testcases.
-    pub testcases: HashMap<IOITestcaseId, SolutionTestcaseEvaluationState>,
+    pub testcases: HashMap<TestcaseId, SolutionTestcaseEvaluationState>,
 }
 
 /// State of the evaluation of a solution.
@@ -118,28 +127,28 @@ pub struct SolutionEvaluationState {
     /// Score of the solution.
     pub score: Option<f64>,
     /// The state of the evaluation of the subtasks.
-    pub subtasks: HashMap<IOISubtaskId, SolutionSubtaskEvaluationState>,
+    pub subtasks: HashMap<SubtaskId, SolutionSubtaskEvaluationState>,
 }
 
 impl SolutionEvaluationState {
-    /// Make a new, empty, SolutionEvaluationState.
-    pub fn new(
-        testcases: &HashMap<IOISubtaskId, HashSet<IOITestcaseId>>,
-    ) -> SolutionEvaluationState {
+    /// Make a new, empty, `SolutionEvaluationState`.
+    pub fn new(task: &Task) -> SolutionEvaluationState {
         SolutionEvaluationState {
             score: None,
-            subtasks: testcases
-                .iter()
-                .map(|(st_num, testcases)| {
+            subtasks: task
+                .subtasks
+                .values()
+                .map(|subtask| {
                     (
-                        *st_num,
+                        subtask.id,
                         SolutionSubtaskEvaluationState {
                             score: None,
-                            testcases: testcases
-                                .iter()
-                                .map(|tc_num| {
+                            testcases: subtask
+                                .testcases
+                                .values()
+                                .map(|testcase| {
                                     (
-                                        *tc_num,
+                                        testcase.id,
                                         SolutionTestcaseEvaluationState {
                                             score: None,
                                             status: TestcaseEvaluationStatus::Pending,
@@ -159,29 +168,21 @@ impl SolutionEvaluationState {
 
 /// The state of a IOI task, all the information for the UI are stored here.
 #[derive(Debug)]
-pub struct IOIUIState {
-    /// The name of the task.
-    pub name: String,
-    /// The title of the task.
-    pub title: String,
-    /// The path where the task is stored on disk.
-    pub path: PathBuf,
+pub struct UIState {
+    /// The task.
+    pub task: Task,
     /// The maximum score of this task.
     pub max_score: f64,
-    /// The list of known subtasks.
-    pub subtasks: HashMap<IOISubtaskId, IOISubtaskInfo>,
-    /// The list of known testcases.
-    pub testcases: HashMap<IOISubtaskId, HashSet<IOITestcaseId>>,
     /// The status of the compilations.
     pub compilations: HashMap<PathBuf, CompilationStatus>,
     /// The state of the generation of the testcases.
-    pub generations: HashMap<IOISubtaskId, SubtaskGenerationState>,
+    pub generations: HashMap<SubtaskId, SubtaskGenerationState>,
     /// The status of the evaluations of the solutions.
     pub evaluations: HashMap<PathBuf, SolutionEvaluationState>,
 }
 
 impl TestcaseEvaluationStatus {
-    /// Whether the testcase evalution has completed, either successfully or not.
+    /// Whether the testcase evaluation has completed, either successfully or not.
     pub fn has_completed(&self) -> bool {
         match self {
             TestcaseEvaluationStatus::Pending
@@ -195,7 +196,7 @@ impl TestcaseEvaluationStatus {
     /// Whether the testcase evaluation has completed successfully.
     pub fn is_success(&self) -> bool {
         match self {
-            TestcaseEvaluationStatus::Accepted => true,
+            TestcaseEvaluationStatus::Accepted(_) => true,
             _ => false,
         }
     }
@@ -203,64 +204,51 @@ impl TestcaseEvaluationStatus {
     /// Whether the testcase evaluation has completed with a partial score.
     pub fn is_partial(&self) -> bool {
         match self {
-            TestcaseEvaluationStatus::Partial => true,
+            TestcaseEvaluationStatus::Partial(_) => true,
             _ => false,
         }
     }
 }
 
-impl IOIUIState {
-    /// Make a new IOIUIState.
-    pub fn new(task: UIMessage) -> IOIUIState {
-        if let UIMessage::IOITask {
-            name,
-            title,
-            path,
-            subtasks,
-            testcases,
-        } = task
-        {
-            let generations = testcases
-                .iter()
-                .map(|(st_num, testcases)| {
-                    (
-                        *st_num,
-                        SubtaskGenerationState {
-                            testcases: testcases
-                                .iter()
-                                .map(|tc_num| {
-                                    (
-                                        *tc_num,
-                                        TestcaseGenerationState {
-                                            status: TestcaseGenerationStatus::Pending,
-                                            generation: None,
-                                            validation: None,
-                                            solution: None,
-                                        },
-                                    )
-                                })
-                                .collect(),
-                        },
-                    )
-                })
-                .collect();
-            IOIUIState {
-                name,
-                title,
-                path,
-                max_score: subtasks.values().map(|s| s.max_score).sum(),
-                subtasks,
-                testcases,
-                compilations: HashMap::new(),
-                generations,
-                evaluations: HashMap::new(),
-            }
-        } else {
-            panic!("IOIUIState::new called with an invalid task type");
+impl UIState {
+    /// Make a new `UIState`.
+    pub fn new(task: &Task) -> UIState {
+        let generations = task
+            .subtasks
+            .iter()
+            .map(|(st_num, subtask)| {
+                (
+                    *st_num,
+                    SubtaskGenerationState {
+                        testcases: subtask
+                            .testcases
+                            .iter()
+                            .map(|(tc_num, _)| {
+                                (
+                                    *tc_num,
+                                    TestcaseGenerationState {
+                                        status: TestcaseGenerationStatus::Pending,
+                                        generation: None,
+                                        validation: None,
+                                        solution: None,
+                                    },
+                                )
+                            })
+                            .collect(),
+                    },
+                )
+            })
+            .collect();
+        UIState {
+            max_score: task.subtasks.values().map(|s| s.max_score).sum(),
+            task: task.clone(),
+            compilations: HashMap::new(),
+            generations,
+            evaluations: HashMap::new(),
         }
     }
 
-    /// Apply a UIMessage to this state.
+    /// Apply a `UIMessage` to this state.
     pub fn apply(&mut self, message: UIMessage) {
         match message {
             UIMessage::Compilation { file, status } => {
@@ -384,7 +372,7 @@ impl IOIUIState {
                 let eval = self
                     .evaluations
                     .entry(solution)
-                    .or_insert(SolutionEvaluationState::new(&self.testcases));
+                    .or_insert(SolutionEvaluationState::new(&self.task));
                 let subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
                 let mut testcase = subtask
                     .testcases
@@ -438,7 +426,7 @@ impl IOIUIState {
                 let eval = self
                     .evaluations
                     .entry(solution)
-                    .or_insert(SolutionEvaluationState::new(&self.testcases));
+                    .or_insert(SolutionEvaluationState::new(&self.task));
                 let subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
                 let mut testcase = subtask
                     .testcases
@@ -459,11 +447,12 @@ impl IOIUIState {
                 testcase,
                 solution,
                 score,
+                message,
             } => {
                 let eval = self
                     .evaluations
                     .entry(solution)
-                    .or_insert(SolutionEvaluationState::new(&self.testcases));
+                    .or_insert(SolutionEvaluationState::new(&self.task));
                 let subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
                 let mut testcase = subtask
                     .testcases
@@ -472,11 +461,11 @@ impl IOIUIState {
                 testcase.score = Some(score);
                 if let TestcaseEvaluationStatus::Checking = testcase.status {
                     if score == 0.0 {
-                        testcase.status = TestcaseEvaluationStatus::WrongAnswer;
+                        testcase.status = TestcaseEvaluationStatus::WrongAnswer(message);
                     } else if (score - 1.0).abs() < 0.001 {
-                        testcase.status = TestcaseEvaluationStatus::Accepted;
+                        testcase.status = TestcaseEvaluationStatus::Accepted(message);
                     } else {
-                        testcase.status = TestcaseEvaluationStatus::Partial;
+                        testcase.status = TestcaseEvaluationStatus::Partial(message);
                     }
                 }
             }
@@ -488,7 +477,7 @@ impl IOIUIState {
                 let eval = self
                     .evaluations
                     .entry(solution)
-                    .or_insert(SolutionEvaluationState::new(&self.testcases));
+                    .or_insert(SolutionEvaluationState::new(&self.task));
                 let mut subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
                 subtask.score = Some(score);
             }
@@ -496,7 +485,7 @@ impl IOIUIState {
                 let eval = self
                     .evaluations
                     .entry(solution)
-                    .or_insert(SolutionEvaluationState::new(&self.testcases));
+                    .or_insert(SolutionEvaluationState::new(&self.task));
                 eval.score = Some(score);
             }
             _ => {}
