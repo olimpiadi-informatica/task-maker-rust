@@ -1,4 +1,10 @@
-//! TODO rustdoc
+//! Task parsing and execution using computation DAGs.
+//!
+//! This crate allows you to parse the tasks on disk and evaluate the solutions inside of them by
+//! adding the executions inside an [`ExecutionDAG`](task_maker_dag/struct.ExecutionDAG.html).
+//!
+//! This crate also provides ui functionalities for showing the progress and the results of the
+//! execution.
 
 #![deny(missing_docs)]
 
