@@ -183,12 +183,15 @@ fn execute_job(
     file_store: &mut FileStore,
 ) -> Result<Sandbox, Error> {
     let job = current_job.lock().unwrap().current_job.clone().unwrap();
-    let sandbox = Sandbox::new(
+    let mut sandbox = Sandbox::new(
         std::path::Path::new("/tmp/sandboxes"),
         &job.execution,
         &job.dep_keys,
         file_store,
     )?;
+    if job.execution.config().keep_sandboxes {
+        sandbox.keep();
+    }
     let thread_sender = sender.clone();
     let thread_sandbox = sandbox.clone();
     let thread_job = job.clone();

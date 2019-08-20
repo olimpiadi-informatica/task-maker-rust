@@ -1,4 +1,5 @@
 use crate::file::*;
+use crate::ExecutionDAGConfig;
 use boxfnonce::BoxFnOnce;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -125,6 +126,10 @@ pub struct Execution {
 
     /// Limits on the execution.
     pub limits: ExecutionLimits,
+
+    /// The configuration of the underlying DAG. Will be overwritten by
+    /// `ExecutionDAG.add_execution`.
+    pub(crate) config: ExecutionDAGConfig,
 }
 
 /// Limits on an [`Execution`](struct.Execution.html). On some worker platforms some of the fields
@@ -312,6 +317,8 @@ impl Execution {
             outputs: HashMap::new(),
 
             limits: ExecutionLimits::default(),
+
+            config: ExecutionDAGConfig::new(),
         }
     }
 
@@ -492,6 +499,11 @@ impl Execution {
     /// ```
     pub fn limits_mut(&mut self) -> &mut ExecutionLimits {
         &mut self.limits
+    }
+
+    /// A reference to the configuration of the underlying DAG.
+    pub fn config(&self) -> &ExecutionDAGConfig {
+        &self.config
     }
 }
 

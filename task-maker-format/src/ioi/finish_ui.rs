@@ -1,4 +1,4 @@
-use crate::ioi::ui_state::{CompilationStatus, UIState, SolutionEvaluationState};
+use crate::ioi::ui_state::{CompilationStatus, SolutionEvaluationState, UIState};
 use failure::Error;
 use itertools::Itertools;
 use std::io::Write;

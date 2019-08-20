@@ -1,3 +1,4 @@
+use crate::ioi::finish_ui::print_final_state;
 use crate::ioi::ui_state::*;
 use crate::ioi::*;
 use crate::ui::{UIMessage, UI};
@@ -16,7 +17,6 @@ use tui::layout::{Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, Paragraph, Text, Widget};
 use tui::{Frame, Terminal};
-use crate::ioi::finish_ui::print_final_state;
 
 /// The framerate of the UI.
 const FPS: u64 = 30;

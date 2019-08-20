@@ -1,8 +1,8 @@
 use crate::ioi::*;
+use crate::ui::{UIExecutionStatus, UIMessage};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use task_maker_dag::*;
-use crate::ui::{UIMessage, UIExecutionStatus};
 
 /// The status of the compilation of a file.
 #[derive(Debug)]
@@ -14,12 +14,12 @@ pub enum CompilationStatus {
     /// The compilation has completed.
     Done {
         /// The result of the compilation.
-        result: ExecutionResult
+        result: ExecutionResult,
     },
     /// The compilation has failed.
     Failed {
         /// The result of the compilation.
-        result: ExecutionResult
+        result: ExecutionResult,
     },
     /// The compilation has been skipped.
     Skipped,

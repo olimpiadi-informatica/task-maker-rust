@@ -31,9 +31,9 @@ use crate::{list_files, EvaluationData, SourceFile, TaskFormat};
 
 mod curses_ui;
 mod dag;
+mod finish_ui;
 mod format;
 mod ui_state;
-mod finish_ui;
 
 use curses_ui::CursesUI;
 pub use dag::*;

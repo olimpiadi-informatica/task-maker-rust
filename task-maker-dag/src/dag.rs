@@ -7,6 +7,14 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use task_maker_store::*;
 
+/// Configuration setting of an `ExecutionDAG`, some of the values set here will be inherited in the
+/// configuration of the executions added.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionDAGConfig {
+    /// Keep the sandbox directory of each execution.
+    pub keep_sandboxes: bool,
+}
+
 /// A wrapper around a File provided by the client, this means that the client
 /// knows the FileStoreKey and the path to that file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,6 +35,8 @@ pub struct ExecutionDAGData {
     pub provided_files: HashMap<FileUuid, ProvidedFile>,
     /// All the executions to run.
     pub executions: HashMap<ExecutionUuid, Execution>,
+    /// The configuration of this DAG.
+    pub config: ExecutionDAGConfig,
 }
 
 /// A computation DAG, this is not serializable because it contains the callbacks of the client.
@@ -47,6 +57,7 @@ impl ExecutionDAG {
             data: ExecutionDAGData {
                 provided_files: HashMap::new(),
                 executions: HashMap::new(),
+                config: ExecutionDAGConfig::new(),
             },
             execution_callbacks: HashMap::new(),
             file_callbacks: HashMap::new(),
@@ -68,7 +79,8 @@ impl ExecutionDAG {
     }
 
     /// Add an execution to the DAG.
-    pub fn add_execution(&mut self, execution: Execution) {
+    pub fn add_execution(&mut self, mut execution: Execution) {
+        execution.config = self.data.config.clone();
         self.data.executions.insert(execution.uuid, execution);
     }
 
@@ -118,6 +130,11 @@ impl ExecutionDAG {
             .push(BoxFnOnce::from(callback));
     }
 
+    /// Get a mutable reference to the config of this DAG.
+    pub fn config_mut(&mut self) -> &mut ExecutionDAGConfig {
+        &mut self.data.config
+    }
+
     /// Makes sure that a callback item exists for that file and returns a &mut to it.
     fn file_callback<F: Into<FileUuid>>(&mut self, file: F) -> &mut FileCallbacks {
         self.file_callbacks.entry(file.into()).or_default()
@@ -126,5 +143,20 @@ impl ExecutionDAG {
     /// Makes sure that a callback item exists for that execution and returns a &mut to it.
     fn execution_callback(&mut self, execution: &ExecutionUuid) -> &mut ExecutionCallbacks {
         self.execution_callbacks.entry(*execution).or_default()
+    }
+}
+
+impl ExecutionDAGConfig {
+    /// Make a new `ExecutionDAGConfig`.
+    pub fn new() -> ExecutionDAGConfig {
+        ExecutionDAGConfig {
+            keep_sandboxes: false,
+        }
+    }
+
+    /// Whether to keep the sandbox directory of each execution.
+    pub fn keep_sandboxes(&mut self, keep_sandboxes: bool) -> &mut Self {
+        self.keep_sandboxes = keep_sandboxes;
+        self
     }
 }

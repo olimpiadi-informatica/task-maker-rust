@@ -43,8 +43,11 @@ pub enum SandboxResult {
 /// Internals of the sandbox.
 #[derive(Debug)]
 struct SandboxData {
-    /// Handle to the temporary directory, will be deleted on drop.
-    boxdir: TempDir,
+    /// Handle to the temporary directory, will be deleted on drop. It's always Some(_) except
+    /// inside `Drop`.
+    boxdir: Option<TempDir>,
+    /// Whether to keep the sandbox after exit.
+    keep_sandbox: bool,
 }
 
 /// Wrapper around the sandbox. Cloning this struct will keep the reference of the same sandbox,
@@ -97,14 +100,17 @@ impl Sandbox {
         let boxdir = TempDir::new_in(sandboxes_dir, "box")?;
         Sandbox::setup(boxdir.path(), execution, dep_keys, file_store)?;
         Ok(Sandbox {
-            data: Arc::new(Mutex::new(SandboxData { boxdir })),
+            data: Arc::new(Mutex::new(SandboxData {
+                boxdir: Some(boxdir),
+                keep_sandbox: false,
+            })),
             execution: execution.clone(),
         })
     }
 
     /// Starts the sandbox and blocks the thread until the sandbox exits.
     pub fn run(&self) -> Result<SandboxResult, Error> {
-        let boxdir = self.data.lock().unwrap().boxdir.path().to_owned();
+        let boxdir = self.data.lock().unwrap().path().to_owned();
         trace!("Running sandbox at {:?}", boxdir);
         let mut sandbox = Command::new(Path::new(env!("OUT_DIR")).join("bin").join("tmbox"));
         sandbox.arg("--directory").arg(&boxdir.join("box"));
@@ -204,35 +210,36 @@ impl Sandbox {
     pub fn kill(&self) {
         info!(
             "Sandbox at {:?} got killed",
-            self.data.lock().unwrap().boxdir.path()
+            self.data.lock().unwrap().path()
         );
         unimplemented!();
     }
 
     /// Make the sandbox persistent, the sandbox directory won't be deleted after the execution.
-    pub fn keep(&self) {
-        unimplemented!();
+    pub fn keep(&mut self) {
+        let mut data = self.data.lock().unwrap();
+        let path = data.boxdir.as_ref().unwrap().path().to_owned();
+        debug!("Keeping sandbox at {:?}", path);
+        data.keep_sandbox = true;
+        let serialized =
+            serde_json::to_string_pretty(&self.execution).expect("Cannot serialize execution");
+        std::fs::write(path.join("info.json"), serialized)
+            .expect("Cannot write execution info inside sandbox");
     }
 
     /// Path of the file where the standard output is written to.
     pub fn stdout_path(&self) -> PathBuf {
-        self.data.lock().unwrap().boxdir.path().join("stdout")
+        self.data.lock().unwrap().path().join("stdout")
     }
 
     /// Path of the file where the standard error is written to.
     pub fn stderr_path(&self) -> PathBuf {
-        self.data.lock().unwrap().boxdir.path().join("stderr")
+        self.data.lock().unwrap().path().join("stderr")
     }
 
     /// Path of the file where that output file is written to.
     pub fn output_path(&self, output: &Path) -> PathBuf {
-        self.data
-            .lock()
-            .unwrap()
-            .boxdir
-            .path()
-            .join("box")
-            .join(output)
+        self.data.lock().unwrap().path().join("box").join(output)
     }
 
     /// Setup the sandbox directory with all the files required for the execution.
@@ -310,5 +317,21 @@ impl Sandbox {
         permisions.set_mode(mode);
         std::fs::set_permissions(dest, permisions)?;
         Ok(())
+    }
+}
+
+impl SandboxData {
+    fn path(&self) -> &Path {
+        // this unwrap is safe since only `Drop` will remove the boxdir
+        self.boxdir.as_ref().unwrap().path()
+    }
+}
+
+impl Drop for SandboxData {
+    fn drop(&mut self) {
+        if self.keep_sandbox {
+            // this will unwrap the directory, dropping the `TempDir` without deleting the directory
+            self.boxdir.take().map(TempDir::into_path);
+        }
     }
 }

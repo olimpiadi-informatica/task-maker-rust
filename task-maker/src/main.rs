@@ -17,7 +17,10 @@ use task_maker_format::{ioi, EvaluationData, TaskFormat};
 use task_maker_store::*;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "task-maker")]
+#[structopt(
+    name = "task-maker",
+    raw(setting = "structopt::clap::AppSettings::ColoredHelp")
+)]
 struct Opt {
     /// Directory of the task to evaluate
     #[structopt(short = "t", long = "task-dir", default_value = ".")]
@@ -26,6 +29,42 @@ struct Opt {
     /// Which UI to use, available UIS are: print, raw, curses
     #[structopt(long = "ui", default_value = "print")]
     ui: task_maker_format::ui::UIType,
+
+    /// Keep all the sandbox directories
+    #[structopt(long = "keep-sandboxes")]
+    keep_sandboxes: bool,
+
+    /// Do not write any file inside the task directory
+    #[structopt(long = "dry-run")]
+    dry_run: bool,
+
+    /// The level of caching to use
+    #[structopt(long = "cache")]
+    cache_mode: Option<String>,
+
+    /// Do not run in parallel time critical executions on the same machine
+    #[structopt(long = "exclusive")]
+    exclusive: bool,
+
+    /// Give to the solution some extra time before being killed
+    #[structopt(long = "extra-time")]
+    extra_time: Option<f64>,
+
+    /// Copy the executables to the bin/ folder
+    #[structopt(long = "copy-exe")]
+    copy_exe: bool,
+
+    /// Execute only the solutions whose names start with the filter
+    #[structopt(long = "filter")]
+    filter: Vec<String>,
+
+    /// Look at most for this number of parents for searching the task
+    #[structopt(long = "max-depth", default_value = "3")]
+    max_depth: u32,
+
+    /// Clear the task directory and exit
+    #[structopt(long = "clean")]
+    clean: bool,
 }
 
 fn main() {
@@ -34,6 +73,18 @@ fn main() {
         .init();
 
     let opt = Opt::from_args();
+
+    if opt.dry_run
+        || opt.cache_mode.is_some()
+        || opt.exclusive
+        || opt.extra_time.is_some()
+        || opt.copy_exe
+        || !opt.filter.is_empty()
+        || opt.max_depth != 3
+        || opt.clean
+    {
+        unimplemented!("This option is not implemented yet");
+    }
 
     // setup the task
     let task: Box<dyn TaskFormat> = if let Ok(task) = ioi::Task::new(&opt.task_dir) {
@@ -44,6 +95,7 @@ fn main() {
     };
 
     let (mut eval, receiver) = EvaluationData::new();
+    eval.dag.config_mut().keep_sandboxes(opt.keep_sandboxes);
 
     // setup the ui thread
     let mut ui = task.ui(opt.ui).unwrap();
