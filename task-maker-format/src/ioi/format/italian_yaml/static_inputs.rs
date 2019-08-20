@@ -112,7 +112,7 @@ mod tests {
         let entries: Vec<_> = static_inputs(task.path(), get_validator, get_output_generator).collect();
         if let [Subtask(subtask), Testcase(testcase0), Testcase(testcase1), Testcase(testcase2)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
-            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(subtask.max_score as u32, 100);
             match &testcase0.input_generator {
                 InputGenerator::StaticFile(path) => assert_eq!(path, &task.path().join("input/input0.txt")),
                 InputGenerator::Custom(_, _) => panic!("Invalid generator"),
@@ -136,7 +136,7 @@ mod tests {
         let entries: Vec<_> = static_inputs(task.path(), get_validator, get_output_generator).collect();
         if let [Subtask(subtask)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
-            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(subtask.max_score as u32, 100);
         } else {
             panic!("Wrong entries returned: {:?}", entries);
         }

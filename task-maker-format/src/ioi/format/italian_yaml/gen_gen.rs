@@ -163,7 +163,7 @@ mod tests {
         let entries = get_entries(task.path());
         if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
-            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(subtask.max_score as u32, 100);
             assert_eq!(testcase.id, 0);
             match &testcase.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
@@ -180,7 +180,7 @@ mod tests {
         let entries = get_entries(task.path());
         if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
-            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(subtask.max_score as u32, 100);
             assert_eq!(testcase.id, 0);
             match &testcase.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
@@ -197,7 +197,7 @@ mod tests {
         let entries = get_entries(task.path());
         if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
-            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(subtask.max_score as u32, 100);
             assert_eq!(testcase.id, 0);
             match &testcase.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
@@ -214,7 +214,7 @@ mod tests {
         let entries = get_entries(task.path());
         if let [Subtask(subtask), Testcase(testcase1), Testcase(testcase2)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
-            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(subtask.max_score as u32, 100);
             assert_eq!(testcase1.id, 0);
             assert_eq!(testcase2.id, 1);
             match &testcase1.input_generator {
@@ -236,7 +236,7 @@ mod tests {
         let entries = get_entries(task.path());
         if let [Subtask(subtask), Testcase(testcase1), Testcase(testcase2)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
-            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(subtask.max_score as u32, 100);
             assert_eq!(testcase1.id, 0);
             assert_eq!(testcase2.id, 1);
             match &testcase1.input_generator {
@@ -258,11 +258,11 @@ mod tests {
         let entries = get_entries(task.path());
         if let [Subtask(subtask1), Testcase(testcase1), Testcase(testcase2), Subtask(subtask2), Testcase(testcase3)] = entries.as_slice() {
             assert_eq!(subtask1.id, 0);
-            assert_eq!(subtask1.max_score, 123.0);
+            assert_eq!(subtask1.max_score as u32, 123);
             assert_eq!(testcase1.id, 0);
             assert_eq!(testcase2.id, 1);
             assert_eq!(subtask2.id, 1);
-            assert_eq!(subtask2.max_score, 321.0);
+            assert_eq!(subtask2.max_score as u32, 321);
             match &testcase1.input_generator {
                 InputGenerator::StaticFile(path) => assert_eq!(path, &PathBuf::from("random/file")),
                 InputGenerator::Custom(_, _) => panic!("Invalid generator"),
@@ -286,7 +286,7 @@ mod tests {
         let entries = get_entries(task.path());
         if let [Subtask(subtask), Testcase(testcase1), Testcase(testcase2)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
-            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(subtask.max_score as u32, 100);
             assert_eq!(testcase1.id, 0);
             assert_eq!(testcase2.id, 1);
             match &testcase1.input_generator {
@@ -308,7 +308,7 @@ mod tests {
         let entries = get_entries(task.path());
         if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
-            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(subtask.max_score as u32, 100);
             assert_eq!(testcase.id, 0);
             match &testcase.input_generator {
                 InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
