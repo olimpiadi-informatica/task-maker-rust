@@ -17,16 +17,8 @@
 
 #![deny(missing_docs)]
 
-extern crate failure;
 #[macro_use]
 extern crate log;
-extern crate serde;
-extern crate serde_json;
-extern crate task_maker_dag;
-extern crate task_maker_store;
-extern crate tempdir;
-extern crate uuid;
-extern crate which;
 
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};

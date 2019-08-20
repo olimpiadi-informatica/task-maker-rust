@@ -25,9 +25,6 @@
 
 #![deny(missing_docs)]
 
-extern crate task_maker_dag;
-
-extern crate regex;
 #[macro_use]
 extern crate lazy_static;
 

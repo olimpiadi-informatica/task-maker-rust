@@ -39,12 +39,6 @@
 
 #![deny(missing_docs)]
 
-extern crate boxfnonce;
-extern crate failure;
-extern crate serde;
-extern crate task_maker_store;
-extern crate uuid;
-
 mod dag;
 mod execution;
 mod file;

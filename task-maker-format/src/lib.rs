@@ -8,22 +8,10 @@
 
 #![deny(missing_docs)]
 
-extern crate failure;
-extern crate glob;
-extern crate itertools;
-extern crate serde;
-extern crate serde_json;
-extern crate serde_yaml;
-extern crate task_maker_dag;
-extern crate task_maker_lang;
-extern crate termcolor;
 #[macro_use]
 extern crate log;
-extern crate pest;
 #[macro_use]
 extern crate pest_derive;
-extern crate termion;
-extern crate tui;
 
 use crate::ui::UI;
 

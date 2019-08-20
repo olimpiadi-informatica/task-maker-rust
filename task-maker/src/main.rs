@@ -5,25 +5,8 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
 
-extern crate task_maker_dag;
-extern crate task_maker_exec;
-extern crate task_maker_format;
-extern crate task_maker_lang;
-extern crate task_maker_store;
-
-extern crate serde;
-extern crate serde_json;
-extern crate serde_yaml;
-extern crate uuid;
 #[macro_use]
 extern crate log;
-extern crate boxfnonce;
-extern crate env_logger;
-extern crate itertools;
-#[cfg(test)]
-extern crate pretty_assertions;
-extern crate structopt;
-extern crate tempdir;
 
 use std::path::PathBuf;
 use std::sync::{mpsc::channel, Arc, Mutex};

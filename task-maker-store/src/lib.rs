@@ -35,13 +35,6 @@
 
 #![deny(missing_docs)]
 
-extern crate blake2;
-extern crate chrono;
-extern crate failure;
-extern crate fs2;
-extern crate hex;
-extern crate serde;
-extern crate serde_json;
 #[macro_use]
 extern crate log;
 
