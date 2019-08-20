@@ -17,3 +17,7 @@ log = "0.4"
 glob = "0.2"
 pest = "2.1"
 pest_derive = "2.1"
+
+[dev-dependencies]
+tempdir = "0.3"
+pretty_assertions = "0.6"

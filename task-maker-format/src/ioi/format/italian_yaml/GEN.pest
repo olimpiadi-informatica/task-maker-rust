@@ -18,6 +18,7 @@ copy = { "#COPY:" ~ whitespace* ~ word }
 command = { !"#" ~ whitespace* ~ word ~ (spaces ~ word)* ~ whitespace* }
 empty = { "" }
 
-line = { (subtask | copy | comment | command | empty) ~ NEWLINE }
+line = { subtask | copy | comment | command | empty }
 
-file = { SOI ~ line+ ~ EOI }
+// allow the last line to be without the NEWLINE
+file = { SOI ~ (line ~ NEWLINE)* ~ line ~ NEWLINE? ~ EOI }

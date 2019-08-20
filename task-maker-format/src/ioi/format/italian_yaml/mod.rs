@@ -77,6 +77,7 @@ struct TaskYAML {
 }
 
 /// The iterator item type when following the task input testcases.
+#[derive(Debug)]
 pub(crate) enum TaskInputEntry {
     /// Create a new subtask given its information.
     Subtask(SubtaskInfo),

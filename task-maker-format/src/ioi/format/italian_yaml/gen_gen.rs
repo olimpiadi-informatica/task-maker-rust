@@ -114,3 +114,208 @@ where
     }
     Ok(Box::new(entries.into_iter()))
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::ioi::format::italian_yaml::gen_gen::parse_gen_gen;
+    use crate::ioi::format::italian_yaml::TaskInputEntry;
+    use crate::ioi::{InputValidator, OutputGenerator, SubtaskId, TestcaseId, InputGenerator};
+    use pretty_assertions::assert_eq;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use tempdir::TempDir;
+    use TaskInputEntry::*;
+
+    fn make_task<S: AsRef<str>>(gen_gen: S) -> TempDir {
+        let dir = TempDir::new("tm-test").unwrap();
+        fs::write(dir.path().join("task.yaml"), "name: foo\ntitle: foo bar\n").unwrap();
+        fs::create_dir(dir.path().join("gen")).unwrap();
+        fs::write(dir.path().join("gen").join("GEN"), gen_gen.as_ref()).unwrap();
+        fs::write(
+            dir.path().join("gen").join("generator.py"),
+            "#!/usr/bin/env python",
+        )
+        .unwrap();
+        dir
+    }
+
+    fn get_validator(_subtask: SubtaskId) -> InputValidator {
+        InputValidator::AssumeValid
+    }
+
+    fn get_output_generator(_testcase: TestcaseId) -> OutputGenerator {
+        OutputGenerator::StaticFile(PathBuf::from("foooo"))
+    }
+
+    fn get_entries(dir: &Path) -> Vec<TaskInputEntry> {
+        parse_gen_gen(
+            dir.join("gen").join("GEN"),
+            get_validator,
+            get_output_generator,
+        )
+        .unwrap()
+        .collect()
+    }
+
+    #[test]
+    fn test_parser_single_line() {
+        let task = make_task("1234\n");
+        let entries = get_entries(task.path());
+        if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
+            assert_eq!(subtask.id, 0);
+            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(testcase.id, 0);
+            match &testcase.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+            }
+        } else {
+            panic!("Wrong entries returned: {:?}", entries);
+        }
+    }
+
+    #[test]
+    fn test_parser_single_line_without_ending_lf() {
+        let task = make_task("1234");
+        let entries = get_entries(task.path());
+        if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
+            assert_eq!(subtask.id, 0);
+            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(testcase.id, 0);
+            match &testcase.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+            }
+        } else {
+            panic!("Wrong entries returned: {:?}", entries);
+        }
+    }
+
+    #[test]
+    fn test_parser_single_line_with_comments() {
+        let task = make_task("# this is a comment\n1234\n# this is a comment too\n");
+        let entries = get_entries(task.path());
+        if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
+            assert_eq!(subtask.id, 0);
+            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(testcase.id, 0);
+            match &testcase.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+            }
+        } else {
+            panic!("Wrong entries returned: {:?}", entries);
+        }
+    }
+
+    #[test]
+    fn test_parser_multiple_lines() {
+        let task = make_task("1234\n5678\n");
+        let entries = get_entries(task.path());
+        if let [Subtask(subtask), Testcase(testcase1), Testcase(testcase2)] = entries.as_slice() {
+            assert_eq!(subtask.id, 0);
+            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(testcase1.id, 0);
+            assert_eq!(testcase2.id, 1);
+            match &testcase1.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+            }
+            match &testcase2.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["5678".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+            }
+        } else {
+            panic!("Wrong entries returned: {:?}", entries);
+        }
+    }
+
+    #[test]
+    fn test_parser_copy() {
+        let task = make_task("#COPY: random/file\n5678\n");
+        let entries = get_entries(task.path());
+        if let [Subtask(subtask), Testcase(testcase1), Testcase(testcase2)] = entries.as_slice() {
+            assert_eq!(subtask.id, 0);
+            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(testcase1.id, 0);
+            assert_eq!(testcase2.id, 1);
+            match &testcase1.input_generator {
+                InputGenerator::StaticFile(path) => assert_eq!(path, &PathBuf::from("random/file")),
+                InputGenerator::Custom(_, _) => panic!("Invalid generator"),
+            }
+            match &testcase2.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["5678".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+            }
+        } else {
+            panic!("Wrong entries returned: {:?}", entries);
+        }
+    }
+
+    #[test]
+    fn test_parser_subtasks() {
+        let task = make_task("#ST: 123\n#COPY: random/file\n5678\n#ST: 321\n1234\n");
+        let entries = get_entries(task.path());
+        if let [Subtask(subtask1), Testcase(testcase1), Testcase(testcase2), Subtask(subtask2), Testcase(testcase3)] = entries.as_slice() {
+            assert_eq!(subtask1.id, 0);
+            assert_eq!(subtask1.max_score, 123.0);
+            assert_eq!(testcase1.id, 0);
+            assert_eq!(testcase2.id, 1);
+            assert_eq!(subtask2.id, 1);
+            assert_eq!(subtask2.max_score, 321.0);
+            match &testcase1.input_generator {
+                InputGenerator::StaticFile(path) => assert_eq!(path, &PathBuf::from("random/file")),
+                InputGenerator::Custom(_, _) => panic!("Invalid generator"),
+            }
+            match &testcase2.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["5678".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+            }
+            match &testcase3.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+            }
+        } else {
+            panic!("Wrong entries returned: {:?}", entries);
+        }
+    }
+
+    #[test]
+    fn test_parser_empty_lines() {
+        let task = make_task("\n\n1234\n\n\n5678\n\n");
+        let entries = get_entries(task.path());
+        if let [Subtask(subtask), Testcase(testcase1), Testcase(testcase2)] = entries.as_slice() {
+            assert_eq!(subtask.id, 0);
+            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(testcase1.id, 0);
+            assert_eq!(testcase2.id, 1);
+            match &testcase1.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+            }
+            match &testcase2.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["5678".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+            }
+        } else {
+            panic!("Wrong entries returned: {:?}", entries);
+        }
+    }
+
+    #[test]
+    fn test_parser_spaces_before_and_after() {
+        let task = make_task("  \t 1234\t  \t\n");
+        let entries = get_entries(task.path());
+        if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
+            assert_eq!(subtask.id, 0);
+            assert_eq!(subtask.max_score, 100.0);
+            assert_eq!(testcase.id, 0);
+            match &testcase.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator")
+            }
+        } else {
+            panic!("Wrong entries returned: {:?}", entries);
+        }
+    }
+}
