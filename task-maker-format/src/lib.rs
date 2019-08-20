@@ -22,7 +22,7 @@ use crate::ui::UI;
 pub mod ioi;
 mod source_file;
 pub mod ui;
-pub(crate) use source_file::SourceFile;
+pub use source_file::SourceFile;
 
 use failure::Error;
 use std::path::{Path, PathBuf};
@@ -39,7 +39,7 @@ pub trait TaskFormat {
     /// Execute the evaluation of this task by adding the executions to the provided DAG.
     ///
     /// TODO: provide some options like dry_run, cache_mode, exclusive, extra_time, copy_exe, seed,
-    ///   ecc...
+    ///   solution filter, ecc...
     fn execute(&self, eval: &mut EvaluationData) -> Result<(), Error>;
 }
 

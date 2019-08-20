@@ -2,7 +2,7 @@ use crate::languages::{Dependency, Language};
 use crate::LanguageManager;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use task_maker_dag::*;
 
 /// The storage of the compilation/runtime dependencies for the source files.
@@ -85,5 +85,18 @@ impl GraderMap {
         } else {
             return vec![self.graders[lang.name()].clone()];
         }
+    }
+
+    /// Return an iterator over the paths of all the graders in this map.
+    ///
+    /// ```
+    /// use task_maker_lang::{GraderMap, LanguageManager};
+    /// use std::path::Path;
+    ///
+    /// let map = GraderMap::new(vec!["file.cpp"]);
+    /// assert_eq!(map.all_paths().collect::<Vec<_>>(), vec![Path::new("file.cpp")]);
+    /// ```
+    pub fn all_paths(&self) -> impl Iterator<Item = &Path> {
+        self.graders.values().map(|dep| dep.local_path.as_ref())
     }
 }

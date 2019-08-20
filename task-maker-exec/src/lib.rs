@@ -178,15 +178,11 @@ mod tests {
             exec2_start.store(true, Ordering::Relaxed)
         });
         dag.add_execution(exec2);
-        dag.on_execution_done(&exec3.uuid, |_res| {
-            panic!("exec3 has not been skipped")
-        });
+        dag.on_execution_done(&exec3.uuid, |_res| panic!("exec3 has not been skipped"));
         dag.on_execution_skip(&exec3.uuid, move || {
             exec3_skipped.store(true, Ordering::Relaxed)
         });
-        dag.on_execution_start(&exec3.uuid, |_w| {
-            panic!("exec3 has not been skipped")
-        });
+        dag.on_execution_start(&exec3.uuid, |_w| panic!("exec3 has not been skipped"));
         dag.add_execution(exec3);
         dag.write_file_to(&stdout, &cwd.path().join("stdout"));
         dag.write_file_to(&stdout2, &cwd.path().join("stdout2"));

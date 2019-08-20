@@ -121,6 +121,8 @@ pub enum UIMessage {
         solution: PathBuf,
         /// The score of the testcase.
         score: f64,
+        /// The message associated with the score.
+        message: String,
     },
 
     /// The score of a subtask is ready.

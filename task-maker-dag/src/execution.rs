@@ -234,7 +234,7 @@ impl ExecutionLimits {
         self
     }
 
-    /// Set the memory limit in seconds.
+    /// Set the memory limit in KiB.
     pub fn memory(&mut self, limit: u64) -> &mut Self {
         self.memory = Some(limit);
         self
@@ -360,6 +360,20 @@ impl Execution {
             outs.push(output.uuid);
         }
         outs
+    }
+
+    /// Sets the command line arguments of the execution. Calling again this method will overwrite
+    /// the previous values.
+    ///
+    /// ```
+    /// use task_maker_dag::{Execution, ExecutionCommand};
+    ///
+    /// let mut exec = Execution::new("test execution", ExecutionCommand::Local("foo".into()));
+    /// exec.args(vec!["test", "args"]);
+    /// ```
+    pub fn args<S: Into<String>, I: IntoIterator<Item = S>>(&mut self, args: I) -> &mut Self {
+        self.args = args.into_iter().map(|s| s.into()).collect();
+        self
     }
 
     /// Bind the standard input to the specified file. Calling again this method will overwrite the

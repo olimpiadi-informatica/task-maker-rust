@@ -213,11 +213,12 @@ impl UI for PrintUI {
                 testcase,
                 solution,
                 score,
+                message,
             } => {
                 write!(&mut self.stdout, "[TESTCAS] ").unwrap();
                 self.write_message(format!(
-                    "Solution {:?} scored {} on testcase {} of subtask {} ",
-                    solution, score, testcase, subtask
+                    "Solution {:?} scored {} on testcase {} of subtask {}: {}",
+                    solution, score, testcase, subtask, message
                 ));
             }
             UIMessage::IOISubtaskScore {

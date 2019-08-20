@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use failure::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -22,7 +22,7 @@ pub struct SourceFile {
     #[serde(deserialize_with = "language_deserializer")]
     language: Arc<dyn Language>,
     /// Handle to the executable after the compilation/provided file.
-    executable: Option<File>,
+    executable: Arc<Mutex<Option<File>>>,
     /// An optional handler to the map of the graders.
     grader_map: Option<Arc<GraderMap>>,
 }
@@ -46,7 +46,7 @@ impl SourceFile {
         Some(SourceFile {
             path,
             language: lang.unwrap(),
-            executable: None,
+            executable: Arc::new(Mutex::new(None)),
             grader_map,
         })
     }
@@ -113,17 +113,20 @@ impl SourceFile {
     /// // customize the execution...
     /// dag.add_execution(exec);
     /// ```
-    pub fn execute(
-        &mut self,
+    pub fn execute<S: AsRef<str>>(
+        &self,
         dag: &mut ExecutionDAG,
-        description: &str,
+        description: S,
         args: Vec<String>,
     ) -> Result<(Option<ExecutionUuid>, Execution), Error> {
         let comp = self.prepare(dag)?;
-        let mut exec = Execution::new(description, self.language.runtime_command(&self.path));
-        exec.args = self.language.runtime_args(&self.path, args);
+        let mut exec = Execution::new(
+            description.as_ref(),
+            self.language.runtime_command(&self.path),
+        );
+        exec.args(self.language.runtime_args(&self.path, args));
         exec.input(
-            self.executable.as_ref().unwrap(),
+            self.executable.lock().unwrap().as_ref().unwrap(),
             &self.language.executable_name(&self.path),
             true,
         );
@@ -154,8 +157,8 @@ impl SourceFile {
     }
 
     /// Prepare the source file setting the `executable` and eventually compiling the source file.
-    fn prepare(&mut self, dag: &mut ExecutionDAG) -> Result<Option<ExecutionUuid>, Error> {
-        if self.executable.is_some() {
+    fn prepare(&self, dag: &mut ExecutionDAG) -> Result<Option<ExecutionUuid>, Error> {
+        if self.executable.lock().unwrap().is_some() {
             return Ok(None);
         }
         if self.language.need_compilation() {
@@ -184,11 +187,11 @@ impl SourceFile {
             let comp_uuid = comp.uuid;
             dag.add_execution(comp);
             dag.provide_file(source, &self.path)?;
-            self.executable = Some(exec);
+            *self.executable.lock().unwrap() = Some(exec);
             Ok(Some(comp_uuid))
         } else {
             let executable = File::new(&format!("Source file of {:?}", self.path));
-            self.executable = Some(executable.clone());
+            *self.executable.lock().unwrap() = Some(executable.clone());
             dag.provide_file(executable, &self.path)?;
             Ok(None)
         }
@@ -218,8 +221,8 @@ where
 #[cfg(test)]
 mod tests {
     use std::io::Write;
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
 
     use tempdir::TempDir;
 
@@ -238,7 +241,7 @@ mod tests {
             .unwrap()
             .write_all(source.as_bytes())
             .unwrap();
-        let mut source = SourceFile::new(&source_path, None).unwrap();
+        let source = SourceFile::new(&source_path, None).unwrap();
         let (comp, exec) = source.execute(&mut dag, "Testing exec", vec![]).unwrap();
         assert!(comp.is_some());
 

@@ -57,6 +57,7 @@ where
     )
     .map(Arc::new)
     .ok_or_else(|| format_err!("No generator found"))?;
+    debug!("Detected input generator: {:?}", generator);
 
     for line in file.into_inner() {
         match line.as_rule() {

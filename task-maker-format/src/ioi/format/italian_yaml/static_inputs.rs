@@ -60,6 +60,9 @@ where
 
 /// Make a new iterator of the static input files inside the `input/` directory relative to the task
 /// root.
+///
+/// - `get_validator` is a function that, given the id of a subtask, returns the input validator
+/// - `get_output_get` is a function that, given the id of a testcase, returns the output generator
 pub(crate) fn static_inputs<P: Into<PathBuf>, V, O>(
     task_dir: P,
     get_validator: V,

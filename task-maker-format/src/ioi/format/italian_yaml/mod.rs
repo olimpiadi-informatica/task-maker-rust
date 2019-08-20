@@ -1,3 +1,6 @@
+//! The `italian_yaml` format is defined by [`cms`](https://cms.readthedocs.io/en/v1.4/External%20contest%20formats.html#italian-import-format)
+//! and it's the most used format in the Italian Olympiads.
+
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -75,7 +78,10 @@ struct TaskYAML {
 
 /// The iterator item type when following the task input testcases.
 pub(crate) enum TaskInputEntry {
+    /// Create a new subtask given its information.
     Subtask(SubtaskInfo),
+    /// Create a new testcase inside the last subtask given its information. `Testcase` can be sent
+    /// only after at least one `Subtask`.
     Testcase(TestcaseInfo),
 }
 
@@ -115,15 +121,18 @@ pub fn parse_task<P: AsRef<Path>>(task_dir: P) -> Result<Task, Error> {
 
     let graders = list_files(task_dir, vec!["sol/grader.*", "sol/stub.*"]);
     let grader_map = Arc::new(GraderMap::new(graders));
+    debug!("The graders are: {:#?}", grader_map);
 
     let gen_gen = task_dir.join("gen").join("GEN");
     let inputs = if gen_gen.exists() {
+        debug!("Parsing testcases from gen/GEN");
         gen_gen::parse_gen_gen(
             &gen_gen,
             detect_validator(task_dir.to_path_buf()),
             detect_output_generator(task_dir.to_path_buf(), grader_map.clone()),
         )?
     } else {
+        debug!("Using testcases inside input/");
         static_inputs::static_inputs(
             task_dir,
             detect_validator(task_dir.to_path_buf()),
@@ -155,6 +164,19 @@ pub fn parse_task<P: AsRef<Path>>(task_dir: P) -> Result<Task, Error> {
         subtasks.insert(subtask.id, subtask);
     }
 
+    let custom_checker = find_source_file(
+        task_dir,
+        vec![
+            "check/checker.*",
+            "cor/correttore.*",
+            "check/checker",
+            "cor/correttore",
+        ],
+        None,
+    )
+    .map(Arc::new)
+    .map(Checker::Custom);
+
     Ok(Task {
         path: task_dir.into(),
         task_type: TaskType::Batch,
@@ -165,7 +187,7 @@ pub fn parse_task<P: AsRef<Path>>(task_dir: P) -> Result<Task, Error> {
         infile,
         outfile,
         subtasks,
-        checker: Checker::WhiteDiff,
+        checker: custom_checker.unwrap_or(Checker::WhiteDiff),
         testcase_score_aggregator: yaml
             .score_type
             .as_ref()
@@ -190,9 +212,13 @@ fn detect_validator(task_dir: PathBuf) -> impl Fn(SubtaskId) -> InputValidator {
         None,
     )
     .map(Arc::new);
+    debug!("Detected input validator: {:?}", validator);
     move |st: SubtaskId| -> InputValidator {
         if let Some(validator) = validator.as_ref() {
-            InputValidator::Custom(validator.clone(), vec![st.to_string()])
+            InputValidator::Custom(
+                validator.clone(),
+                vec!["tm_validation_file".to_string(), st.to_string()],
+            )
         } else {
             InputValidator::AssumeValid
         }
@@ -217,7 +243,7 @@ fn detect_output_generator(
         Some(grader_map.clone()),
     )
     .map(Arc::new);
-
+    debug!("Detected output generator: {:?}", official_solution);
     let output_directory = task_dir.join("output");
     move |tc: TestcaseId| -> OutputGenerator {
         if let Some(solution) = official_solution.as_ref() {

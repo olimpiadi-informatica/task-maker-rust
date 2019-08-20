@@ -1,9 +1,24 @@
 //! The IOI task format.
+//!
+//! In IOI-like tasks there is the concept of _subtask_ and of _testcase_: a testcase is a single
+//! instance of the evaluation of a solution on a given input file, producing a single output file
+//! which will be used for the scoring. For each solution every testcase is worth from 0.0 to 1.0
+//! points.
+//!
+//! A subtask is a group of testcases, it has a `max_score` parameter which scales its value from
+//! 0.0 to `max_score` points. For computing the score of the subtask a `TestcaseScoreAggregator` is
+//! used. The score of the task for a solution is the sum of all the subtask scores.
+//!
+//! There are many different valid task types, the most common is `Batch` where the solution is
+//! simply executed once per testcase, feeding in the input file (either via stdin or normal file)
+//! and getting the output file (either via stdout or normal file). The output is then checked using
+//! a `Checker`, a program that computes the score of the testcase given the input file, the output
+//! file and the _correct_ output file (the one produced by the jury).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use failure::{bail, Error};
 use serde::{Deserialize, Serialize};
@@ -11,78 +26,31 @@ use serde::{Deserialize, Serialize};
 use task_maker_lang::GraderMap;
 
 use crate::ui::*;
-use crate::{EvaluationData, SourceFile, TaskFormat};
+use crate::UISender;
+use crate::{list_files, EvaluationData, SourceFile, TaskFormat};
 
+mod dag;
 mod format;
+
+pub use dag::*;
 
 /// In IOI tasks the subtask numbers are non-negative 0-based integers.
 pub type SubtaskId = u32;
 /// In IOI tasks the testcase numbers are non-negative 0-based integers.
 pub type TestcaseId = u32;
 
-/// Which tool to use to compute the score on a testcase given the input file, the _correct_ output
-/// file and the output file to evaluate.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Checker {
-    /// Use a built-in white diff checker that scores 1.0 if the two output files are identical
-    /// except for white spaces. It internally uses `diff --ignore-all-spaces`
-    WhiteDiff,
-    /// Use a custom checker based on an executable that can output a score (from 0.0 to 1.0) as
-    /// well as a custom message.
-    Custom(Arc<SourceFile>, Vec<String>),
-}
-
-/// The source of the input files. It can either be a statically provided input file or a custom
-/// command that will generate an input file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum InputGenerator {
-    /// Use the static file as input. The file will be copied without transformations.
-    StaticFile(PathBuf),
-    /// Use a custom command to generate the input file. The file has to be printed to stdout.
-    Custom(Arc<SourceFile>, Vec<String>),
-}
-
-/// An input file validator is responsible for checking that the input file follows the format and
-/// constraints defined by the task.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum InputValidator {
-    /// Skip the validation and assume the input file is valid.
-    AssumeValid,
-    /// Use a custom command to check if the input file is valid. The command should exit with
-    /// non-zero return code if the input is invalid.
-    Custom(Arc<SourceFile>, Vec<String>),
-}
-
-/// The source of the output files. It can either be a statically provided output file or a custom
-/// command that will generate an output file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum OutputGenerator {
-    /// Use the static file as output. The file will be copied without transformations.
-    StaticFile(PathBuf),
-    /// Use a custom command to generate the output file. The file has to be printed to stdout.
-    Custom(Arc<SourceFile>, Vec<String>),
-}
-
-/// The aggregator of testcase scores to compute the subtask score.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum TestcaseScoreAggregator {
-    /// Take the minimum of all the testcases, formally:
-    ///
-    /// `st_score = st_max_score * min(*testcase_scores)`
-    Min,
-    /// Sum the score of all the testcases, formally:
-    ///
-    /// `st_score = st_max_score * sum(*testcase_scores) / len(*testcase_scores)`
-    Sum,
-}
-
-/// The type of the task. This changes the behaviour of the solutions.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum TaskType {
-    /// The solution is a single file that will be executed once per testcase, feeding in the input
-    /// file and reading the output file. The solution may be compiled with additional graders
-    /// (called grader.LANG). The output is checked with an external program.
-    Batch,
+/// This struct will manage the scores of a solution in a task and will emit the ui messages when
+/// a new score is ready.
+#[derive(Debug, Clone)]
+pub(crate) struct ScoreManager {
+    /// The scores of each subtask.
+    subtask_scores: HashMap<SubtaskId, Option<f64>>,
+    /// The maximum score of each subtask.
+    max_subtask_scores: HashMap<SubtaskId, f64>,
+    /// The scores of each testcase.
+    testcase_scores: HashMap<SubtaskId, HashMap<TestcaseId, Option<f64>>>,
+    /// The aggregator to use for computing the subtask scores.
+    aggregator: TestcaseScoreAggregator,
 }
 
 /// Information about a generic IOI task.
@@ -143,7 +111,7 @@ pub struct TestcaseInfo {
 }
 
 impl Task {
-    /// Try to make a `Task` from the specified path. Will return `None` if the format of the task
+    /// Try to make a `Task` from the specified path. Will return `Err` if the format of the task
     /// is not IOI or if the task is corrupted and cannot be parsed.
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Task, Error> {
         format::italian_yaml::parse_task(path)
@@ -160,7 +128,70 @@ impl TaskFormat for Task {
     }
 
     fn execute(&self, eval: &mut EvaluationData) -> Result<(), Error> {
-        unimplemented!()
+        let graders: HashSet<PathBuf> = self
+            .grader_map
+            .all_paths()
+            .map(|p| p.to_path_buf())
+            .collect();
+        let empty_score_manager = ScoreManager::new(&self);
+        let solutions: Vec<_> = list_files(&self.path, vec!["sol/*"])
+            .into_iter()
+            .filter(|p| !graders.contains(p)) // the graders are not solutions
+            .map(|p| SourceFile::new(p, Some(self.grader_map.clone())))
+            .filter(Option::is_some) // ignore the unknown languages
+            .map(Option::unwrap)
+            .map(|source| (source, Arc::new(Mutex::new(empty_score_manager.clone()))))
+            .collect();
+
+        for subtask in self.subtasks.values() {
+            trace!("Executing the generation of subtask {}", subtask.id);
+
+            for testcase in subtask.testcases.values() {
+                trace!(
+                    "Executing the generation of testcase {} of subtask {}",
+                    testcase.id,
+                    subtask.id
+                );
+
+                let input = testcase
+                    .input_generator
+                    .generate(eval, subtask.id, testcase.id)?;
+                let val_handle =
+                    testcase
+                        .input_validator
+                        .validate(eval, subtask.id, testcase.id, input)?;
+                let output = testcase.output_generator.generate(
+                    &self,
+                    eval,
+                    subtask.id,
+                    testcase.id,
+                    input,
+                    val_handle,
+                )?;
+
+                for (solution, score_manager) in solutions.iter() {
+                    trace!(
+                        "Evaluation of the solution {:?} against subtask {} / testcase {}",
+                        solution,
+                        subtask.id,
+                        testcase.id
+                    );
+
+                    self.task_type.evaluate(
+                        &self,
+                        eval,
+                        subtask.id,
+                        testcase.id,
+                        solution,
+                        input,
+                        val_handle,
+                        output,
+                        score_manager.clone(),
+                    )?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -173,5 +204,78 @@ impl FromStr for TestcaseScoreAggregator {
             "sum" => Ok(TestcaseScoreAggregator::Sum),
             _ => bail!("Invalid testcase score aggregator: {}", s),
         }
+    }
+}
+
+impl ScoreManager {
+    /// Make a new `ScoreManager` based on the subtasks and testcases of the specified task.
+    pub fn new(task: &Task) -> ScoreManager {
+        ScoreManager {
+            subtask_scores: task.subtasks.keys().map(|st| (*st, None)).collect(),
+            max_subtask_scores: task
+                .subtasks
+                .values()
+                .map(|st| (st.id, st.max_score))
+                .collect(),
+            testcase_scores: task
+                .subtasks
+                .values()
+                .map(|st| (st.id, st.testcases.keys().map(|tc| (*tc, None)).collect()))
+                .collect(),
+            aggregator: task.testcase_score_aggregator.clone(),
+        }
+    }
+
+    /// Store the score of the testcase and eventually compute the score of the subtask and of the
+    /// task.
+    pub fn score(
+        &mut self,
+        subtask_id: SubtaskId,
+        testcase_id: TestcaseId,
+        score: f64,
+        message: String,
+        sender: Arc<Mutex<UIMessageSender>>,
+        solution: PathBuf,
+    ) -> Result<(), Error> {
+        self.testcase_scores
+            .get_mut(&subtask_id)
+            .unwrap()
+            .insert(testcase_id, Some(score));
+        sender.send(UIMessage::IOITestcaseScore {
+            subtask: subtask_id,
+            testcase: testcase_id,
+            solution: solution.clone(),
+            score,
+            message,
+        })?;
+        if self.testcase_scores[&subtask_id]
+            .values()
+            .all(Option::is_some)
+        {
+            let subtask_score = self.max_subtask_scores[&subtask_id]
+                * self.aggregator.aggregate(
+                    self.testcase_scores[&subtask_id]
+                        .values()
+                        .map(|score| score.unwrap()),
+                );
+            self.subtask_scores.insert(subtask_id, Some(subtask_score));
+            sender.send(UIMessage::IOISubtaskScore {
+                subtask: subtask_id,
+                solution: solution.clone(),
+                score: subtask_score,
+            })?;
+            if self.subtask_scores.values().all(Option::is_some) {
+                let task_score: f64 = self
+                    .subtask_scores
+                    .values()
+                    .map(|score| score.unwrap())
+                    .sum();
+                sender.send(UIMessage::IOITaskScore {
+                    solution: solution.clone(),
+                    score: task_score,
+                })?;
+            }
+        }
+        Ok(())
     }
 }
