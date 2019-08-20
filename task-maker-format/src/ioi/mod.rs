@@ -157,9 +157,10 @@ impl TaskFormat for Task {
                     subtask.id
                 );
 
-                let input = testcase
-                    .input_generator
-                    .generate(eval, subtask.id, testcase.id)?;
+                let input =
+                    testcase
+                        .input_generator
+                        .generate(&self, eval, subtask.id, testcase.id)?;
                 let val_handle =
                     testcase
                         .input_validator

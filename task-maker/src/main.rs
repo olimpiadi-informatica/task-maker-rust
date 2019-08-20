@@ -74,8 +74,7 @@ fn main() {
 
     let opt = Opt::from_args();
 
-    if opt.dry_run
-        || opt.cache_mode.is_some()
+    if opt.cache_mode.is_some()
         || opt.exclusive
         || opt.extra_time.is_some()
         || opt.copy_exe
@@ -86,6 +85,12 @@ fn main() {
         unimplemented!("This option is not implemented yet");
     }
 
+    let (mut eval, receiver) = EvaluationData::new();
+    eval.dag
+        .config_mut()
+        .keep_sandboxes(opt.keep_sandboxes)
+        .dry_run(opt.dry_run);
+
     // setup the task
     let task: Box<dyn TaskFormat> = if let Ok(task) = ioi::Task::new(&opt.task_dir) {
         debug!("The task is IOI: {:#?}", task);
@@ -93,9 +98,6 @@ fn main() {
     } else {
         panic!("Invalid task directory!");
     };
-
-    let (mut eval, receiver) = EvaluationData::new();
-    eval.dag.config_mut().keep_sandboxes(opt.keep_sandboxes);
 
     // setup the ui thread
     let mut ui = task.ui(opt.ui).unwrap();

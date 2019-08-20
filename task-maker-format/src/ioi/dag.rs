@@ -171,6 +171,7 @@ impl InputGenerator {
     /// handle to the input file.
     pub(crate) fn generate(
         &self,
+        task: &Task,
         eval: &mut EvaluationData,
         subtask_id: SubtaskId,
         testcase_id: TestcaseId,
@@ -201,6 +202,12 @@ impl InputGenerator {
                     status
                 });
                 eval.dag.add_execution(exec);
+                eval.dag.write_file_to(
+                    &stdout,
+                    task.path
+                        .join("input")
+                        .join(format!("input{}.txt", testcase_id)),
+                );
                 Ok(stdout.uuid)
             }
         }
@@ -281,6 +288,12 @@ impl OutputGenerator {
                     status
                 });
                 eval.dag.add_execution(exec);
+                eval.dag.write_file_to(
+                    &output,
+                    task.path
+                        .join("output")
+                        .join(format!("output{}.txt", testcase_id)),
+                );
                 Ok(output.uuid)
             }
         }

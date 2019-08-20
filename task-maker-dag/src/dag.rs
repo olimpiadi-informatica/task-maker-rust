@@ -13,6 +13,10 @@ use task_maker_store::*;
 pub struct ExecutionDAGConfig {
     /// Keep the sandbox directory of each execution.
     pub keep_sandboxes: bool,
+    /// Do not write any file inside the task directory. This works by inhibiting the calls to
+    /// `write_file_to`, for this reason only the files added _after_ setting this value to `true`
+    /// will be discarded.
+    pub dry_run: bool,
 }
 
 /// A wrapper around a File provided by the client, this means that the client
@@ -86,8 +90,12 @@ impl ExecutionDAG {
 
     /// When `file` is ready it will be written to `path`. The file must be present in the dag
     /// before the evaluation starts.
+    ///
+    /// If the config `dry_run` is set to true the calls to this function are no-op.
     pub fn write_file_to<F: Into<FileUuid>, P: Into<PathBuf>>(&mut self, file: F, path: P) {
-        self.file_callback(file.into()).write_to = Some(path.into());
+        if !self.data.config.dry_run {
+            self.file_callback(file.into()).write_to = Some(path.into());
+        }
     }
 
     /// Call `callback` with the first `limit` bytes of the file when it's
@@ -151,12 +159,19 @@ impl ExecutionDAGConfig {
     pub fn new() -> ExecutionDAGConfig {
         ExecutionDAGConfig {
             keep_sandboxes: false,
+            dry_run: false,
         }
     }
 
     /// Whether to keep the sandbox directory of each execution.
     pub fn keep_sandboxes(&mut self, keep_sandboxes: bool) -> &mut Self {
         self.keep_sandboxes = keep_sandboxes;
+        self
+    }
+
+    /// Whether to ignore all the subsequent calls to `write_file_to`.
+    pub fn dry_run(&mut self, dry_run: bool) -> &mut Self {
+        self.dry_run = dry_run;
         self
     }
 }
