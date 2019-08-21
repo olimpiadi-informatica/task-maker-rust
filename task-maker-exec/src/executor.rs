@@ -69,7 +69,7 @@ pub struct ExecutionDAGWatchSet {
 pub struct WorkerJob {
     /// What the worker should do.
     pub execution: Execution,
-    /// The FileStoreKeys the worker has to know to start the evaluation.
+    /// The `FileStoreKey`s the worker has to know to start the evaluation.
     pub dep_keys: HashMap<FileUuid, FileStoreKey>,
 }
 
@@ -117,9 +117,9 @@ pub(crate) struct ExecutorData {
     pub dependents: HashMap<FileUuid, Vec<ExecutionUuid>>,
     /// A reference to the server's [`FileStore`](../task_maker_store/struct.FileStore.html).
     pub file_store: Arc<Mutex<FileStore>>,
-    /// The list of known [`FileStoreKey`](../task_maker_store/struct.FileStoreKey.html)s for the
-    /// current DAG.
-    pub file_keys: HashMap<FileUuid, FileStoreKey>,
+    /// The list of known [`FileStoreHandle`](../task_maker_store/struct.FileStoreHandle.html)s
+    /// for the current DAG. Storing them here prevents the `FileStore` from flushing them away.
+    pub file_handles: HashMap<FileUuid, FileStoreHandle>,
     /// True if the executor is shutting down and no more worker should be accepted.
     pub shutting_down: bool,
 }
@@ -201,13 +201,14 @@ impl Executor {
                     let file_store = data.file_store.clone();
                     let mut file_store = file_store.lock().unwrap();
                     for (uuid, file) in provided_files.into_iter() {
-                        if !file_store.has_key(&file.key) {
-                            serialize_into(&ExecutorServerMessage::AskFile(uuid), &sender)?;
-                        } else {
-                            file_store.persist(&file.key)?;
-                            data.file_keys.insert(uuid, file.key.clone());
-                            ready_files.push(uuid);
-                            trace!("File {} already in store!", uuid);
+                        let handle = file_store.get(&file.key)?;
+                        match handle {
+                            Some(handle) => {
+                                data.file_handles.insert(uuid, handle);
+                                ready_files.push(uuid);
+                                trace!("File {} already in store!", uuid);
+                            }
+                            None => serialize_into(&ExecutorServerMessage::AskFile(uuid), &sender)?,
                         }
                     }
                     for file in ready_files.into_iter() {
@@ -225,11 +226,12 @@ impl Executor {
                         )?;
                         break;
                     }
-                    data.file_store
+                    let handle = data
+                        .file_store
                         .lock()
                         .unwrap()
                         .store(&key, ChannelFileIterator::new(&receiver))?;
-                    data.file_keys.insert(uuid, key.clone());
+                    data.file_handles.insert(uuid, handle);
                     Scheduler::file_ready(data.deref_mut(), uuid);
                 }
                 Ok(ExecutorClientMessage::Status) => {
@@ -292,7 +294,7 @@ impl ExecutorData {
             missing_deps: HashMap::new(),
             dependents: HashMap::new(),
             file_store,
-            file_keys: HashMap::new(),
+            file_handles: HashMap::new(),
             shutting_down: false,
         }
     }
@@ -376,37 +378,34 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
             Ok(WorkerClientMessage::ProvideFile(uuid, key)) => {
                 info!("Worker provided file {} {:?}", uuid, key);
                 let mut data = executor.lock().unwrap();
-                data.file_store
+                let handle = data
+                    .file_store
                     .lock()
                     .unwrap()
                     .store(&key, ChannelFileIterator::new(&conn.receiver))?;
-                data.file_keys.insert(uuid, key.clone());
+                data.file_handles.insert(uuid, handle);
                 Scheduler::file_ready(data.deref_mut(), uuid);
                 if data.callbacks.as_ref().unwrap().files.contains(&uuid) {
                     serialize_into(
                         &ExecutorServerMessage::ProvideFile(uuid),
                         &data.client_sender.as_ref().unwrap(),
                     )?;
-                    let path = data.file_store.lock().unwrap().get(&key)?.unwrap();
-                    ChannelFileSender::send(&path, &data.client_sender.as_ref().unwrap())?;
+                    let handle = data.file_store.lock().unwrap().get(&key)?.unwrap();
+                    ChannelFileSender::send(handle.path(), &data.client_sender.as_ref().unwrap())?;
                 }
             }
             Ok(WorkerClientMessage::AskFile(uuid)) => {
                 info!("Worker asked for {}", uuid);
                 let data = executor.lock().unwrap();
-                let key = data
-                    .file_keys
+                let handle = data
+                    .file_handles
                     .get(&uuid)
-                    .expect("Worker is asking unknown file")
-                    .clone();
-                let path = data
-                    .file_store
-                    .lock()
-                    .unwrap()
-                    .get(&key)?
-                    .expect("File not present in store");
-                serialize_into(&WorkerServerMessage::ProvideFile(uuid, key), &conn.sender)?;
-                ChannelFileSender::send(&path, &conn.sender)?;
+                    .expect("Worker is asking unknown file");
+                serialize_into(
+                    &WorkerServerMessage::ProvideFile(uuid, handle.key().clone()),
+                    &conn.sender,
+                )?;
+                ChannelFileSender::send(handle.path(), &conn.sender)?;
             }
             Err(e) => {
                 let cause = e.find_root_cause().to_string();

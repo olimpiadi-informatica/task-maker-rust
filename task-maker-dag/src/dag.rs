@@ -25,7 +25,7 @@ pub struct ExecutionDAGConfig {
 pub struct ProvidedFile {
     /// The file handle.
     pub file: File,
-    /// The key in the FileStore.
+    /// The key of the file for the lookup in the `FileStore`.
     pub key: FileStoreKey,
     /// Path to the file in the client.
     pub local_path: PathBuf,

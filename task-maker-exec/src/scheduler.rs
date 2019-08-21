@@ -73,9 +73,10 @@ impl Scheduler {
                     (
                         *k,
                         executor_data
-                            .file_keys
+                            .file_handles
                             .get(&k)
                             .unwrap_or_else(|| panic!("Unknown file key of {}", k))
+                            .key()
                             .clone(),
                     )
                 })

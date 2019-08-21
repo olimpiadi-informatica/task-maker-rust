@@ -1,6 +1,7 @@
 use crate::proto::*;
 use crate::*;
 use failure::{Error, Fail};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
@@ -12,7 +13,7 @@ use uuid::Uuid;
 /// The information about the current job the worker is doing.
 struct WorkerCurrentJob {
     /// Job currently waiting for, when there is a job running this should be `None`
-    current_job: Option<Box<WorkerJob>>,
+    current_job: Option<(Box<WorkerJob>, HashMap<FileUuid, FileStoreHandle>)>,
     /// The currently running sandbox.
     current_sandbox: Option<Sandbox>,
     /// The number of missing files that are required for the sandbox setup.
@@ -114,8 +115,7 @@ impl Worker {
         serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
 
         let start_job = || -> Result<(), Error> {
-            let mut store = self.file_store.lock().unwrap();
-            let sandbox = execute_job(self.current_job.clone(), &self.sender, &mut store)?;
+            let sandbox = execute_job(self.current_job.clone(), &self.sender)?;
             self.current_job.lock().unwrap().current_sandbox = Some(sandbox);
             Ok(())
         };
@@ -127,21 +127,30 @@ impl Worker {
                     trace!("Worker {} got job: {:?}", self, job);
                     assert!(self.current_job.lock().unwrap().current_job.is_none());
                     let mut missing_deps = 0;
+                    let mut handles = HashMap::new();
                     for input in job.execution.dependencies().iter() {
                         let mut store = self.file_store.lock().unwrap();
                         let key = job
                             .dep_keys
                             .get(&input)
                             .ok_or(WorkerError::MissingDependencyKey { uuid: *input })?;
-                        if !store.has_key(&key) {
-                            serialize_into(&WorkerClientMessage::AskFile(*input), &self.sender)?;
-                            missing_deps += 1;
+                        match store.get(&key)? {
+                            None => {
+                                serialize_into(
+                                    &WorkerClientMessage::AskFile(*input),
+                                    &self.sender,
+                                )?;
+                                missing_deps += 1;
+                            }
+                            Some(handle) => {
+                                handles.insert(*input, handle);
+                            }
                         }
                     }
                     {
                         let mut current_job = self.current_job.lock().unwrap();
                         current_job.missing_deps = missing_deps;
-                        current_job.current_job = Some(job);
+                        current_job.current_job = Some((job, handles));
                     }
                     if missing_deps == 0 {
                         start_job()?;
@@ -151,8 +160,14 @@ impl Worker {
                     info!("Server sent file {} {:?}", uuid, key);
                     let mut store = self.file_store.lock().unwrap();
                     let reader = ChannelFileIterator::new(&self.receiver);
-                    store.store(&key, reader)?;
-                    if self.current_job.lock().unwrap().dependency_received() {
+                    let handle = store.store(&key, reader)?;
+                    let mut job = self.current_job.lock().unwrap();
+                    job.current_job
+                        .as_mut()
+                        .expect("Received file while doing nothing")
+                        .1
+                        .insert(uuid, handle);
+                    if job.dependency_received() {
                         start_job()?;
                     }
                 }
@@ -180,15 +195,19 @@ impl Worker {
 fn execute_job(
     current_job: Arc<Mutex<WorkerCurrentJob>>,
     sender: &ChannelSender,
-    file_store: &mut FileStore,
 ) -> Result<Sandbox, Error> {
-    let job = current_job.lock().unwrap().current_job.clone().unwrap();
-    let mut sandbox = Sandbox::new(
-        std::path::Path::new("/tmp/sandboxes"),
-        &job.execution,
-        &job.dep_keys,
-        file_store,
-    )?;
+    let (job, mut sandbox) = {
+        let current_job = current_job.lock().unwrap();
+        let job = current_job.current_job.as_ref().unwrap();
+        (
+            job.0.clone(),
+            Sandbox::new(
+                std::path::Path::new("/tmp/sandboxes"),
+                &job.0.execution,
+                &job.1,
+            )?,
+        )
+    };
     if job.execution.config().keep_sandboxes {
         sandbox.keep();
     }

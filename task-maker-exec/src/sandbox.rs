@@ -93,12 +93,11 @@ impl Sandbox {
     pub fn new(
         sandboxes_dir: &Path,
         execution: &Execution,
-        dep_keys: &HashMap<FileUuid, FileStoreKey>,
-        file_store: &mut FileStore,
+        dep_keys: &HashMap<FileUuid, FileStoreHandle>,
     ) -> Result<Sandbox, Error> {
         std::fs::create_dir_all(sandboxes_dir)?;
         let boxdir = TempDir::new_in(sandboxes_dir, "box")?;
-        Sandbox::setup(boxdir.path(), execution, dep_keys, file_store)?;
+        Sandbox::setup(boxdir.path(), execution, dep_keys)?;
         Ok(Sandbox {
             data: Arc::new(Mutex::new(SandboxData {
                 boxdir: Some(boxdir),
@@ -246,8 +245,7 @@ impl Sandbox {
     fn setup<P: AsRef<Path>>(
         box_dir: P,
         execution: &Execution,
-        dep_keys: &HashMap<FileUuid, FileStoreKey>,
-        file_store: &mut FileStore,
+        dep_keys: &HashMap<FileUuid, FileStoreHandle>,
     ) -> Result<(), Error> {
         trace!(
             "Setting up sandbox at {:?} for '{}'",
@@ -258,9 +256,8 @@ impl Sandbox {
         if let Some(stdin) = execution.stdin {
             Sandbox::write_sandbox_file(
                 &box_dir.as_ref().join("stdin"),
-                dep_keys.get(&stdin).expect("stdin not provided"),
+                dep_keys.get(&stdin).expect("stdin not provided").path(),
                 false,
-                file_store,
             )?;
         }
         if execution.stdout.is_some() {
@@ -272,9 +269,8 @@ impl Sandbox {
         for (path, input) in execution.inputs.iter() {
             Sandbox::write_sandbox_file(
                 &box_dir.as_ref().join("box").join(&path),
-                dep_keys.get(&input.file).expect("file not provided"),
+                dep_keys.get(&input.file).expect("file not provided").path(),
                 input.executable,
-                file_store,
             )?;
         }
         for path in execution.outputs.keys() {
@@ -290,15 +286,9 @@ impl Sandbox {
     /// The file will have the most restrictive permissions possible:
     /// - `r--------` (0o400) if not executable.
     /// - `r-x------` (0o500) if executable.
-    fn write_sandbox_file(
-        dest: &Path,
-        key: &FileStoreKey,
-        executable: bool,
-        file_store: &mut FileStore,
-    ) -> Result<(), Error> {
+    fn write_sandbox_file(dest: &Path, source: &Path, executable: bool) -> Result<(), Error> {
         std::fs::create_dir_all(dest.parent().unwrap())?;
-        let path = file_store.get(key)?.expect("file not present in store");
-        std::fs::copy(&path, dest)?;
+        std::fs::copy(source, dest)?;
         let mut permisions = std::fs::metadata(&dest)?.permissions();
         if executable {
             permisions.set_mode(0o500);
