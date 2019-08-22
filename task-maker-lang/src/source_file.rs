@@ -198,7 +198,7 @@ impl SourceFile {
             dag.provide_file(source, &self.path)?;
             if dag.config_mut().copy_exe {
                 if let Some(write_bin_to) = &self.write_bin_to {
-                    dag.write_file_to(&exec, write_bin_to);
+                    dag.write_file_to(&exec, write_bin_to, true);
                 }
             }
             *self.executable.lock().unwrap() = Some(exec);
@@ -207,7 +207,7 @@ impl SourceFile {
             let executable = File::new(&format!("Source file of {:?}", self.path));
             if dag.config_mut().copy_exe {
                 if let Some(write_bin_to) = &self.write_bin_to {
-                    dag.write_file_to(&executable, write_bin_to);
+                    dag.write_file_to(&executable, write_bin_to, true);
                 }
             }
             *self.executable.lock().unwrap() = Some(executable.clone());

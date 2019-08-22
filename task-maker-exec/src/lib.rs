@@ -176,9 +176,9 @@ mod tests {
         });
         dag.on_execution_start(&exec3.uuid, |_w| panic!("exec3 has not been skipped"));
         dag.add_execution(exec3);
-        dag.write_file_to(&stdout, &cwd.path().join("stdout"));
-        dag.write_file_to(&stdout2, &cwd.path().join("stdout2"));
-        dag.write_file_to(&output3, &cwd.path().join("output3"));
+        dag.write_file_to(&stdout, &cwd.path().join("stdout"), false);
+        dag.write_file_to(&stdout2, &cwd.path().join("stdout2"), false);
+        dag.write_file_to(&output3, &cwd.path().join("output3"), false);
 
         eval_dag_locally(dag, cwd.path(), 2);
 

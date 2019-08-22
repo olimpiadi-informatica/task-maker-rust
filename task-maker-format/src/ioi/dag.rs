@@ -208,6 +208,7 @@ impl InputGenerator {
                     task.path
                         .join("input")
                         .join(format!("input{}.txt", testcase_id)),
+                    false,
                 );
                 Ok(stdout.uuid)
             }
@@ -296,6 +297,7 @@ impl OutputGenerator {
                     task.path
                         .join("output")
                         .join(format!("output{}.txt", testcase_id)),
+                    false,
                 );
                 Ok(output.uuid)
             }

@@ -115,9 +115,14 @@ impl ExecutionDAG {
     ///
     /// If the generation of the file fails (i.e. the `Execution` that produced that file was
     /// unsuccessful) the file is **not** written.
-    pub fn write_file_to<F: Into<FileUuid>, P: Into<PathBuf>>(&mut self, file: F, path: P) {
+    pub fn write_file_to<F: Into<FileUuid>, P: Into<PathBuf>>(
+        &mut self,
+        file: F,
+        path: P,
+        executable: bool,
+    ) {
         if !self.data.config.dry_run {
-            self.file_callback(file.into()).write_to = Some(path.into());
+            self.file_callback(file.into()).write_to = Some((path.into(), executable));
         }
     }
 

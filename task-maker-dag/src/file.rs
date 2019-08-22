@@ -12,8 +12,9 @@ pub type GetContentCallback = BoxFnOnce<'static, (Vec<u8>,)>;
 
 /// The callbacks that will trigger when the file is ready.
 pub struct FileCallbacks {
-    /// Destination of the file if it has to be stored in the disk of the local executor.
-    pub write_to: Option<PathBuf>,
+    /// Destination of the file if it has to be stored in the disk of the local executor, and if it
+    /// has to be made executable.
+    pub write_to: Option<(PathBuf, bool)>,
     /// Callback to be called with the first bytes of the file.
     pub get_content: Option<(usize, GetContentCallback)>,
 }

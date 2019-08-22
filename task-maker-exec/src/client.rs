@@ -3,6 +3,7 @@ use crate::*;
 use failure::Error;
 use std::collections::HashMap;
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use task_maker_dag::{FileCallbacks, FileUuid};
 use task_maker_store::*;
 
@@ -157,7 +158,7 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
             .unwrap_or(0);
         let mut buffer: Vec<u8> = Vec::new();
         let mut file = match (&callback.write_to, success) {
-            (Some(path), true) => {
+            (Some((path, _)), true) => {
                 std::fs::create_dir_all(path.parent().unwrap())?;
                 Some(std::fs::File::create(path)?)
             }
@@ -170,6 +171,14 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
             if buffer.len() < limit {
                 let len = std::cmp::min(chunk.len(), limit - buffer.len());
                 buffer.extend_from_slice(&chunk[..len]);
+            }
+        }
+        drop(file);
+        if let Some((path, executable)) = &callback.write_to {
+            if *executable {
+                let mut perm = std::fs::metadata(path)?.permissions();
+                perm.set_mode(0o500);
+                std::fs::set_permissions(path, perm)?;
             }
         }
 
