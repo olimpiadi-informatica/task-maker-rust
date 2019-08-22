@@ -195,6 +195,7 @@ impl InputGenerator {
                     ),
                     args.clone(),
                 )?;
+                exec.tag(Tag::Generation.into());
                 let stdout = exec.stdout();
                 bind_exec_callbacks!(eval, exec, |status| UIMessage::IOIGeneration {
                     subtask: subtask_id,
@@ -236,7 +237,8 @@ impl InputValidator {
                     ),
                     args.clone(),
                 )?;
-                exec.input(input, "tm_validation_file", false);
+                exec.input(input, "tm_validation_file", false)
+                    .tag(Tag::Generation.into());
                 let stdout = exec.stdout();
                 bind_exec_callbacks!(eval, exec, |status| UIMessage::IOIValidation {
                     subtask: subtask_id,
@@ -281,6 +283,7 @@ impl OutputGenerator {
                     ),
                     args.clone(),
                 )?;
+                exec.tag(Tag::Generation.into());
                 let output = bind_exec_io!(exec, task, input, validation_handle);
                 bind_exec_callbacks!(eval, exec, |status| UIMessage::IOISolution {
                     subtask: subtask_id,
@@ -327,9 +330,10 @@ impl Checker {
                     ),
                     ExecutionCommand::System("diff".into()),
                 );
-                exec.args(vec!["--ignore-all-space", "correct", "test"]);
-                exec.input(correct_output, "correct", false);
-                exec.input(test_output, "test", false);
+                exec.args(vec!["--ignore-all-space", "correct", "test"])
+                    .input(correct_output, "correct", false)
+                    .input(test_output, "test", false)
+                    .tag(Tag::Checking.into());
                 bind_exec_callbacks!(
                     eval,
                     exec,
@@ -363,9 +367,10 @@ impl Checker {
                     ),
                     vec!["input", "correct_output", "test_output"],
                 )?;
-                exec.input(input, "input", false);
-                exec.input(correct_output, "correct", false);
-                exec.input(test_output, "test", false);
+                exec.input(input, "input", false)
+                    .input(correct_output, "correct", false)
+                    .input(test_output, "test", false)
+                    .tag(Tag::Checking.into());
                 bind_exec_callbacks!(
                     eval,
                     exec,
@@ -441,6 +446,7 @@ impl TaskType {
                     ),
                     Vec::<String>::new(),
                 )?;
+                exec.tag(Tag::Evaluation.into());
                 let output = bind_exec_io!(exec, task, input, validation_handle);
                 let path = source_file.path.clone();
                 let limits = exec.limits_mut();

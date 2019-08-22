@@ -5,6 +5,7 @@ authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+task-maker-dag = { path = "../task-maker-dag" }
 task-maker-store = { path = "../task-maker-store" }
 task-maker-cache = { path = "../task-maker-cache" }
 task-maker-exec = { path = "../task-maker-exec" }

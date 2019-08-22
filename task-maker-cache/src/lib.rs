@@ -368,6 +368,10 @@ impl Cache {
 
 impl Drop for Cache {
     fn drop(&mut self) {
+        if let Err(e) = std::fs::create_dir_all(self.cache_file.parent().unwrap()) {
+            error!("Failed to create the directory of the cache file: {:?}", e);
+            return;
+        }
         let mut file = match std::fs::File::create(&self.cache_file) {
             Ok(file) => file,
             Err(e) => {

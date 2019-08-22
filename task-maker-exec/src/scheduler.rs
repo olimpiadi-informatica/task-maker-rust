@@ -38,6 +38,10 @@ impl Scheduler {
 
     /// Assign the most important ready jobs to the free workers.
     pub fn schedule(executor_data: &mut ExecutorData) -> Result<(), Error> {
+        if executor_data.dag.is_none() {
+            // no DAG no party
+            return Ok(());
+        }
         trace!("Schedule in progress");
 
         // process all the executions that are cached. Note that this may call `schedule`
@@ -316,6 +320,11 @@ impl Scheduler {
     /// Search between the ready tasks if there are some that are cached, mark all of them as ready
     /// and also all the produced files. This may cause the `schedule` function to be called again.
     fn process_cached(executor_data: &mut ExecutorData) -> Result<(), Error> {
+        let cache_mode = &executor_data.dag.as_ref().unwrap().config.cache_mode;
+        // disable the cache
+        if let CacheMode::Nothing = cache_mode {
+            return Ok(());
+        }
         let file_keys = executor_data
             .file_handles
             .iter()
@@ -329,6 +338,12 @@ impl Scheduler {
         // value.
         for exec in executor_data.ready_execs.iter() {
             let execution = executor_data.dag.as_ref().unwrap().executions[&exec].clone();
+            if let (CacheMode::Except(set), Some(tag)) = (cache_mode, execution.tag.as_ref()) {
+                if set.contains(tag) {
+                    still_ready_execs.push(*exec);
+                    continue;
+                }
+            }
             let result = executor_data.cache.get(
                 &execution,
                 &file_keys,

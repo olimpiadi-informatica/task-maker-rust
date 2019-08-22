@@ -803,6 +803,7 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "structopt 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
  "task-maker-cache 0.1.0",
+ "task-maker-dag 0.1.0",
  "task-maker-exec 0.1.0",
  "task-maker-format 0.1.0",
  "task-maker-store 0.1.0",

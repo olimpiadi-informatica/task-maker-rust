@@ -3,9 +3,20 @@ use crate::*;
 use boxfnonce::BoxFnOnce;
 use failure::Error;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use task_maker_store::*;
+
+/// The setting of the cache level.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CacheMode {
+    /// Use the cache as much as possible.
+    Everything,
+    /// Never use the cache.
+    Nothing,
+    /// Use the cache except for these tags.
+    Except(HashSet<ExecutionTag>),
+}
 
 /// Configuration setting of an `ExecutionDAG`, some of the values set here will be inherited in the
 /// configuration of the executions added.
@@ -17,6 +28,8 @@ pub struct ExecutionDAGConfig {
     /// `write_file_to`, for this reason only the files added _after_ setting this value to `true`
     /// will be discarded.
     pub dry_run: bool,
+    /// The cache mode for this DAG.
+    pub cache_mode: CacheMode,
 }
 
 /// A wrapper around a File provided by the client, this means that the client
@@ -165,6 +178,7 @@ impl ExecutionDAGConfig {
         ExecutionDAGConfig {
             keep_sandboxes: false,
             dry_run: false,
+            cache_mode: CacheMode::Everything,
         }
     }
 
@@ -178,5 +192,23 @@ impl ExecutionDAGConfig {
     pub fn dry_run(&mut self, dry_run: bool) -> &mut Self {
         self.dry_run = dry_run;
         self
+    }
+
+    /// Set the cache mode for the executions of this DAG.
+    pub fn cache_mode(&mut self, cache_mode: CacheMode) -> &mut Self {
+        self.cache_mode = cache_mode;
+        self
+    }
+}
+
+impl From<Option<Option<String>>> for CacheMode {
+    fn from(conf: Option<Option<String>>) -> Self {
+        match conf {
+            None => CacheMode::Everything,
+            Some(None) => CacheMode::Nothing,
+            Some(Some(list)) => {
+                CacheMode::Except(list.split(',').map(|tag| ExecutionTag::from(tag)).collect())
+            }
+        }
     }
 }

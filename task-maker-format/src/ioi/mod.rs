@@ -33,10 +33,12 @@ mod curses_ui;
 mod dag;
 mod finish_ui;
 mod format;
+mod tag;
 mod ui_state;
 
 use curses_ui::CursesUI;
 pub use dag::*;
+pub use tag::*;
 
 /// In IOI tasks the subtask numbers are non-negative 0-based integers.
 pub type SubtaskId = u32;

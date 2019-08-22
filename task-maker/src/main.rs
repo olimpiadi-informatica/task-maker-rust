@@ -18,6 +18,7 @@ use std::sync::{mpsc::channel, Arc, Mutex};
 use std::thread;
 use structopt::StructOpt;
 use task_maker_cache::Cache;
+use task_maker_dag::CacheMode;
 use task_maker_exec::{executors::LocalExecutor, ExecutorClient};
 use task_maker_format::{ioi, EvaluationData, TaskFormat};
 use task_maker_store::*;
@@ -29,8 +30,7 @@ fn main() {
 
     let opt = opt::Opt::from_args();
 
-    if opt.cache_mode.is_some()
-        || opt.exclusive
+    if opt.exclusive
         || opt.extra_time.is_some()
         || opt.copy_exe
         || !opt.filter.is_empty()
@@ -44,7 +44,8 @@ fn main() {
     eval.dag
         .config_mut()
         .keep_sandboxes(opt.keep_sandboxes)
-        .dry_run(opt.dry_run);
+        .dry_run(opt.dry_run)
+        .cache_mode(CacheMode::from(opt.no_cache));
 
     // setup the task
     let task: Box<dyn TaskFormat> = if let Ok(task) = ioi::Task::new(&opt.task_dir) {
@@ -67,8 +68,13 @@ fn main() {
         .unwrap();
 
     // setup the executor
-    let cwd = tempdir::TempDir::new("task-maker").unwrap();
-    let store_path = cwd.path().join("store");
+    let (store_path, _tempdir) = match opt.store_dir {
+        Some(dir) => (dir, None),
+        None => {
+            let cwd = tempdir::TempDir::new("task-maker").unwrap();
+            (cwd.path().join("store"), Some(cwd))
+        }
+    };
     let file_store = FileStore::new(&store_path).expect("Cannot create the file store");
     let cache = Cache::new(&store_path).expect("Cannot create the cache");
     let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), cache, 4);

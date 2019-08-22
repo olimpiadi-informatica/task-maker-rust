@@ -23,9 +23,12 @@ pub struct Opt {
     #[structopt(long = "dry-run")]
     pub dry_run: bool,
 
-    /// The level of caching to use
-    #[structopt(long = "cache")]
-    pub cache_mode: Option<String>,
+    /// Disable the cache for this comma separated list of tags
+    ///
+    /// Providing an empty list will disable all the caches. The supported tags are: generation,
+    /// evaluation, checking.
+    #[structopt(long = "no-cache")]
+    pub no_cache: Option<Option<String>>,
 
     /// Do not run in parallel time critical executions on the same machine
     #[structopt(long = "exclusive")]
@@ -50,4 +53,8 @@ pub struct Opt {
     /// Clear the task directory and exit
     #[structopt(long = "clean")]
     pub clean: bool,
+
+    /// Where to store the storage files, including the cache
+    #[structopt(long = "store-dir")]
+    pub store_dir: Option<PathBuf>,
 }

@@ -25,6 +25,14 @@ pub type OnDoneCallback = BoxFnOnce<'static, (ExecutionResult,)>;
 /// Type of the callback called when an [`Execution`](struct.Execution.html) is skipped.
 pub type OnSkipCallback = BoxFnOnce<'static, ()>;
 
+/// A tag on an `Execution`. Can be used to classify the executions into groups and refer to them,
+/// for example for splitting the cache scopes.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
+pub struct ExecutionTag {
+    /// The name of the tag.
+    pub name: String,
+}
+
 /// Command of an [`Execution`](struct.Execution.html) to execute.
 ///
 /// There is a distinction between a `System` command, which has to be searched in the `PATH`
@@ -131,6 +139,9 @@ pub struct Execution {
     /// The configuration of the underlying DAG. Will be overwritten by
     /// `ExecutionDAG.add_execution`.
     pub(crate) config: ExecutionDAGConfig,
+
+    /// The tag associated with this execution.
+    pub tag: Option<ExecutionTag>,
 }
 
 /// Limits on an [`Execution`](struct.Execution.html). On some worker platforms some of the fields
@@ -318,6 +329,8 @@ impl Execution {
             limits: ExecutionLimits::default(),
 
             config: ExecutionDAGConfig::new(),
+
+            tag: None,
         }
     }
 
@@ -505,6 +518,12 @@ impl Execution {
         &self.config
     }
 
+    /// Set the tag of this `Execution`.
+    pub fn tag(&mut self, tag: ExecutionTag) -> &mut Self {
+        self.tag = Some(tag);
+        self
+    }
+
     /// Compute the [`ExecutionStatus`](struct.ExecutionStatus.html) based on the result of the
     /// execution, checking the signals, the return code and the time/memory constraints.
     pub fn status(
@@ -564,5 +583,11 @@ impl std::default::Default for ExecutionCallbacks {
             on_done: Vec::new(),
             on_skip: Vec::new(),
         }
+    }
+}
+
+impl From<&str> for ExecutionTag {
+    fn from(name: &str) -> Self {
+        ExecutionTag { name: name.into() }
     }
 }
