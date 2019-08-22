@@ -1,11 +1,27 @@
 [workspace]
 
-members = [
-  "task-maker",
-  "task-maker-dag",
-  "task-maker-exec",
-  "task-maker-store",
-  "task-maker-lang",
-  "task-maker-format",
-  "task-maker-cache",
-]
+members = ["task-maker-*"]
+
+[package]
+name = "task-maker-rust"
+version = "0.1.0"
+authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
+edition = "2018"
+
+[badges]
+travis-ci = { repository = "edomora97/task-maker-rust" }
+
+[dependencies]
+task-maker-dag = { path = "./task-maker-dag" }
+task-maker-store = { path = "./task-maker-store" }
+task-maker-cache = { path = "./task-maker-cache" }
+task-maker-exec = { path = "./task-maker-exec" }
+task-maker-format = { path = "./task-maker-format" }
+log = "0.4"
+env_logger = "0.6"
+tempdir = "0.3"
+structopt = "0.2"
+
+[[bin]]
+name = "task-maker"
+path = "src/main.rs"
