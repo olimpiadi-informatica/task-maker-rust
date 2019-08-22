@@ -144,9 +144,11 @@ impl Sandbox {
             }
         }
         if let Some(cpu) = cpu_limit {
+            let cpu = cpu + self.execution.config().extra_time;
             sandbox.arg("--time").arg(cpu.to_string());
         }
         if let Some(wall) = self.execution.limits.wall_time {
+            let wall = wall + self.execution.config().extra_time;
             sandbox.arg("--wall").arg(wall.to_string());
         }
         match self.execution.limits.nproc {

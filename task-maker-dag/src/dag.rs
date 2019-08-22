@@ -30,6 +30,8 @@ pub struct ExecutionDAGConfig {
     pub dry_run: bool,
     /// The cache mode for this DAG.
     pub cache_mode: CacheMode,
+    /// Extra time to give to the sandbox before killing the process, in seconds.
+    pub extra_time: f64
 }
 
 /// A wrapper around a File provided by the client, this means that the client
@@ -179,6 +181,7 @@ impl ExecutionDAGConfig {
             keep_sandboxes: false,
             dry_run: false,
             cache_mode: CacheMode::Everything,
+            extra_time: 0.5
         }
     }
 
@@ -197,6 +200,13 @@ impl ExecutionDAGConfig {
     /// Set the cache mode for the executions of this DAG.
     pub fn cache_mode(&mut self, cache_mode: CacheMode) -> &mut Self {
         self.cache_mode = cache_mode;
+        self
+    }
+
+    /// Set the extra time to give to the executions before being killed by the sandbox.
+    pub fn extra_time(&mut self, extra_time: f64) -> &mut Self {
+        assert!(extra_time >= 0.0);
+        self.extra_time = extra_time;
         self
     }
 }

@@ -28,7 +28,6 @@ fn main() {
     let opt = opt::Opt::from_args();
 
     if opt.exclusive
-        || opt.extra_time.is_some()
         || opt.copy_exe
         || !opt.filter.is_empty()
         || opt.clean
@@ -37,11 +36,17 @@ fn main() {
     }
 
     let (mut eval, receiver) = EvaluationData::new();
+    let config =
     eval.dag
-        .config_mut()
+        .config_mut();
+    config
         .keep_sandboxes(opt.keep_sandboxes)
         .dry_run(opt.dry_run)
         .cache_mode(CacheMode::from(opt.no_cache));
+    if let Some(extra_time) = opt.extra_time {
+        assert!(extra_time >= 0.0, "the extra time cannot be negative");
+        config.extra_time(extra_time);
+    }
 
     // setup the task
     let task: Box<dyn TaskFormat> =
