@@ -25,8 +25,8 @@ pub struct Opt {
 
     /// Disable the cache for this comma separated list of tags
     ///
-    /// Providing an empty list will disable all the caches. The supported tags are: generation,
-    /// evaluation, checking.
+    /// Providing an empty list will disable all the caches. The supported tags are: compilation,
+    /// generation, evaluation, checking.
     #[structopt(long = "no-cache")]
     pub no_cache: Option<Option<String>>,
 

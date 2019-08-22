@@ -166,6 +166,7 @@ impl SourceFile {
                 &format!("Compilation of {:?}", self.name()),
                 self.language.compilation_command(&self.path),
             );
+            comp.tag(ExecutionTag::from("compilation"));
             comp.args = self.language.compilation_args(&self.path);
             let source = File::new(&format!("Source file of {:?}", self.path));
             comp.input(&source, Path::new(self.path.file_name().unwrap()), false);
