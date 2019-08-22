@@ -92,15 +92,20 @@ impl ExecutionDAG {
     /// before the evaluation starts.
     ///
     /// If the config `dry_run` is set to true the calls to this function are no-op.
+    ///
+    /// If the generation of the file fails (i.e. the `Execution` that produced that file was
+    /// unsuccessful) the file is **not** written.
     pub fn write_file_to<F: Into<FileUuid>, P: Into<PathBuf>>(&mut self, file: F, path: P) {
         if !self.data.config.dry_run {
             self.file_callback(file.into()).write_to = Some(path.into());
         }
     }
 
-    /// Call `callback` with the first `limit` bytes of the file when it's
-    /// ready. The file must be present in the DAG before the evaluation
-    /// starts.
+    /// Call `callback` with the first `limit` bytes of the file when it's ready. The file must be
+    /// present in the DAG before the evaluation starts.
+    ///
+    /// If the generation of the file fails (i.e. the `Execution` that produced that file was
+    /// unsuccessful) the callback **is called** anyways with the content of the file, if any.
     pub fn get_file_content<G: Into<FileUuid>, F>(&mut self, file: G, limit: usize, callback: F)
     where
         F: (FnOnce(Vec<u8>) -> ()) + 'static,

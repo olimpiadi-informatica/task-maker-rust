@@ -29,7 +29,7 @@
 //! // store the file inside the file store. The file will be kept at least until handle is alive
 //! let handle = store.store(&key, iter)?;
 //! // store.get(&key) will return an handle to the file on disk if present inside the store
-//! assert!(store.get(&key)?.is_some());
+//! assert!(store.get(&key).is_some());
 //! # Ok(())
 //! # }
 //! ```
@@ -39,7 +39,7 @@
 #[macro_use]
 extern crate log;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -51,6 +51,7 @@ use fs2::FileExt;
 mod read_file_iterator;
 pub use read_file_iterator::ReadFileIterator;
 use std::collections::HashMap;
+use std::fmt::Formatter;
 use std::sync::{Arc, Mutex};
 
 /// Whether to check the file integrity on the store before getting it.
@@ -87,7 +88,7 @@ pub struct FileStore {
 
 /// Handle of a file in the `FileStore`, this must be computable given the content of the file, i.e.
 /// an hash of the content.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FileStoreKey {
     /// An hash of the content of the file.
     hash: HashData,
@@ -199,7 +200,7 @@ impl FileStore {
             }
             FileStore::mark_readonly(&path)?;
         }
-        Ok(FileStoreHandle::new(&self, key)?)
+        Ok(FileStoreHandle::new(&self, key))
     }
 
     /// Returns an handle to the file with that key or `None` if it's not in the
@@ -225,7 +226,7 @@ impl FileStore {
     /// let key = FileStoreKey::from_file(&path)?;
     /// # let iter = ReadFileIterator::new(&path)?;
     /// # let handle = store.store(&key, iter)?;
-    /// let handle = store.get(&key)?;
+    /// let handle = store.get(&key);
     /// match handle {
     ///     None => panic!("The file is gone!"),
     ///     Some(handle) => assert!(handle.path().exists())
@@ -233,17 +234,19 @@ impl FileStore {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get(&mut self, key: &FileStoreKey) -> Result<Option<FileStoreHandle>, Error> {
+    pub fn get(&mut self, key: &FileStoreKey) -> Option<FileStoreHandle> {
         let path = self.key_to_path(key);
         if !path.exists() {
-            return Ok(None);
+            return None;
         }
         if INTEGRITY_CHECKS_ENABLED && !self.check_integrity(key) {
             warn!("File {:?} failed the integrity check", path);
-            FileStore::remove_file(&path)?;
-            return Ok(None);
+            if let Err(e) = FileStore::remove_file(&path) {
+                warn!("Cannot remove corrupted file: {:?}", e);
+            }
+            return None;
         }
-        Ok(Some(FileStoreHandle::new(&self, key)?))
+        Some(FileStoreHandle::new(&self, key))
     }
 
     /// Path of the file to disk.
@@ -320,17 +323,48 @@ impl std::string::ToString for FileStoreKey {
     }
 }
 
+impl std::fmt::Debug for FileStoreKey {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        f.write_str(&self.to_string())
+    }
+}
+
+impl Serialize for FileStoreKey {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for FileStoreKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        let data = String::deserialize(deserializer)?;
+        if data.len() < 4 {
+            return Err(D::Error::custom("invalid hash"));
+        }
+        Ok(FileStoreKey {
+            hash: hex::decode(data).map_err(|_| D::Error::custom("invalid hash"))?,
+        })
+    }
+}
+
 impl FileStoreHandle {
     /// Make a new handle to a file on disk.
-    fn new(store: &FileStore, key: &FileStoreKey) -> Result<FileStoreHandle, Error> {
+    fn new(store: &FileStore, key: &FileStoreKey) -> FileStoreHandle {
         let path = store.key_to_path(key);
         let mut locked_files = store.locked_files.lock().unwrap();
         *locked_files.ref_counts.entry(key.clone()).or_default() += 1;
-        Ok(FileStoreHandle {
+        FileStoreHandle {
             path,
             locked_files: store.locked_files.clone(),
             key: key.clone(),
-        })
+        }
     }
 
     /// The path to the file pointed by this handle.
@@ -475,7 +509,7 @@ mod tests {
         let mut store = FileStore::new(cwd.path()).unwrap();
         let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &mut store);
 
-        let handle = store.get(&handle.key).unwrap().unwrap();
+        let handle = store.get(&handle.key).unwrap();
         let path = handle.path();
         let path_in_store = store.key_to_path(&handle.key);
         assert_eq!(path_in_store, path);
@@ -490,7 +524,7 @@ mod tests {
 
         remove_file(path_in_store).unwrap();
 
-        let handle = store.get(&handle.key).unwrap();
+        let handle = store.get(&handle.key);
         assert!(handle.is_none());
     }
 
@@ -499,7 +533,7 @@ mod tests {
         let cwd = get_cwd();
         let mut store = FileStore::new(cwd.path()).unwrap();
         let key = fake_file(&cwd.path().join("test.txt"), "ciao");
-        let handle = store.get(&key).unwrap();
+        let handle = store.get(&key);
         assert!(handle.is_none());
     }
 
@@ -513,7 +547,7 @@ mod tests {
         let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &mut store);
         let path_in_store = store.key_to_path(&handle.key);
         corrupt_file(&path_in_store);
-        let handle = store.get(&handle.key).unwrap();
+        let handle = store.get(&handle.key);
         assert!(handle.is_none());
     }
 

@@ -27,6 +27,7 @@ impl ExecutorClient {
     /// use std::sync::{Arc, Mutex};
     /// use std::thread;
     /// use std::path::PathBuf;
+    /// use task_maker_cache::Cache;
     ///
     /// // make a new, empty, DAG
     /// let dag = ExecutionDAG::new();
@@ -36,7 +37,8 @@ impl ExecutorClient {
     /// // make a new local executor in a second thread
     /// let server = thread::spawn(move || {
     ///     let file_store = FileStore::new("/tmp/store").expect("Cannot create the file store");
-    ///     let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
+    ///     let cache = Cache::new("/tmp/store").expect("Cannot create the cache");
+    ///     let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), cache, 4);
     ///     executor.evaluate(tx_remote, rx_remote).unwrap();
     /// });
     ///
@@ -77,8 +79,8 @@ impl ExecutorClient {
                     serialize_into(&ExecutorClientMessage::ProvideFile(uuid, key), &sender)?;
                     ChannelFileSender::send(&path, &sender)?;
                 }
-                Ok(ExecutorServerMessage::ProvideFile(uuid)) => {
-                    info!("Server sent the file {}", uuid);
+                Ok(ExecutorServerMessage::ProvideFile(uuid, success)) => {
+                    info!("Server sent the file {}, success: {}", uuid, success);
                     let iterator = ChannelFileIterator::new(&receiver);
                     if let Some(callback) = dag.file_callbacks.get_mut(&uuid) {
                         let limit = callback
@@ -87,12 +89,12 @@ impl ExecutorClient {
                             .map(|(limit, _)| *limit)
                             .unwrap_or(0);
                         let mut buffer: Vec<u8> = Vec::new();
-                        let mut file = match &callback.write_to {
-                            Some(path) => {
+                        let mut file = match (&callback.write_to, success) {
+                            (Some(path), true) => {
                                 std::fs::create_dir_all(path.parent().unwrap())?;
                                 Some(std::fs::File::create(path)?)
                             }
-                            None => None,
+                            _ => None,
                         };
                         for chunk in iterator {
                             if let Some(file) = &mut file {

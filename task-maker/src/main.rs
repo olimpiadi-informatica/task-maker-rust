@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use std::sync::{mpsc::channel, Arc, Mutex};
 use std::thread;
 use structopt::StructOpt;
+use task_maker_cache::Cache;
 use task_maker_exec::{executors::LocalExecutor, ExecutorClient};
 use task_maker_format::{ioi, EvaluationData, TaskFormat};
 use task_maker_store::*;
@@ -115,10 +116,13 @@ fn main() {
     let cwd = tempdir::TempDir::new("task-maker").unwrap();
     let store_path = cwd.path().join("store");
     let file_store = FileStore::new(&store_path).expect("Cannot create the file store");
-    let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), 4);
+    let cache = Cache::new(&store_path).expect("Cannot create the cache");
+    let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), cache, 4);
 
     // build the DAG for the task
     task.execute(&mut eval).unwrap();
+
+    trace!("The DAG is: {:#?}", eval.dag);
 
     // start the server and the client
     let (tx, rx_remote) = channel();

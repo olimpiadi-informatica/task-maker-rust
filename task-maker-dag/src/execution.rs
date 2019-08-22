@@ -1,4 +1,5 @@
 use crate::file::*;
+use crate::signals::strsignal;
 use crate::ExecutionDAGConfig;
 use boxfnonce::BoxFnOnce;
 use serde::{Deserialize, Serialize};
@@ -36,7 +37,7 @@ pub type OnSkipCallback = BoxFnOnce<'static, ()>;
 /// let sys_cmd = ExecutionCommand::System("env".into()); // looking at $PATH
 /// let local_cmd = ExecutionCommand::Local("generator".into()); // local to the cwd of the sandbox
 /// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum ExecutionCommand {
     /// A system command, the workers will search in their `$PATH` for the executable if it's not
     /// absolute.
@@ -47,7 +48,7 @@ pub enum ExecutionCommand {
 
 /// An input file of an [`Execution`](struct.Execution.html), can be marked as executable if it has
 /// to be run inside the sandbox.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash)]
 pub struct ExecutionInput {
     /// Uuid of the file.
     pub file: FileUuid,
@@ -134,7 +135,7 @@ pub struct Execution {
 
 /// Limits on an [`Execution`](struct.Execution.html). On some worker platforms some of the fields
 /// may not be supported or may be less accurate.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ExecutionLimits {
     /// Limit on the userspace cpu time of the process, in seconds.
     pub cpu_time: Option<f64>,
@@ -159,7 +160,7 @@ pub struct ExecutionLimits {
 }
 
 /// Status of a completed [`Execution`](struct.Execution.html).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ExecutionStatus {
     /// The program exited with status 0 within the limits.
     Success,
@@ -181,7 +182,7 @@ pub enum ExecutionStatus {
 
 /// Resources used during the execution, note that on some platform these values may not be
 /// accurate.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ExecutionResourcesUsage {
     /// Number of seconds the process used in user space.
     pub cpu_time: f64,
@@ -194,10 +195,8 @@ pub struct ExecutionResourcesUsage {
 }
 
 /// The result of an [`Execution`](struct.Execution.html).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ExecutionResult {
-    /// Uuid of the completed execution.
-    pub uuid: ExecutionUuid,
     /// Status of the completed execution.
     pub status: ExecutionStatus,
     /// Resources used by the execution.
@@ -504,6 +503,45 @@ impl Execution {
     /// A reference to the configuration of the underlying DAG.
     pub fn config(&self) -> &ExecutionDAGConfig {
         &self.config
+    }
+
+    /// Compute the [`ExecutionStatus`](struct.ExecutionStatus.html) based on the result of the
+    /// execution, checking the signals, the return code and the time/memory constraints.
+    pub fn status(
+        &self,
+        exit_status: u32,
+        signal: Option<u32>,
+        resources: &ExecutionResourcesUsage,
+    ) -> ExecutionStatus {
+        // it's important to check those before the signals because exceeding those
+        // limits may trigger a SIGKILL from the sandbox
+        if let Some(cpu_time_limit) = self.limits.cpu_time {
+            if resources.cpu_time > cpu_time_limit {
+                return ExecutionStatus::TimeLimitExceeded;
+            }
+        }
+        if let Some(sys_time_limit) = self.limits.sys_time {
+            if resources.sys_time > sys_time_limit {
+                return ExecutionStatus::SysTimeLimitExceeded;
+            }
+        }
+        if let Some(wall_time_limit) = self.limits.wall_time {
+            if resources.wall_time > wall_time_limit {
+                return ExecutionStatus::WallTimeLimitExceeded;
+            }
+        }
+        if let Some(memory_limit) = self.limits.memory {
+            if resources.memory > memory_limit {
+                return ExecutionStatus::MemoryLimitExceeded;
+            }
+        }
+        if let Some(signal) = signal {
+            return ExecutionStatus::Signal(signal, strsignal(signal));
+        }
+        if exit_status != 0 {
+            return ExecutionStatus::ReturnCode(exit_status);
+        }
+        ExecutionStatus::Success
     }
 }
 

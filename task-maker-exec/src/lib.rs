@@ -32,7 +32,7 @@ pub use executor::*;
 use failure::Error;
 pub use sandbox::*;
 pub(crate) use scheduler::*;
-pub(crate) use signals::*;
+use task_maker_cache::Cache;
 pub(crate) use worker::*;
 
 mod client;
@@ -41,7 +41,6 @@ pub mod executors;
 pub mod proto;
 mod sandbox;
 mod scheduler;
-mod signals;
 mod worker;
 
 /// The channel part that sends data.
@@ -75,9 +74,10 @@ pub fn eval_dag_locally<P: Into<PathBuf>>(dag: ExecutionDAG, store_dir: P, num_c
     let (tx_remote, rx) = channel();
     let store_dir = store_dir.into();
     let server = thread::spawn(move || {
-        let file_store = FileStore::new(store_dir).expect("Cannot create the file store");
+        let file_store = FileStore::new(&store_dir).expect("Cannot create the file store");
+        let cache = Cache::new(store_dir).expect("Cannot create the cache");
         let mut executor =
-            executors::LocalExecutor::new(Arc::new(Mutex::new(file_store)), num_cores);
+            executors::LocalExecutor::new(Arc::new(Mutex::new(file_store)), cache, num_cores);
         executor.evaluate(tx_remote, rx_remote).unwrap();
     });
     ExecutorClient::evaluate(dag, tx, &rx).unwrap();

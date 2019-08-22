@@ -2,7 +2,6 @@ use crate::proto::*;
 use crate::*;
 use failure::{Error, Fail};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -134,7 +133,7 @@ impl Worker {
                             .dep_keys
                             .get(&input)
                             .ok_or(WorkerError::MissingDependencyKey { uuid: *input })?;
-                        match store.get(&key)? {
+                        match store.get(&key) {
                             None => {
                                 serialize_into(
                                     &WorkerClientMessage::AskFile(*input),
@@ -223,36 +222,36 @@ fn execute_job(
 
             let result = sandbox.run().unwrap();
             let result = compute_execution_result(&job.execution, result);
-            let status = result.status.clone();
 
-            serialize_into(&WorkerClientMessage::WorkerDone(result), &sender).unwrap();
-
-            let send_file = |uuid: FileUuid, path: PathBuf| {
-                serialize_into(
-                    &WorkerClientMessage::ProvideFile(
-                        uuid,
-                        FileStoreKey::from_file(&path).unwrap(),
-                    ),
-                    &sender,
-                )
-                .unwrap();
-                ChannelFileSender::send(&path, &sender).unwrap();
-            };
-
-            if let ExecutionStatus::Success = status {
-                if let Some(stdout) = job.execution.stdout {
-                    let path = sandbox.stdout_path();
-                    send_file(stdout.uuid, path);
-                }
-                if let Some(stderr) = job.execution.stderr {
-                    let path = sandbox.stderr_path();
-                    send_file(stderr.uuid, path);
-                }
-                for (path, file) in job.execution.outputs.iter() {
-                    let path = sandbox.output_path(Path::new(path));
-                    send_file(file.uuid, path);
-                }
+            let mut outputs = HashMap::new();
+            let mut output_paths = HashMap::new();
+            if let Some(stdout) = job.execution.stdout {
+                let path = sandbox.stdout_path();
+                outputs.insert(stdout.uuid, FileStoreKey::from_file(&path).unwrap());
+                output_paths.insert(stdout.uuid, path);
             }
+            if let Some(stderr) = job.execution.stderr {
+                let path = sandbox.stderr_path();
+                outputs.insert(stderr.uuid, FileStoreKey::from_file(&path).unwrap());
+                output_paths.insert(stderr.uuid, path);
+            }
+            for (path, file) in job.execution.outputs.iter() {
+                let path = sandbox.output_path(path);
+                outputs.insert(file.uuid, FileStoreKey::from_file(&path).unwrap());
+                output_paths.insert(file.uuid, path.clone());
+            }
+
+            serialize_into(
+                &WorkerClientMessage::WorkerDone(result, outputs.clone()),
+                &sender,
+            )
+            .unwrap();
+
+            for (uuid, key) in outputs.into_iter() {
+                serialize_into(&WorkerClientMessage::ProvideFile(uuid, key), &sender).unwrap();
+                ChannelFileSender::send(&output_paths[&uuid], &sender).unwrap();
+            }
+
             current_job.lock().unwrap().current_job = None;
             current_job.lock().unwrap().current_sandbox = None;
             serialize_into(&WorkerClientMessage::GetWork, &sender).unwrap();
@@ -269,12 +268,10 @@ fn compute_execution_result(execution: &Execution, result: SandboxResult) -> Exe
             signal,
             resources,
         } => ExecutionResult {
-            uuid: execution.uuid,
-            status: compute_execution_status(execution, exit_status, signal, &resources),
+            status: execution.status(exit_status, signal, &resources),
             resources,
         },
         SandboxResult::Failed { error } => ExecutionResult {
-            uuid: execution.uuid,
             status: ExecutionStatus::InternalError(error.to_string()),
             resources: ExecutionResourcesUsage {
                 cpu_time: 0.0,
@@ -284,45 +281,6 @@ fn compute_execution_result(execution: &Execution, result: SandboxResult) -> Exe
             },
         },
     }
-}
-
-/// Compute the [`ExecutionStatus`](../task_maker_dag/struct.ExecutionStatus.html) based on the
-/// result of the sandbox, checking the signals, the return code and the time/memory constraints.
-fn compute_execution_status(
-    execution: &Execution,
-    exit_status: u32,
-    signal: Option<u32>,
-    resources: &ExecutionResourcesUsage,
-) -> ExecutionStatus {
-    // it's important to check those before the signals because exceeding those
-    // limits may trigger a SIGKILL from the sandbox
-    if let Some(cpu_time_limit) = execution.limits.cpu_time {
-        if resources.cpu_time > cpu_time_limit {
-            return ExecutionStatus::TimeLimitExceeded;
-        }
-    }
-    if let Some(sys_time_limit) = execution.limits.sys_time {
-        if resources.sys_time > sys_time_limit {
-            return ExecutionStatus::SysTimeLimitExceeded;
-        }
-    }
-    if let Some(wall_time_limit) = execution.limits.wall_time {
-        if resources.wall_time > wall_time_limit {
-            return ExecutionStatus::WallTimeLimitExceeded;
-        }
-    }
-    if let Some(memory_limit) = execution.limits.memory {
-        if resources.memory > memory_limit {
-            return ExecutionStatus::MemoryLimitExceeded;
-        }
-    }
-    if let Some(signal) = signal {
-        return ExecutionStatus::Signal(signal, strsignal(signal));
-    }
-    if exit_status != 0 {
-        return ExecutionStatus::ReturnCode(exit_status);
-    }
-    ExecutionStatus::Success
 }
 
 impl std::fmt::Display for WorkerConn {

@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 task-maker-store = { path = "../task-maker-store" }
+task-maker-cache = { path = "../task-maker-cache" }
 task-maker-exec = { path = "../task-maker-exec" }
 task-maker-format = { path = "../task-maker-format" }
 log = "0.4"

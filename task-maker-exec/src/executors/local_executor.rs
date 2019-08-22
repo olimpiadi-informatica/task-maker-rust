@@ -2,6 +2,7 @@ use crate::*;
 use failure::{format_err, Error};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use task_maker_cache::Cache;
 
 /// An Executor that runs locally by spawning a number of threads with the workers inside.
 pub struct LocalExecutor {
@@ -17,9 +18,13 @@ impl LocalExecutor {
     /// Make a new [`LocalExecutor`](struct.LocalExecutor.html) based on a
     /// [`FileStore`](../../task_maker_store/struct.FileStore.html) and ready to spawn that number
     /// of workers.
-    pub fn new(file_store: Arc<Mutex<FileStore>>, num_workers: usize) -> LocalExecutor {
+    pub fn new(
+        file_store: Arc<Mutex<FileStore>>,
+        cache: Cache,
+        num_workers: usize,
+    ) -> LocalExecutor {
         LocalExecutor {
-            executor: Executor::new(file_store.clone()),
+            executor: Executor::new(file_store.clone(), cache),
             file_store: file_store.clone(),
             num_workers,
         }

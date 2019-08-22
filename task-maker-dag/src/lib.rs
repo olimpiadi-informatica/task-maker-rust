@@ -42,6 +42,7 @@
 mod dag;
 mod execution;
 mod file;
+mod signals;
 
 pub use dag::*;
 pub use execution::*;

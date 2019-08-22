@@ -11,6 +11,7 @@ use crate::proto::*;
 use crate::*;
 use std::ops::DerefMut;
 use std::thread::JoinHandle;
+use task_maker_cache::Cache;
 
 /// An error in the DAG structure.
 #[derive(Debug, Fail)]
@@ -109,9 +110,9 @@ pub(crate) struct ExecutorData {
     pub workers: HashMap<WorkerUuid, Arc<WorkerState>>,
     /// The priority queue of the ready tasks, waiting for the workers.
     pub ready_execs: BinaryHeap<ExecutionUuid>,
-    /// The list of tasks waiting for some dependencies, each value here is positive, when a task is
-    /// ready it's removed from the map.
-    pub missing_deps: HashMap<ExecutionUuid, usize>,
+    /// The list of tasks waiting for some dependencies, each with the list of missing files, when a
+    /// task is ready it's removed from the map.
+    pub missing_deps: HashMap<ExecutionUuid, HashSet<FileUuid>>,
     /// The list of tasks that depends on a file, this is a lookup table for when the files become
     /// ready.
     pub dependents: HashMap<FileUuid, Vec<ExecutionUuid>>,
@@ -122,6 +123,8 @@ pub(crate) struct ExecutorData {
     pub file_handles: HashMap<FileUuid, FileStoreHandle>,
     /// True if the executor is shutting down and no more worker should be accepted.
     pub shutting_down: bool,
+    /// The cache of the executions.
+    pub cache: Cache,
 }
 
 /// The current status of the `Executor`, this is sent to the user when the server status is asked.
@@ -147,9 +150,9 @@ pub(crate) struct Executor {
 impl Executor {
     /// Make a new `Executor` based on the specified
     /// [`FileStore`](../task_maker_store/struct.FileStore.html).
-    pub fn new(file_store: Arc<Mutex<FileStore>>) -> Executor {
+    pub fn new(file_store: Arc<Mutex<FileStore>>, cache: Cache) -> Executor {
         Executor {
-            data: Arc::new(Mutex::new(ExecutorData::new(file_store))),
+            data: Arc::new(Mutex::new(ExecutorData::new(file_store, cache))),
         }
     }
 
@@ -193,26 +196,30 @@ impl Executor {
                         data.callbacks = Some(callbacks);
                         data.client_sender = Some(sender.clone());
                         Scheduler::setup(data.deref_mut());
-                        Scheduler::schedule(data.deref_mut());
+                        Scheduler::schedule(data.deref_mut())?;
                     }
                     let mut data = self.data.lock().unwrap();
                     let mut ready_files = vec![];
                     let provided_files = data.dag.as_ref().unwrap().provided_files.clone();
-                    let file_store = data.file_store.clone();
-                    let mut file_store = file_store.lock().unwrap();
-                    for (uuid, file) in provided_files.into_iter() {
-                        let handle = file_store.get(&file.key)?;
-                        match handle {
-                            Some(handle) => {
-                                data.file_handles.insert(uuid, handle);
-                                ready_files.push(uuid);
-                                trace!("File {} already in store!", uuid);
+                    {
+                        let file_store = data.file_store.clone();
+                        let mut file_store = file_store.lock().unwrap();
+                        for (uuid, file) in provided_files.into_iter() {
+                            let handle = file_store.get(&file.key);
+                            match handle {
+                                Some(handle) => {
+                                    data.file_handles.insert(uuid, handle);
+                                    ready_files.push(uuid);
+                                    trace!("File {} already in store!", uuid);
+                                }
+                                None => {
+                                    serialize_into(&ExecutorServerMessage::AskFile(uuid), &sender)?
+                                }
                             }
-                            None => serialize_into(&ExecutorServerMessage::AskFile(uuid), &sender)?,
                         }
                     }
                     for file in ready_files.into_iter() {
-                        Scheduler::file_ready(data.deref_mut(), file);
+                        Scheduler::file_ready(data.deref_mut(), file)?;
                     }
                 }
                 Ok(ExecutorClientMessage::ProvideFile(uuid, key)) => {
@@ -232,7 +239,7 @@ impl Executor {
                         .unwrap()
                         .store(&key, ChannelFileIterator::new(&receiver))?;
                     data.file_handles.insert(uuid, handle);
-                    Scheduler::file_ready(data.deref_mut(), uuid);
+                    Scheduler::file_ready(data.deref_mut(), uuid)?;
                 }
                 Ok(ExecutorClientMessage::Status) => {
                     info!("Client asking for the status");
@@ -284,7 +291,7 @@ impl Executor {
 impl ExecutorData {
     /// Make a new ExecutorData based on the specified
     /// [`FileStore`](../task_maker_store/struct.FileStore.html).
-    fn new(file_store: Arc<Mutex<FileStore>>) -> ExecutorData {
+    fn new(file_store: Arc<Mutex<FileStore>>, cache: Cache) -> ExecutorData {
         ExecutorData {
             dag: None,
             callbacks: None,
@@ -296,6 +303,7 @@ impl ExecutorData {
             file_store,
             file_handles: HashMap::new(),
             shutting_down: false,
+            cache,
         }
     }
 }
@@ -304,7 +312,9 @@ impl ExecutorData {
 /// called as a thread body, this will block the thread until the worker disconnects.
 fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result<(), Error> {
     trace!("Server connected to worker {}", conn);
-
+    let mut waiting_files = 0usize;
+    let mut ready_outputs = None;
+    let mut was_successful = false;
     loop {
         let message = deserialize_from::<WorkerClientMessage>(&conn.receiver);
         match message {
@@ -326,7 +336,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                         }),
                     );
 
-                    Scheduler::schedule(executor.deref_mut());
+                    Scheduler::schedule(executor.deref_mut())?;
                 }
                 match wait_for_work(executor.clone(), &conn.uuid) {
                     WorkerWaitingState::GotJob(job) => {
@@ -340,7 +350,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                     _ => unreachable!("wait_for_work returned without reason"),
                 }
             }
-            Ok(WorkerClientMessage::WorkerDone(result)) => {
+            Ok(WorkerClientMessage::WorkerDone(result, outputs)) => {
                 info!("Worker {} completed with: {:?}", conn, result);
                 let mut data = executor.lock().unwrap();
                 let exec = if let WorkerWaitingState::GotJob(job) = data
@@ -356,24 +366,28 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                 } else {
                     panic!("Worker job disappeared");
                 };
-                let exec_uuid = exec.clone().execution.uuid;
                 data.workers.remove(&conn.uuid);
-                if data
-                    .callbacks
-                    .as_ref()
-                    .unwrap()
-                    .executions
-                    .contains(&exec_uuid)
-                {
-                    serialize_into(
-                        &ExecutorServerMessage::NotifyDone(exec_uuid, result.clone()),
-                        data.client_sender.as_ref().unwrap(),
-                    )?;
+                if outputs.is_empty() {
+                    debug!(
+                        "Execution {:?} didn't produce any output, caching directly",
+                        exec.execution
+                    );
+                    Scheduler::cache_exec(
+                        data.deref_mut(),
+                        &exec.execution,
+                        result.clone(),
+                        outputs,
+                    );
+                } else {
+                    waiting_files = outputs.len();
+                    ready_outputs = Some((outputs, exec.execution.clone(), result.clone()));
+                    debug!(
+                        "Execution {:?} produced {} outputs, waiting the files",
+                        exec.execution, waiting_files
+                    );
                 }
-                match result.status {
-                    ExecutionStatus::Success => {}
-                    _ => Scheduler::exec_failed(data.deref_mut(), exec_uuid),
-                }
+                was_successful = result.status == ExecutionStatus::Success;
+                Scheduler::exec_done(data.deref_mut(), exec.execution.clone(), result)?;
             }
             Ok(WorkerClientMessage::ProvideFile(uuid, key)) => {
                 info!("Worker provided file {} {:?}", uuid, key);
@@ -384,13 +398,21 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                     .unwrap()
                     .store(&key, ChannelFileIterator::new(&conn.receiver))?;
                 data.file_handles.insert(uuid, handle);
-                Scheduler::file_ready(data.deref_mut(), uuid);
+                waiting_files -= 1;
+                debug!("Waiting for {} files before caching", waiting_files);
+                if waiting_files == 0 {
+                    let (outputs, execution, result) = ready_outputs.take().unwrap();
+                    debug!("All files ready, caching {:?}", execution);
+                    Scheduler::cache_exec(data.deref_mut(), &execution, result, outputs);
+                }
+                Scheduler::file_ready(data.deref_mut(), uuid)?;
+
                 if data.callbacks.as_ref().unwrap().files.contains(&uuid) {
                     serialize_into(
-                        &ExecutorServerMessage::ProvideFile(uuid),
+                        &ExecutorServerMessage::ProvideFile(uuid, was_successful),
                         &data.client_sender.as_ref().unwrap(),
                     )?;
-                    let handle = data.file_store.lock().unwrap().get(&key)?.unwrap();
+                    let handle = data.file_store.lock().unwrap().get(&key).unwrap();
                     ChannelFileSender::send(handle.path(), &data.client_sender.as_ref().unwrap())?;
                 }
             }
@@ -421,7 +443,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
     let mut data = executor.lock().unwrap();
     data.workers.remove(&conn.uuid);
     info!("Removed worker {} from pool", conn);
-    Scheduler::schedule(data.deref_mut());
+    Scheduler::schedule(data.deref_mut())?;
 
     Ok(())
 }

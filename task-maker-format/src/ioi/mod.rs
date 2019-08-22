@@ -177,7 +177,7 @@ impl TaskFormat for Task {
                 for (solution, score_manager) in solutions.iter() {
                     trace!(
                         "Evaluation of the solution {:?} against subtask {} / testcase {}",
-                        solution,
+                        solution.name(),
                         subtask.id,
                         testcase.id
                     );

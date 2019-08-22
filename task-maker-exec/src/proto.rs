@@ -38,6 +38,7 @@ use task_maker_dag::*;
 use task_maker_store::*;
 
 use crate::*;
+use std::collections::HashMap;
 
 /// Messages that the client sends to the server.
 #[derive(Debug, Serialize, Deserialize)]
@@ -67,8 +68,9 @@ pub enum ExecutorServerMessage {
     /// proceed with the execution.
     AskFile(FileUuid),
     /// The server is sending a file. After this message there is a protocol switch for the file
-    /// transmission protocol.
-    ProvideFile(FileUuid),
+    /// transmission protocol. The second entry is true if the generation of the file was
+    /// successful.
+    ProvideFile(FileUuid, bool),
     /// The execution has started on a worker.
     NotifyStart(ExecutionUuid, WorkerUuid),
     /// The execution has completed with that result.
@@ -89,8 +91,9 @@ pub enum WorkerClientMessage {
     /// The worker is ready for some job. The worker will wait for a
     /// [`Work`](enum.WorkerServerMessage.html#variant.Work) message.
     GetWork,
-    /// The worker completed the job with this result.
-    WorkerDone(ExecutionResult),
+    /// The worker completed the job with this result producing those files. The actual files will
+    /// be sent immediately after using `ProvideFile` messages.
+    WorkerDone(ExecutionResult, HashMap<FileUuid, FileStoreKey>),
     /// The worker is sending a file to the server. After this message there is a protocol switch
     /// for the file transmission.
     ProvideFile(FileUuid, FileStoreKey),
