@@ -1,3 +1,7 @@
+//! # Task Maker!
+//!
+//! Welcome to `task-maker`!
+
 #![allow(clippy::borrowed_box)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::module_inception)]
@@ -8,7 +12,8 @@
 #[macro_use]
 extern crate log;
 
-use std::path::PathBuf;
+mod opt;
+
 use std::sync::{mpsc::channel, Arc, Mutex};
 use std::thread;
 use structopt::StructOpt;
@@ -17,63 +22,12 @@ use task_maker_exec::{executors::LocalExecutor, ExecutorClient};
 use task_maker_format::{ioi, EvaluationData, TaskFormat};
 use task_maker_store::*;
 
-#[derive(StructOpt, Debug)]
-#[structopt(
-    name = "task-maker",
-    raw(setting = "structopt::clap::AppSettings::ColoredHelp")
-)]
-struct Opt {
-    /// Directory of the task to evaluate
-    #[structopt(short = "t", long = "task-dir", default_value = ".")]
-    task_dir: PathBuf,
-
-    /// Which UI to use, available UIS are: print, raw, curses
-    #[structopt(long = "ui", default_value = "print")]
-    ui: task_maker_format::ui::UIType,
-
-    /// Keep all the sandbox directories
-    #[structopt(long = "keep-sandboxes")]
-    keep_sandboxes: bool,
-
-    /// Do not write any file inside the task directory
-    #[structopt(long = "dry-run")]
-    dry_run: bool,
-
-    /// The level of caching to use
-    #[structopt(long = "cache")]
-    cache_mode: Option<String>,
-
-    /// Do not run in parallel time critical executions on the same machine
-    #[structopt(long = "exclusive")]
-    exclusive: bool,
-
-    /// Give to the solution some extra time before being killed
-    #[structopt(long = "extra-time")]
-    extra_time: Option<f64>,
-
-    /// Copy the executables to the bin/ folder
-    #[structopt(long = "copy-exe")]
-    copy_exe: bool,
-
-    /// Execute only the solutions whose names start with the filter
-    #[structopt(long = "filter")]
-    filter: Vec<String>,
-
-    /// Look at most for this number of parents for searching the task
-    #[structopt(long = "max-depth", default_value = "3")]
-    max_depth: u32,
-
-    /// Clear the task directory and exit
-    #[structopt(long = "clean")]
-    clean: bool,
-}
-
 fn main() {
     env_logger::Builder::from_default_env()
         .default_format_timestamp_nanos(true)
         .init();
 
-    let opt = Opt::from_args();
+    let opt = opt::Opt::from_args();
 
     if opt.cache_mode.is_some()
         || opt.exclusive
