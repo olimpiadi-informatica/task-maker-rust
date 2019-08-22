@@ -7,6 +7,9 @@ name = "task-maker-rust"
 version = "0.1.0"
 authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
 edition = "2018"
+documentation = "https://edomora97.github.io/task-maker-rust/"
+repository = "https://github.com/edomora97/task-maker-rust"
+license = "MPL-2.0"
 
 [badges]
 travis-ci = { repository = "edomora97/task-maker-rust" }
