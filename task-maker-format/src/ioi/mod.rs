@@ -143,7 +143,18 @@ impl TaskFormat for Task {
         let solutions: Vec<_> = list_files(&self.path, vec!["sol/*"])
             .into_iter()
             .filter(|p| !graders.contains(p)) // the graders are not solutions
-            .map(|p| SourceFile::new(p, Some(self.grader_map.clone())))
+            .map(|p| {
+                SourceFile::new(
+                    &p,
+                    Some(self.grader_map.clone()),
+                    Some(
+                        self.path
+                            .join("bin")
+                            .join("sol")
+                            .join(p.file_name().unwrap()),
+                    ),
+                )
+            })
             .filter(Option::is_some) // ignore the unknown languages
             .map(Option::unwrap)
             .map(|source| (source, Arc::new(Mutex::new(empty_score_manager.clone()))))

@@ -1,7 +1,9 @@
 use crate::proto::*;
 use crate::*;
 use failure::Error;
+use std::collections::HashMap;
 use std::io::Write;
+use task_maker_dag::{FileCallbacks, FileUuid};
 use task_maker_store::*;
 
 /// This is a client of the `Executor`, the client is who sends a DAG for an evaluation, provides
@@ -60,6 +62,10 @@ impl ExecutorClient {
             files: dag.file_callbacks.keys().cloned().collect(),
         };
         let provided_files = dag.data.provided_files.clone();
+        for (uuid, file) in provided_files.iter() {
+            let iterator = ReadFileIterator::new(&file.local_path)?;
+            process_provided_file(&mut dag.file_callbacks, *uuid, true, iterator)?;
+        }
         serialize_into(
             &ExecutorClientMessage::Evaluate {
                 dag: dag.data,
@@ -82,36 +88,7 @@ impl ExecutorClient {
                 Ok(ExecutorServerMessage::ProvideFile(uuid, success)) => {
                     info!("Server sent the file {}, success: {}", uuid, success);
                     let iterator = ChannelFileIterator::new(&receiver);
-                    if let Some(callback) = dag.file_callbacks.get_mut(&uuid) {
-                        let limit = callback
-                            .get_content
-                            .as_ref()
-                            .map(|(limit, _)| *limit)
-                            .unwrap_or(0);
-                        let mut buffer: Vec<u8> = Vec::new();
-                        let mut file = match (&callback.write_to, success) {
-                            (Some(path), true) => {
-                                std::fs::create_dir_all(path.parent().unwrap())?;
-                                Some(std::fs::File::create(path)?)
-                            }
-                            _ => None,
-                        };
-                        for chunk in iterator {
-                            if let Some(file) = &mut file {
-                                file.write_all(&chunk)?;
-                            }
-                            if buffer.len() < limit {
-                                let len = std::cmp::min(chunk.len(), limit - buffer.len());
-                                buffer.extend_from_slice(&chunk[..len]);
-                            }
-                        }
-
-                        if let Some(get_content) = callback.get_content.take().map(|(_, f)| f) {
-                            get_content.call(buffer);
-                        }
-                    } else {
-                        iterator.last();
-                    }
+                    process_provided_file(&mut dag.file_callbacks, uuid, success, iterator)?;
                 }
                 Ok(ExecutorServerMessage::NotifyStart(uuid, worker)) => {
                     info!("Execution {} started on {}", uuid, worker);
@@ -162,4 +139,45 @@ impl ExecutorClient {
         }
         Ok(())
     }
+}
+
+/// Process a file provided either by the client or by the server, calling the callback and writing
+/// it to the `write_to` path. This will consume the iterator even if the callback is not present.
+fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
+    file_callbacks: &mut HashMap<FileUuid, FileCallbacks>,
+    uuid: FileUuid,
+    success: bool,
+    iterator: I,
+) -> Result<(), Error> {
+    if let Some(callback) = file_callbacks.get_mut(&uuid) {
+        let limit = callback
+            .get_content
+            .as_ref()
+            .map(|(limit, _)| *limit)
+            .unwrap_or(0);
+        let mut buffer: Vec<u8> = Vec::new();
+        let mut file = match (&callback.write_to, success) {
+            (Some(path), true) => {
+                std::fs::create_dir_all(path.parent().unwrap())?;
+                Some(std::fs::File::create(path)?)
+            }
+            _ => None,
+        };
+        for chunk in iterator {
+            if let Some(file) = &mut file {
+                file.write_all(&chunk)?;
+            }
+            if buffer.len() < limit {
+                let len = std::cmp::min(chunk.len(), limit - buffer.len());
+                buffer.extend_from_slice(&chunk[..len]);
+            }
+        }
+
+        if let Some(get_content) = callback.get_content.take().map(|(_, f)| f) {
+            get_content.call(buffer);
+        }
+    } else {
+        iterator.into_iter().last();
+    }
+    Ok(())
 }

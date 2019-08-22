@@ -27,22 +27,17 @@ fn main() {
 
     let opt = opt::Opt::from_args();
 
-    if opt.exclusive
-        || opt.copy_exe
-        || !opt.filter.is_empty()
-        || opt.clean
-    {
+    if opt.exclusive || !opt.filter.is_empty() || opt.clean {
         unimplemented!("This option is not implemented yet");
     }
 
     let (mut eval, receiver) = EvaluationData::new();
-    let config =
-    eval.dag
-        .config_mut();
+    let config = eval.dag.config_mut();
     config
         .keep_sandboxes(opt.keep_sandboxes)
         .dry_run(opt.dry_run)
-        .cache_mode(CacheMode::from(opt.no_cache));
+        .cache_mode(CacheMode::from(opt.no_cache))
+        .copy_exe(opt.copy_exe);
     if let Some(extra_time) = opt.extra_time {
         assert!(extra_time >= 0.0, "the extra time cannot be negative");
         config.extra_time(extra_time);

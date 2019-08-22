@@ -77,18 +77,6 @@ impl Scheduler {
             executor_data.missing_deps.len(),
             assigned.len()
         );
-        if doing_workers == 0
-            && !free_workers.is_empty()
-            && executor_data.ready_execs.is_empty()
-            && !executor_data.missing_deps.is_empty()
-            && assigned.is_empty()
-        {
-            // this may happen while waiting the client-provided files, should not happen anytime else
-            debug!(
-                "Stalled!\nworkers: {:#?}\nmissing_deps: {:#?}\nready_execs:{:#?}",
-                executor_data.workers, executor_data.missing_deps, executor_data.ready_execs
-            );
-        }
 
         for (worker, exec) in free_workers.into_iter().zip(assigned.into_iter()) {
             doing_workers += 1;
@@ -362,21 +350,25 @@ impl Scheduler {
         executor_data.ready_execs = still_ready_execs;
         // scheduling functions are permitted again...
         for (execution, result, mut outputs) in cached.into_iter() {
+            let was_successful = result.status == ExecutionStatus::Success;
             Scheduler::exec_done(executor_data, execution.clone(), result)?;
             if let Some(hdl) = outputs.stdout {
                 let uuid = execution.stdout.unwrap().uuid;
-                executor_data.file_handles.insert(uuid, hdl);
+                executor_data.file_handles.insert(uuid, hdl.clone());
                 Scheduler::file_ready(executor_data, uuid)?;
+                send_file_to_client(executor_data, uuid, was_successful, hdl)?;
             }
             if let Some(hdl) = outputs.stderr {
                 let uuid = execution.stderr.unwrap().uuid;
-                executor_data.file_handles.insert(uuid, hdl);
+                executor_data.file_handles.insert(uuid, hdl.clone());
                 Scheduler::file_ready(executor_data, uuid)?;
+                send_file_to_client(executor_data, uuid, was_successful, hdl)?;
             }
             for (path, file) in execution.outputs.iter() {
                 let hdl = outputs.outputs.remove(path).unwrap();
-                executor_data.file_handles.insert(file.uuid, hdl);
+                executor_data.file_handles.insert(file.uuid, hdl.clone());
                 Scheduler::file_ready(executor_data, file.uuid)?;
+                send_file_to_client(executor_data, file.uuid, was_successful, hdl)?;
             }
         }
         Ok(())

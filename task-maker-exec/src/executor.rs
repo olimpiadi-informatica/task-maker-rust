@@ -397,7 +397,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                     .lock()
                     .unwrap()
                     .store(&key, ChannelFileIterator::new(&conn.receiver))?;
-                data.file_handles.insert(uuid, handle);
+                data.file_handles.insert(uuid, handle.clone());
                 waiting_files -= 1;
                 debug!("Waiting for {} files before caching", waiting_files);
                 if waiting_files == 0 {
@@ -406,15 +406,7 @@ fn worker_thread(executor: Arc<Mutex<ExecutorData>>, conn: WorkerConn) -> Result
                     Scheduler::cache_exec(data.deref_mut(), &execution, result, outputs);
                 }
                 Scheduler::file_ready(data.deref_mut(), uuid)?;
-
-                if data.callbacks.as_ref().unwrap().files.contains(&uuid) {
-                    serialize_into(
-                        &ExecutorServerMessage::ProvideFile(uuid, was_successful),
-                        &data.client_sender.as_ref().unwrap(),
-                    )?;
-                    let handle = data.file_store.lock().unwrap().get(&key).unwrap();
-                    ChannelFileSender::send(handle.path(), &data.client_sender.as_ref().unwrap())?;
-                }
+                send_file_to_client(data.deref_mut(), uuid, was_successful, handle)?;
             }
             Ok(WorkerClientMessage::AskFile(uuid)) => {
                 info!("Worker asked for {}", uuid);
@@ -466,6 +458,32 @@ pub(crate) fn stop_all_workers(executor_data: &mut ExecutorData) {
         *worker.job.lock().unwrap() = WorkerWaitingState::Exit;
         worker.cv.notify_one();
     }
+}
+
+/// Check if the file should be sent to the client, and if so, send it.
+pub(crate) fn send_file_to_client(
+    executor_data: &mut ExecutorData,
+    uuid: FileUuid,
+    was_successful: bool,
+    handle: FileStoreHandle,
+) -> Result<(), Error> {
+    if executor_data
+        .callbacks
+        .as_ref()
+        .unwrap()
+        .files
+        .contains(&uuid)
+    {
+        serialize_into(
+            &ExecutorServerMessage::ProvideFile(uuid, was_successful),
+            &executor_data.client_sender.as_ref().unwrap(),
+        )?;
+        ChannelFileSender::send(
+            handle.path(),
+            &executor_data.client_sender.as_ref().unwrap(),
+        )?;
+    }
+    Ok(())
 }
 
 /// Validate the DAG checking if all the required pieces are present and they actually make a DAG.

@@ -91,14 +91,15 @@ pub(crate) fn list_files<P: AsRef<Path>, S: AsRef<str>>(cwd: P, patterns: Vec<S>
 
 /// Make a `SourceFile` with the first file that matches the patterns provided that is in a
 /// recognised language. Returns `None` if no valid source file can be found.
-pub(crate) fn find_source_file<P: AsRef<Path>, S: AsRef<str>>(
+pub(crate) fn find_source_file<P: AsRef<Path>, S: AsRef<str>, P2: Into<PathBuf>>(
     cwd: P,
     patterns: Vec<S>,
     grader_map: Option<Arc<GraderMap>>,
+    write_bin_to: Option<P2>,
 ) -> Option<SourceFile> {
     for path in list_files(cwd, patterns) {
         if LanguageManager::detect_language(&path).is_some() {
-            return Some(SourceFile::new(&path, grader_map).unwrap());
+            return Some(SourceFile::new(&path, grader_map, write_bin_to).unwrap());
         }
     }
     None

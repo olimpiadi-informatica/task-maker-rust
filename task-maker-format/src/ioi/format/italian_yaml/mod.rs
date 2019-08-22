@@ -174,6 +174,7 @@ pub fn parse_task<P: AsRef<Path>>(task_dir: P) -> Result<Task, Error> {
             "cor/correttore",
         ],
         None,
+        Some(task_dir.join("bin").join("checker")),
     )
     .map(Arc::new)
     .map(Checker::Custom);
@@ -211,6 +212,7 @@ fn detect_validator(task_dir: PathBuf) -> impl Fn(SubtaskId) -> InputValidator {
             "gen/valida",
         ],
         None,
+        Some(task_dir.join("bin").join("validator")),
     )
     .map(Arc::new);
     debug!("Detected input validator: {:?}", validator);
@@ -242,6 +244,7 @@ fn detect_output_generator(
             "sol/soluzione",
         ],
         Some(grader_map.clone()),
+        Some(task_dir.join("bin").join("official_solution")),
     )
     .map(Arc::new);
     debug!("Detected output generator: {:?}", official_solution);

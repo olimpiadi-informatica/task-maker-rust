@@ -54,6 +54,7 @@ where
             "gen/generatore",
         ],
         None,
+        Some(task_dir.join("bin").join("generator")),
     )
     .map(Arc::new)
     .ok_or_else(|| format_err!("No generator found"))?;

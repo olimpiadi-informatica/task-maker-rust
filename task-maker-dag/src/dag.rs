@@ -1,11 +1,14 @@
-use crate::file::*;
-use crate::*;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+
 use boxfnonce::BoxFnOnce;
 use failure::Error;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+
 use task_maker_store::*;
+
+use crate::file::*;
+use crate::*;
 
 /// The setting of the cache level.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,7 +34,9 @@ pub struct ExecutionDAGConfig {
     /// The cache mode for this DAG.
     pub cache_mode: CacheMode,
     /// Extra time to give to the sandbox before killing the process, in seconds.
-    pub extra_time: f64
+    pub extra_time: f64,
+    /// Whether to copy the executables of the compilation inside their default destinations.
+    pub copy_exe: bool,
 }
 
 /// A wrapper around a File provided by the client, this means that the client
@@ -181,7 +186,8 @@ impl ExecutionDAGConfig {
             keep_sandboxes: false,
             dry_run: false,
             cache_mode: CacheMode::Everything,
-            extra_time: 0.5
+            extra_time: 0.5,
+            copy_exe: false,
         }
     }
 
@@ -207,6 +213,12 @@ impl ExecutionDAGConfig {
     pub fn extra_time(&mut self, extra_time: f64) -> &mut Self {
         assert!(extra_time >= 0.0);
         self.extra_time = extra_time;
+        self
+    }
+
+    /// Set whether to copy the executables of the compilation inside their default destinations.
+    pub fn copy_exe(&mut self, copy_exe: bool) -> &mut Self {
+        self.copy_exe = copy_exe;
         self
     }
 }

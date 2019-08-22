@@ -25,6 +25,8 @@ pub struct SourceFile {
     executable: Arc<Mutex<Option<File>>>,
     /// An optional handler to the map of the graders.
     grader_map: Option<Arc<GraderMap>>,
+    /// Where to write the compiled executable.
+    write_bin_to: Option<PathBuf>,
 }
 
 impl SourceFile {
@@ -36,9 +38,10 @@ impl SourceFile {
     ///
     /// Because the execution/compilation may require some additional files a
     /// [`GraderMap`](struct.GraderMap.html) is required.
-    pub fn new<P: Into<PathBuf>>(
+    pub fn new<P: Into<PathBuf>, P2: Into<PathBuf>>(
         path: P,
         grader_map: Option<Arc<GraderMap>>,
+        write_bin_to: Option<P2>,
     ) -> Option<SourceFile> {
         let path = path.into();
         let lang = LanguageManager::detect_language(&path);
@@ -48,6 +51,7 @@ impl SourceFile {
             language: lang.unwrap(),
             executable: Arc::new(Mutex::new(None)),
             grader_map,
+            write_bin_to: write_bin_to.map(|p| p.into()),
         })
     }
 
@@ -78,12 +82,13 @@ impl SourceFile {
     /// use task_maker_dag::ExecutionDAG;
     /// use task_maker_lang::SourceFile;
     /// # use tempdir::TempDir;
+    /// # use std::path::PathBuf;
     ///
     /// # let tempdir = TempDir::new("tm-tests").unwrap();
     /// # std::fs::write(tempdir.path().join("test.cpp"), "foobar.cpp").unwrap();
     /// # let path = tempdir.path().join("test.cpp");
     /// let mut dag = ExecutionDAG::new();
-    /// let mut source = SourceFile::new(path /* test.cpp */, None).unwrap();
+    /// let mut source = SourceFile::new(path /* test.cpp */, None, None::<PathBuf>).unwrap();
     ///
     /// let (comp, exec) = source.execute(&mut dag, "Execution", vec!["arg1".into()]).unwrap();
     /// assert!(comp.is_some());
@@ -101,12 +106,13 @@ impl SourceFile {
     /// use task_maker_dag::ExecutionDAG;
     /// use task_maker_lang::SourceFile;
     /// # use tempdir::TempDir;
+    /// # use std::path::PathBuf;
     ///
     /// # let tempdir = TempDir::new("tm-tests").unwrap();
     /// # std::fs::write(tempdir.path().join("test.py"), "foobar.cpp").unwrap();
     /// # let path = tempdir.path().join("test.py");
     /// let mut dag = ExecutionDAG::new();
-    /// let mut source = SourceFile::new(path /* test.py */, None).unwrap();
+    /// let mut source = SourceFile::new(path /* test.py */, None, None::<PathBuf>).unwrap();
     ///
     /// let (comp, exec) = source.execute(&mut dag, "Execution", vec!["arg1".into()]).unwrap();
     /// assert!(comp.is_none());
@@ -148,7 +154,9 @@ impl SourceFile {
     ///
     /// ```
     /// use task_maker_lang::SourceFile;
-    /// let source = SourceFile::new("path/to/sourcefile.cpp", None).unwrap();
+    /// use std::path::PathBuf;
+    ///
+    /// let source = SourceFile::new("path/to/sourcefile.cpp", None, None::<PathBuf>).unwrap();
     ///
     /// assert_eq!(source.name(), "sourcefile.cpp");
     /// ```
@@ -188,10 +196,20 @@ impl SourceFile {
             let comp_uuid = comp.uuid;
             dag.add_execution(comp);
             dag.provide_file(source, &self.path)?;
+            if dag.config_mut().copy_exe {
+                if let Some(write_bin_to) = &self.write_bin_to {
+                    dag.write_file_to(&exec, write_bin_to);
+                }
+            }
             *self.executable.lock().unwrap() = Some(exec);
             Ok(Some(comp_uuid))
         } else {
             let executable = File::new(&format!("Source file of {:?}", self.path));
+            if dag.config_mut().copy_exe {
+                if let Some(write_bin_to) = &self.write_bin_to {
+                    dag.write_file_to(&executable, write_bin_to);
+                }
+            }
             *self.executable.lock().unwrap() = Some(executable.clone());
             dag.provide_file(executable, &self.path)?;
             Ok(None)
@@ -239,13 +257,15 @@ mod tests {
         let cwd = TempDir::new("tm-test").unwrap();
 
         let mut dag = ExecutionDAG::new();
+        dag.config_mut().copy_exe(true);
+
         let source = "int main() {return 0;}";
         let source_path = cwd.path().join("source.cpp");
         std::fs::File::create(&source_path)
             .unwrap()
             .write_all(source.as_bytes())
             .unwrap();
-        let source = SourceFile::new(&source_path, None).unwrap();
+        let source = SourceFile::new(&source_path, None, Some(cwd.path().join("bin"))).unwrap();
         let (comp, exec) = source.execute(&mut dag, "Testing exec", vec![]).unwrap();
         assert!(comp.is_some());
 
@@ -271,5 +291,6 @@ mod tests {
         assert!(exec_start.load(Ordering::Relaxed));
         assert!(exec_done.load(Ordering::Relaxed));
         assert!(!exec_skipped.load(Ordering::Relaxed));
+        assert!(cwd.path().join("bin").exists());
     }
 }
