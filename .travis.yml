@@ -14,7 +14,7 @@ script:
   - cargo build --color=always --all
   - RUST_BACKTRACE=1 cargo test --color=always --all
   - rm -rf target/doc  # make sure only our crates are present
-  - cargo doc --color=always --no-deps
+  - cargo doc --color=always --no-deps --all
   - echo '<meta http-equiv="Refresh" content="0; url=./task_maker/index.html">' > target/doc/index.html
 
 deploy:
