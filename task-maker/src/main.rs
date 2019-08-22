@@ -14,6 +14,7 @@ extern crate log;
 
 mod opt;
 
+use std::path::PathBuf;
 use std::sync::{mpsc::channel, Arc, Mutex};
 use std::thread;
 use structopt::StructOpt;
@@ -34,7 +35,6 @@ fn main() {
         || opt.extra_time.is_some()
         || opt.copy_exe
         || !opt.filter.is_empty()
-        || opt.max_depth != 3
         || opt.clean
     {
         unimplemented!("This option is not implemented yet");
@@ -48,12 +48,8 @@ fn main() {
         .cache_mode(CacheMode::from(opt.no_cache));
 
     // setup the task
-    let task: Box<dyn TaskFormat> = if let Ok(task) = ioi::Task::new(&opt.task_dir) {
-        debug!("The task is IOI: {:#?}", task);
-        Box::new(task)
-    } else {
-        panic!("Invalid task directory!");
-    };
+    let task: Box<dyn TaskFormat> =
+        find_task(opt.task_dir, opt.max_depth).expect("Invalid task directory!");
 
     // setup the ui thread
     let mut ui = task.ui(opt.ui).unwrap();
@@ -99,4 +95,20 @@ fn main() {
     server.join().expect("Executor panicked");
     drop(eval.sender); // make the UI exit
     ui_thread.join().expect("UI panicked");
+}
+
+/// Search for a valid task directory, starting from base and going _at most_ `max_depth` times up.
+fn find_task<P: Into<PathBuf>>(base: P, max_depth: u32) -> Option<Box<dyn TaskFormat>> {
+    let mut base = base.into();
+    for _ in 0..=max_depth {
+        if let Ok(task) = ioi::Task::new(&base) {
+            debug!("The task is IOI: {:#?}", task);
+            return Some(Box::new(task));
+        }
+        base = match base.parent() {
+            Some(parent) => parent.into(),
+            _ => break,
+        };
+    }
+    None
 }
