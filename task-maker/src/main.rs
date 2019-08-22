@@ -1,7 +1,3 @@
-//! # Task Maker!
-//!
-//! Welcome to `task-maker`!
-
 #![allow(clippy::borrowed_box)]
 #![allow(clippy::new_without_default)]
 #![allow(clippy::module_inception)]
