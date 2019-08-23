@@ -48,7 +48,9 @@
 //!         sys_time: 0.2,
 //!         wall_time: 1.5,
 //!         memory: 12345
-//!     }
+//!     },
+//!     was_killed: false,
+//!     was_cached: false,
 //! };
 //!
 //! // make the FileUuid -> FileStoreKey map
@@ -345,6 +347,8 @@ impl Cache {
                                     signal,
                                     &entry.result.resources,
                                 ),
+                                was_killed: entry.result.was_killed,
+                                was_cached: true,
                                 resources: entry.result.resources.clone(),
                             },
                             outputs,

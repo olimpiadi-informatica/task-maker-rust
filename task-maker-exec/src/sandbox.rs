@@ -31,6 +31,8 @@ pub enum SandboxResult {
         signal: Option<u32>,
         /// Resources used by the process.
         resources: ExecutionResourcesUsage,
+        /// Whether the sandbox killed the process.
+        was_killed: bool,
     },
     /// The sandbox failed to execute the process, an error message is reported. Note that this
     /// represents a sandbox error, not the process failure.
@@ -202,6 +204,7 @@ impl Sandbox {
                     wall_time: outcome.wall_time.unwrap(),
                     memory: outcome.memory_usage.unwrap(),
                 },
+                was_killed: outcome.killed_by_sandbox.unwrap(),
             })
         }
     }

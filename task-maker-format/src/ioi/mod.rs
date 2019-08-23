@@ -249,14 +249,13 @@ impl TaskFormat for Task {
                 if !dir.exists() {
                     continue;
                 }
-                for file in glob::glob(dir.join("*.txt").to_str().unwrap()).unwrap()
-                {
+                for file in glob::glob(dir.join("*.txt").to_str().unwrap()).unwrap() {
                     match file {
                         Ok(file) => {
                             info!("Removing {:?}", file);
                             std::fs::remove_file(file)?;
                         }
-                        _ => warn!("Cannot process {:?}", file)
+                        _ => warn!("Cannot process {:?}", file),
                     }
                 }
                 info!("Removing {:?}", dir);

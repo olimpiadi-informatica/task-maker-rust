@@ -267,9 +267,12 @@ fn compute_execution_result(execution: &Execution, result: SandboxResult) -> Exe
             exit_status,
             signal,
             resources,
+            was_killed,
         } => ExecutionResult {
             status: execution.status(exit_status, signal, &resources),
             resources,
+            was_killed,
+            was_cached: false,
         },
         SandboxResult::Failed { error } => ExecutionResult {
             status: ExecutionStatus::InternalError(error.to_string()),
@@ -279,6 +282,8 @@ fn compute_execution_result(execution: &Execution, result: SandboxResult) -> Exe
                 wall_time: 0.0,
                 memory: 0,
             },
+            was_killed: false,
+            was_cached: false,
         },
     }
 }

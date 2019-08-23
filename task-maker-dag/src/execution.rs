@@ -210,6 +210,10 @@ pub struct ExecutionResourcesUsage {
 pub struct ExecutionResult {
     /// Status of the completed execution.
     pub status: ExecutionStatus,
+    /// Whether the execution has been killed by the sandbox.
+    pub was_killed: bool,
+    /// Whether the execution result come from the cache.
+    pub was_cached: bool,
     /// Resources used by the execution.
     pub resources: ExecutionResourcesUsage,
 }
