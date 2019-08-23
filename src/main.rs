@@ -82,10 +82,21 @@ fn main() {
 
     let opt = opt::Opt::from_args();
 
-    if opt.exclusive || opt.clean {
+    if opt.exclusive {
         unimplemented!("This option is not implemented yet");
     }
 
+    // setup the task
+    let task: Box<dyn TaskFormat> =
+        find_task(&opt.task_dir, opt.max_depth).expect("Invalid task directory!");
+
+    // clean the task
+    if opt.clean {
+        task.clean().expect("Cannot clean task directory!");
+        return;
+    }
+
+    // setup the configuration and the evaluation metadata
     let (mut eval, receiver) = EvaluationData::new();
     let eval_config = opt.to_config();
     let config = eval.dag.config_mut();
@@ -98,10 +109,6 @@ fn main() {
         assert!(extra_time >= 0.0, "the extra time cannot be negative");
         config.extra_time(extra_time);
     }
-
-    // setup the task
-    let task: Box<dyn TaskFormat> =
-        find_task(opt.task_dir, opt.max_depth).expect("Invalid task directory!");
 
     // setup the ui thread
     let mut ui = task.ui(opt.ui).unwrap();
@@ -154,7 +161,7 @@ fn find_task<P: Into<PathBuf>>(base: P, max_depth: u32) -> Option<Box<dyn TaskFo
     let mut base = base.into();
     for _ in 0..=max_depth {
         if let Ok(task) = ioi::Task::new(&base) {
-            debug!("The task is IOI: {:#?}", task);
+            trace!("The task is IOI: {:#?}", task);
             return Some(Box::new(task));
         }
         base = match base.parent() {

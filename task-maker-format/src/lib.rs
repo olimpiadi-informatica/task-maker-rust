@@ -34,6 +34,9 @@ pub trait TaskFormat {
 
     /// Execute the evaluation of this task by adding the executions to the provided DAG.
     fn execute(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error>;
+
+    /// Clean the task folder removing the files that can be generated automatically.
+    fn clean(&self) -> Result<(), Error>;
 }
 
 /// Configuration of the evaluation of a task.

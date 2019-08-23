@@ -174,7 +174,7 @@ pub fn parse_task<P: AsRef<Path>>(task_dir: P) -> Result<Task, Error> {
             "cor/correttore",
         ],
         None,
-        Some(task_dir.join("bin").join("checker")),
+        Some(task_dir.join("check").join("checker")),
     )
     .map(Arc::new)
     .map(Checker::Custom);

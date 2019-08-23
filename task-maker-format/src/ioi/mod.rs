@@ -232,6 +232,61 @@ impl TaskFormat for Task {
         }
         Ok(())
     }
+
+    fn clean(&self) -> Result<(), Error> {
+        let has_input_generator = self
+            .subtasks
+            .values()
+            .flat_map(|st| st.testcases.values())
+            .any(|tc| match tc.input_generator {
+                InputGenerator::Custom(_, _) => true,
+                _ => false,
+            });
+        // remove the input/ and output/ folders
+        if has_input_generator {
+            for dir in &["input", "output"] {
+                let dir = self.path.join(dir);
+                if !dir.exists() {
+                    continue;
+                }
+                for file in glob::glob(dir.join("*.txt").to_str().unwrap()).unwrap()
+                {
+                    match file {
+                        Ok(file) => {
+                            info!("Removing {:?}", file);
+                            std::fs::remove_file(file)?;
+                        }
+                        _ => warn!("Cannot process {:?}", file)
+                    }
+                }
+                info!("Removing {:?}", dir);
+                if let Err(e) = std::fs::remove_dir(&dir) {
+                    if let std::io::ErrorKind::Other = e.kind() {
+                        warn!("Directory {:?} not empty!", dir);
+                    } else {
+                        panic!("Cannot remove {:?}: {:?}", dir, e);
+                    }
+                }
+            }
+        }
+        // remove the bin/ folder
+        let bin_path = self.path.join("bin");
+        if bin_path.exists() {
+            info!("Removing {:?}", bin_path);
+            std::fs::remove_dir_all(bin_path)?;
+        }
+        // remove the compiled checkers
+        if let Checker::Custom(_) = self.checker {
+            for checker in &["check/checker", "cor/correttore"] {
+                let path = self.path.join(checker);
+                if path.exists() {
+                    info!("Removing {:?}", path);
+                    std::fs::remove_file(path)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl FromStr for TestcaseScoreAggregator {
