@@ -132,7 +132,8 @@ fn main() {
     };
     let file_store = FileStore::new(&store_path).expect("Cannot create the file store");
     let cache = Cache::new(&store_path).expect("Cannot create the cache");
-    let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), cache, 4);
+    let num_cores = opt.num_cores.unwrap_or_else(|| num_cpus::get());
+    let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), cache, num_cores);
 
     // build the DAG for the task
     task.execute(&mut eval, &eval_config).unwrap();

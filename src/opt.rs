@@ -62,6 +62,10 @@ pub struct Opt {
     /// Where to store the storage files, including the cache
     #[structopt(long = "store-dir")]
     pub store_dir: Option<PathBuf>,
+
+    /// The number of CPU cores to use
+    #[structopt(long = "num-cores")]
+    pub num_cores: Option<usize>,
 }
 
 impl Opt {
