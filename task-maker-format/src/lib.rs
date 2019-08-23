@@ -33,10 +33,14 @@ pub trait TaskFormat {
     fn ui(&self, ui_type: ui::UIType) -> Result<Box<dyn UI>, Error>;
 
     /// Execute the evaluation of this task by adding the executions to the provided DAG.
-    ///
-    /// TODO: provide some options like dry_run, cache_mode, exclusive, extra_time, copy_exe, seed,
-    ///   solution filter, ecc...
-    fn execute(&self, eval: &mut EvaluationData) -> Result<(), Error>;
+    fn execute(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error>;
+}
+
+/// Configuration of the evaluation of a task.
+pub struct EvaluationConfig {
+    /// Execute only the solutions whose names start with the filter. If left empty all the
+    /// solutions are executed.
+    pub solution_filter: Vec<String>,
 }
 
 /// The data for an evaluation, including the DAG and the UI channel.

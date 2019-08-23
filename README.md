@@ -56,3 +56,5 @@ task-maker --clean
 ```
 This will remove the files that can be regenerated from the task directory.
 Note that the internal cache is not pruned by this command.
+
+License: MPL-2.0

@@ -82,11 +82,12 @@ fn main() {
 
     let opt = opt::Opt::from_args();
 
-    if opt.exclusive || !opt.filter.is_empty() || opt.clean {
+    if opt.exclusive || opt.clean {
         unimplemented!("This option is not implemented yet");
     }
 
     let (mut eval, receiver) = EvaluationData::new();
+    let eval_config = opt.to_config();
     let config = eval.dag.config_mut();
     config
         .keep_sandboxes(opt.keep_sandboxes)
@@ -127,7 +128,7 @@ fn main() {
     let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), cache, 4);
 
     // build the DAG for the task
-    task.execute(&mut eval).unwrap();
+    task.execute(&mut eval, &eval_config).unwrap();
 
     trace!("The DAG is: {:#?}", eval.dag);
 

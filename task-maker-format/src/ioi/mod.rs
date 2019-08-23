@@ -26,8 +26,8 @@ use serde::{Deserialize, Serialize};
 use task_maker_lang::GraderMap;
 
 use crate::ui::*;
-use crate::UISender;
 use crate::{list_files, EvaluationData, SourceFile, TaskFormat};
+use crate::{EvaluationConfig, UISender};
 
 mod curses_ui;
 mod dag;
@@ -38,6 +38,8 @@ mod ui_state;
 
 use curses_ui::CursesUI;
 pub use dag::*;
+use itertools::Itertools;
+use std::ops::Deref;
 pub use tag::*;
 
 /// In IOI tasks the subtask numbers are non-negative 0-based integers.
@@ -133,16 +135,35 @@ impl TaskFormat for Task {
         }
     }
 
-    fn execute(&self, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn execute(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error> {
         let graders: HashSet<PathBuf> = self
             .grader_map
             .all_paths()
             .map(|p| p.to_path_buf())
             .collect();
         let empty_score_manager = ScoreManager::new(&self);
+        let filter = config
+            .solution_filter
+            .iter()
+            .map(|filter| {
+                // unfortunate lossy cast to String because currently OsString doesn't support .starts_with
+                PathBuf::from(filter)
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .collect_vec();
         let solutions: Vec<_> = list_files(&self.path, vec!["sol/*"])
             .into_iter()
             .filter(|p| !graders.contains(p)) // the graders are not solutions
+            .filter(|p| {
+                if config.solution_filter.is_empty() {
+                    return true;
+                }
+                let name = p.file_name().unwrap().to_string_lossy();
+                filter.iter().any(|filter| name.starts_with(filter.deref()))
+            })
             .map(|p| {
                 SourceFile::new(
                     &p,

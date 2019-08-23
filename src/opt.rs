@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use structopt::StructOpt;
+use task_maker_format::EvaluationConfig;
 
 #[derive(StructOpt, Debug)]
 #[structopt(
@@ -43,7 +44,9 @@ pub struct Opt {
     pub copy_exe: bool,
 
     /// Execute only the solutions whose names start with the filter
-    #[structopt(long = "filter")]
+    ///
+    /// Note that just the file name is checked (e.g. sol.cpp is the same as sol/sol.cpp). Without
+    /// specifying anything all the solutions are executed.
     pub filter: Vec<String>,
 
     /// Look at most for this number of parents for searching the task
@@ -57,4 +60,13 @@ pub struct Opt {
     /// Where to store the storage files, including the cache
     #[structopt(long = "store-dir")]
     pub store_dir: Option<PathBuf>,
+}
+
+impl Opt {
+    /// Make an `EvaluationConfig` from this command line options.
+    pub fn to_config(&self) -> EvaluationConfig {
+        EvaluationConfig {
+            solution_filter: self.filter.clone(),
+        }
+    }
 }
