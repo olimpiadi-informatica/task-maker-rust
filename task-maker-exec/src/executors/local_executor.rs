@@ -10,6 +10,8 @@ pub struct LocalExecutor {
     executor: Executor,
     /// A reference to the [`FileStore`](../../task_maker_store/struct.FileStore.html).
     file_store: Arc<Mutex<FileStore>>,
+    /// Where to store the sandboxes of the workers.
+    sandbox_path: PathBuf,
     /// The number of local workers to spawn.
     pub num_workers: usize,
 }
@@ -18,15 +20,17 @@ impl LocalExecutor {
     /// Make a new [`LocalExecutor`](struct.LocalExecutor.html) based on a
     /// [`FileStore`](../../task_maker_store/struct.FileStore.html) and ready to spawn that number
     /// of workers.
-    pub fn new(
+    pub fn new<P: Into<PathBuf>>(
         file_store: Arc<Mutex<FileStore>>,
         cache: Cache,
         num_workers: usize,
+        sandbox_path: P,
     ) -> LocalExecutor {
         LocalExecutor {
             executor: Executor::new(file_store.clone(), cache),
             file_store: file_store.clone(),
             num_workers,
+            sandbox_path: sandbox_path.into(),
         }
     }
 
@@ -43,8 +47,11 @@ impl LocalExecutor {
         info!("Spawning {} workers", self.num_workers);
         let mut workers = vec![];
         for i in 0..self.num_workers {
-            let (worker, conn) =
-                Worker::new(&format!("Local worker {}", i), self.file_store.clone());
+            let (worker, conn) = Worker::new(
+                &format!("Local worker {}", i),
+                self.file_store.clone(),
+                self.sandbox_path.clone(),
+            );
             workers.push(self.executor.add_worker(conn));
             workers.push(
                 thread::Builder::new()

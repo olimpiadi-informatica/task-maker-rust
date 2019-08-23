@@ -2,6 +2,7 @@ use crate::proto::*;
 use crate::*;
 use failure::{Error, Fail};
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -35,6 +36,8 @@ pub(crate) struct Worker {
     file_store: Arc<Mutex<FileStore>>,
     /// Job the worker is currently working on.
     current_job: Arc<Mutex<WorkerCurrentJob>>,
+    /// Where to put the sandboxes.
+    sandbox_path: PathBuf,
 }
 
 /// An handle of the connection to the worker.
@@ -83,25 +86,29 @@ impl Worker {
     /// Make a new worker attached to a [`FileStore`](../task_maker_store/struct.FileStore.html),
     /// will return a pair with the actual `Worker` and an handle with the channels to connect to
     /// communicate with the worker.
-    pub fn new<S: Into<String> + Clone>(
+    pub fn new<S: Into<String>, P: Into<PathBuf>>(
         name: S,
         file_store: Arc<Mutex<FileStore>>,
+        sandbox_path: P,
     ) -> (Worker, WorkerConn) {
         let (tx, rx_worker) = channel();
         let (tx_worker, rx) = channel();
         let uuid = Uuid::new_v4();
+        let name = name.into();
+        let sandbox_path = sandbox_path.into();
         (
             Worker {
                 uuid,
-                name: name.clone().into(),
+                name: name.clone(),
                 sender: tx_worker,
                 receiver: rx_worker,
                 file_store,
                 current_job: Arc::new(Mutex::new(WorkerCurrentJob::new())),
+                sandbox_path,
             },
             WorkerConn {
                 uuid,
-                name: name.into(),
+                name,
                 sender: tx,
                 receiver: rx,
             },
@@ -114,7 +121,7 @@ impl Worker {
         serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
 
         let start_job = || -> Result<(), Error> {
-            let sandbox = execute_job(self.current_job.clone(), &self.sender)?;
+            let sandbox = execute_job(self.current_job.clone(), &self.sender, &self.sandbox_path)?;
             self.current_job.lock().unwrap().current_sandbox = Some(sandbox);
             Ok(())
         };
@@ -194,17 +201,14 @@ impl Worker {
 fn execute_job(
     current_job: Arc<Mutex<WorkerCurrentJob>>,
     sender: &ChannelSender,
+    sandbox_path: &Path,
 ) -> Result<Sandbox, Error> {
     let (job, mut sandbox) = {
         let current_job = current_job.lock().unwrap();
         let job = current_job.current_job.as_ref().unwrap();
         (
             job.0.clone(),
-            Sandbox::new(
-                std::path::Path::new("/tmp/sandboxes"),
-                &job.0.execution,
-                &job.1,
-            )?,
+            Sandbox::new(sandbox_path, &job.0.execution, &job.1)?,
         )
     };
     if job.execution.config().keep_sandboxes {

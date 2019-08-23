@@ -69,15 +69,25 @@ where
 
 /// Evaluate a DAG locally spawning a new [`LocalExecutor`](executors/struct.LocalExecutor.html)
 /// with the specified number of workers.
-pub fn eval_dag_locally<P: Into<PathBuf>>(dag: ExecutionDAG, store_dir: P, num_cores: usize) {
+pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>>(
+    dag: ExecutionDAG,
+    store_dir: P,
+    num_cores: usize,
+    sandbox_path: P2,
+) {
     let (tx, rx_remote) = channel();
     let (tx_remote, rx) = channel();
     let store_dir = store_dir.into();
+    let sandbox_path = sandbox_path.into();
     let server = thread::spawn(move || {
         let file_store = FileStore::new(&store_dir).expect("Cannot create the file store");
         let cache = Cache::new(store_dir).expect("Cannot create the cache");
-        let mut executor =
-            executors::LocalExecutor::new(Arc::new(Mutex::new(file_store)), cache, num_cores);
+        let mut executor = executors::LocalExecutor::new(
+            Arc::new(Mutex::new(file_store)),
+            cache,
+            num_cores,
+            sandbox_path,
+        );
         executor.evaluate(tx_remote, rx_remote).unwrap();
     });
     ExecutorClient::evaluate(dag, tx, &rx).unwrap();
@@ -180,7 +190,7 @@ mod tests {
         dag.write_file_to(&stdout2, &cwd.path().join("stdout2"), false);
         dag.write_file_to(&output3, &cwd.path().join("output3"), false);
 
-        eval_dag_locally(dag, cwd.path(), 2);
+        eval_dag_locally(dag, cwd.path(), 2, cwd.path());
 
         assert!(exec_done2.load(Ordering::Relaxed));
         assert!(exec_start2.load(Ordering::Relaxed));

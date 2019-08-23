@@ -31,6 +31,7 @@ impl ExecutorClient {
     /// use std::thread;
     /// use std::path::PathBuf;
     /// use task_maker_cache::Cache;
+    /// # use tempdir::TempDir;
     ///
     /// // make a new, empty, DAG
     /// let dag = ExecutionDAG::new();
@@ -39,17 +40,17 @@ impl ExecutorClient {
     /// let (tx_remote, rx) = channel();
     /// // make a new local executor in a second thread
     /// let server = thread::spawn(move || {
-    ///     let file_store = FileStore::new("/tmp/store").expect("Cannot create the file store");
-    ///     let cache = Cache::new("/tmp/store").expect("Cannot create the cache");
-    ///     let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), cache, 4);
+    /// #   let tmpdir = TempDir::new("tm-test").unwrap();
+    /// #   let path = tmpdir.path();
+    ///     let file_store = FileStore::new(path).expect("Cannot create the file store");
+    ///     let cache = Cache::new(path).expect("Cannot create the cache");
+    ///     let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), cache, 4, path);
     ///     executor.evaluate(tx_remote, rx_remote).unwrap();
     /// });
     ///
     /// ExecutorClient::evaluate(dag, tx, &rx).unwrap(); // this will block!
     ///
     /// server.join().expect("Server paniced");
-    /// # // cleanup
-    /// # std::fs::remove_dir_all("/tmp/store").unwrap();
     /// ```
     pub fn evaluate(
         mut dag: ExecutionDAG,

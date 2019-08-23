@@ -127,13 +127,20 @@ fn main() {
         Some(dir) => (dir, None),
         None => {
             let cwd = tempdir::TempDir::new("task-maker").unwrap();
-            (cwd.path().join("store"), Some(cwd))
+            (cwd.path().to_owned(), Some(cwd))
         }
     };
-    let file_store = FileStore::new(&store_path).expect("Cannot create the file store");
-    let cache = Cache::new(&store_path).expect("Cannot create the cache");
+    let file_store =
+        FileStore::new(store_path.join("store")).expect("Cannot create the file store");
+    let cache = Cache::new(store_path.join("cache")).expect("Cannot create the cache");
     let num_cores = opt.num_cores.unwrap_or_else(|| num_cpus::get());
-    let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), cache, num_cores);
+    let sandbox_path = store_path.join("sandboxes");
+    let mut executor = LocalExecutor::new(
+        Arc::new(Mutex::new(file_store)),
+        cache,
+        num_cores,
+        sandbox_path,
+    );
 
     // build the DAG for the task
     task.execute(&mut eval, &eval_config).unwrap();

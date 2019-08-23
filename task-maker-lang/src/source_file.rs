@@ -286,7 +286,7 @@ mod tests {
         });
         dag.add_execution(exec);
 
-        eval_dag_locally(dag, cwd.path(), 2);
+        eval_dag_locally(dag, cwd.path(), 2, cwd.path());
 
         assert!(exec_start.load(Ordering::Relaxed));
         assert!(exec_done.load(Ordering::Relaxed));
