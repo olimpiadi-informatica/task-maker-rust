@@ -405,7 +405,7 @@ impl Checker {
                 }
                 eval.dag.get_file_content(stdout, 128, move |content| {
                     let score = String::from_utf8_lossy(&content);
-                    let score: f64 = score.parse().expect("Invalid score from checker");
+                    let score: f64 = score.trim().parse().expect("Invalid score from checker");
                     let mut state = state_stdout.lock().unwrap();
                     state.0 = Some(score);
                     send_state!(callback_stdout, state);
