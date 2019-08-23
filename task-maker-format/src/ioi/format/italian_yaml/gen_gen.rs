@@ -83,7 +83,7 @@ where
                         let what = line.into_inner().next().unwrap().as_str();
                         entries.push(TaskInputEntry::Testcase(TestcaseInfo {
                             id: testcase_count,
-                            input_generator: InputGenerator::StaticFile(what.into()),
+                            input_generator: InputGenerator::StaticFile(task_dir.join(what)),
                             input_validator: get_validator(subtask_id - 1),
                             output_generator: get_output_gen(testcase_count),
                         }));
