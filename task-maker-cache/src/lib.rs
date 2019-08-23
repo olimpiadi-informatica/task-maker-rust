@@ -303,11 +303,13 @@ impl Cache {
             stderr,
             outputs,
         };
-        // do not insert duplicated keys
-        if set.iter().any(|e| e.limits == entry.limits) {
-            return;
+        // do not insert duplicated keys, replace if the limits are the same
+        let pos = set.iter().find_position(|e| e.limits == entry.limits);
+        if let Some((pos, _)) = pos {
+            set[pos] = entry;
+        } else {
+            set.push(entry);
         }
-        set.push(entry);
     }
 
     /// Search in the cache for a valid entry, returning a cache hit if it's found or a cache miss
