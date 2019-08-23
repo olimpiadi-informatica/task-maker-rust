@@ -5,7 +5,7 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 
 use task_maker_dag::{ExecutionResourcesUsage, ExecutionStatus};
 
-use crate::ioi::ui_state::{CompilationStatus, SolutionEvaluationState, UIState};
+use crate::ioi::ui_state::{CompilationStatus, SolutionEvaluationState, UIState, TestcaseEvaluationStatus};
 use crate::{cwrite, cwriteln};
 
 lazy_static! {
@@ -67,6 +67,7 @@ impl FinishUI {
         ui.print_generations(state);
         println!();
         ui.print_evaluations(state);
+        ui.print_summary(state);
     }
 
     /// Print the basic task info.
@@ -233,6 +234,12 @@ impl FinishUI {
                         ExecutionStatus::InternalError(err) => print!(": Internal error: {}", err),
                         _ => {}
                     }
+                    if result.was_killed {
+                        print!(" (killed)");
+                    }
+                    if result.was_cached {
+                        print!(" (from cache)");
+                    }
                 }
                 if FinishUI::is_ansi() {
                     self.print_right(format!("[{}]", name));
@@ -240,6 +247,62 @@ impl FinishUI {
                 println!();
             }
         }
+    }
+
+    fn print_summary(&mut self, state: &UIState) {
+        cwriteln!(self, BLUE, "Summary");
+        let max_len = state
+            .evaluations
+            .keys()
+            .map(|p| p.file_name().unwrap().len())
+            .max()
+            .unwrap_or(0);
+        print!("{:width$} ", "", width = max_len);
+        cwrite!(self, BOLD, "{:^5}| ", state.max_score);
+        for st_num in state.task.subtasks.keys().sorted() {
+            let subtask = &state.task.subtasks[st_num];
+            cwrite!(self, BOLD, " {:^3.0} ", subtask.max_score);
+        }
+        println!();
+        for path in state.evaluations.keys().sorted() {
+            let eval = &state.evaluations[path];
+            print!("{:>width$} ", path.file_name().unwrap().to_string_lossy(), width = max_len);
+            print!("{:^5}| ", eval.score.unwrap_or(0.0));
+            for st_num in eval.subtasks.keys().sorted() {
+                let subtask = &eval.subtasks[&st_num];
+                let score = subtask.score.unwrap_or(0.0);
+                let max_score = state.task.subtasks[st_num].max_score;
+                let color = self.score_color(score, max_score);
+                cwrite!(self, color, " {:^3.0} ", score);
+            }
+            print!("  ");
+            for st_num in eval.subtasks.keys().sorted() {
+                let subtask = &eval.subtasks[&st_num];
+                let score = subtask.score.unwrap_or(0.0);
+                let max_score = state.task.subtasks[st_num].max_score;
+                let color = self.score_color(score, max_score);
+                cwrite!(self, color, "[");
+                for tc_num in subtask.testcases.keys().sorted() {
+                    let testcase = &subtask.testcases[tc_num];
+                    use TestcaseEvaluationStatus::*;
+                    match testcase.status {
+                        Accepted(_) => cwrite!(self, GREEN, "A"),
+                        WrongAnswer(_) => cwrite!(self, RED, "W"),
+                        Partial(_) => cwrite!(self, YELLOW, "P"),
+                        TimeLimitExceeded => cwrite!(self, RED, "T"),
+                        WallTimeLimitExceeded => cwrite!(self, RED, "T"),
+                        MemoryLimitExceeded => cwrite!(self, RED, "M"),
+                        RuntimeError => cwrite!(self, RED, "R"),
+                        Failed => cwrite!(self, BOLD, "F"),
+                        Skipped => cwrite!(self, BOLD, "S"),
+                        _ => cwrite!(self, BOLD, "X"),
+                    }
+                }
+                cwrite!(self, color, "]");
+            }
+            println!();
+        }
+        println!();
     }
 
     /// Print the time and memory usage of an execution.
@@ -253,12 +316,17 @@ impl FinishUI {
 
     /// Print the score fraction of a solution using colors.
     fn print_score_frac(&mut self, score: f64, max_score: f64) {
+        let color = self.score_color(score, max_score);
+        cwrite!(self, color, "{:.2} / {:.2}", score, max_score);
+    }
+
+    fn score_color(&mut self, score: f64, max_score: f64) -> &'static ColorSpec {
         if abs_diff_eq!(score, max_score) {
-            cwrite!(self, GREEN, "{:.2} / {:.2}", score, max_score);
+            &GREEN
         } else if abs_diff_eq!(score, 0.0) {
-            cwrite!(self, RED, "{:.2} / {:.2}", score, max_score);
+            &RED
         } else {
-            cwrite!(self, YELLOW, "{:.2} / {:.2}", score, max_score);
+            &YELLOW
         }
     }
 
