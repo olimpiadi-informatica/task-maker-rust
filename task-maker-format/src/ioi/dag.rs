@@ -370,8 +370,8 @@ impl Checker {
                     vec!["input", "correct_output", "test_output"],
                 )?;
                 exec.input(input, "input", false)
-                    .input(correct_output, "correct", false)
-                    .input(test_output, "test", false)
+                    .input(correct_output, "correct_output", false)
+                    .input(test_output, "test_output", false)
                     .tag(Tag::Checking.into());
                 bind_exec_callbacks!(
                     eval,

@@ -241,7 +241,7 @@ mod tests {
             assert_eq!(testcase1.id, 0);
             assert_eq!(testcase2.id, 1);
             match &testcase1.input_generator {
-                InputGenerator::StaticFile(path) => assert_eq!(path, &PathBuf::from("random/file")),
+                InputGenerator::StaticFile(path) => assert_eq!(path, &task.path().join("random/file")),
                 InputGenerator::Custom(_, _) => panic!("Invalid generator"),
             }
             match &testcase2.input_generator {
@@ -267,7 +267,7 @@ mod tests {
             assert_eq!(subtask2.id, 1);
             assert_eq!(subtask2.max_score as u32, 321);
             match &testcase1.input_generator {
-                InputGenerator::StaticFile(path) => assert_eq!(path, &PathBuf::from("random/file")),
+                InputGenerator::StaticFile(path) => assert_eq!(path, &task.path().join("random/file")),
                 InputGenerator::Custom(_, _) => panic!("Invalid generator"),
             }
             match &testcase2.input_generator {
