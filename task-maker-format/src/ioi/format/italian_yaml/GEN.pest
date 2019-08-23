@@ -12,7 +12,7 @@ number = { ASCII_DIGIT+ }
 word = { (!whitespace ~ non_newline)+ }
 spaces = _{ whitespace+ }
 
-comment = { "# " ~ non_newline* }
+comment = { "# " ~ non_newline* | "#" }
 subtask = { "#ST:" ~ whitespace* ~ number }
 copy = { "#COPY:" ~ whitespace* ~ word }
 command = { !"#" ~ whitespace* ~ word ~ (spaces ~ word)* ~ whitespace* }

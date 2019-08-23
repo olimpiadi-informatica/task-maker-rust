@@ -210,6 +210,40 @@ mod tests {
     }
 
     #[test]
+    fn test_parser_comment_empty() {
+        let task = make_task("#\n1234\n#\n");
+        let entries = get_entries(task.path());
+        if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
+            assert_eq!(subtask.id, 0);
+            assert_eq!(subtask.max_score as u32, 100);
+            assert_eq!(testcase.id, 0);
+            match &testcase.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
+            }
+        } else {
+            panic!("Wrong entries returned: {:?}", entries);
+        }
+    }
+
+    #[test]
+    fn test_parser_comment_empty_no_ending_lf() {
+        let task = make_task("#\n1234\n#");
+        let entries = get_entries(task.path());
+        if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
+            assert_eq!(subtask.id, 0);
+            assert_eq!(subtask.max_score as u32, 100);
+            assert_eq!(testcase.id, 0);
+            match &testcase.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
+            }
+        } else {
+            panic!("Wrong entries returned: {:?}", entries);
+        }
+    }
+
+    #[test]
     fn test_parser_multiple_lines() {
         let task = make_task("1234\n5678\n");
         let entries = get_entries(task.path());
