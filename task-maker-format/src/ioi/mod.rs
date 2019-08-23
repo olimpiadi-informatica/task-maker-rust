@@ -132,10 +132,12 @@ impl TaskFormat for Task {
             UIType::Raw => Ok(Box::new(RawUI::new())),
             UIType::Print => Ok(Box::new(PrintUI::new())),
             UIType::Curses => Ok(Box::new(CursesUI::new(self)?)),
+            UIType::Json => Ok(Box::new(JsonUI::new())),
         }
     }
 
     fn execute(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error> {
+        eval.sender.send(UIMessage::IOITask { task: self.clone() })?;
         let graders: HashSet<PathBuf> = self
             .grader_map
             .all_paths()

@@ -10,9 +10,11 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 
 mod print;
 mod raw;
+mod json;
 
 pub use print::PrintUI;
 pub use raw::RawUI;
+pub use json::JsonUI;
 
 /// Channel type for sending `UIMessage`s.
 pub type UIChannelSender = Sender<UIMessage>;
@@ -173,12 +175,14 @@ pub trait UI: Send {
 /// The type of the UI to use, it enumerates all the known UI interfaces.
 #[derive(Debug)]
 pub enum UIType {
-    /// The PrintUI.
+    /// The `PrintUI`.
     Print,
-    /// The RawUI
+    /// The `RawUI`.
     Raw,
-    /// The CursesUI
+    /// The `CursesUI`.
     Curses,
+    /// The `JsonUI`.
+    Json,
 }
 
 impl std::str::FromStr for UIType {
@@ -189,6 +193,7 @@ impl std::str::FromStr for UIType {
             "print" => Ok(UIType::Print),
             "raw" => Ok(UIType::Raw),
             "curses" => Ok(UIType::Curses),
+            "json" => Ok(UIType::Json),
             _ => Err(format!("Unknown ui: {}", s)),
         }
     }
