@@ -113,7 +113,13 @@ impl Sandbox {
     pub fn run(&self) -> Result<SandboxResult, Error> {
         let boxdir = self.data.lock().unwrap().path().to_owned();
         trace!("Running sandbox at {:?}", boxdir);
-        let mut sandbox = Command::new(Path::new(env!("OUT_DIR")).join("bin").join("tmbox"));
+        let tmbox_path = Path::new(env!("OUT_DIR")).join("bin").join("tmbox");
+        let tmbox_path = if tmbox_path.exists() {
+            tmbox_path
+        } else {
+            "tmbox".into()
+        };
+        let mut sandbox = Command::new(tmbox_path);
         sandbox.arg("--directory").arg(&boxdir.join("box"));
         sandbox.arg("--json");
         sandbox.arg("--env").arg("PATH");
