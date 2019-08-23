@@ -33,12 +33,14 @@ mod curses_ui;
 mod dag;
 mod finish_ui;
 mod format;
+mod print;
 mod tag;
 mod ui_state;
 
 use curses_ui::CursesUI;
 pub use dag::*;
 use itertools::Itertools;
+pub use print::PrintUI;
 use std::ops::Deref;
 pub use tag::*;
 
@@ -130,7 +132,7 @@ impl TaskFormat for Task {
     fn ui(&self, ui_type: UIType) -> Result<Box<dyn UI>, Error> {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),
-            UIType::Print => Ok(Box::new(PrintUI::new())),
+            UIType::Print => Ok(Box::new(PrintUI::new(self))),
             UIType::Curses => Ok(Box::new(CursesUI::new(self)?)),
             UIType::Json => Ok(Box::new(JsonUI::new())),
         }

@@ -1,60 +1,71 @@
+use crate::cwrite;
+use crate::ioi::finish_ui::FinishUI;
+use crate::ioi::ui_state::UIState;
+use crate::ioi::Task;
 use crate::ui::*;
 use itertools::Itertools;
-use std::io::Write;
 use task_maker_dag::ExecutionStatus;
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
+
+lazy_static! {
+    static ref ERROR: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color
+            .set_fg(Some(Color::Red))
+            .set_intense(true)
+            .set_bold(true);
+        color
+    };
+    static ref SUCCESS: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color
+            .set_fg(Some(Color::Green))
+            .set_intense(true)
+            .set_bold(true);
+        color
+    };
+    static ref WARNING: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color
+            .set_fg(Some(Color::Yellow))
+            .set_intense(true)
+            .set_bold(true);
+        color
+    };
+    static ref BOLD: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color.set_bold(true);
+        color
+    };
+}
 
 /// A simple UI that will print to stdout the human readable messages. Useful
 /// for debugging or for when curses is not available.
 pub struct PrintUI {
-    stdout: StandardStream,
-    error_style: ColorSpec,
-    warning_style: ColorSpec,
-    info_style: ColorSpec,
-    success_style: ColorSpec,
-    bold_style: ColorSpec,
+    stream: StandardStream,
+    state: UIState,
 }
 
 impl PrintUI {
     /// Make a new PrintUI.
-    pub fn new() -> PrintUI {
-        let mut ui = PrintUI {
-            stdout: StandardStream::stdout(ColorChoice::Auto),
-            error_style: ColorSpec::new(),
-            warning_style: ColorSpec::new(),
-            info_style: ColorSpec::new(),
-            success_style: ColorSpec::new(),
-            bold_style: ColorSpec::new(),
-        };
-        ui.error_style.set_fg(Some(Color::Red)).set_bold(true);
-        ui.warning_style
-            .set_fg(Some(Color::Yellow))
-            .set_intense(true)
-            .set_bold(true);
-        ui.info_style
-            .set_fg(Some(Color::Blue))
-            .set_intense(true)
-            .set_bold(true);
-        ui.success_style
-            .set_fg(Some(Color::Green))
-            .set_intense(true)
-            .set_bold(true);
-        ui.bold_style.set_bold(true);
-        ui
+    pub fn new(task: &Task) -> PrintUI {
+        PrintUI {
+            stream: StandardStream::stdout(ColorChoice::Auto),
+            state: UIState::new(task),
+        }
     }
 
     /// Write the UIExecutionStatus type to the console, coloring the message.
     fn write_status(&mut self, status: &UIExecutionStatus) {
         match status {
-            UIExecutionStatus::Pending => write!(&mut self.stdout, "[PENDING] ").unwrap(),
-            UIExecutionStatus::Started { .. } => write!(&mut self.stdout, "[STARTED] ").unwrap(),
+            UIExecutionStatus::Pending => print!("[PENDING] "),
+            UIExecutionStatus::Started { .. } => print!("[STARTED] "),
             UIExecutionStatus::Done { result } => match result.status {
-                ExecutionStatus::Success => self.write_info("[DONE]    ".to_owned()),
-                _ => self.write_warning("[DONE]    ".to_owned()),
+                ExecutionStatus::Success => cwrite!(self, SUCCESS, "[DONE]    "),
+                _ => cwrite!(self, WARNING, "[DONE]    "),
             },
-            UIExecutionStatus::Skipped => self.write_warning("[SKIPPED] ".to_owned()),
+            UIExecutionStatus::Skipped => cwrite!(self, WARNING, "[SKIPPED] "),
         };
-        self.stdout.reset().unwrap();
     }
 
     /// Write the UIExecutionStatus details to the console.
@@ -62,7 +73,7 @@ impl PrintUI {
         match status {
             UIExecutionStatus::Pending => {}
             UIExecutionStatus::Started { worker } => {
-                write!(&mut self.stdout, "Worker: {:?}", worker).unwrap();
+                print!("Worker: {:?}", worker);
             }
             UIExecutionStatus::Done { result } => {
                 self.write_execution_status(&result.status);
@@ -74,55 +85,21 @@ impl PrintUI {
     /// Write the ExecutionStatus details to the console.
     fn write_execution_status(&mut self, status: &ExecutionStatus) {
         match status {
-            ExecutionStatus::Success => self.write_success(format!("[{:?}]", status)),
-            ExecutionStatus::InternalError(_) => self.write_error(format!("[{:?}]", status)),
-            _ => self.write_warning(format!("[{:?}]", status)),
+            ExecutionStatus::Success => cwrite!(self, SUCCESS, "[{:?}]", status),
+            ExecutionStatus::InternalError(_) => cwrite!(self, ERROR, "[{:?}]", status),
+            _ => cwrite!(self, WARNING, "[{:?}]", status),
         }
-    }
-
-    /// Write an error to the console.
-    fn write_error(&mut self, message: String) {
-        self.stdout.set_color(&self.error_style).unwrap();
-        write!(&mut self.stdout, "{}", message).unwrap();
-        self.stdout.reset().unwrap();
-    }
-
-    /// Write a warning to the console.
-    fn write_warning(&mut self, message: String) {
-        self.stdout.set_color(&self.warning_style).unwrap();
-        write!(&mut self.stdout, "{}", message).unwrap();
-        self.stdout.reset().unwrap();
-    }
-
-    /// Write an info message to the console.
-    fn write_info(&mut self, message: String) {
-        self.stdout.set_color(&self.info_style).unwrap();
-        write!(&mut self.stdout, "{}", message).unwrap();
-        self.stdout.reset().unwrap();
-    }
-
-    /// Write a success message to the console.
-    fn write_success(&mut self, message: String) {
-        self.stdout.set_color(&self.success_style).unwrap();
-        write!(&mut self.stdout, "{}", message).unwrap();
-        self.stdout.reset().unwrap();
-    }
-
-    /// Write a message in bold to the console.
-    fn write_bold(&mut self, message: String) {
-        self.stdout.set_color(&self.bold_style).unwrap();
-        write!(&mut self.stdout, "{}", message).unwrap();
-        self.stdout.reset().unwrap();
     }
 
     /// Write a message, padding it to at least 80 chars.
     fn write_message(&mut self, message: String) {
-        write!(&mut self.stdout, "{:<80}", message).unwrap();
+        print!("{:<80}", message);
     }
 }
 
 impl UI for PrintUI {
     fn on_message(&mut self, message: UIMessage) {
+        self.state.apply(message.clone());
         match message {
             UIMessage::Compilation { file, status } => {
                 self.write_status(&status);
@@ -130,21 +107,16 @@ impl UI for PrintUI {
                 self.write_status_details(&status);
             }
             UIMessage::IOITask { task } => {
-                self.write_bold(format!("Task {} ({})\n", task.title, task.name));
-                writeln!(&mut self.stdout, "Path: {:?}", task.path).unwrap();
-                writeln!(&mut self.stdout, "Subtasks").unwrap();
+                cwrite!(self, BOLD, "Task {} ({})\n", task.title, task.name);
+                println!("Path: {:?}", task.path);
+                println!("Subtasks");
                 for (st_num, subtask) in task.subtasks.iter().sorted_by_key(|x| x.0) {
-                    writeln!(
-                        &mut self.stdout,
-                        "  {}: {} points",
-                        st_num, subtask.max_score
-                    )
-                    .unwrap();
-                    write!(&mut self.stdout, "     testcases: [").unwrap();
+                    println!("  {}: {} points", st_num, subtask.max_score);
+                    print!("     testcases: [");
                     for tc_num in subtask.testcases.keys().sorted() {
-                        write!(&mut self.stdout, " {}", tc_num).unwrap();
+                        print!(" {}", tc_num);
                     }
-                    writeln!(&mut self.stdout, " ]").unwrap();
+                    println!(" ]");
                 }
             }
             UIMessage::IOIGeneration {
@@ -215,7 +187,7 @@ impl UI for PrintUI {
                 score,
                 message,
             } => {
-                write!(&mut self.stdout, "[TESTCAS] ").unwrap();
+                print!("[TESTCAS] ");
                 self.write_message(format!(
                     "Solution {:?} scored {} on testcase {} of subtask {}: {}",
                     solution, score, testcase, subtask, message
@@ -226,21 +198,23 @@ impl UI for PrintUI {
                 solution,
                 score,
             } => {
-                write!(&mut self.stdout, "[SUBTASK] ").unwrap();
+                print!("[SUBTASK] ");
                 self.write_message(format!(
                     "Solution {:?} scored {} on subtask {} ",
                     solution, score, subtask
                 ));
             }
             UIMessage::IOITaskScore { solution, score } => {
-                write!(&mut self.stdout, "[TASK]    ").unwrap();
+                print!("[TASK]    ");
                 self.write_message(format!("Solution {:?} scored {} ", solution, score));
             }
         };
-        writeln!(&mut self.stdout).unwrap();
+        println!();
     }
 
     fn finish(&mut self) {
-        println!("UI finished");
+        println!();
+        println!();
+        FinishUI::print(&self.state);
     }
 }

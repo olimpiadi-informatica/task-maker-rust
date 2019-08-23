@@ -5,7 +5,9 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 
 use task_maker_dag::{ExecutionResourcesUsage, ExecutionStatus};
 
-use crate::ioi::ui_state::{CompilationStatus, SolutionEvaluationState, UIState, TestcaseEvaluationStatus};
+use crate::ioi::ui_state::{
+    CompilationStatus, SolutionEvaluationState, TestcaseEvaluationStatus, UIState,
+};
 use crate::{cwrite, cwriteln};
 
 lazy_static! {
@@ -266,7 +268,11 @@ impl FinishUI {
         println!();
         for path in state.evaluations.keys().sorted() {
             let eval = &state.evaluations[path];
-            print!("{:>width$} ", path.file_name().unwrap().to_string_lossy(), width = max_len);
+            print!(
+                "{:>width$} ",
+                path.file_name().unwrap().to_string_lossy(),
+                width = max_len
+            );
             print!("{:^5}| ", eval.score.unwrap_or(0.0));
             for st_num in eval.subtasks.keys().sorted() {
                 let subtask = &eval.subtasks[&st_num];

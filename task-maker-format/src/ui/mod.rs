@@ -9,11 +9,9 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 mod json;
-mod print;
 mod raw;
 
 pub use json::JsonUI;
-pub use print::PrintUI;
 pub use raw::RawUI;
 
 /// Channel type for sending `UIMessage`s.
