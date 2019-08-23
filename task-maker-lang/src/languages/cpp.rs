@@ -55,7 +55,14 @@ impl Language for LanguageCpp {
 
     fn compilation_args(&self, path: &Path) -> Vec<String> {
         let exe_name = self.executable_name(path);
-        let mut args = vec!["-O2", "-Wall", "-ggdb3", "-o", exe_name.to_str().unwrap()];
+        let mut args = vec![
+            "-O2",
+            "-Wall",
+            "-ggdb3",
+            "-DEVAL",
+            "-o",
+            exe_name.to_str().unwrap(),
+        ];
         match self.version {
             LanguageCppVersion::GccCpp11 | LanguageCppVersion::ClangCpp11 => {
                 args.push("-std=c++11")

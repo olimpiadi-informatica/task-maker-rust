@@ -8,13 +8,13 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
+mod json;
 mod print;
 mod raw;
-mod json;
 
+pub use json::JsonUI;
 pub use print::PrintUI;
 pub use raw::RawUI;
-pub use json::JsonUI;
 
 /// Channel type for sending `UIMessage`s.
 pub type UIChannelSender = Sender<UIMessage>;
@@ -197,4 +197,64 @@ impl std::str::FromStr for UIType {
             _ => Err(format!("Unknown ui: {}", s)),
         }
     }
+}
+
+/// Write to `$self.stream`, in the color specified as second parameter. The arguments that follow
+/// will be passed to `write!`.
+///
+/// ```
+/// #[macro_use]
+/// extern crate task_maker_format;
+///
+/// use termcolor::{StandardStream, ColorSpec, ColorChoice};
+/// use task_maker_format::cwrite;
+///
+/// # fn main() {
+/// struct Printer { stream: StandardStream }
+/// let mut color = ColorSpec::new();
+/// color.set_bold(true);
+///
+/// let mut printer = Printer { stream: StandardStream::stdout(ColorChoice::Auto) };
+/// cwrite!(printer, color, "The output is {}", 42);
+/// # }
+/// ```
+#[macro_export]
+macro_rules! cwrite {
+    ($self:expr, $color:expr, $($arg:tt)*) => {{
+        use termcolor::WriteColor;
+        use std::io::Write;
+        $self.stream.set_color(&$color).unwrap();
+        write!(&mut $self.stream, $($arg)*).unwrap();
+        $self.stream.reset().unwrap();
+    }};
+}
+
+/// Write to `$self.stream`, in the color specified as second parameter. The arguments that follow
+/// will be passed to `writeln!`.
+///
+/// ```
+/// #[macro_use]
+/// extern crate task_maker_format;
+///
+/// use termcolor::{StandardStream, ColorSpec, ColorChoice};
+/// use task_maker_format::cwriteln;
+///
+/// # fn main() {
+/// struct Printer { stream: StandardStream }
+/// let mut color = ColorSpec::new();
+/// color.set_bold(true);
+///
+/// let mut printer = Printer { stream: StandardStream::stdout(ColorChoice::Auto) };
+/// cwriteln!(printer, color, "The output is {}", 42);
+/// # }
+/// ```
+#[macro_export]
+macro_rules! cwriteln {
+    ($self:expr, $color:expr, $($arg:tt)*) => {{
+        use termcolor::WriteColor;
+        use std::io::Write;
+        $self.stream.set_color(&$color).unwrap();
+        writeln!(&mut $self.stream, $($arg)*).unwrap();
+        $self.stream.reset().unwrap();
+    }};
 }

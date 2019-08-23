@@ -208,6 +208,43 @@ impl TestcaseEvaluationStatus {
             _ => false,
         }
     }
+
+    pub fn message(&self) -> String {
+        use TestcaseEvaluationStatus::*;
+        return match self {
+            Pending => "Not done".into(),
+            Solving => "Solution running".into(),
+            Solved => "Solution completed".into(),
+            Checking => "Checker running".into(),
+            Accepted(s) => {
+                if s.is_empty() {
+                    "Output is correct".into()
+                } else {
+                    s.clone()
+                }
+            }
+            WrongAnswer(s) => {
+                if s.is_empty() {
+                    "Output is not correct".into()
+                } else {
+                    s.clone()
+                }
+            }
+            Partial(s) => {
+                if s.is_empty() {
+                    "Partially correct".into()
+                } else {
+                    s.clone()
+                }
+            }
+            TimeLimitExceeded => "Time limit exceeded".into(),
+            WallTimeLimitExceeded => "Execution took too long".into(),
+            MemoryLimitExceeded => "Memory limit exceeded".into(),
+            RuntimeError => "Runtime error".into(),
+            Failed => "Execution failed".into(),
+            Skipped => "Execution skipped".into(),
+        };
+    }
 }
 
 impl UIState {
@@ -459,7 +496,7 @@ impl UIState {
                     .get_mut(&testcase)
                     .expect("Missing testcase");
                 testcase.score = Some(score);
-                if let TestcaseEvaluationStatus::Checking = testcase.status {
+                if !testcase.status.has_completed() {
                     if score == 0.0 {
                         testcase.status = TestcaseEvaluationStatus::WrongAnswer(message);
                     } else if (score - 1.0).abs() < 0.001 {

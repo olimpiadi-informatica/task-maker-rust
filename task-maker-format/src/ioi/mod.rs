@@ -137,7 +137,8 @@ impl TaskFormat for Task {
     }
 
     fn execute(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error> {
-        eval.sender.send(UIMessage::IOITask { task: self.clone() })?;
+        eval.sender
+            .send(UIMessage::IOITask { task: self.clone() })?;
         let graders: HashSet<PathBuf> = self
             .grader_map
             .all_paths()

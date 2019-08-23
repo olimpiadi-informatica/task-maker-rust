@@ -12,7 +12,9 @@ pub struct Opt {
     #[structopt(short = "t", long = "task-dir", default_value = ".")]
     pub task_dir: PathBuf,
 
-    /// Which UI to use, available UIS are: print, raw, curses
+    /// Which UI to use, available UIS are: print, raw, curses, json.
+    ///
+    /// Note that the JSON api is not stable yet.
     #[structopt(long = "ui", default_value = "print")]
     pub ui: task_maker_format::ui::UIType,
 

@@ -1,4 +1,4 @@
-use crate::ioi::finish_ui::print_final_state;
+use crate::ioi::finish_ui::FinishUI;
 use crate::ioi::ui_state::*;
 use crate::ioi::*;
 use crate::ui::{UIMessage, UI};
@@ -72,7 +72,7 @@ impl UI for CursesUI {
         self.ui_thread.take().unwrap().join().unwrap();
         // at this point the terminal should be restored
         let state = self.state.read().unwrap();
-        print_final_state(&state);
+        FinishUI::print(&state);
     }
 }
 
