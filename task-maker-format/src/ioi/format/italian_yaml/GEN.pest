@@ -9,16 +9,16 @@ whitespace = _{ " " | "\t" }
 non_newline = _{ !NEWLINE ~ ANY }
 number = { ASCII_DIGIT+ }
 
-word = { (!whitespace ~ non_newline)+ }
+word = { (!(whitespace | "#") ~ non_newline)+ }
 spaces = _{ whitespace+ }
 
-comment = { "#" ~ whitespace ~ non_newline* | "#" }
-subtask = { "#ST:" ~ whitespace* ~ number }
-copy = { "#COPY:" ~ whitespace* ~ word }
+comment = { "#" ~ spaces ~ non_newline* | "#" }
+subtask = { "#ST:" ~ whitespace* ~ number ~ whitespace* }
+copy = { "#COPY:" ~ whitespace* ~ word ~ whitespace* }
 command = { !"#" ~ whitespace* ~ word ~ (spaces ~ word)* ~ whitespace* }
-empty = { "" }
+empty = { whitespace* }
 
-line = { subtask | copy | comment | command | empty }
+line = { (subtask | copy | comment | command | empty) ~ comment? }
 
 // allow the last line to be without the NEWLINE
 file = { SOI ~ (line ~ NEWLINE)* ~ line ~ NEWLINE? ~ EOI }
