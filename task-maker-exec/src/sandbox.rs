@@ -15,9 +15,10 @@ const READABLE_DIRS: &[&str] = &[
     "/lib64",
     "/usr",
     "/bin",
+    "/opt",
     // update-alternatives stuff, sometimes the executables are symlinked here
-    "/var/lib/dpkg/alternatives/",
     "/etc/alternatives/",
+    "/var/lib/dpkg/alternatives/",
 ];
 
 /// Result of the execution of the sandbox.

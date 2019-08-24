@@ -168,14 +168,22 @@ fn main() {
 fn find_task<P: Into<PathBuf>>(base: P, max_depth: u32) -> Option<Box<dyn TaskFormat>> {
     let mut base = base.into();
     for _ in 0..=max_depth {
-        if let Ok(task) = ioi::Task::new(&base) {
-            trace!("The task is IOI: {:#?}", task);
-            return Some(Box::new(task));
+        if base.join("task.yaml").exists() {
+            break;
         }
         base = match base.parent() {
             Some(parent) => parent.into(),
             _ => break,
         };
     }
-    None
+    match ioi::Task::new(&base) {
+        Ok(task) => {
+            trace!("The task is IOI: {:#?}", task);
+            return Some(Box::new(task));
+        }
+        Err(e) => {
+            error!("Invalid task: {:?}", e);
+            None
+        }
+    }
 }

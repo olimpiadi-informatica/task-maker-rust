@@ -115,7 +115,11 @@ fn extract_imports(path: &Path) -> Vec<String> {
     lazy_static! {
         static ref RE: Regex = Regex::new("import +(.+)|from +(.+) +import").unwrap();
     }
-    let content = std::fs::read_to_string(path).unwrap();
+    let content = if let Ok(content) = std::fs::read_to_string(path) {
+        content
+    } else {
+        return vec![];
+    };
     let mut res: Vec<String> = Vec::new();
     for cap in RE.captures_iter(&content) {
         if let Some(type1) = cap.get(1) {
