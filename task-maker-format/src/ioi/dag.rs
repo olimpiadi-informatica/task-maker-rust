@@ -91,13 +91,14 @@ pub enum TaskType {
 ///
 /// # Parameters
 /// - `eval: EvaluationData`
-/// - `exec: Execution`
+/// - `exec_uuid: ExecutionUuid`
 /// - `enum` is a lambda that takes one or more arguments:
 ///   - the first is a `UIExecutionStatus`
 ///   - the followings are clones of the `extra` parameter
 /// - `extra` is a series of identifiers of `Clone`able variables.
+#[macro_export]
 macro_rules! bind_exec_callbacks {
-    ($eval:expr, $exec:expr, $enum:expr $(,$extra:ident)*) => {{
+    ($eval:expr, $exec_uuid:expr, $enum:expr $(,$extra:ident)*) => {{
         {
             $(let $extra = $extra.clone();)*
             let status = UIExecutionStatus::Pending;
@@ -109,7 +110,7 @@ macro_rules! bind_exec_callbacks {
         {
             $(let $extra = $extra.clone();)*
             let sender = $eval.sender.clone();
-            $eval.dag.on_execution_start(&$exec.uuid, move |worker| {
+            $eval.dag.on_execution_start(&$exec_uuid, move |worker| {
                 let status = UIExecutionStatus::Started { worker };
                 sender
                     .send(($enum)(status, $($extra,)*))
@@ -119,7 +120,7 @@ macro_rules! bind_exec_callbacks {
         {
             $(let $extra = $extra.clone();)*
             let sender = $eval.sender.clone();
-            $eval.dag.on_execution_done(&$exec.uuid, move |result| {
+            $eval.dag.on_execution_done(&$exec_uuid, move |result| {
                 let status = UIExecutionStatus::Done { result };
                 sender
                     .send(($enum)(status, $($extra,)*))
@@ -129,7 +130,7 @@ macro_rules! bind_exec_callbacks {
         {
             $(let $extra = $extra.clone();)*
             let sender = $eval.sender.clone();
-            $eval.dag.on_execution_skip(&$exec.uuid, move || {
+            $eval.dag.on_execution_skip(&$exec_uuid, move || {
                 let status = UIExecutionStatus::Skipped;
                 sender
                     .send(($enum)(status, $($extra,)*))
@@ -197,7 +198,7 @@ impl InputGenerator {
                 )?;
                 exec.tag(Tag::Generation.into());
                 let stdout = exec.stdout();
-                bind_exec_callbacks!(eval, exec, |status| UIMessage::IOIGeneration {
+                bind_exec_callbacks!(eval, exec.uuid, |status| UIMessage::IOIGeneration {
                     subtask: subtask_id,
                     testcase: testcase_id,
                     status
@@ -241,7 +242,7 @@ impl InputValidator {
                 exec.input(input, "tm_validation_file", false)
                     .tag(Tag::Generation.into());
                 let stdout = exec.stdout();
-                bind_exec_callbacks!(eval, exec, |status| UIMessage::IOIValidation {
+                bind_exec_callbacks!(eval, exec.uuid, |status| UIMessage::IOIValidation {
                     subtask: subtask_id,
                     testcase: testcase_id,
                     status
@@ -286,7 +287,7 @@ impl OutputGenerator {
                 )?;
                 exec.tag(Tag::Generation.into());
                 let output = bind_exec_io!(exec, task, input, validation_handle);
-                bind_exec_callbacks!(eval, exec, |status| UIMessage::IOISolution {
+                bind_exec_callbacks!(eval, exec.uuid, |status| UIMessage::IOISolution {
                     subtask: subtask_id,
                     testcase: testcase_id,
                     status
@@ -338,7 +339,7 @@ impl Checker {
                     .tag(Tag::Checking.into());
                 bind_exec_callbacks!(
                     eval,
-                    exec,
+                    exec.uuid,
                     |status, solution| UIMessage::IOIChecker {
                         subtask: subtask_id,
                         testcase: testcase_id,
@@ -375,7 +376,7 @@ impl Checker {
                     .tag(Tag::Checking.into());
                 bind_exec_callbacks!(
                     eval,
-                    exec,
+                    exec.uuid,
                     |status, solution| UIMessage::IOIChecker {
                         subtask: subtask_id,
                         testcase: testcase_id,
@@ -461,7 +462,7 @@ impl TaskType {
                 }
                 bind_exec_callbacks!(
                     eval,
-                    exec,
+                    exec.uuid,
                     |status, solution| UIMessage::IOIEvaluation {
                         subtask: subtask_id,
                         testcase: testcase_id,

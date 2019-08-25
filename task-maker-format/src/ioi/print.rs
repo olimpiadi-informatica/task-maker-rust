@@ -106,6 +106,14 @@ impl UI for PrintUI {
                 self.write_message(format!("Compilation of {:?} ", file));
                 self.write_status_details(&status);
             }
+            UIMessage::CompilationStdout { file, content } => {
+                println!("[STDOUT]  Compilation stdout of {:?}", file);
+                print!("{}", content.trim());
+            }
+            UIMessage::CompilationStderr { file, content } => {
+                println!("[STDERR]  Compilation stderr of {:?}", file);
+                print!("{}", content.trim());
+            }
             UIMessage::IOITask { task } => {
                 cwrite!(self, BOLD, "Task {} ({})\n", task.title, task.name);
                 println!("Path: {:?}", task.path);

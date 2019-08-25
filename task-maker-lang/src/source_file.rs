@@ -27,6 +27,12 @@ pub struct SourceFile {
     grader_map: Option<Arc<GraderMap>>,
     /// Where to write the compiled executable.
     write_bin_to: Option<PathBuf>,
+    /// The stdout of the compilation, set if `prepare` has been called, and the language supports
+    /// compilation.
+    compilation_stdout: Arc<Mutex<Option<File>>>,
+    /// The stderr of the compilation, set if `prepare` has been called, and the language supports
+    /// compilation.
+    compilation_stderr: Arc<Mutex<Option<File>>>,
 }
 
 impl SourceFile {
@@ -52,6 +58,8 @@ impl SourceFile {
             executable: Arc::new(Mutex::new(None)),
             grader_map,
             write_bin_to: write_bin_to.map(|p| p.into()),
+            compilation_stdout: Arc::new(Mutex::new(None)),
+            compilation_stderr: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -164,6 +172,18 @@ impl SourceFile {
         String::from(self.path.file_name().unwrap().to_str().unwrap())
     }
 
+    /// The standard output of the compilation, if the source file is compiled and `execute` has
+    /// been called at least once.
+    pub fn compilation_stdout(&self) -> Option<File> {
+        self.compilation_stdout.lock().unwrap().clone()
+    }
+
+    /// The standard error of the compilation, if the source file is compiled and `execute` has
+    /// been called at least once.
+    pub fn compilation_stderr(&self) -> Option<File> {
+        self.compilation_stderr.lock().unwrap().clone()
+    }
+
     /// Prepare the source file setting the `executable` and eventually compiling the source file.
     fn prepare(&self, dag: &mut ExecutionDAG) -> Result<Option<ExecutionUuid>, Error> {
         if self.executable.lock().unwrap().is_some() {
@@ -193,6 +213,8 @@ impl SourceFile {
                     dag.provide_file(dep.file, &dep.local_path)?;
                 }
             }
+            *self.compilation_stdout.lock().unwrap() = Some(comp.stdout());
+            *self.compilation_stderr.lock().unwrap() = Some(comp.stderr());
             let exec = comp.output(&self.language.executable_name(&self.path));
             let comp_uuid = comp.uuid;
             dag.add_execution(comp);

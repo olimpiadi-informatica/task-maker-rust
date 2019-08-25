@@ -15,11 +15,19 @@ pub enum CompilationStatus {
     Done {
         /// The result of the compilation.
         result: ExecutionResult,
+        /// The standard output of the compilation.
+        stdout: Option<String>,
+        /// The standard error of the compilation.
+        stderr: Option<String>,
     },
     /// The compilation has failed.
     Failed {
         /// The result of the compilation.
         result: ExecutionResult,
+        /// The standard output of the compilation.
+        stdout: Option<String>,
+        /// The standard error of the compilation.
+        stderr: Option<String>,
     },
     /// The compilation has been skipped.
     Skipped,
@@ -298,12 +306,46 @@ impl UIState {
                     UIExecutionStatus::Started { .. } => *comp = CompilationStatus::Running,
                     UIExecutionStatus::Done { result } => {
                         if let ExecutionStatus::Success = result.status {
-                            *comp = CompilationStatus::Done { result };
+                            *comp = CompilationStatus::Done {
+                                result,
+                                stdout: None,
+                                stderr: None,
+                            };
                         } else {
-                            *comp = CompilationStatus::Failed { result };
+                            *comp = CompilationStatus::Failed {
+                                result,
+                                stdout: None,
+                                stderr: None,
+                            };
                         }
                     }
                     UIExecutionStatus::Skipped => *comp = CompilationStatus::Skipped,
+                }
+            }
+            UIMessage::CompilationStdout { file, content } => {
+                let comp = self
+                    .compilations
+                    .entry(file.clone())
+                    .or_insert(CompilationStatus::Pending);
+                match comp {
+                    CompilationStatus::Done { stdout, .. }
+                    | CompilationStatus::Failed { stdout, .. } => {
+                        stdout.replace(content);
+                    }
+                    _ => {}
+                }
+            }
+            UIMessage::CompilationStderr { file, content } => {
+                let comp = self
+                    .compilations
+                    .entry(file.clone())
+                    .or_insert(CompilationStatus::Pending);
+                match comp {
+                    CompilationStatus::Done { stderr, .. }
+                    | CompilationStatus::Failed { stderr, .. } => {
+                        stderr.replace(content);
+                    }
+                    _ => {}
                 }
             }
             UIMessage::IOIGeneration {

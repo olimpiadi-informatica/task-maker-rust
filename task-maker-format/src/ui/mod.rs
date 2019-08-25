@@ -50,6 +50,22 @@ pub enum UIMessage {
         status: UIExecutionStatus,
     },
 
+    /// An update on the stdout of a compilation.
+    CompilationStdout {
+        /// The compilation of this file.
+        file: PathBuf,
+        /// The prefix of the stdout of the compilation.
+        content: String,
+    },
+
+    /// An update on the stderr of a compilation.
+    CompilationStderr {
+        /// The compilation of this file.
+        file: PathBuf,
+        /// The prefix of the stderr of the compilation.
+        content: String,
+    },
+
     /// The information about the task which is being run.
     IOITask {
         /// The task information.

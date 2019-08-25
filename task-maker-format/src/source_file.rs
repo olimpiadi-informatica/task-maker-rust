@@ -1,3 +1,4 @@
+use crate::bind_exec_callbacks;
 use crate::ui::*;
 use crate::EvaluationData;
 use crate::UISender;
@@ -8,6 +9,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use task_maker_dag::*;
 use task_maker_lang::GraderMap;
+
+const COMPILATION_CONTENT_LENGTH: usize = 10 * 1024;
 
 /// Wrapper around [`task_maker_lang::SourceFile`](../task_maker_lang/struct.SourceFile.html) that
 /// also sends to the UI the messages about the compilation, making the compilation completely
@@ -49,39 +52,41 @@ impl SourceFile {
         )?;
         // if there is the compilation, send to the UI the messages
         if let Some(comp_uuid) = comp {
-            let (sender1, path1) = (eval.sender.clone(), self.path.clone());
-            let (sender2, path2) = (eval.sender.clone(), self.path.clone());
-            let (sender3, path3) = (eval.sender.clone(), self.path.clone());
-            eval.dag.on_execution_start(&comp_uuid, move |worker| {
-                sender1
-                    .send(UIMessage::Compilation {
-                        file: path1,
-                        status: UIExecutionStatus::Started { worker },
-                    })
-                    .unwrap();
-            });
-            eval.dag.on_execution_done(&comp_uuid, move |result| {
-                sender2
-                    .send(UIMessage::Compilation {
-                        file: path2,
-                        status: UIExecutionStatus::Done { result },
-                    })
-                    .unwrap();
-            });
-            eval.dag.on_execution_skip(&comp_uuid, move || {
-                sender3
-                    .send(UIMessage::Compilation {
-                        file: path3,
-                        status: UIExecutionStatus::Skipped,
-                    })
-                    .unwrap();
-            });
-            eval.sender
-                .send(UIMessage::Compilation {
-                    file: self.path.clone(),
-                    status: UIExecutionStatus::Pending,
-                })
-                .unwrap();
+            let path = &self.path;
+            bind_exec_callbacks!(
+                eval,
+                comp_uuid,
+                |status, file| UIMessage::Compilation { file, status },
+                path
+            );
+            if let Some(stdout) = self.base.compilation_stdout() {
+                let path = path.clone();
+                let sender = eval.sender.clone();
+                eval.dag
+                    .get_file_content(stdout, COMPILATION_CONTENT_LENGTH, move |content| {
+                        let content = String::from_utf8_lossy(&content);
+                        sender
+                            .send(UIMessage::CompilationStdout {
+                                file: path,
+                                content: content.into(),
+                            })
+                            .unwrap();
+                    });
+            }
+            if let Some(stderr) = self.base.compilation_stderr() {
+                let path = path.clone();
+                let sender = eval.sender.clone();
+                eval.dag
+                    .get_file_content(stderr, COMPILATION_CONTENT_LENGTH, move |content| {
+                        let content = String::from_utf8_lossy(&content);
+                        sender
+                            .send(UIMessage::CompilationStderr {
+                                file: path,
+                                content: content.into(),
+                            })
+                            .unwrap();
+                    });
+            }
         }
         Ok(exec)
     }

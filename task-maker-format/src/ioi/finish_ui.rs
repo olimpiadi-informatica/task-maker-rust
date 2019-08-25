@@ -116,13 +116,31 @@ impl FinishUI {
                 width = max_len
             );
             match status {
-                CompilationStatus::Done { result } => {
+                CompilationStatus::Done { result, .. } => {
                     cwrite!(self, GREEN, " OK  ");
                     self.print_time_memory(&result.resources);
                 }
-                CompilationStatus::Failed { result } => {
+                CompilationStatus::Failed {
+                    result,
+                    stdout,
+                    stderr,
+                } => {
                     cwrite!(self, RED, "FAIL ");
                     self.print_time_memory(&result.resources);
+                    if let Some(stdout) = stdout {
+                        if !stdout.trim().is_empty() {
+                            println!();
+                            cwriteln!(self, BOLD, "stdout:");
+                            println!("{}", stdout.trim());
+                        }
+                    }
+                    if let Some(stderr) = stderr {
+                        if !stderr.trim().is_empty() {
+                            println!();
+                            cwriteln!(self, BOLD, "stderr:");
+                            println!("{}", stderr.trim());
+                        }
+                    }
                 }
                 _ => {
                     cwrite!(self, YELLOW, "{:?}", status);
