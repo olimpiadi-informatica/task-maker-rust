@@ -8,7 +8,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use failure::Error;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer, Deserializer};
 
 use task_maker_lang::GraderMap;
 
@@ -58,6 +58,8 @@ struct TaskYAML {
     pub public_testcases: Option<String>,
     /// Whether this is an output only task. Defaults to false.
     #[serde(default = "bool::default")]
+    #[serde(serialize_with = "python_bool_serializer")]
+    #[serde(deserialize_with = "python_bool_deserializer")]
     pub output_only: bool,
     /// The maximum score of this task, if it's not set it will be autodetected from the testcase
     /// definition.
@@ -255,5 +257,38 @@ fn detect_output_generator(
         } else {
             OutputGenerator::StaticFile(output_directory.join(format!("output{}.txt", tc)))
         }
+    }
+}
+
+/// Serializer of a boolean using the python syntax:
+/// - `true` -> `True`
+/// - `false` -> `False`
+fn python_bool_serializer<S>(val: &bool, ser: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+{
+    if *val {
+        ser.serialize_str("True")
+    } else {
+        ser.serialize_str("False")
+    }
+}
+
+/// Deserializer of a boolean using the python syntax:
+/// - `True` -> `true`
+/// - `False` -> `false`
+/// - other -> error
+fn python_bool_deserializer<'de, D>(deser: D) -> Result<bool, D::Error>
+    where
+        D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    let val = String::deserialize(deser)?;
+    if val == "True" {
+        Ok(true)
+    } else if val == "False" {
+        Ok(false)
+    } else {
+        Err(Error::custom("invalid bool, either True or False"))
     }
 }
