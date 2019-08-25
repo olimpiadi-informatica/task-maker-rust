@@ -288,6 +288,10 @@ impl Sandbox {
         for path in execution.outputs.keys() {
             Sandbox::touch_file(&box_dir.as_ref().join("box").join(&path), 0o600)?;
         }
+        // remove the write bit on the box folder
+        if execution.limits.read_only {
+            Sandbox::set_permissions(&box_dir.as_ref().join("box"), 0o500)?;
+        }
         trace!("Sandbox at {:?} ready!", box_dir.as_ref());
         Ok(())
     }
@@ -301,13 +305,11 @@ impl Sandbox {
     fn write_sandbox_file(dest: &Path, source: &Path, executable: bool) -> Result<(), Error> {
         std::fs::create_dir_all(dest.parent().unwrap())?;
         std::fs::copy(source, dest)?;
-        let mut permisions = std::fs::metadata(&dest)?.permissions();
         if executable {
-            permisions.set_mode(0o500);
+            Sandbox::set_permissions(dest, 0o500)?;
         } else {
-            permisions.set_mode(0o400);
+            Sandbox::set_permissions(dest, 0o400)?;
         }
-        std::fs::set_permissions(dest, permisions)?;
         Ok(())
     }
 
@@ -318,6 +320,13 @@ impl Sandbox {
         let mut permisions = std::fs::metadata(&dest)?.permissions();
         permisions.set_mode(mode);
         std::fs::set_permissions(dest, permisions)?;
+        Ok(())
+    }
+
+    fn set_permissions(dest: &Path, perm: u32) -> Result<(), Error> {
+        let mut permissions = std::fs::metadata(&dest)?.permissions();
+        permissions.set_mode(perm);
+        std::fs::set_permissions(dest, permissions)?;
         Ok(())
     }
 }

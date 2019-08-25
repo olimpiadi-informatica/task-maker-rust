@@ -168,6 +168,8 @@ pub struct ExecutionLimits {
     pub memlock: Option<u64>,
     /// Limit on the stack size for the process. 0 means unlimited.
     pub stack: Option<u64>,
+    /// Whether the process in the sandbox is not allowed to create new files inside the sandbox.
+    pub read_only: bool,
 }
 
 /// Status of a completed [`Execution`](struct.Execution.html).
@@ -232,6 +234,7 @@ impl ExecutionLimits {
             fsize: None,
             memlock: None,
             stack: None,
+            read_only: false,
         }
     }
 
@@ -304,6 +307,7 @@ impl std::default::Default for ExecutionLimits {
             fsize: Some(1024u64.pow(3)),
             memlock: None,
             stack: Some(0),
+            read_only: true,
         }
     }
 }

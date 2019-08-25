@@ -246,6 +246,9 @@ impl CacheEntry {
                 check_limit!($left.fsize, $right.fsize);
                 check_limit!($left.memlock, $right.memlock);
                 check_limit!($left.stack, $right.stack);
+                if !($left.read_only <= $right.read_only) {
+                    return false;
+                }
             };
         }
         match self.result.status {

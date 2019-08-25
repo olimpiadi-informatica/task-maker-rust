@@ -241,8 +241,15 @@ fn execute_job(
             }
             for (path, file) in job.execution.outputs.iter() {
                 let path = sandbox.output_path(path);
-                outputs.insert(file.uuid, FileStoreKey::from_file(&path).unwrap());
-                output_paths.insert(file.uuid, path.clone());
+                // the sandbox process may want to remove a file, consider missing files as empty
+                if path.exists() {
+                    outputs.insert(file.uuid, FileStoreKey::from_file(&path).unwrap());
+                    output_paths.insert(file.uuid, path.clone());
+                } else {
+                    // FIXME: /dev/null may not be used
+                    outputs.insert(file.uuid, FileStoreKey::from_file("/dev/null").unwrap());
+                    output_paths.insert(file.uuid, "/dev/null".into());
+                }
             }
 
             serialize_into(

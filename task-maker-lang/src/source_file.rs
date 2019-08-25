@@ -179,6 +179,7 @@ impl SourceFile {
             let source = File::new(&format!("Source file of {:?}", self.path));
             comp.input(&source, Path::new(self.path.file_name().unwrap()), false);
             comp.limits.nproc = None;
+            comp.limits.read_only = false; // the compilers may need to store some temp files
             for dep in self.language.compilation_dependencies(&self.path) {
                 comp.input(&dep.file, &dep.sandbox_path, dep.executable);
                 dag.provide_file(dep.file, &dep.local_path)?;
