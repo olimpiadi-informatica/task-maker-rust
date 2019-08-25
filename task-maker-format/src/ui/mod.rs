@@ -13,6 +13,7 @@ mod raw;
 
 pub use json::JsonUI;
 pub use raw::RawUI;
+use task_maker_exec::ExecutorStatus;
 
 /// Channel type for sending `UIMessage`s.
 pub type UIChannelSender = Sender<UIMessage>;
@@ -42,6 +43,12 @@ pub enum UIExecutionStatus {
 /// A message sent to the UI.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum UIMessage {
+    /// An update on the status of the executor.
+    ServerStatus {
+        /// The status of the executor.
+        status: ExecutorStatus,
+    },
+
     /// An update on the compilation status.
     Compilation {
         /// The compilation of this file.

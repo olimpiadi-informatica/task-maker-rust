@@ -90,7 +90,7 @@ pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>>(
         );
         executor.evaluate(tx_remote, rx_remote).unwrap();
     });
-    ExecutorClient::evaluate(dag, tx, &rx).unwrap();
+    ExecutorClient::evaluate(dag, tx, &rx, |_| {}).unwrap();
     server.join().expect("Server panicked");
 }
 

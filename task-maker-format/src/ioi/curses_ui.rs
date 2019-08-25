@@ -117,6 +117,14 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
                             Constraint::Length(state.compilations.len() as u16 + 2),
                             Constraint::Length(3),
                             Constraint::Min(0),
+                            Constraint::Length(
+                                state
+                                    .executor_status
+                                    .as_ref()
+                                    .map(|s| s.connected_workers.len())
+                                    .unwrap_or(0) as u16
+                                    + 2,
+                            ),
                         ]
                         .as_ref(),
                     )
@@ -143,6 +151,12 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
                     .borders(Borders::ALL)
                     .render(&mut f, chunks[3]);
                 draw_evaluations(&mut f, inner_block(chunks[3]), &state, loading);
+                Block::default()
+                    .title(" Server status ")
+                    .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
+                    .borders(Borders::ALL)
+                    .render(&mut f, chunks[4]);
+                draw_server_status(&mut f, inner_block(chunks[4]), &state, loading);
             })
             .unwrap();
         // reduce the framerate to at most `FPS`
@@ -413,4 +427,42 @@ fn testcase_evaluation_status_text(status: &TestcaseEvaluationStatus, loading: c
         ),
         TestcaseEvaluationStatus::Skipped => Text::raw("X"),
     }
+}
+
+/// Draw the content of the server status box.
+fn draw_server_status<B>(frame: &mut Frame<B>, rect: Rect, state: &UIState, loading: char)
+where
+    B: Backend,
+{
+    let status = if let Some(status) = &state.executor_status {
+        status
+    } else {
+        return;
+    };
+    let max_len = status
+        .connected_workers
+        .iter()
+        .map(|(_, name, _)| name.len())
+        .max()
+        .unwrap_or(0);
+    let text: Vec<Text> = status
+        .connected_workers
+        .iter()
+        .sorted_by_key(|(_, name, _)| name)
+        .flat_map(|(uuid, name, working)| {
+            let mut texts = vec![];
+            texts.push(Text::raw(format!(
+                "- {:<max_len$} ({}) ",
+                name,
+                uuid,
+                max_len = max_len
+            )));
+            if *working {
+                texts.push(Text::raw(loading.to_string()));
+            }
+            texts.push(Text::raw("\n"));
+            texts
+        })
+        .collect();
+    Paragraph::new(text.iter()).wrap(false).render(frame, rect);
 }

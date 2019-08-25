@@ -4,8 +4,13 @@ use failure::Error;
 use std::collections::HashMap;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 use task_maker_dag::{FileCallbacks, FileUuid};
 use task_maker_store::*;
+
+/// Interval between each Status message is sent asking for server status updates.
+const STATUS_POLL_INTERVAL_MS: u64 = 1000;
 
 /// This is a client of the `Executor`, the client is who sends a DAG for an evaluation, provides
 /// some files and receives the callbacks from the server. When the server notifies a callback
@@ -48,14 +53,15 @@ impl ExecutorClient {
     ///     executor.evaluate(tx_remote, rx_remote).unwrap();
     /// });
     ///
-    /// ExecutorClient::evaluate(dag, tx, &rx).unwrap(); // this will block!
+    /// ExecutorClient::evaluate(dag, tx, &rx, |_| {}).unwrap(); // this will block!
     ///
     /// server.join().expect("Server paniced");
     /// ```
-    pub fn evaluate(
+    pub fn evaluate<F: FnMut(ExecutorStatus)>(
         mut dag: ExecutionDAG,
         sender: ChannelSender,
         receiver: &ChannelReceiver,
+        mut status_callback: F,
     ) -> Result<(), Error> {
         trace!("ExecutorClient started");
         // list all the files/executions that want callbacks
@@ -75,6 +81,26 @@ impl ExecutorClient {
             },
             &sender,
         )?;
+        // setup the status poller that will send to the server a Status message every
+        // STATUS_POLL_INTERVAL_MS milliseconds.
+        let done = Arc::new(AtomicBool::new(false));
+        let done_thread = done.clone();
+        let file_mode = Arc::new(Mutex::new(()));
+        let file_mode_thread = Arc::new(Mutex::new(()));
+        let sender_thread = sender.clone();
+        let status_poller = thread::Builder::new()
+            .name("Client status poller".into())
+            .spawn(move || {
+                while !done_thread.load(Ordering::Relaxed) {
+                    {
+                        // make sure to not interfere with the file sending protocol.
+                        let _lock = file_mode_thread.lock().unwrap();
+                        serialize_into(&ExecutorClientMessage::Status, &sender_thread).unwrap();
+                    }
+                    thread::sleep(Duration::from_millis(STATUS_POLL_INTERVAL_MS));
+                }
+            })
+            .unwrap();
         loop {
             match deserialize_from::<ExecutorServerMessage>(&receiver) {
                 Ok(ExecutorServerMessage::AskFile(uuid)) => {
@@ -84,6 +110,8 @@ impl ExecutorClient {
                         .expect("Server asked for non provided file")
                         .local_path;
                     let key = FileStoreKey::from_file(path)?;
+                    // prevent the status poller for sending messages while sending the file
+                    let _lock = file_mode.lock().unwrap();
                     serialize_into(&ExecutorClientMessage::ProvideFile(uuid, key), &sender)?;
                     ChannelFileSender::send(&path, &sender)?;
                 }
@@ -123,6 +151,7 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::Status(status)) => {
                     info!("Server status: {:#?}", status);
+                    status_callback(status);
                 }
                 Ok(ExecutorServerMessage::Done) => {
                     info!("Execution completed!");
@@ -139,6 +168,8 @@ impl ExecutorClient {
                 }
             }
         }
+        done.store(true, Ordering::Relaxed);
+        status_poller.join().unwrap();
         Ok(())
     }
 }

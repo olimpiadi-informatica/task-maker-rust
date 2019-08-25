@@ -3,6 +3,7 @@ use crate::ui::{UIExecutionStatus, UIMessage};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use task_maker_dag::*;
+use task_maker_exec::ExecutorStatus;
 
 /// The status of the compilation of a file.
 #[derive(Debug)]
@@ -187,6 +188,8 @@ pub struct UIState {
     pub generations: HashMap<SubtaskId, SubtaskGenerationState>,
     /// The status of the evaluations of the solutions.
     pub evaluations: HashMap<PathBuf, SolutionEvaluationState>,
+    /// The status of the executor.
+    pub executor_status: Option<ExecutorStatus>,
 }
 
 impl TestcaseEvaluationStatus {
@@ -290,12 +293,14 @@ impl UIState {
             compilations: HashMap::new(),
             generations,
             evaluations: HashMap::new(),
+            executor_status: None,
         }
     }
 
     /// Apply a `UIMessage` to this state.
     pub fn apply(&mut self, message: UIMessage) {
         match message {
+            UIMessage::ServerStatus { status } => self.executor_status = Some(status),
             UIMessage::Compilation { file, status } => {
                 let comp = self
                     .compilations

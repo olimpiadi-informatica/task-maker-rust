@@ -101,6 +101,15 @@ impl UI for PrintUI {
     fn on_message(&mut self, message: UIMessage) {
         self.state.apply(message.clone());
         match message {
+            UIMessage::ServerStatus { status } => {
+                println!(
+                    "[STATUS]  Server status: {} running DAG, {} ready exec, {} waiting exec",
+                    status.running_dags, status.ready_execs, status.waiting_execs
+                );
+                for worker in status.connected_workers {
+                    println!(" - {} ({})", worker.1, worker.0);
+                }
+            }
             UIMessage::Compilation { file, status } => {
                 self.write_status(&status);
                 self.write_message(format!("Compilation of {:?} ", file));

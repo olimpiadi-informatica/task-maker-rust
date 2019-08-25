@@ -72,7 +72,8 @@ use structopt::StructOpt;
 use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
 use task_maker_exec::{executors::LocalExecutor, ExecutorClient};
-use task_maker_format::{ioi, EvaluationData, TaskFormat};
+use task_maker_format::ui::UIMessage;
+use task_maker_format::{ioi, EvaluationData, TaskFormat, UISender};
 use task_maker_store::*;
 
 fn main() {
@@ -156,7 +157,12 @@ fn main() {
             executor.evaluate(tx_remote, rx_remote).unwrap();
         })
         .unwrap();
-    ExecutorClient::evaluate(eval.dag, tx, &rx).unwrap();
+
+    let ui_sender = eval.sender.clone();
+    ExecutorClient::evaluate(eval.dag, tx, &rx, move |status| {
+        ui_sender.send(UIMessage::ServerStatus { status }).unwrap();
+    })
+    .unwrap();
 
     // wait for the server and the ui to exit
     server.join().expect("Executor panicked");

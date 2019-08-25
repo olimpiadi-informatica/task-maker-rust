@@ -128,7 +128,7 @@ pub(crate) struct ExecutorData {
 }
 
 /// The current status of the `Executor`, this is sent to the user when the server status is asked.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutorStatus {
     /// List of the connected workers with their uuid, name and if they have some work.
     pub connected_workers: Vec<(WorkerUuid, String, bool)>,
