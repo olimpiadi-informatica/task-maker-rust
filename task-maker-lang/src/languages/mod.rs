@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use task_maker_dag::*;
 
+pub(crate) mod c;
 pub(crate) mod cpp;
 pub(crate) mod python;
 pub(crate) mod shell;

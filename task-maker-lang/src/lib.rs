@@ -54,6 +54,7 @@ impl LanguageManager {
             // ordered by most important first
             known_languages: vec![
                 Arc::new(cpp::LanguageCpp::new(cpp::LanguageCppVersion::GccCpp14)),
+                Arc::new(c::LanguageC::new(c::LanguageCVersion::GccC11)),
                 Arc::new(python::LanguagePython::new(
                     python::LanguagePythonVersion::Autodetect,
                 )),
