@@ -203,7 +203,7 @@ impl Executor {
                     let provided_files = data.dag.as_ref().unwrap().provided_files.clone();
                     {
                         let file_store = data.file_store.clone();
-                        let mut file_store = file_store.lock().unwrap();
+                        let file_store = file_store.lock().unwrap();
                         for (uuid, file) in provided_files.into_iter() {
                             let handle = file_store.get(&file.key);
                             match handle {

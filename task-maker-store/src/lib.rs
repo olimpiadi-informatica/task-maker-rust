@@ -22,7 +22,7 @@
 //! # let path = tmp.path().join("file.txt");
 //! # fs::write(&path, "hello world")?;
 //! // make a new store based on a directory, this will lock if the store is already in use
-//! let mut store = FileStore::new(store_dir)?;
+//! let store = FileStore::new(store_dir)?;
 //! // compute the key of a file and make an iterator over its content
 //! let key = FileStoreKey::from_file(&path)?;
 //! let iter = ReadFileIterator::new(&path)?;
@@ -123,8 +123,8 @@ impl FileStore {
     /// # let store_dir = dir.path();
     /// // make a new store based on a directory, this will lock if the store is already in use
     /// // somewhere
-    /// let mut store = FileStore::new(store_dir)?;
-    /// // let mut store2 = FileStore::new(store_dir) // this will lock!!
+    /// let store = FileStore::new(store_dir)?;
+    /// // let store2 = FileStore::new(store_dir) // this will lock!!
     /// # Ok(())
     /// # }
     /// ```
@@ -166,7 +166,7 @@ impl FileStore {
     /// # let store_dir = tmp.path().join("store");
     /// # let path = tmp.path().join("file.txt");
     /// # fs::write(&path, "hello world")?;
-    /// let mut store = FileStore::new(store_dir)?;
+    /// let store = FileStore::new(store_dir)?;
     /// // compute the key of a file and make an iterator over its content
     /// let key = FileStoreKey::from_file(&path)?;
     /// let iter = ReadFileIterator::new(&path)?;
@@ -179,28 +179,34 @@ impl FileStore {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn store<I>(&mut self, key: &FileStoreKey, content: I) -> Result<FileStoreHandle, Error>
+    pub fn store<I>(&self, key: &FileStoreKey, content: I) -> Result<FileStoreHandle, Error>
     where
         I: IntoIterator<Item = Vec<u8>>,
     {
         let path = self.key_to_path(key);
         trace!("Storing {:?}", path);
+        // make the key to avoid racing while writing
+        let handle = FileStoreHandle::new(&self, key);
         if path.exists() {
             trace!("File {:?} already exists", path);
             content.into_iter().last(); // consume all the iterator
         } else {
+            // assuming moving files is atomic this should be MT-safe
             std::fs::create_dir_all(path.parent().unwrap())?;
-            let mut file = std::fs::File::create(&path)?;
+            let tmpdir = tempdir::TempDir::new_in(path.parent().unwrap(), "temp")?;
+            let tmpfile_path = tmpdir.path().join("file");
+            let mut tmpfile = std::fs::File::create(&tmpfile_path)?;
             if !content
                 .into_iter()
-                .map(|data| file.write_all(&data))
+                .map(|data| tmpfile.write_all(&data))
                 .all(|r| r.is_ok())
             {
                 bail!("Failed to store file");
             }
+            std::fs::rename(tmpfile_path, &path)?;
             FileStore::mark_readonly(&path)?;
         }
-        Ok(FileStoreHandle::new(&self, key))
+        Ok(handle)
     }
 
     /// Returns an handle to the file with that key or `None` if it's not in the
@@ -222,7 +228,7 @@ impl FileStore {
     /// # let store_dir = tmp.path().join("store");
     /// # let path = tmp.path().join("file.txt");
     /// # fs::write(&path, "hello world")?;
-    /// let mut store = FileStore::new(store_dir)?;
+    /// let store = FileStore::new(store_dir)?;
     /// let key = FileStoreKey::from_file(&path)?;
     /// # let iter = ReadFileIterator::new(&path)?;
     /// # let handle = store.store(&key, iter)?;
@@ -234,7 +240,7 @@ impl FileStore {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn get(&mut self, key: &FileStoreKey) -> Option<FileStoreHandle> {
+    pub fn get(&self, key: &FileStoreKey) -> Option<FileStoreHandle> {
         let path = self.key_to_path(key);
         if !path.exists() {
             return None;
@@ -436,7 +442,7 @@ mod tests {
         FileStoreKey::from_file(path.as_ref()).unwrap()
     }
 
-    fn add_file_to_store(path: &Path, content: &str, store: &mut FileStore) -> FileStoreHandle {
+    fn add_file_to_store(path: &Path, content: &str, store: &FileStore) -> FileStoreHandle {
         let key = fake_file(path, content);
         let iter = ReadFileIterator::new(path).unwrap();
         store.store(&key, iter).unwrap()
@@ -485,8 +491,8 @@ mod tests {
     #[test]
     fn test_store() {
         let cwd = get_cwd();
-        let mut store = FileStore::new(cwd.path()).unwrap();
-        let handle = add_file_to_store(&cwd.path().join("test.txt"), "test", &mut store);
+        let store = FileStore::new(cwd.path()).unwrap();
+        let handle = add_file_to_store(&cwd.path().join("test.txt"), "test", &store);
         let path_in_store = store.key_to_path(&handle.key);
         assert!(path_in_store.exists());
         let mut content = String::new();
@@ -506,8 +512,8 @@ mod tests {
     #[test]
     fn test_get() {
         let cwd = get_cwd();
-        let mut store = FileStore::new(cwd.path()).unwrap();
-        let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &mut store);
+        let store = FileStore::new(cwd.path()).unwrap();
+        let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &store);
 
         let handle = store.get(&handle.key).unwrap();
         let path = handle.path();
@@ -518,8 +524,8 @@ mod tests {
     #[test]
     fn test_get_removed() {
         let cwd = get_cwd();
-        let mut store = FileStore::new(cwd.path()).unwrap();
-        let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &mut store);
+        let store = FileStore::new(cwd.path()).unwrap();
+        let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &store);
         let path_in_store = store.key_to_path(&handle.key);
 
         remove_file(path_in_store).unwrap();
@@ -531,7 +537,7 @@ mod tests {
     #[test]
     fn test_get_not_known() {
         let cwd = get_cwd();
-        let mut store = FileStore::new(cwd.path()).unwrap();
+        let store = FileStore::new(cwd.path()).unwrap();
         let key = fake_file(&cwd.path().join("test.txt"), "ciao");
         let handle = store.get(&key);
         assert!(handle.is_none());
@@ -543,8 +549,8 @@ mod tests {
             return;
         }
         let cwd = get_cwd();
-        let mut store = FileStore::new(cwd.path()).unwrap();
-        let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &mut store);
+        let store = FileStore::new(cwd.path()).unwrap();
+        let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &store);
         let path_in_store = store.key_to_path(&handle.key);
         corrupt_file(&path_in_store);
         let handle = store.get(&handle.key);
@@ -588,8 +594,8 @@ mod tests {
     #[test]
     fn test_check_integrity() {
         let cwd = get_cwd();
-        let mut store = FileStore::new(&cwd.path()).unwrap();
-        let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &mut store);
+        let store = FileStore::new(&cwd.path()).unwrap();
+        let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &store);
         let path = store.key_to_path(&handle.key);
         corrupt_file(&path);
         assert!(!store.check_integrity(&handle.key));
@@ -598,8 +604,8 @@ mod tests {
     #[test]
     fn test_locked_files() {
         let cwd = get_cwd();
-        let mut store = FileStore::new(&cwd.path()).unwrap();
-        let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &mut store);
+        let store = FileStore::new(&cwd.path()).unwrap();
+        let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &store);
         let key = handle.key.clone();
         assert_eq!(store.locked_files.lock().unwrap().ref_counts[&key], 1);
         let handle2 = handle.clone();
@@ -618,8 +624,8 @@ mod tests {
     #[test]
     fn test_locked_files_different_means() {
         let cwd = get_cwd();
-        let mut store = FileStore::new(&cwd.path()).unwrap();
-        let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &mut store);
+        let store = FileStore::new(&cwd.path()).unwrap();
+        let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &store);
         let key = handle.key.clone();
         assert_eq!(store.locked_files.lock().unwrap().ref_counts[&key], 1);
         let handle2 = handle.clone();

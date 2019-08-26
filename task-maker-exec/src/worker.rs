@@ -135,7 +135,7 @@ impl Worker {
                     let mut missing_deps = 0;
                     let mut handles = HashMap::new();
                     for input in job.execution.dependencies().iter() {
-                        let mut store = self.file_store.lock().unwrap();
+                        let store = self.file_store.lock().unwrap();
                         let key = job
                             .dep_keys
                             .get(&input)
@@ -164,7 +164,7 @@ impl Worker {
                 }
                 Ok(WorkerServerMessage::ProvideFile(uuid, key)) => {
                     info!("Server sent file {} {:?}", uuid, key);
-                    let mut store = self.file_store.lock().unwrap();
+                    let store = self.file_store.lock().unwrap();
                     let reader = ChannelFileIterator::new(&self.receiver);
                     let handle = store.store(&key, reader)?;
                     let mut job = self.current_job.lock().unwrap();
