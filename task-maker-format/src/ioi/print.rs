@@ -103,11 +103,11 @@ impl UI for PrintUI {
         match message {
             UIMessage::ServerStatus { status } => {
                 println!(
-                    "[STATUS]  Server status: {} running DAG, {} ready exec, {} waiting exec",
-                    status.running_dags, status.ready_execs, status.waiting_execs
+                    "[STATUS]  Server status: {} ready exec, {} waiting exec",
+                    status.ready_execs, status.waiting_execs
                 );
                 for worker in status.connected_workers {
-                    println!(" - {} ({})", worker.1, worker.0);
+                    println!(" - {} ({})", worker.name, worker.uuid);
                 }
             }
             UIMessage::Compilation { file, status } => {

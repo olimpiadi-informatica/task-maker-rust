@@ -2,6 +2,7 @@ use crate::ioi::*;
 use crate::ui::{UIExecutionStatus, UIMessage};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::SystemTime;
 use task_maker_dag::*;
 use task_maker_exec::ExecutorStatus;
 
@@ -189,7 +190,7 @@ pub struct UIState {
     /// The status of the evaluations of the solutions.
     pub evaluations: HashMap<PathBuf, SolutionEvaluationState>,
     /// The status of the executor.
-    pub executor_status: Option<ExecutorStatus>,
+    pub executor_status: Option<ExecutorStatus<SystemTime>>,
 }
 
 impl TestcaseEvaluationStatus {
@@ -222,7 +223,7 @@ impl TestcaseEvaluationStatus {
 
     pub fn message(&self) -> String {
         use TestcaseEvaluationStatus::*;
-        return match self {
+        match self {
             Pending => "Not done".into(),
             Solving => "Solution running".into(),
             Solved => "Solution completed".into(),
@@ -254,7 +255,7 @@ impl TestcaseEvaluationStatus {
             RuntimeError => "Runtime error".into(),
             Failed => "Execution failed".into(),
             Skipped => "Execution skipped".into(),
-        };
+        }
     }
 }
 

@@ -291,7 +291,7 @@ impl FinishUI {
                 path.file_name().unwrap().to_string_lossy(),
                 width = max_len
             );
-            print!("{:^5}| ", eval.score.unwrap_or(0.0));
+            print!("{:^5.0}| ", eval.score.unwrap_or(0.0));
             for st_num in eval.subtasks.keys().sorted() {
                 let subtask = &eval.subtasks[&st_num];
                 let score = subtask.score.unwrap_or(0.0);

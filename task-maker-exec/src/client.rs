@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use task_maker_dag::{FileCallbacks, FileUuid};
 use task_maker_store::*;
 
@@ -49,15 +49,15 @@ impl ExecutorClient {
     /// #   let path = tmpdir.path();
     ///     let file_store = FileStore::new(path).expect("Cannot create the file store");
     ///     let cache = Cache::new(path).expect("Cannot create the cache");
-    ///     let mut executor = LocalExecutor::new(Arc::new(Mutex::new(file_store)), cache, 4, path);
-    ///     executor.evaluate(tx_remote, rx_remote).unwrap();
+    ///     let mut executor = LocalExecutor::new(Arc::new(file_store), 4, path);
+    ///     executor.evaluate(tx_remote, rx_remote, cache).unwrap();
     /// });
     ///
     /// ExecutorClient::evaluate(dag, tx, &rx, |_| {}).unwrap(); // this will block!
     ///
     /// server.join().expect("Server paniced");
     /// ```
-    pub fn evaluate<F: FnMut(ExecutorStatus)>(
+    pub fn evaluate<F: FnMut(ExecutorStatus<SystemTime>)>(
         mut dag: ExecutionDAG,
         sender: ChannelSender,
         receiver: &ChannelReceiver,
@@ -145,13 +145,27 @@ impl ExecutorClient {
                     }
                 }
                 Ok(ExecutorServerMessage::Error(error)) => {
-                    info!("Error occurred: {}", error);
+                    error!("Error occurred: {}", error);
                     // TODO abort
                     break;
                 }
                 Ok(ExecutorServerMessage::Status(status)) => {
                     info!("Server status: {:#?}", status);
-                    status_callback(status);
+                    status_callback(ExecutorStatus {
+                        connected_workers: status
+                            .connected_workers
+                            .into_iter()
+                            .map(|worker| ExecutorWorkerStatus {
+                                uuid: worker.uuid,
+                                name: worker.name,
+                                current_job: worker
+                                    .current_job
+                                    .map(|(name, dur)| (name, SystemTime::now() - dur)),
+                            })
+                            .collect(),
+                        ready_execs: status.ready_execs,
+                        waiting_execs: status.waiting_execs,
+                    });
                 }
                 Ok(ExecutorServerMessage::Done) => {
                     info!("Execution completed!");

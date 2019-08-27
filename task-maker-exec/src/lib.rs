@@ -20,6 +20,7 @@
 #[macro_use]
 extern crate log;
 
+use bincode;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -27,6 +28,7 @@ use std::thread;
 use task_maker_dag::ExecutionDAG;
 use task_maker_store::FileStore;
 
+pub(crate) use check_dag::*;
 pub use client::*;
 pub use executor::*;
 use failure::Error;
@@ -34,7 +36,9 @@ pub use sandbox::*;
 pub(crate) use scheduler::*;
 use task_maker_cache::Cache;
 pub(crate) use worker::*;
+pub(crate) use worker_manager::*;
 
+mod check_dag;
 mod client;
 mod executor;
 pub mod executors;
@@ -42,20 +46,19 @@ pub mod proto;
 mod sandbox;
 mod scheduler;
 mod worker;
+mod worker_manager;
 
 /// The channel part that sends data.
-pub type ChannelSender = Sender<String>;
+pub type ChannelSender = Sender<Vec<u8>>;
 /// The channel part that receives data.
-pub type ChannelReceiver = Receiver<String>;
+pub type ChannelReceiver = Receiver<Vec<u8>>;
 
 /// Serialize a message into the sender serializing it.
 pub fn serialize_into<T>(what: &T, sender: &ChannelSender) -> Result<(), Error>
 where
     T: serde::Serialize,
 {
-    sender
-        .send(serde_json::to_string(what)?)
-        .map_err(|e| e.into())
+    sender.send(bincode::serialize(what)?).map_err(|e| e.into())
 }
 
 /// Deserialize a message from the channel and return it.
@@ -64,7 +67,7 @@ where
     for<'de> T: serde::Deserialize<'de>,
 {
     let data = reader.recv()?;
-    serde_json::from_str(&data).map_err(|e| e.into())
+    bincode::deserialize(&data).map_err(|e| e.into())
 }
 
 /// Evaluate a DAG locally spawning a new [`LocalExecutor`](executors/struct.LocalExecutor.html)
@@ -82,13 +85,8 @@ pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>>(
     let server = thread::spawn(move || {
         let file_store = FileStore::new(&store_dir).expect("Cannot create the file store");
         let cache = Cache::new(store_dir).expect("Cannot create the cache");
-        let mut executor = executors::LocalExecutor::new(
-            Arc::new(Mutex::new(file_store)),
-            cache,
-            num_cores,
-            sandbox_path,
-        );
-        executor.evaluate(tx_remote, rx_remote).unwrap();
+        let executor = executors::LocalExecutor::new(Arc::new(file_store), num_cores, sandbox_path);
+        executor.evaluate(tx_remote, rx_remote, cache).unwrap();
     });
     ExecutorClient::evaluate(dag, tx, &rx, |_| {}).unwrap();
     server.join().expect("Server panicked");

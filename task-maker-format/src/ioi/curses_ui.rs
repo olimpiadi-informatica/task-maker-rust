@@ -306,17 +306,17 @@ fn evaluation_score<'a>(state: &'a UIState, solution: &Path, loading: char) -> T
     if let Some(Some(score)) = state.evaluations.get(solution).map(|s| s.score) {
         if score == 0.0 {
             Text::styled(
-                format!(" {:>3} ", score),
+                format!(" {:>3.0} ", score),
                 Style::default().fg(Color::Red).modifier(Modifier::BOLD),
             )
         } else if (score - state.max_score).abs() < 0.001 {
             Text::styled(
-                format!(" {:>3} ", score),
+                format!(" {:>3.0} ", score),
                 Style::default().fg(Color::Green).modifier(Modifier::BOLD),
             )
         } else {
             Text::styled(
-                format!(" {:>3} ", score),
+                format!(" {:>3.0} ", score),
                 Style::default().fg(Color::Yellow).modifier(Modifier::BOLD),
             )
         }
@@ -442,23 +442,28 @@ where
     let max_len = status
         .connected_workers
         .iter()
-        .map(|(_, name, _)| name.len())
+        .map(|worker| worker.name.len())
         .max()
         .unwrap_or(0);
     let text: Vec<Text> = status
         .connected_workers
         .iter()
-        .sorted_by_key(|(_, name, _)| name)
-        .flat_map(|(uuid, name, working)| {
+        .sorted_by_key(|worker| &worker.name)
+        .flat_map(|worker| {
             let mut texts = vec![];
             texts.push(Text::raw(format!(
                 "- {:<max_len$} ({}) ",
-                name,
-                uuid,
+                worker.name,
+                worker.uuid,
                 max_len = max_len
             )));
-            if *working {
-                texts.push(Text::raw(loading.to_string()));
+            if let Some(job) = &worker.current_job {
+                texts.push(Text::raw(format!(
+                    "{} {} ({:.2}s)",
+                    loading,
+                    job.0,
+                    (job.1.elapsed().map(|d| d.as_millis()).unwrap_or(0) as f64) / 1000.0
+                )));
             }
             texts.push(Text::raw("\n"));
             texts

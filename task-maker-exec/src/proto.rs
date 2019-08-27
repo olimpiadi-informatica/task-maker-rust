@@ -32,13 +32,13 @@
 //! - `B` sends [`FileProtocol::End`](enum.FileProtocol.html#variant.End) which triggers a protocol
 //!   switch, back into normal mode
 
+use crate::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::Path;
+use std::time::Duration;
 use task_maker_dag::*;
 use task_maker_store::*;
-
-use crate::*;
-use std::collections::HashMap;
 
 /// Messages that the client sends to the server.
 #[derive(Debug, Serialize, Deserialize)]
@@ -80,7 +80,7 @@ pub enum ExecutorServerMessage {
     /// There was an error during the evaluation.
     Error(String),
     /// The server status as asked by the client.
-    Status(ExecutorStatus),
+    Status(ExecutorStatus<Duration>),
     /// The evaluation of the DAG is complete, this message will close the connection.
     Done,
 }
@@ -99,7 +99,7 @@ pub enum WorkerClientMessage {
     ProvideFile(FileUuid, FileStoreKey),
     /// The worker needs a file from the server. The server should send back that file in order to
     /// run the execution on the worker.
-    AskFile(FileUuid),
+    AskFile(FileStoreKey),
 }
 
 /// Messages sent by the server to the worker.
@@ -107,9 +107,11 @@ pub enum WorkerClientMessage {
 pub enum WorkerServerMessage {
     /// The job the worker should do. Boxed to reduce the enum size.
     Work(Box<WorkerJob>),
-    /// The file the workers as asked After this message there is a protocol switch for the file
+    /// The file the workers as asked. After this message there is a protocol switch for the file
     /// transmission.
-    ProvideFile(FileUuid, FileStoreKey),
+    ProvideFile(FileStoreKey),
+    /// Ask the worker to exit.
+    Exit,
 }
 
 /// Messages sent during the FileProtocol operation, during the transfer of a file.

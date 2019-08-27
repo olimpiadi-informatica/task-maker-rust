@@ -16,8 +16,8 @@ struct WorkerCurrentJob {
     current_job: Option<(Box<WorkerJob>, HashMap<FileUuid, FileStoreHandle>)>,
     /// The currently running sandbox.
     current_sandbox: Option<Sandbox>,
-    /// The number of missing files that are required for the sandbox setup.
-    missing_deps: usize,
+    /// The dependencies that are missing and required for the execution start.
+    missing_deps: HashMap<FileStoreKey, FileUuid>,
 }
 
 /// The worker is the component that receives the work from the server and sends the results back.
@@ -33,7 +33,7 @@ pub(crate) struct Worker {
     /// The channel that receives messages from the server.
     receiver: ChannelReceiver,
     /// A reference to the [`FileStore`](../task_maker_store/struct.FileStore.html).
-    file_store: Arc<Mutex<FileStore>>,
+    file_store: Arc<FileStore>,
     /// Job the worker is currently working on.
     current_job: Arc<Mutex<WorkerCurrentJob>>,
     /// Where to put the sandboxes.
@@ -66,19 +66,8 @@ impl WorkerCurrentJob {
         WorkerCurrentJob {
             current_job: None,
             current_sandbox: None,
-            missing_deps: 0,
+            missing_deps: HashMap::new(),
         }
-    }
-
-    /// Keeps track that a new dependency is ready, will panic if no new file were expected. Will
-    /// return true if all the dependencies are ready.
-    fn dependency_received(&mut self) -> bool {
-        assert!(
-            self.missing_deps > 0,
-            "a new dep is ready but no deps were waiting"
-        );
-        self.missing_deps -= 1;
-        self.missing_deps == 0
     }
 }
 
@@ -88,7 +77,7 @@ impl Worker {
     /// communicate with the worker.
     pub fn new<S: Into<String>, P: Into<PathBuf>>(
         name: S,
-        file_store: Arc<Mutex<FileStore>>,
+        file_store: Arc<FileStore>,
         sandbox_path: P,
     ) -> (Worker, WorkerConn) {
         let (tx, rx_worker) = channel();
@@ -132,50 +121,57 @@ impl Worker {
                 Ok(WorkerServerMessage::Work(job)) => {
                     trace!("Worker {} got job: {:?}", self, job);
                     assert!(self.current_job.lock().unwrap().current_job.is_none());
-                    let mut missing_deps = 0;
+                    let mut missing_deps = HashMap::new();
                     let mut handles = HashMap::new();
                     for input in job.execution.dependencies().iter() {
-                        let store = self.file_store.lock().unwrap();
                         let key = job
                             .dep_keys
                             .get(&input)
                             .ok_or(WorkerError::MissingDependencyKey { uuid: *input })?;
-                        match store.get(&key) {
+                        match self.file_store.get(&key) {
                             None => {
                                 serialize_into(
-                                    &WorkerClientMessage::AskFile(*input),
+                                    &WorkerClientMessage::AskFile(key.clone()),
                                     &self.sender,
                                 )?;
-                                missing_deps += 1;
+                                missing_deps.insert(key.clone(), *input);
                             }
                             Some(handle) => {
                                 handles.insert(*input, handle);
                             }
                         }
                     }
+                    let job_ready = missing_deps.is_empty();
                     {
                         let mut current_job = self.current_job.lock().unwrap();
                         current_job.missing_deps = missing_deps;
                         current_job.current_job = Some((job, handles));
                     }
-                    if missing_deps == 0 {
+                    if job_ready {
                         start_job()?;
                     }
                 }
-                Ok(WorkerServerMessage::ProvideFile(uuid, key)) => {
-                    info!("Server sent file {} {:?}", uuid, key);
-                    let store = self.file_store.lock().unwrap();
+                Ok(WorkerServerMessage::ProvideFile(key)) => {
+                    info!("Server sent file {:?}", key);
                     let reader = ChannelFileIterator::new(&self.receiver);
-                    let handle = store.store(&key, reader)?;
+                    let handle = self.file_store.store(&key, reader)?;
                     let mut job = self.current_job.lock().unwrap();
+                    let uuid = job
+                        .missing_deps
+                        .remove(&key)
+                        .expect("Server sent a not required dependency");
                     job.current_job
                         .as_mut()
                         .expect("Received file while doing nothing")
                         .1
                         .insert(uuid, handle);
-                    if job.dependency_received() {
+                    if job.missing_deps.is_empty() {
                         start_job()?;
                     }
+                }
+                Ok(WorkerServerMessage::Exit) => {
+                    info!("Worker {} ({}) is asked to exit", self.name, self.uuid);
+                    break;
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();

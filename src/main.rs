@@ -66,7 +66,7 @@ extern crate log;
 mod opt;
 
 use std::path::PathBuf;
-use std::sync::{mpsc::channel, Arc, Mutex};
+use std::sync::{mpsc::channel, Arc};
 use std::thread;
 use structopt::StructOpt;
 use task_maker_cache::Cache;
@@ -136,12 +136,7 @@ fn main() {
     let cache = Cache::new(store_path.join("cache")).expect("Cannot create the cache");
     let num_cores = opt.num_cores.unwrap_or_else(|| num_cpus::get());
     let sandbox_path = store_path.join("sandboxes");
-    let mut executor = LocalExecutor::new(
-        Arc::new(Mutex::new(file_store)),
-        cache,
-        num_cores,
-        sandbox_path,
-    );
+    let executor = LocalExecutor::new(Arc::new(file_store), num_cores, sandbox_path);
 
     // build the DAG for the task
     task.execute(&mut eval, &eval_config).unwrap();
@@ -154,7 +149,7 @@ fn main() {
     let server = thread::Builder::new()
         .name("Executor thread".into())
         .spawn(move || {
-            executor.evaluate(tx_remote, rx_remote).unwrap();
+            executor.evaluate(tx_remote, rx_remote, cache).unwrap();
         })
         .unwrap();
 

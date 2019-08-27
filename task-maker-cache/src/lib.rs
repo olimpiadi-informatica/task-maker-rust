@@ -24,7 +24,7 @@
 //! use task_maker_cache::{Cache, CacheResult};
 //! use std::collections::HashMap;
 //! use task_maker_dag::{Execution, ExecutionCommand, ExecutionResult, ExecutionStatus, ExecutionResourcesUsage, File};
-//! use task_maker_store::{FileStore, FileStoreKey};
+//! use task_maker_store::{FileStore, FileStoreKey, ReadFileIterator};
 //!
 //! // make a new store and a new cache in a testing environment
 //! let dir = TempDir::new("tm-test").unwrap();
@@ -53,13 +53,13 @@
 //!     was_cached: false,
 //! };
 //!
-//! // make the FileUuid -> FileStoreKey map
+//! // make the FileUuid -> FileStoreHandle map
 //! let key = FileStoreKey::from_file(&path).unwrap();
 //! let mut file_keys = HashMap::new();
-//! file_keys.insert(input.uuid, key);
+//! file_keys.insert(input.uuid, store.store(&key, ReadFileIterator::new(&path).unwrap()).unwrap());
 //!
 //! // insert the result in the cache
-//! cache.insert(&exec, &file_keys, result, None, None, HashMap::new());
+//! cache.insert(&exec, &file_keys, result);
 //!
 //! // retrieve the result from the cache
 //! let res = cache.get(&exec, &file_keys, &mut store);
@@ -126,18 +126,6 @@ struct CacheEntry {
     outputs: HashMap<PathBuf, FileStoreKey>,
 }
 
-/// The set of outputs produced by a cached execution. Note that this contains `FileStoreHandle`
-/// that should be kept alive for preserving the file inside the `FileStore`.
-#[derive(Debug)]
-pub struct Outputs {
-    /// The handle to the stdout, if any.
-    pub stdout: Option<FileStoreHandle>,
-    /// The handle to the stderr, if any.
-    pub stderr: Option<FileStoreHandle>,
-    /// The handle to the output files, indexed by their path inside the sandbox.
-    pub outputs: HashMap<PathBuf, FileStoreHandle>,
-}
-
 /// Handle the cached executions, loading and storing them to disk.
 #[derive(Debug)]
 pub struct Cache {
@@ -156,7 +144,7 @@ pub enum CacheResult {
         /// The result of the execution.
         result: ExecutionResult,
         /// The outputs of the execution.
-        outputs: Outputs,
+        outputs: HashMap<FileUuid, FileStoreHandle>,
     },
 }
 
@@ -165,14 +153,14 @@ impl CacheKey {
     /// the UUIDs of the current DAG to the persisted `FileStoreKey`s.
     fn from_execution(
         execution: &Execution,
-        file_keys: &HashMap<FileUuid, FileStoreKey>,
+        file_keys: &HashMap<FileUuid, FileStoreHandle>,
     ) -> CacheKey {
-        let stdin = execution.stdin.as_ref().map(|f| file_keys[f].clone());
+        let stdin = execution.stdin.as_ref().map(|f| file_keys[f].key().clone());
         let inputs = execution
             .inputs
             .clone()
             .into_iter()
-            .map(|(p, f)| (p, file_keys[&f.file].clone(), f.executable))
+            .map(|(p, f)| (p, file_keys[&f.file].key().clone(), f.executable))
             .sorted()
             .collect_vec();
         CacheKey {
@@ -187,7 +175,11 @@ impl CacheKey {
 impl CacheEntry {
     /// Search in the file store the handles of all the output files. Will return `None` if at least
     /// one of them is missing.
-    fn outputs(&self, file_store: &mut FileStore) -> Option<Outputs> {
+    fn outputs(
+        &self,
+        file_store: &FileStore,
+        exec: &Execution,
+    ) -> Option<HashMap<FileUuid, FileStoreHandle>> {
         // given an Option<FileStoreKey> will extract its FileStoreHandle if present, otherwise will
         // return None. If None is passed None is returned.
         macro_rules! try_get {
@@ -205,17 +197,19 @@ impl CacheEntry {
             };
         }
 
-        let stdout = try_get!(self.stdout);
-        let stderr = try_get!(self.stderr);
         let mut outputs = HashMap::new();
-        for (path, key) in self.outputs.iter() {
-            outputs.insert(path.clone(), try_get!(Some(key)).unwrap());
+
+        if let (Some(stdout), Some(handle)) = (exec.stdout.as_ref(), try_get!(self.stdout)) {
+            outputs.insert(stdout.uuid, handle);
         }
-        Some(Outputs {
-            stdout,
-            stderr,
-            outputs,
-        })
+        if let (Some(stderr), Some(handle)) = (exec.stderr.as_ref(), try_get!(self.stderr)) {
+            outputs.insert(stderr.uuid, handle);
+        }
+        for (path, key) in self.outputs.iter() {
+            let uuid = exec.outputs[path].uuid;
+            outputs.insert(uuid, try_get!(Some(key)).unwrap());
+        }
+        Some(outputs)
     }
 
     /// Checks whether a given execution is compatible with the limits stored in this entry. See the
@@ -291,14 +285,26 @@ impl Cache {
     pub fn insert(
         &mut self,
         execution: &Execution,
-        file_keys: &HashMap<FileUuid, FileStoreKey>,
+        file_keys: &HashMap<FileUuid, FileStoreHandle>,
         result: ExecutionResult,
-        stdout: Option<FileStoreKey>,
-        stderr: Option<FileStoreKey>,
-        outputs: HashMap<PathBuf, FileStoreKey>,
     ) {
         let key = CacheKey::from_execution(execution, file_keys);
         let set = self.entries.entry(key.clone()).or_default();
+        let stdout = execution
+            .stdout
+            .as_ref()
+            .and_then(|f| file_keys.get(&f.uuid))
+            .map(|hdl| hdl.key().clone());
+        let stderr = execution
+            .stderr
+            .as_ref()
+            .and_then(|f| file_keys.get(&f.uuid))
+            .map(|hdl| hdl.key().clone());
+        let outputs = execution
+            .outputs
+            .iter()
+            .map(|(path, file)| (path.clone(), file_keys[&file.uuid].key().clone()))
+            .collect();
         let entry = CacheEntry {
             result,
             limits: execution.limits.clone(),
@@ -323,15 +329,15 @@ impl Cache {
     pub fn get(
         &mut self,
         execution: &Execution,
-        file_keys: &HashMap<FileUuid, FileStoreKey>,
-        file_store: &mut FileStore,
+        file_keys: &HashMap<FileUuid, FileStoreHandle>,
+        file_store: &FileStore,
     ) -> CacheResult {
         let key = CacheKey::from_execution(execution, file_keys);
         if !self.entries.contains_key(&key) {
             return CacheResult::Miss;
         }
         for entry in self.entries[&key].iter() {
-            match entry.outputs(file_store) {
+            match entry.outputs(file_store, execution) {
                 None => {
                     // TODO: remove the entry because it's not valid anymore
                     unimplemented!(

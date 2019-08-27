@@ -13,6 +13,7 @@ mod raw;
 
 pub use json::JsonUI;
 pub use raw::RawUI;
+use std::time::SystemTime;
 use task_maker_exec::ExecutorStatus;
 
 /// Channel type for sending `UIMessage`s.
@@ -46,7 +47,7 @@ pub enum UIMessage {
     /// An update on the status of the executor.
     ServerStatus {
         /// The status of the executor.
-        status: ExecutorStatus,
+        status: ExecutorStatus<SystemTime>,
     },
 
     /// An update on the compilation status.

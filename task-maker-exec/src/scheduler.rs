@@ -1,94 +1,465 @@
-use crate::proto::*;
-use crate::*;
-use std::collections::{BinaryHeap, HashMap};
+use crate::proto::WorkerServerMessage;
+use crate::{
+    serialize_into, ChannelSender, ExecutionDAGWatchSet, ExecutorStatus, ExecutorWorkerStatus,
+    WorkerJob,
+};
+use failure::Error;
+use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
-use task_maker_cache::CacheResult;
-use task_maker_dag::*;
-use task_maker_store::FileStoreKey;
+use std::time::{Duration, Instant};
+use task_maker_cache::{Cache, CacheResult};
+use task_maker_dag::{
+    CacheMode, Execution, ExecutionDAGData, ExecutionResult, ExecutionStatus, ExecutionUuid,
+    FileUuid, WorkerUuid,
+};
+use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey};
 
-/// A set of utilities for scheduling tasks between workers.
-pub(crate) struct Scheduler;
+/// A `Scheduler` is a service that is able to orchestrate the execution of a DAG, sending the jobs
+/// to the workers, listening for events and managing the cache of the executions.
+pub struct Scheduler {
+    /// The DAG the `Scheduler` is currently working on.
+    dag: Option<ExecutionDAGData>,
+    /// The set of callbacks the client is interested in.
+    callbacks: Option<ExecutionDAGWatchSet>,
+
+    /// The priority queue of the ready tasks, waiting for the workers.
+    ready_execs: BinaryHeap<ExecutionUuid>,
+    /// The list of tasks waiting for some dependencies, each with the list of missing files, when a
+    /// task is ready it's removed from the map.
+    missing_deps: HashMap<ExecutionUuid, HashSet<FileUuid>>,
+    /// The set of executions that depends on a file, this is a lookup table for when the files
+    /// become ready.
+    input_of: HashMap<FileUuid, HashSet<ExecutionUuid>>,
+
+    /// The list of known [`FileStoreHandle`](../task_maker_store/struct.FileStoreHandle.html)s
+    /// for the current DAG. Storing them here prevents the `FileStore` from flushing them away.
+    file_handles: HashMap<FileUuid, FileStoreHandle>,
+
+    /// The cache of the executions.
+    cache: Cache,
+    /// A reference to the server's [`FileStore`](../task_maker_store/struct.FileStore.html).
+    file_store: Arc<FileStore>,
+    /// The list of the workers that are either ready for some work or already working on a job.
+    connected_workers: HashMap<WorkerUuid, ConnectedWorker>,
+    /// The channel to use to send messages to the executor.
+    executor: Sender<SchedulerOutMessage>,
+}
+
+/// The state of a connected worker.
+#[derive(Debug)]
+struct ConnectedWorker {
+    /// The uuid of the worker.
+    uuid: WorkerUuid,
+    /// The name of the worker.
+    name: String,
+    /// The channel to use to send messages to the worker.
+    sender: ChannelSender,
+    /// The job the worker is currently working on, with the instant of the start.
+    current_job: Option<(ExecutionUuid, Instant)>,
+}
+
+/// Messages that the scheduler can receive.
+#[derive(Debug)]
+pub enum SchedulerInMessage {
+    /// The executor is asking to evaluate a DAG.
+    DAG {
+        /// The DAG to evaluate.
+        dag: ExecutionDAGData,
+        /// The set of callbacks the client is interested in.
+        callbacks: ExecutionDAGWatchSet,
+    },
+    /// A new file is ready in the store.
+    FileReady {
+        /// The uuid of the file inside the DAG.
+        uuid: FileUuid,
+        /// The handle to the file in the store.
+        handle: FileStoreHandle,
+    },
+    /// A worker completed its job.
+    WorkerResult {
+        /// The uuid of the worker that was doing the job.
+        worker: WorkerUuid,
+        /// The result of the execution.
+        result: ExecutionResult,
+        /// The outputs that the worker produced.
+        outputs: HashMap<FileUuid, FileStoreHandle>,
+    },
+    /// A new worker is ready for executing some work.
+    WorkerConnected {
+        /// The uuid of the worker.
+        uuid: WorkerUuid,
+        /// The name of the worker.
+        name: String,
+        /// The channel to use to send messages to the worker.
+        sender: ChannelSender,
+    },
+    /// A previously ready worker is not ready anymore.
+    WorkerDisconnected {
+        /// The uuid of the worker that has disconnected.
+        uuid: WorkerUuid,
+    },
+    /// The executor is asking for the status of the scheduler.
+    Status,
+    /// The executor is asking to exit.
+    Exit,
+}
+
+/// Messages that the `Scheduler` sends to the `Executor`.
+#[derive(Debug)]
+pub enum SchedulerOutMessage {
+    /// An execution has started on a specific worker.
+    ExecutionStarted(ExecutionUuid, WorkerUuid),
+    /// An execution has been completed.
+    ExecutionDone(ExecutionUuid, ExecutionResult),
+    /// An execution has been skipped.
+    ExecutionSkipped(ExecutionUuid),
+    /// A file is ready in the store. The `bool` is `true` if it comes from a successful execution.
+    FileReady(FileUuid, FileStoreHandle, bool),
+    /// The status of the scheduler.
+    Status(ExecutorStatus<Duration>),
+}
 
 impl Scheduler {
-    /// Setup the scheduler for the evaluation of a DAG.
-    pub fn setup(executor_data: &mut ExecutorData) {
-        let dag = executor_data
-            .dag
-            .as_ref()
-            .expect("Setupping a scheduler without a DAG");
-        let mut missing_deps = HashMap::new();
-        let mut dependents = HashMap::new();
-        let mut ready_execs = BinaryHeap::new();
-        for (exec_uuid, exec) in dag.executions.iter() {
-            let deps = exec.dependencies();
-            missing_deps.insert(exec_uuid.clone(), deps.iter().cloned().collect());
-            if deps.is_empty() {
-                ready_execs.push(exec_uuid.clone());
-            }
-            for dep in deps.into_iter() {
-                dependents.entry(dep).or_insert_with(|| vec![]);
-                dependents.get_mut(&dep).unwrap().push(exec_uuid.clone());
-            }
+    /// Make a new scheduler bound to the specified executor.
+    pub fn new(
+        cache: Cache,
+        file_store: Arc<FileStore>,
+        executor: Sender<SchedulerOutMessage>,
+    ) -> Scheduler {
+        Scheduler {
+            dag: None,
+            callbacks: None,
+            ready_execs: BinaryHeap::new(),
+            missing_deps: HashMap::new(),
+            file_handles: HashMap::new(),
+            cache,
+            file_store,
+            connected_workers: HashMap::new(),
+            executor,
+            input_of: HashMap::new(),
         }
-
-        executor_data.missing_deps = missing_deps;
-        executor_data.dependents = dependents;
-        executor_data.ready_execs = ready_execs;
     }
 
-    /// Assign the most important ready jobs to the free workers.
-    pub fn schedule(executor_data: &mut ExecutorData) -> Result<(), Error> {
-        if executor_data.dag.is_none() {
-            // no DAG no party
+    /// Consume the `Scheduler` starting the scheduling process and returning after the evaluation
+    /// has been completed.
+    pub fn work(mut self, recv: Receiver<SchedulerInMessage>) -> Result<(), Error> {
+        while self.dag.is_none() || !self.is_done() {
+            let message = recv.recv();
+            match message {
+                Ok(SchedulerInMessage::DAG { dag, callbacks }) => {
+                    info!("Scheduler received a new DAG");
+                    let mut input_of: HashMap<FileUuid, HashSet<ExecutionUuid>> = HashMap::new();
+                    for exec in dag.executions.values() {
+                        let missing_dep = self.missing_deps.entry(exec.uuid).or_default();
+                        for input in exec.dependencies().iter() {
+                            let entry = input_of.entry(*input).or_default();
+                            entry.insert(exec.uuid);
+                            missing_dep.insert(*input);
+                        }
+                    }
+                    self.dag = Some(dag);
+                    self.callbacks = Some(callbacks);
+                    self.input_of = input_of;
+                }
+                Ok(SchedulerInMessage::FileReady { uuid, handle }) => {
+                    info!("Client sent a file {:?}", uuid);
+                    self.file_handles.insert(uuid, handle);
+                    self.file_success(uuid)?;
+                }
+                Ok(SchedulerInMessage::WorkerResult {
+                    worker,
+                    result,
+                    outputs,
+                }) => {
+                    let worker = match self.connected_workers.remove(&worker) {
+                        Some(worker) => worker,
+                        None => {
+                            warn!("Unknown worker {} completed a job", worker);
+                            continue;
+                        }
+                    };
+                    let execution_uuid = match worker.current_job {
+                        Some((uuid, _)) => uuid,
+                        None => {
+                            warn!(
+                                "Worker {} ({}) completed a job that wasn't doing",
+                                worker.name, worker.uuid
+                            );
+                            continue;
+                        }
+                    };
+                    let execution = self.dag.as_ref().unwrap().executions[&execution_uuid].clone();
+                    info!("Worker {:?} completed execution {}", worker, execution.uuid);
+                    self.exec_completed(&execution, result, outputs)?;
+                    self.assign_jobs()?;
+                }
+                Ok(SchedulerInMessage::WorkerConnected { uuid, name, sender }) => {
+                    info!("Worker {} ({}) connected", name, uuid);
+                    self.connected_workers.insert(
+                        uuid,
+                        ConnectedWorker {
+                            uuid,
+                            name,
+                            sender,
+                            current_job: None,
+                        },
+                    );
+                    self.assign_jobs()?;
+                }
+                Ok(SchedulerInMessage::WorkerDisconnected { uuid }) => {
+                    info!("Worker {} disconnected", uuid);
+                    if let Some(worker) = self.connected_workers.remove(&uuid) {
+                        if let Some((job, _)) = worker.current_job {
+                            self.ready_execs.push(job);
+                        }
+                    }
+                }
+                Ok(SchedulerInMessage::Status) => {
+                    let status = ExecutorStatus {
+                        connected_workers: self
+                            .connected_workers
+                            .values()
+                            .map(|worker| ExecutorWorkerStatus {
+                                uuid: worker.uuid,
+                                name: worker.name.clone(),
+                                current_job: worker.current_job.as_ref().map(|(exec, start)| {
+                                    (
+                                        self.dag.as_ref().unwrap().executions[&exec]
+                                            .description
+                                            .clone(),
+                                        start.elapsed(),
+                                    )
+                                }),
+                            })
+                            .collect(),
+                        ready_execs: self.ready_execs.len(),
+                        waiting_execs: self.missing_deps.len(),
+                    };
+                    self.executor
+                        .send(SchedulerOutMessage::Status(status))
+                        .unwrap();
+                }
+                Ok(SchedulerInMessage::Exit) => {
+                    break;
+                }
+                Err(_) => {
+                    // the executor has dropped the sender
+                    break;
+                }
+            }
+        }
+        debug!("Scheduler exited");
+        Ok(())
+    }
+
+    /// Whether the evaluation of the DAG has been completed.
+    fn is_done(&self) -> bool {
+        if !self.ready_execs.is_empty() {
+            return false;
+        }
+        if !self.missing_deps.is_empty() {
+            return false;
+        }
+        for worker in self.connected_workers.values() {
+            if worker.current_job.is_some() {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Mark a file as failed, skipping all the executions that depends on it (even transitively).
+    /// This will also send the file to the client, if needed.
+    fn file_failed(&mut self, file: FileUuid) -> Result<(), Error> {
+        self.send_file(file, false)?;
+        if !self.input_of.contains_key(&file) {
             return Ok(());
         }
-        trace!("Schedule in progress");
-
-        // process all the executions that are cached. Note that this may call `schedule`
-        // recursively, any state stored locally here may become outdated after the recursive call.
-        Scheduler::process_cached(executor_data)?;
-
-        let mut free_workers = vec![];
-        let mut doing_workers = 0;
-        for (worker_uuid, worker) in executor_data.workers.iter() {
-            match *worker.job.lock().unwrap() {
-                WorkerWaitingState::Waiting => free_workers.push(*worker_uuid),
-                WorkerWaitingState::GotJob(_) => doing_workers += 1,
-                _ => {}
-            }
-        }
-        let mut assigned = vec![];
-        let mut ready_execs = executor_data.ready_execs.clone();
-        while assigned.len() < free_workers.len() {
-            if let Some(exec) = ready_execs.pop() {
-                assigned.push(exec);
+        for exec in self.input_of[&file].clone() {
+            // do not skip the same execution twice
+            if self.missing_deps.contains_key(&exec) {
+                self.missing_deps.remove(&exec);
             } else {
-                break;
+                continue;
+            }
+            if self.callbacks.as_ref().unwrap().executions.contains(&exec) {
+                self.executor
+                    .send(SchedulerOutMessage::ExecutionSkipped(exec))?;
+            }
+            let exec = &self.dag.as_ref().unwrap().executions[&exec];
+            for output in exec.outputs() {
+                self.file_failed(output)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Mark a file as successful and schedule all the executions that become ready.
+    /// This will also send the file to the client, if needed.
+    fn file_success(&mut self, file: FileUuid) -> Result<(), Error> {
+        self.send_file(file, true)?;
+        if !self.input_of.contains_key(&file) {
+            return Ok(());
+        }
+        for exec in &self.input_of[&file] {
+            if self.missing_deps.contains_key(exec) {
+                self.missing_deps.get_mut(exec).unwrap().remove(&file);
+                if self.missing_deps[exec].is_empty() {
+                    self.missing_deps.remove(exec);
+                    self.ready_execs.push(*exec);
+                }
+            }
+        }
+        self.schedule_cached()?;
+        self.assign_jobs()?;
+        Ok(())
+    }
+
+    /// Send a file to the client if its uuid is included in the callbacks.
+    fn send_file(&self, file: FileUuid, status: bool) -> Result<(), Error> {
+        if !self.callbacks.as_ref().unwrap().files.contains(&file) {
+            return Ok(());
+        }
+        if !self.file_handles.contains_key(&file) {
+            return Ok(());
+        }
+        self.executor.send(SchedulerOutMessage::FileReady(
+            file,
+            self.file_handles[&file].clone(),
+            status,
+        ))?;
+        Ok(())
+    }
+
+    /// Mark an execution as completed, sending the notification to the client and marking all the
+    /// produced files as done. Add the execution to the cache and schedule all the new executions
+    /// that become ready.
+    fn exec_completed(
+        &mut self,
+        execution: &Execution,
+        result: ExecutionResult,
+        outputs: HashMap<FileUuid, FileStoreHandle>,
+    ) -> Result<(), Error> {
+        if self
+            .callbacks
+            .as_ref()
+            .unwrap()
+            .executions
+            .contains(&execution.uuid)
+        {
+            self.executor.send(SchedulerOutMessage::ExecutionDone(
+                execution.uuid,
+                result.clone(),
+            ))?;
+        }
+        for (uuid, handle) in outputs.iter() {
+            self.file_handles.insert(*uuid, handle.clone());
+        }
+        let successful = ExecutionStatus::Success == result.status;
+        self.cache_execution(&execution, outputs, result);
+        if successful {
+            for output in execution.outputs() {
+                self.file_success(output)?;
+            }
+        } else {
+            for output in execution.outputs() {
+                self.file_failed(output)?;
+            }
+        }
+        self.schedule_cached()?;
+        Ok(())
+    }
+
+    /// Store an execution in the cache.
+    fn cache_execution(
+        &mut self,
+        execution: &Execution,
+        outputs: HashMap<FileUuid, FileStoreHandle>,
+        result: ExecutionResult,
+    ) {
+        let mut file_keys: HashMap<FileUuid, FileStoreKey> = execution
+            .dependencies()
+            .iter()
+            .map(|f| (*f, self.file_handles[f].key().clone()))
+            .collect();
+        for output in execution.outputs() {
+            file_keys.insert(output, outputs[&output].key().clone());
+        }
+        self.cache.insert(execution, &self.file_handles, result);
+    }
+
+    /// Look at all the ready executions and mark as completed all the ones that are inside the
+    /// cache.
+    fn schedule_cached(&mut self) -> Result<(), Error> {
+        let cache_mode = &self.dag.as_ref().unwrap().config.cache_mode;
+        // disable the cache
+        if let CacheMode::Nothing = cache_mode {
+            return Ok(());
+        }
+
+        let mut not_cached = BinaryHeap::new();
+        let mut cached = Vec::new();
+
+        for exec in self.ready_execs.iter() {
+            let exec = self.dag.as_ref().unwrap().executions[exec].clone();
+            if !self.is_cacheable(&exec, &cache_mode) {
+                not_cached.push(exec.uuid);
+                continue;
+            }
+            let result = self
+                .cache
+                .get(&exec, &self.file_handles, self.file_store.as_ref());
+            match result {
+                CacheResult::Hit { result, outputs } => {
+                    info!("Execution {} is a cache hit!", exec.uuid);
+                    cached.push((exec, result, outputs));
+                }
+                CacheResult::Miss => {
+                    not_cached.push(exec.uuid);
+                }
             }
         }
 
-        executor_data.ready_execs = ready_execs;
+        self.ready_execs = not_cached;
+        for (exec, result, outputs) in cached.into_iter() {
+            self.exec_completed(&exec, result, outputs)?;
+        }
 
-        trace!(
-            "{} doing workers, {} free workers, {} ready jobs, {} non-ready jobs, assigning {} jobs",
-            doing_workers,
-            free_workers.len(),
-            executor_data.ready_execs.len(),
-            executor_data.missing_deps.len(),
-            assigned.len()
-        );
+        Ok(())
+    }
 
-        for (worker, exec) in free_workers.into_iter().zip(assigned.into_iter()) {
-            doing_workers += 1;
-            let execution = executor_data.dag.as_ref().unwrap().executions[&exec].clone();
+    /// Whether an execution is eligible to be fetch from the cache.
+    fn is_cacheable(&self, execution: &Execution, cache_mode: &CacheMode) -> bool {
+        if let (CacheMode::Except(set), Some(tag)) = (cache_mode, execution.tag.as_ref()) {
+            if set.contains(tag) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Give to each free worker a job from the ready executions.
+    fn assign_jobs(&mut self) -> Result<(), Error> {
+        // borrow connected_workers as mut, file_handles as not mut
+        let file_handles = &self.file_handles;
+        for (worker_uuid, worker) in self.connected_workers.iter_mut() {
+            if worker.current_job.is_some() {
+                continue;
+            }
+            let exec = match self.ready_execs.pop() {
+                Some(exec) => exec,
+                None => break,
+            };
+            worker.current_job = Some((exec, Instant::now()));
+            let execution = self.dag.as_ref().unwrap().executions[&exec].clone();
             let dep_keys = execution
                 .dependencies()
                 .iter()
                 .map(|k| {
                     (
                         *k,
-                        executor_data
-                            .file_handles
+                        file_handles
                             .get(&k)
                             .unwrap_or_else(|| panic!("Unknown file key of {}", k))
                             .key()
@@ -96,279 +467,14 @@ impl Scheduler {
                     )
                 })
                 .collect();
-            if executor_data
-                .callbacks
-                .as_ref()
-                .unwrap()
-                .executions
-                .contains(&exec)
-            {
-                serialize_into(
-                    &ExecutorServerMessage::NotifyStart(exec, worker),
-                    executor_data.client_sender.as_ref().unwrap(),
-                )
-                .expect("Cannot send message to client");
-            }
-            Scheduler::assign_job(
-                executor_data
-                    .workers
-                    .get(&worker)
-                    .unwrap_or_else(|| panic!("Assigning to unknown worker {}", worker))
-                    .clone(),
-                WorkerJob {
-                    execution,
-                    dep_keys,
-                },
-                worker,
-            );
-        }
-
-        if executor_data.ready_execs.is_empty()
-            && executor_data.missing_deps.is_empty()
-            && doing_workers == 0
-            && executor_data.client_sender.is_some()
-        {
-            stop_all_workers(executor_data);
-            serialize_into(
-                &ExecutorServerMessage::Done,
-                executor_data.client_sender.as_ref().unwrap(),
-            )
-            .expect("Cannot send message to client");
-        }
-        Ok(())
-    }
-
-    /// Mark a file as ready: ready means that the file has been correctly generated and it's
-    /// present in the `FileStore` and all the executions that depend on the file may start if they
-    /// are ready.
-    ///
-    /// This will call `schedule` if there are some new ready executions.
-    pub fn file_ready(executor_data: &mut ExecutorData, file: FileUuid) -> Result<(), Error> {
-        trace!("File {} ready", file);
-        let mut needs_reshed = false;
-        if !executor_data.dependents.contains_key(&file) {
-            trace!("Leaf file is ready");
-            return Ok(());
-        }
-        let dependents = executor_data.dependents[&file].clone();
-        for exec in dependents.iter() {
-            if !executor_data.missing_deps.contains_key(&exec) {
-                // may happen for example in the following case
-                // F1 (failed) --- exec
-                // file  --------/
-                // F1 will remove exec from the missing deps, in this case this execution should be
-                // ignored.
-                continue;
-            }
-            let missing_deps = executor_data.missing_deps.get_mut(&exec).unwrap();
-            missing_deps.remove(&file);
-            // the execution is now ready
-            if missing_deps.is_empty() {
-                executor_data.ready_execs.push(exec.clone());
-                executor_data.missing_deps.remove(&exec);
-                needs_reshed = true;
-                let exec = &executor_data.dag.as_ref().unwrap().executions[&exec];
-                trace!(
-                    "Execution {} ({}) is now ready",
-                    exec.description,
-                    exec.uuid
-                );
-            }
-        }
-        if needs_reshed {
-            Scheduler::schedule(executor_data)?;
-        } else {
-            trace!("No new execution ready");
-        }
-        Ok(())
-    }
-
-    /// Mark a file as failed, the generation of the file failed so all the executions that depend
-    /// on this file will be skipped.
-    pub fn file_failed(executor_data: &mut ExecutorData, file: FileUuid) {
-        trace!("File {} failed", file);
-        if !executor_data.dependents.contains_key(&file) {
-            trace!("Leaf file has failed");
-            return;
-        }
-        let dependents = executor_data.dependents[&file].clone();
-        for exec in dependents.iter() {
-            executor_data.missing_deps.remove(&exec);
-            if executor_data
-                .callbacks
-                .as_ref()
-                .unwrap()
-                .executions
-                .contains(&exec)
-            {
-                serialize_into(
-                    &ExecutorServerMessage::NotifySkip(*exec),
-                    executor_data.client_sender.as_ref().unwrap(),
-                )
-                .expect("Cannot send message to client");
-            }
-        }
-        for exec in dependents.iter() {
-            {
-                let exec = &executor_data.dag.as_ref().unwrap().executions[&exec];
-                trace!(
-                    "Execution {} ({}) has been skipped due to {}",
-                    exec.description,
-                    exec.uuid,
-                    file
-                );
-            }
-            Scheduler::exec_failed(executor_data, *exec);
-        }
-    }
-
-    /// The execution failed so all its output files will not be generated.
-    fn exec_failed(executor_data: &mut ExecutorData, exec: ExecutionUuid) {
-        let exec = executor_data
-            .dag
-            .as_ref()
-            .unwrap()
-            .executions
-            .get(&exec)
-            .expect("Unknown execution completed");
-        for output in exec.outputs().into_iter() {
-            Scheduler::file_failed(executor_data, output);
-        }
-    }
-
-    /// Assign a job to the worker, waking up the thread of the executor that sends the job to the
-    /// worker.
-    fn assign_job(worker: Arc<WorkerState>, work: WorkerJob, worker_uuid: WorkerUuid) {
-        trace!("Assigning job {:?} to worker {}", work, worker_uuid);
-        let mut lock = worker.job.lock().unwrap();
-        *lock = WorkerWaitingState::GotJob(work);
-        worker.cv.notify_one();
-    }
-
-    /// Mark an execution as done and, if failed, mark as failed all the depending files and
-    /// executions, recursively.
-    ///
-    /// Send to the client the message informing the completeness of the execution.
-    pub fn exec_done(
-        executor_data: &mut ExecutorData,
-        execution: Execution,
-        result: ExecutionResult,
-    ) -> Result<(), Error> {
-        let status = result.status.clone();
-        if executor_data
-            .callbacks
-            .as_ref()
-            .unwrap()
-            .executions
-            .contains(&execution.uuid)
-        {
-            serialize_into(
-                &ExecutorServerMessage::NotifyDone(execution.uuid, result),
-                executor_data.client_sender.as_ref().unwrap(),
-            )?;
-        }
-        match status {
-            ExecutionStatus::Success => {}
-            _ => Scheduler::exec_failed(executor_data, execution.uuid),
-        }
-        Ok(())
-    }
-
-    /// Cache the result of an evaluation if the conditions are met.
-    pub fn cache_exec(
-        executor_data: &mut ExecutorData,
-        execution: &Execution,
-        result: ExecutionResult,
-        outputs: HashMap<FileUuid, FileStoreKey>,
-    ) {
-        if !Cache::is_cacheable(&result) {
-            info!(
-                "Execution {} ({}) rejected from cache because of the result {:?}",
-                execution.description, execution.uuid, result
-            );
-            return;
-        }
-        let file_keys = execution
-            .dependencies()
-            .iter()
-            .map(|f| (*f, executor_data.file_handles[f].key().clone()))
-            .collect();
-        let stdout = execution.stdout.as_ref().map(|f| outputs[&f.uuid].clone());
-        let stderr = execution.stderr.as_ref().map(|f| outputs[&f.uuid].clone());
-        let outputs = execution
-            .outputs
-            .iter()
-            .map(|(p, f)| (p.clone(), outputs[&f.uuid].clone()))
-            .collect();
-        executor_data
-            .cache
-            .insert(&execution, &file_keys, result, stdout, stderr, outputs);
-    }
-
-    /// Search between the ready tasks if there are some that are cached, mark all of them as ready
-    /// and also all the produced files. This may cause the `schedule` function to be called again.
-    fn process_cached(executor_data: &mut ExecutorData) -> Result<(), Error> {
-        let cache_mode = &executor_data.dag.as_ref().unwrap().config.cache_mode;
-        // disable the cache
-        if let CacheMode::Nothing = cache_mode {
-            return Ok(());
-        }
-        let file_keys = executor_data
-            .file_handles
-            .iter()
-            .map(|(uuid, hdl)| (*uuid, hdl.key().clone()))
-            .collect();
-
-        let mut still_ready_execs = BinaryHeap::new();
-        let mut cached = vec![];
-        // This loop changes the state of the executor (implicitly removing from ready_execs), no
-        // scheduling functions must be called until executor_data.ready_execs is set to the new
-        // value.
-        for exec in executor_data.ready_execs.iter() {
-            let execution = executor_data.dag.as_ref().unwrap().executions[&exec].clone();
-            if let (CacheMode::Except(set), Some(tag)) = (cache_mode, execution.tag.as_ref()) {
-                if set.contains(tag) {
-                    still_ready_execs.push(*exec);
-                    continue;
-                }
-            }
-            let result = executor_data.cache.get(
-                &execution,
-                &file_keys,
-                &mut executor_data.file_store.lock().unwrap(),
-            );
-            match result {
-                CacheResult::Hit { result, outputs } => {
-                    info!("Execution {} is a cache hit!", execution.uuid);
-                    cached.push((execution, result, outputs));
-                }
-                CacheResult::Miss => {
-                    still_ready_execs.push(*exec);
-                }
-            }
-        }
-        executor_data.ready_execs = still_ready_execs;
-        // scheduling functions are permitted again...
-        for (execution, result, mut outputs) in cached.into_iter() {
-            let was_successful = result.status == ExecutionStatus::Success;
-            Scheduler::exec_done(executor_data, execution.clone(), result)?;
-            if let Some(hdl) = outputs.stdout {
-                let uuid = execution.stdout.unwrap().uuid;
-                executor_data.file_handles.insert(uuid, hdl.clone());
-                Scheduler::file_ready(executor_data, uuid)?;
-                send_file_to_client(executor_data, uuid, was_successful, hdl)?;
-            }
-            if let Some(hdl) = outputs.stderr {
-                let uuid = execution.stderr.unwrap().uuid;
-                executor_data.file_handles.insert(uuid, hdl.clone());
-                Scheduler::file_ready(executor_data, uuid)?;
-                send_file_to_client(executor_data, uuid, was_successful, hdl)?;
-            }
-            for (path, file) in execution.outputs.iter() {
-                let hdl = outputs.outputs.remove(path).unwrap();
-                executor_data.file_handles.insert(file.uuid, hdl.clone());
-                Scheduler::file_ready(executor_data, file.uuid)?;
-                send_file_to_client(executor_data, file.uuid, was_successful, hdl)?;
+            let job = WorkerJob {
+                execution,
+                dep_keys,
+            };
+            serialize_into(&WorkerServerMessage::Work(Box::new(job)), &worker.sender)?;
+            if self.callbacks.as_ref().unwrap().executions.contains(&exec) {
+                self.executor
+                    .send(SchedulerOutMessage::ExecutionStarted(exec, *worker_uuid))?;
             }
         }
         Ok(())
