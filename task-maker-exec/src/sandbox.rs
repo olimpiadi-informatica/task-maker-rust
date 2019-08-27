@@ -343,6 +343,35 @@ impl Drop for SandboxData {
         if self.keep_sandbox {
             // this will unwrap the directory, dropping the `TempDir` without deleting the directory
             self.boxdir.take().map(TempDir::into_path);
+        } else {
+            if Sandbox::set_permissions(&self.boxdir.as_ref().unwrap().path().join("box"), 0o700)
+                .is_err()
+            {
+                warn!("Cannot 'chmod 700' the sandbox directory");
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Sandbox;
+    use std::collections::HashMap;
+    use std::path::Path;
+    use task_maker_dag::{Execution, ExecutionCommand};
+
+    #[test]
+    fn test_remove_sandbox_on_drop() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let mut exec = Execution::new("test", ExecutionCommand::System("true".into()));
+        exec.output("fooo");
+        exec.limits_mut().read_only = true;
+        let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new()).unwrap();
+        let outfile = sandbox.output_path(Path::new("fooo"));
+        sandbox.run().unwrap();
+        drop(sandbox);
+        assert!(!outfile.exists());
+        assert!(!outfile.parent().unwrap().exists()); // the box/ dir
+        assert!(!outfile.parent().unwrap().parent().unwrap().exists()); // the sandbox dir
     }
 }
