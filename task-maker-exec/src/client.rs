@@ -86,7 +86,7 @@ impl ExecutorClient {
         let done = Arc::new(AtomicBool::new(false));
         let done_thread = done.clone();
         let file_mode = Arc::new(Mutex::new(()));
-        let file_mode_thread = Arc::new(Mutex::new(()));
+        let file_mode_thread = file_mode.clone();
         let sender_thread = sender.clone();
         let status_poller = thread::Builder::new()
             .name("Client status poller".into())
