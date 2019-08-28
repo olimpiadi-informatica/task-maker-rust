@@ -139,6 +139,9 @@ impl Sandbox {
         } else {
             sandbox.arg("--stderr").arg("/dev/null");
         }
+        for (key, value) in self.execution.env.iter() {
+            sandbox.arg("--env").arg(format!("{}={}", key, value));
+        }
         // set the cpu_limit (--time parameter) to the sum of cpu_time and
         // sys_time
         let mut cpu_limit = None;

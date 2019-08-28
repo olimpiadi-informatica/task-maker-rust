@@ -66,11 +66,14 @@ impl WorkerManager {
             let message = deserialize_from::<WorkerClientMessage>(&worker.receiver);
             match message {
                 Ok(WorkerClientMessage::GetWork) => {
-                    if let Err(_) = scheduler.send(SchedulerInMessage::WorkerConnected {
-                        uuid: worker.uuid,
-                        name: worker.name.clone(),
-                        sender: worker.sender.clone(),
-                    }) {
+                    if scheduler
+                        .send(SchedulerInMessage::WorkerConnected {
+                            uuid: worker.uuid,
+                            name: worker.name.clone(),
+                            sender: worker.sender.clone(),
+                        })
+                        .is_err()
+                    {
                         // the scheduler is gone
                         break;
                     }

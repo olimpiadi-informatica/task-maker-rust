@@ -107,6 +107,8 @@ struct CacheKey {
     /// order matters here (it changes the final hash of the key) those values are sorted
     /// lexicographically.
     inputs: Vec<(PathBuf, FileStoreKey, bool)>,
+    /// The list of environment variables to set. Sorted by the variable name.
+    env: Vec<(String, String)>,
 }
 
 /// A cache entry for a given cache key. Note that the result will be used only if:
@@ -163,11 +165,13 @@ impl CacheKey {
             .map(|(p, f)| (p, file_keys[&f.file].key().clone(), f.executable))
             .sorted()
             .collect_vec();
+        let env = execution.env.clone().into_iter().sorted().collect_vec();
         CacheKey {
             command: execution.command.clone(),
             args: execution.args.clone(),
             stdin,
             inputs,
+            env,
         }
     }
 }

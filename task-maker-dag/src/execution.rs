@@ -133,6 +133,9 @@ pub struct Execution {
     /// List of the output files that should be capture from the sandbox.
     pub outputs: HashMap<PathBuf, File>,
 
+    /// Environment variables to set.
+    pub env: HashMap<String, String>,
+
     /// Limits on the execution.
     pub limits: ExecutionLimits,
 
@@ -334,6 +337,8 @@ impl Execution {
             inputs: HashMap::new(),
             outputs: HashMap::new(),
 
+            env: HashMap::new(),
+
             limits: ExecutionLimits::default(),
 
             config: ExecutionDAGConfig::new(),
@@ -502,6 +507,20 @@ impl Execution {
     pub fn output<P: Into<PathBuf> + std::fmt::Debug>(&mut self, path: P) -> File {
         let file = File::new(&format!("Output of '{}' at {:?}", self.description, path));
         self.outputs.entry(path.into()).or_insert(file).clone()
+    }
+
+    /// Add an environment variable to the execution.
+    ///
+    /// ```
+    /// use task_maker_dag::{Execution, ExecutionCommand};
+    ///
+    /// let mut exec = Execution::new("random exec", ExecutionCommand::Local("foo".into()));
+    /// exec.env("foo", "bar");
+    /// assert_eq!(exec.env["foo"], "bar");
+    /// ```
+    pub fn env<S1: Into<String>, S2: Into<String>>(&mut self, key: S1, value: S2) -> &mut Self {
+        self.env.insert(key.into(), value.into());
+        self
     }
 
     /// Get a mutable reference to the execution limits.
