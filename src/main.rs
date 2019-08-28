@@ -134,7 +134,7 @@ fn main() {
     let file_store =
         FileStore::new(store_path.join("store")).expect("Cannot create the file store");
     let cache = Cache::new(store_path.join("cache")).expect("Cannot create the cache");
-    let num_cores = opt.num_cores.unwrap_or_else(|| num_cpus::get());
+    let num_cores = opt.num_cores.unwrap_or_else(num_cpus::get);
     let sandbox_path = store_path.join("sandboxes");
     let executor = LocalExecutor::new(Arc::new(file_store), num_cores, sandbox_path);
 
@@ -180,7 +180,7 @@ fn find_task<P: Into<PathBuf>>(base: P, max_depth: u32) -> Option<Box<dyn TaskFo
     match ioi::Task::new(&base) {
         Ok(task) => {
             trace!("The task is IOI: {:#?}", task);
-            return Some(Box::new(task));
+            Some(Box::new(task))
         }
         Err(e) => {
             error!("Invalid task: {:?}", e);

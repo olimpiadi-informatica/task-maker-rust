@@ -216,11 +216,12 @@ impl CacheEntry {
     /// docs of the crate for the definition of _compatible_.
     fn is_compatible(&self, execution: &Execution) -> bool {
         // makes sure that $left <= $right where None = inf
+        // if $left is less restrictive than $right, return false
         macro_rules! check_limit {
             ($left:expr, $right:expr) => {
                 match ($left, $right) {
                     (Some(left), Some(right)) => {
-                        if !(left <= right) {
+                        if left > right {
                             return false;
                         }
                     }
@@ -240,7 +241,7 @@ impl CacheEntry {
                 check_limit!($left.fsize, $right.fsize);
                 check_limit!($left.memlock, $right.memlock);
                 check_limit!($left.stack, $right.stack);
-                if !($left.read_only <= $right.read_only) {
+                if $left.read_only < $right.read_only {
                     return false;
                 }
             };

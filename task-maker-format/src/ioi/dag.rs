@@ -98,46 +98,49 @@ pub enum TaskType {
 /// - `extra` is a series of identifiers of `Clone`able variables.
 #[macro_export]
 macro_rules! bind_exec_callbacks {
-    ($eval:expr, $exec_uuid:expr, $enum:expr $(,$extra:ident)*) => {{
+    ($eval:expr, $exec_uuid:expr, $enum:expr $(,$extra:ident)*) => {
+        #[allow(clippy::redundant_closure_call)]
         {
-            $(let $extra = $extra.clone();)*
-            let status = UIExecutionStatus::Pending;
-            $eval
-                .sender
-                .send(($enum)(status, $($extra,)*))
-                .expect("Failed sending ui message");
-        }
-        {
-            $(let $extra = $extra.clone();)*
-            let sender = $eval.sender.clone();
-            $eval.dag.on_execution_start(&$exec_uuid, move |worker| {
-                let status = UIExecutionStatus::Started { worker };
-                sender
+            {
+                $(let $extra = $extra.clone();)*
+                let status = UIExecutionStatus::Pending;
+                $eval
+                    .sender
                     .send(($enum)(status, $($extra,)*))
                     .expect("Failed sending ui message");
-            });
+            }
+            {
+                $(let $extra = $extra.clone();)*
+                let sender = $eval.sender.clone();
+                $eval.dag.on_execution_start(&$exec_uuid, move |worker| {
+                    let status = UIExecutionStatus::Started { worker };
+                    sender
+                        .send(($enum)(status, $($extra,)*))
+                        .expect("Failed sending ui message");
+                });
+            }
+            {
+                $(let $extra = $extra.clone();)*
+                let sender = $eval.sender.clone();
+                $eval.dag.on_execution_done(&$exec_uuid, move |result| {
+                    let status = UIExecutionStatus::Done { result };
+                    sender
+                        .send(($enum)(status, $($extra,)*))
+                        .expect("Failed sending ui message");
+                });
+            }
+            {
+                $(let $extra = $extra.clone();)*
+                let sender = $eval.sender.clone();
+                $eval.dag.on_execution_skip(&$exec_uuid, move || {
+                    let status = UIExecutionStatus::Skipped;
+                    sender
+                        .send(($enum)(status, $($extra,)*))
+                        .expect("Failed sending ui message");
+                });
+            }
         }
-        {
-            $(let $extra = $extra.clone();)*
-            let sender = $eval.sender.clone();
-            $eval.dag.on_execution_done(&$exec_uuid, move |result| {
-                let status = UIExecutionStatus::Done { result };
-                sender
-                    .send(($enum)(status, $($extra,)*))
-                    .expect("Failed sending ui message");
-            });
-        }
-        {
-            $(let $extra = $extra.clone();)*
-            let sender = $eval.sender.clone();
-            $eval.dag.on_execution_skip(&$exec_uuid, move || {
-                let status = UIExecutionStatus::Skipped;
-                sender
-                    .send(($enum)(status, $($extra,)*))
-                    .expect("Failed sending ui message");
-            });
-        }
-    }};
+    };
 }
 
 /// Bind the input/output of an execution to the input and output file of a testcase. It correctly

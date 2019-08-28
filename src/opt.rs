@@ -31,6 +31,7 @@ pub struct Opt {
     /// Providing an empty list will disable all the caches. The supported tags are: compilation,
     /// generation, evaluation, checking.
     #[structopt(long = "no-cache")]
+    #[allow(clippy::option_option)]
     pub no_cache: Option<Option<String>>,
 
     /// Do not run in parallel time critical executions on the same machine

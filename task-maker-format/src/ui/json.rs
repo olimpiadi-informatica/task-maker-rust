@@ -1,6 +1,7 @@
 use crate::ui::*;
 
 /// This UI will print to stdout the UI messages as json.
+#[derive(Default)]
 pub struct JsonUI;
 
 impl JsonUI {

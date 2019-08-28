@@ -2,6 +2,7 @@ use crate::ui::*;
 
 /// This UI will print to stdout all the raw information it gets, it's very
 /// verbose and useful only for debug purpuses.
+#[derive(Default)]
 pub struct RawUI;
 
 impl RawUI {

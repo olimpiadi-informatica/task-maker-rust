@@ -8,7 +8,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use failure::Error;
-use serde::{Deserialize, Serialize, Serializer, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use task_maker_lang::GraderMap;
 
@@ -263,9 +263,10 @@ fn detect_output_generator(
 /// Serializer of a boolean using the python syntax:
 /// - `true` -> `True`
 /// - `false` -> `False`
+#[allow(clippy::trivially_copy_pass_by_ref)]
 fn python_bool_serializer<S>(val: &bool, ser: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+where
+    S: Serializer,
 {
     if *val {
         ser.serialize_str("True")
@@ -279,8 +280,8 @@ fn python_bool_serializer<S>(val: &bool, ser: S) -> Result<S::Ok, S::Error>
 /// - `False` -> `false`
 /// - other -> error
 fn python_bool_deserializer<'de, D>(deser: D) -> Result<bool, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     use serde::de::Error;
     let val = String::deserialize(deser)?;

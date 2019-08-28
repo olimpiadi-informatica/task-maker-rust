@@ -454,10 +454,11 @@ impl UIState {
                 solution,
                 status,
             } => {
+                let task = &self.task;
                 let eval = self
                     .evaluations
                     .entry(solution)
-                    .or_insert(SolutionEvaluationState::new(&self.task));
+                    .or_insert_with(|| SolutionEvaluationState::new(task));
                 let subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
                 let mut testcase = subtask
                     .testcases
@@ -508,10 +509,11 @@ impl UIState {
                 solution,
                 status,
             } => {
+                let task = &self.task;
                 let eval = self
                     .evaluations
                     .entry(solution)
-                    .or_insert(SolutionEvaluationState::new(&self.task));
+                    .or_insert_with(|| SolutionEvaluationState::new(task));
                 let subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
                 let mut testcase = subtask
                     .testcases
@@ -534,10 +536,11 @@ impl UIState {
                 score,
                 message,
             } => {
+                let task = &self.task;
                 let eval = self
                     .evaluations
                     .entry(solution)
-                    .or_insert(SolutionEvaluationState::new(&self.task));
+                    .or_insert_with(|| SolutionEvaluationState::new(task));
                 let subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
                 let mut testcase = subtask
                     .testcases
@@ -559,18 +562,20 @@ impl UIState {
                 solution,
                 score,
             } => {
+                let task = &self.task;
                 let eval = self
                     .evaluations
                     .entry(solution)
-                    .or_insert(SolutionEvaluationState::new(&self.task));
+                    .or_insert_with(|| SolutionEvaluationState::new(task));
                 let mut subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
                 subtask.score = Some(score);
             }
             UIMessage::IOITaskScore { solution, score } => {
+                let task = &self.task;
                 let eval = self
                     .evaluations
                     .entry(solution)
-                    .or_insert(SolutionEvaluationState::new(&self.task));
+                    .or_insert_with(|| SolutionEvaluationState::new(task));
                 eval.score = Some(score);
             }
             _ => {}

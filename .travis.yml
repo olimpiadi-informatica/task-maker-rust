@@ -10,7 +10,7 @@ before_script:
   - rustup component add clippy
 script:
   - set -e
-  - cargo clippy --color=always --all-targets --all-features -- -A clippy::module_inception -A clippy::new_without_default -A clippy::borrowed_box -A clippy::redundant_closure_call
+  - cargo clippy --color=always --all-targets --all-features -- -A clippy::too_many_arguments -A clippy::large_enum_variant
   - cargo build --color=always --all
   - RUST_BACKTRACE=1 cargo test --color=always --all
   - rm -rf target/doc  # make sure only our crates are present

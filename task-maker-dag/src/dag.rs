@@ -234,7 +234,7 @@ impl From<Option<Option<String>>> for CacheMode {
             None => CacheMode::Everything,
             Some(None) => CacheMode::Nothing,
             Some(Some(list)) => {
-                CacheMode::Except(list.split(',').map(|tag| ExecutionTag::from(tag)).collect())
+                CacheMode::Except(list.split(',').map(ExecutionTag::from).collect())
             }
         }
     }
