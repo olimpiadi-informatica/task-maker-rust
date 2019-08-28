@@ -150,7 +150,8 @@ impl Executor {
                 }
                 Ok(ExecutorClientMessage::Status) => {
                     info!("Client asking for the status");
-                    self.scheduler_tx.send(SchedulerInMessage::Status).unwrap();
+                    // this may fail is the scheduler is gone
+                    let _ = self.scheduler_tx.send(SchedulerInMessage::Status);
                 }
                 Ok(ExecutorClientMessage::Stop) => {
                     info!("Client asking to stop");

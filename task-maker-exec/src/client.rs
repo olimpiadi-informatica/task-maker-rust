@@ -95,7 +95,8 @@ impl ExecutorClient {
                     {
                         // make sure to not interfere with the file sending protocol.
                         let _lock = file_mode_thread.lock().unwrap();
-                        serialize_into(&ExecutorClientMessage::Status, &sender_thread).unwrap();
+                        // this may fail if the server is gone
+                        let _ = serialize_into(&ExecutorClientMessage::Status, &sender_thread);
                     }
                     thread::sleep(Duration::from_millis(STATUS_POLL_INTERVAL_MS));
                 }

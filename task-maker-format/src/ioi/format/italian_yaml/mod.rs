@@ -67,10 +67,10 @@ struct TaskYAML {
     /// This is ignored by task-maker.
     pub total_value: Option<f64>,
     /// The input file for the solutions, usually 'input.txt' or '' (stdin). Defaults to `''`.
-    #[serde(default = "String::default")]
+    #[serde(default = "default_infile")]
     pub infile: String,
     /// The output file for the solutions, usually 'output.txt' or '' (stdout). Defaults to `''`.
-    #[serde(default = "String::default")]
+    #[serde(default = "default_outfile")]
     pub outfile: String,
     /// The primary language for this task.
     ///
@@ -222,7 +222,8 @@ fn detect_validator(task_dir: PathBuf) -> impl Fn(SubtaskId) -> InputValidator {
         if let Some(validator) = validator.as_ref() {
             InputValidator::Custom(
                 validator.clone(),
-                vec!["tm_validation_file".to_string(), st.to_string()],
+                // for legacy support reasons the subtask is passed 1-based
+                vec!["tm_validation_file".to_string(), (st + 1).to_string()],
             )
         } else {
             InputValidator::AssumeValid
@@ -292,4 +293,14 @@ where
     } else {
         Err(Error::custom("invalid bool, either True or False"))
     }
+}
+
+/// The default value for the `infile` field of task.yaml.
+fn default_infile() -> String {
+    "input.txt".into()
+}
+
+/// The default value for the `outfile` field of task.yaml.
+fn default_outfile() -> String {
+    "output.txt".into()
 }

@@ -243,7 +243,9 @@ impl InputValidator {
                     args.clone(),
                 )?;
                 exec.input(input, "tm_validation_file", false)
-                    .tag(Tag::Generation.into());
+                    .tag(Tag::Generation.into())
+                    .env("TM_SUBTASK", subtask_id.to_string())
+                    .env("TM_TESTCASE", testcase_id.to_string());
                 let stdout = exec.stdout();
                 bind_exec_callbacks!(eval, exec.uuid, |status| UIMessage::IOIValidation {
                     subtask: subtask_id,
