@@ -228,6 +228,18 @@ impl ExecutionDAGConfig {
     }
 }
 
+impl Default for ExecutionDAGConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Default for ExecutionDAG {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl From<Option<Option<String>>> for CacheMode {
     fn from(conf: Option<Option<String>>) -> Self {
         match conf {
