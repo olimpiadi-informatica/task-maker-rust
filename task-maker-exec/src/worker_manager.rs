@@ -66,13 +66,14 @@ impl WorkerManager {
             let message = deserialize_from::<WorkerClientMessage>(&worker.receiver);
             match message {
                 Ok(WorkerClientMessage::GetWork) => {
-                    scheduler
-                        .send(SchedulerInMessage::WorkerConnected {
-                            uuid: worker.uuid,
-                            name: worker.name.clone(),
-                            sender: worker.sender.clone(),
-                        })
-                        .unwrap();
+                    if let Err(_) = scheduler.send(SchedulerInMessage::WorkerConnected {
+                        uuid: worker.uuid,
+                        name: worker.name.clone(),
+                        sender: worker.sender.clone(),
+                    }) {
+                        // the scheduler is gone
+                        break;
+                    }
                 }
                 Ok(WorkerClientMessage::AskFile(key)) => {
                     let handle = file_store
