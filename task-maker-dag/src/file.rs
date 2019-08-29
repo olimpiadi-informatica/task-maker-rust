@@ -10,11 +10,21 @@ pub type FileUuid = Uuid;
 /// Type of the callback called when a file is returned to the client.
 pub type GetContentCallback = BoxFnOnce<'static, (Vec<u8>,)>;
 
+/// Where to write the file to with some other information.
+#[derive(Debug, Clone)]
+pub struct WriteToCallback {
+    /// Destination path of the file to write.
+    pub dest: PathBuf,
+    /// Whether the file should be marked as executable.
+    pub executable: bool,
+    /// Whether this file is valid even if the execution that generated it failed.
+    pub allow_failure: bool,
+}
+
 /// The callbacks that will trigger when the file is ready.
 pub struct FileCallbacks {
-    /// Destination of the file if it has to be stored in the disk of the local executor, and if it
-    /// has to be made executable.
-    pub write_to: Option<(PathBuf, bool)>,
+    /// Destination of the file if it has to be stored in the disk of the client.
+    pub write_to: Option<WriteToCallback>,
     /// Callback to be called with the first bytes of the file.
     pub get_content: Option<(usize, GetContentCallback)>,
 }

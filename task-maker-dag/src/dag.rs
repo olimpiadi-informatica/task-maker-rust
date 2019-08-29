@@ -146,7 +146,27 @@ impl ExecutionDAG {
         executable: bool,
     ) {
         if !self.data.config.dry_run {
-            self.file_callback(file.into()).write_to = Some((path.into(), executable));
+            self.file_callback(file.into()).write_to = Some(WriteToCallback {
+                dest: path.into(),
+                executable,
+                allow_failure: false,
+            });
+        }
+    }
+
+    /// Same as `write_file_to` but allowing failures.
+    pub fn write_file_to_allow_fail<F: Into<FileUuid>, P: Into<PathBuf>>(
+        &mut self,
+        file: F,
+        path: P,
+        executable: bool,
+    ) {
+        if !self.data.config.dry_run {
+            self.file_callback(file.into()).write_to = Some(WriteToCallback {
+                dest: path.into(),
+                executable,
+                allow_failure: true,
+            });
         }
     }
 

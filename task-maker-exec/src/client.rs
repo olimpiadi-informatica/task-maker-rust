@@ -6,7 +6,7 @@ use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
-use task_maker_dag::{FileCallbacks, FileUuid, ProvidedFile};
+use task_maker_dag::{FileCallbacks, FileUuid, ProvidedFile, WriteToCallback};
 use task_maker_store::*;
 
 /// Interval between each Status message is sent asking for server status updates.
@@ -227,10 +227,18 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
             .map(|(limit, _)| *limit)
             .unwrap_or(0);
         let mut buffer: Vec<u8> = Vec::new();
-        let mut file = match (&callback.write_to, success) {
-            (Some((path, _)), true) => {
-                std::fs::create_dir_all(path.parent().unwrap())?;
-                Some(std::fs::File::create(path)?)
+        let mut file = match &callback.write_to {
+            Some(WriteToCallback {
+                dest,
+                allow_failure,
+                ..
+            }) => {
+                if !success && !*allow_failure {
+                    None
+                } else {
+                    std::fs::create_dir_all(dest.parent().unwrap())?;
+                    Some(std::fs::File::create(dest)?)
+                }
             }
             _ => None,
         };
@@ -244,11 +252,11 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
             }
         }
         drop(file);
-        if let Some((path, executable)) = &callback.write_to {
-            if *executable {
-                let mut perm = std::fs::metadata(path)?.permissions();
+        if let Some(write_to) = &callback.write_to {
+            if write_to.executable {
+                let mut perm = std::fs::metadata(&write_to.dest)?.permissions();
                 perm.set_mode(0o500);
-                std::fs::set_permissions(path, perm)?;
+                std::fs::set_permissions(&write_to.dest, perm)?;
             }
         }
 
