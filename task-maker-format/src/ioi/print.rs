@@ -225,6 +225,26 @@ impl UI for PrintUI {
                 print!("[TASK]    ");
                 self.write_message(format!("Solution {:?} scored {} ", solution, score));
             }
+            UIMessage::IOIBooklet { name, status } => {
+                self.write_status(&status);
+                self.write_message(format!("Compilation of booklet {}", name));
+            }
+            UIMessage::IOIBookletDependency {
+                booklet,
+                name,
+                step,
+                num_steps,
+                status,
+            } => {
+                self.write_status(&status);
+                self.write_message(format!(
+                    "Compilation of dependency {} of booklet {} (step {} of {})",
+                    name,
+                    booklet,
+                    step + 1,
+                    num_steps
+                ));
+            }
         };
         println!();
     }

@@ -176,6 +176,22 @@ impl SolutionEvaluationState {
     }
 }
 
+/// The status of the compilation of a dependency of a booklet.
+#[derive(Debug)]
+pub struct BookletDependencyState {
+    /// The status of the execution.
+    pub status: UIExecutionStatus,
+}
+
+/// The status of the compilation of a booklet.
+#[derive(Debug)]
+pub struct BookletState {
+    /// The status of the execution.
+    pub status: UIExecutionStatus,
+    /// The state of all the dependencies
+    pub dependencies: HashMap<String, Vec<BookletDependencyState>>,
+}
+
 /// The state of a IOI task, all the information for the UI are stored here.
 #[derive(Debug)]
 pub struct UIState {
@@ -191,6 +207,8 @@ pub struct UIState {
     pub evaluations: HashMap<PathBuf, SolutionEvaluationState>,
     /// The status of the executor.
     pub executor_status: Option<ExecutorStatus<SystemTime>>,
+    /// The status of the booklets
+    pub booklets: HashMap<String, BookletState>,
 }
 
 impl TestcaseEvaluationStatus {
@@ -295,6 +313,7 @@ impl UIState {
             generations,
             evaluations: HashMap::new(),
             executor_status: None,
+            booklets: HashMap::new(),
         }
     }
 
@@ -577,6 +596,42 @@ impl UIState {
                     .entry(solution)
                     .or_insert_with(|| SolutionEvaluationState::new(task));
                 eval.score = Some(score);
+            }
+            UIMessage::IOIBooklet { name, status } => {
+                self.booklets
+                    .entry(name)
+                    .or_insert_with(|| BookletState {
+                        status: UIExecutionStatus::Pending,
+                        dependencies: HashMap::new(),
+                    })
+                    .status = status;
+            }
+            UIMessage::IOIBookletDependency {
+                booklet,
+                name,
+                step,
+                num_steps,
+                status,
+            } => {
+                self.booklets
+                    .entry(booklet)
+                    .or_insert_with(|| BookletState {
+                        status: UIExecutionStatus::Pending,
+                        dependencies: HashMap::new(),
+                    })
+                    .dependencies
+                    .entry(name)
+                    .or_insert_with(|| {
+                        (0..num_steps)
+                            .into_iter()
+                            .map(|_| BookletDependencyState {
+                                status: UIExecutionStatus::Pending,
+                            })
+                            .collect()
+                    })
+                    .get_mut(step)
+                    .unwrap()
+                    .status = status;
             }
             _ => {}
         }

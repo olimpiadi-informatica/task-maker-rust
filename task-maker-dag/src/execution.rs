@@ -173,6 +173,10 @@ pub struct ExecutionLimits {
     pub stack: Option<u64>,
     /// Whether the process in the sandbox is not allowed to create new files inside the sandbox.
     pub read_only: bool,
+    /// Whether the process in the sandbox can use `/dev/null` and `/tmp`.
+    pub mount_tmpfs: bool,
+    /// Extra directory that can be read inside the sandbox.
+    pub extra_readable_dirs: Vec<PathBuf>,
 }
 
 /// Status of a completed [`Execution`](struct.Execution.html).
@@ -238,6 +242,8 @@ impl ExecutionLimits {
             memlock: None,
             stack: None,
             read_only: false,
+            mount_tmpfs: true,
+            extra_readable_dirs: Vec::new(),
         }
     }
 
@@ -294,6 +300,25 @@ impl ExecutionLimits {
         self.stack = Some(limit);
         self
     }
+
+    /// Set whether the process in the sandbox is not allowed to create new files inside the
+    /// sandbox.
+    pub fn read_only(&mut self, read_only: bool) -> &mut Self {
+        self.read_only = read_only;
+        self
+    }
+
+    /// Set whether the process in the sandbox can use `/dev/null` and `/tmp`.
+    pub fn mount_tmpfs(&mut self, mount_tmpfs: bool) -> &mut Self {
+        self.mount_tmpfs = mount_tmpfs;
+        self
+    }
+
+    /// Add a directory to the list of additional readable directories in the sandbox.
+    pub fn add_extra_readable_dir<P: Into<PathBuf>>(&mut self, dir: P) -> &mut Self {
+        self.extra_readable_dirs.push(dir.into());
+        self
+    }
 }
 
 impl std::default::Default for ExecutionLimits {
@@ -311,6 +336,8 @@ impl std::default::Default for ExecutionLimits {
             memlock: None,
             stack: Some(0),
             read_only: true,
+            mount_tmpfs: false,
+            extra_readable_dirs: Vec::new(),
         }
     }
 }

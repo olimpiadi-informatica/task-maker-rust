@@ -8,6 +8,7 @@ use task_maker_dag::{ExecutionResourcesUsage, ExecutionStatus};
 use crate::ioi::ui_state::{
     CompilationStatus, SolutionEvaluationState, TestcaseEvaluationStatus, UIState,
 };
+use crate::ui::UIExecutionStatus;
 use crate::{cwrite, cwriteln};
 
 lazy_static! {
@@ -65,6 +66,8 @@ impl FinishUI {
         ui.print_task_info(state);
         println!();
         ui.print_compilations(state);
+        println!();
+        ui.print_booklets(state);
         println!();
         ui.print_generations(state);
         println!();
@@ -147,6 +150,31 @@ impl FinishUI {
                 }
             }
             println!();
+        }
+    }
+
+    /// Print all the booklet states.
+    fn print_booklets(&mut self, state: &UIState) {
+        cwriteln!(self, BLUE, "Statements");
+        for name in state.booklets.keys().sorted() {
+            let booklet = &state.booklets[name];
+            cwrite!(self, BOLD, "{:<20}  ", name);
+            self.print_execution_status(&booklet.status);
+            println!();
+            for name in booklet.dependencies.keys().sorted() {
+                let dep = &booklet.dependencies[name];
+                print!("  {:<18}  ", name);
+                let mut first = true;
+                for step in dep.iter() {
+                    if first {
+                        first = false;
+                    } else {
+                        print!(" | ");
+                    }
+                    self.print_execution_status(&step.status);
+                }
+                println!();
+            }
         }
     }
 
@@ -365,5 +393,18 @@ impl FinishUI {
     /// Check if ANSI is supported: if not in windows and not in a "dumb" terminal.
     fn is_ansi() -> bool {
         !cfg!(windows) && std::env::var("TERM").map(|v| v != "dumb").unwrap_or(false)
+    }
+
+    /// Print the status of an `UIExecutionStatus` using colors.
+    fn print_execution_status(&mut self, status: &UIExecutionStatus) {
+        match status {
+            UIExecutionStatus::Pending => print!("..."),
+            UIExecutionStatus::Skipped => print!("skipped"),
+            UIExecutionStatus::Started { .. } => cwrite!(self, YELLOW, "started"),
+            UIExecutionStatus::Done { result } => match &result.status {
+                ExecutionStatus::Success => cwrite!(self, GREEN, "Success"),
+                _ => cwrite!(self, RED, "{:?}", result.status),
+            },
+        }
     }
 }

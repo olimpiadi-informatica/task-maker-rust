@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use task_maker_dag::{Execution, ExecutionCommand, ExecutionStatus, File, FileUuid};
 
 use crate::ioi::*;
-use crate::UISender;
 use crate::{EvaluationData, SourceFile};
 
 /// Which tool to use to compute the score on a testcase given the input file, the _correct_ output
@@ -101,6 +100,8 @@ macro_rules! bind_exec_callbacks {
     ($eval:expr, $exec_uuid:expr, $enum:expr $(,$extra:ident)*) => {
         #[allow(clippy::redundant_closure_call)]
         {
+            use crate::UISender;
+            use crate::ui::UIExecutionStatus;
             {
                 $(let $extra = $extra.clone();)*
                 let status = UIExecutionStatus::Pending;

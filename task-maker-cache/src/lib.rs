@@ -77,7 +77,7 @@
 #[macro_use]
 extern crate log;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -234,6 +234,7 @@ impl CacheEntry {
                 }
             };
         }
+        // will return false if $less is less restrictive of $right
         macro_rules! check_limits {
             ($left:expr, $right:expr) => {
                 check_limit!($left.cpu_time, $right.cpu_time);
@@ -246,6 +247,18 @@ impl CacheEntry {
                 check_limit!($left.memlock, $right.memlock);
                 check_limit!($left.stack, $right.stack);
                 if $left.read_only < $right.read_only {
+                    return false;
+                }
+                if $left.mount_tmpfs > $right.mount_tmpfs {
+                    return false;
+                }
+                let left_readable_dirs: HashSet<PathBuf> =
+                    $left.extra_readable_dirs.iter().cloned().collect();
+                let right_readable_dirs: HashSet<PathBuf> =
+                    $right.extra_readable_dirs.iter().cloned().collect();
+                if left_readable_dirs != right_readable_dirs
+                    && left_readable_dirs.is_superset(&right_readable_dirs)
+                {
                     return false;
                 }
             };

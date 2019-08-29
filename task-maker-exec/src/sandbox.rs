@@ -175,6 +175,14 @@ impl Sandbox {
                 sandbox.arg("--readable-dir").arg(dir);
             }
         }
+        for dir in &self.execution.limits.extra_readable_dirs {
+            if dir.is_dir() {
+                sandbox.arg("--readable-dir").arg(dir);
+            }
+        }
+        if self.execution.limits.mount_tmpfs {
+            sandbox.arg("--mount-tmpfs");
+        }
         sandbox.arg("--");
         match &self.execution.command {
             ExecutionCommand::System(cmd) => {
@@ -366,7 +374,7 @@ mod tests {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
         let mut exec = Execution::new("test", ExecutionCommand::System("true".into()));
         exec.output("fooo");
-        exec.limits_mut().read_only = true;
+        exec.limits_mut().read_only(true);
         let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new()).unwrap();
         let outfile = sandbox.output_path(Path::new("fooo"));
         sandbox.run().unwrap();

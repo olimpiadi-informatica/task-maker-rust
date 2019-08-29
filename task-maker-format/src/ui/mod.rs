@@ -166,6 +166,29 @@ pub enum UIMessage {
         /// The score of the task.
         score: f64,
     },
+
+    /// The compilation of a booklet.
+    IOIBooklet {
+        /// The name of the booklet.
+        name: String,
+        /// The status of the compilation.
+        status: UIExecutionStatus,
+    },
+
+    /// The compilation of a dependency of a booklet. It can be processed many times, for example an
+    /// asy file is compiled first, and then cropped.
+    IOIBookletDependency {
+        /// The name of the booklet.
+        booklet: String,
+        /// The name of the dependency.
+        name: String,
+        /// The index (0-based) of the step of this compilation.
+        step: usize,
+        /// The number of steps of the compilation of this dependency.
+        num_steps: usize,
+        /// The status of this step.
+        status: UIExecutionStatus,
+    },
 }
 
 /// The sender of the UIMessage

@@ -1,7 +1,7 @@
 use crate::ioi::finish_ui::FinishUI;
 use crate::ioi::ui_state::*;
 use crate::ioi::*;
-use crate::ui::{UIMessage, UI};
+use crate::ui::{UIExecutionStatus, UIMessage, UI};
 use failure::Error;
 use itertools::Itertools;
 use std::io;
@@ -9,6 +9,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::{Builder, JoinHandle};
+use task_maker_dag::ExecutionStatus;
 use termion::input::MouseTerminal;
 use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
@@ -109,12 +110,18 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
         terminal
             .draw(|mut f| {
                 let state = state.read().unwrap();
+                let booklet_len: usize = state
+                    .booklets
+                    .values()
+                    .map(|s| s.dependencies.len() + 1)
+                    .sum();
                 let chunks = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints(
                         [
                             Constraint::Length(2),
                             Constraint::Length(state.compilations.len() as u16 + 2),
+                            Constraint::Length(booklet_len as u16 + 2),
                             Constraint::Length(3),
                             Constraint::Min(0),
                             Constraint::Length(
@@ -140,23 +147,29 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
                     .render(&mut f, chunks[1]);
                 draw_compilations(&mut f, inner_block(chunks[1]), &state, loading);
                 Block::default()
-                    .title(" Generation ")
+                    .title(" Statements ")
                     .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
                     .borders(Borders::ALL)
                     .render(&mut f, chunks[2]);
-                draw_generations(&mut f, inner_block(chunks[2]), &state, loading);
+                draw_booklets(&mut f, inner_block(chunks[2]), &state, loading);
+                Block::default()
+                    .title(" Generation ")
+                    .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
+                    .borders(Borders::ALL)
+                    .render(&mut f, chunks[3]);
+                draw_generations(&mut f, inner_block(chunks[3]), &state, loading);
                 Block::default()
                     .title(" Evaluations ")
                     .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
                     .borders(Borders::ALL)
-                    .render(&mut f, chunks[3]);
-                draw_evaluations(&mut f, inner_block(chunks[3]), &state, loading);
+                    .render(&mut f, chunks[4]);
+                draw_evaluations(&mut f, inner_block(chunks[4]), &state, loading);
                 Block::default()
                     .title(" Server status ")
                     .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
                     .borders(Borders::ALL)
-                    .render(&mut f, chunks[4]);
-                draw_server_status(&mut f, inner_block(chunks[4]), &state, loading);
+                    .render(&mut f, chunks[5]);
+                draw_server_status(&mut f, inner_block(chunks[5]), &state, loading);
             })
             .unwrap();
         // reduce the framerate to at most `FPS`
@@ -214,6 +227,56 @@ fn compilation_status_text(status: &CompilationStatus, loading: char) -> Text<'s
             Style::default().fg(Color::Red).modifier(Modifier::BOLD),
         ),
         CompilationStatus::Skipped => Text::styled("skipped", Style::default().fg(Color::Yellow)),
+    }
+}
+
+/// Draw the content of the booklet box.
+fn draw_booklets<B>(frame: &mut Frame<B>, rect: Rect, state: &UIState, loading: char)
+where
+    B: Backend,
+{
+    let text: Vec<Text> = state
+        .booklets
+        .keys()
+        .sorted()
+        .flat_map(|name| {
+            let booklet = &state.booklets[name];
+            let mut res = vec![
+                Text::raw(format!("{:<20} ", name)),
+                ui_execution_status_text(&booklet.status, loading),
+                Text::raw("\n"),
+            ];
+            for name in booklet.dependencies.keys().sorted() {
+                let dep = &booklet.dependencies[name];
+                res.push(Text::raw(format!("  {:<18} ", name)));
+                res.push(Text::raw("["));
+                for step in dep.iter() {
+                    res.push(ui_execution_status_text(&step.status, loading));
+                }
+                res.push(Text::raw("]\n"));
+            }
+            res
+        })
+        .collect();
+    Paragraph::new(text.iter()).wrap(false).render(frame, rect);
+}
+
+fn ui_execution_status_text(status: &UIExecutionStatus, loading: char) -> Text {
+    match status {
+        UIExecutionStatus::Pending => Text::raw("."),
+        UIExecutionStatus::Started { .. } => Text::raw(format!("{}", loading)),
+        UIExecutionStatus::Skipped => Text::raw("S"),
+        UIExecutionStatus::Done { result } => match &result.status {
+            ExecutionStatus::Success => Text::styled(
+                "S",
+                Style::default().fg(Color::Green).modifier(Modifier::BOLD),
+            ),
+            ExecutionStatus::InternalError(_) => Text::raw("I"),
+            _ => Text::styled(
+                "F",
+                Style::default().fg(Color::Red).modifier(Modifier::BOLD),
+            ),
+        },
     }
 }
 

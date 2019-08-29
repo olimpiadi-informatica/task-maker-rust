@@ -1,0 +1,12 @@
+[general]
+dirs = ["src/ioi/statement/templates"]
+default_syntax = "tex"
+
+[[syntax]]
+name = "tex"
+block_start = "%X"
+comment_start = "%Y"
+expr_start = "%{"
+block_end = "X%"
+comment_end = "Y%"
+expr_end = "}%"

@@ -34,6 +34,7 @@ mod dag;
 mod finish_ui;
 mod format;
 mod print;
+mod statement;
 mod tag;
 mod ui_state;
 
@@ -41,6 +42,7 @@ use curses_ui::CursesUI;
 pub use dag::*;
 use itertools::Itertools;
 pub use print::PrintUI;
+pub use statement::*;
 use std::ops::Deref;
 pub use tag::*;
 
@@ -234,6 +236,11 @@ impl TaskFormat for Task {
                     )?;
                 }
             }
+        }
+        // build the statements
+        let booklets = make_booklets(self)?;
+        for booklet in booklets {
+            booklet.build(eval)?;
         }
         Ok(())
     }
