@@ -1,3 +1,4 @@
+use crate::ioi::Tag;
 use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData};
 use failure::Error;
 use std::path::PathBuf;
@@ -31,6 +32,7 @@ impl AsyFile {
             .nproc(1000)
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true);
+        comp.tag(Tag::Booklet.into());
         comp.input(&source_file, "source.asy", false);
         eval.dag.provide_file(source_file, &source_path)?;
         bind_exec_callbacks!(
@@ -59,6 +61,7 @@ impl AsyFile {
             .nproc(1000)
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true);
+        crop.tag(Tag::Booklet.into());
         crop.args(vec!["source.pdf"]);
         crop.input(compiled, "source.pdf", false);
         bind_exec_callbacks!(

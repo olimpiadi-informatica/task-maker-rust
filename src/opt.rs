@@ -29,7 +29,7 @@ pub struct Opt {
     /// Disable the cache for this comma separated list of tags
     ///
     /// Providing an empty list will disable all the caches. The supported tags are: compilation,
-    /// generation, evaluation, checking.
+    /// generation, evaluation, checking, booklet.
     #[structopt(long = "no-cache")]
     #[allow(clippy::option_option)]
     pub no_cache: Option<Option<String>>,

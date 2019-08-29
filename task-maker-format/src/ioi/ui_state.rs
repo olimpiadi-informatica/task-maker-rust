@@ -623,7 +623,6 @@ impl UIState {
                     .entry(name)
                     .or_insert_with(|| {
                         (0..num_steps)
-                            .into_iter()
                             .map(|_| BookletDependencyState {
                                 status: UIExecutionStatus::Pending,
                             })

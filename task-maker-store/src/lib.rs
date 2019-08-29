@@ -323,7 +323,7 @@ impl FileStoreKey {
     }
 
     /// Make a new `FileStoreKey` from an in-memory file.
-    pub fn from_content(content: &Vec<u8>) -> FileStoreKey {
+    pub fn from_content(content: &[u8]) -> FileStoreKey {
         let mut hasher = Blake2b::new();
         hasher.input(content);
         FileStoreKey {

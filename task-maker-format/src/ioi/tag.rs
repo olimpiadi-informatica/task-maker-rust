@@ -8,6 +8,8 @@ pub enum Tag {
     Evaluation,
     /// Checking of a solution.
     Checking,
+    /// Compilation of the booklet.
+    Booklet,
 }
 
 impl Into<ExecutionTag> for Tag {
@@ -16,6 +18,7 @@ impl Into<ExecutionTag> for Tag {
             Tag::Generation => ExecutionTag::from("generation"),
             Tag::Evaluation => ExecutionTag::from("evaluation"),
             Tag::Checking => ExecutionTag::from("checking"),
+            Tag::Booklet => ExecutionTag::from("booklet"),
         }
     }
 }

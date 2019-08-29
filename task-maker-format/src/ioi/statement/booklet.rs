@@ -1,5 +1,6 @@
 use crate::ioi::statement::data_dir_path;
 use crate::ioi::statement::statement::Statement;
+use crate::ioi::Tag;
 use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData};
 use askama::Template;
 use failure::Error;
@@ -94,6 +95,7 @@ impl Booklet {
             .nproc(1000)
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true);
+        exec.tag(Tag::Booklet.into());
         exec.env("TEXINPUTS", format!(".:{}:", task_names.join(":")));
         let output = exec.output("booklet.pdf");
 
@@ -117,7 +119,7 @@ impl Booklet {
         let data_dir = data_dir_path().join("statements");
         let glob_pattern = data_dir.to_string_lossy().to_string() + "/**/*";
         for path in glob::glob(&glob_pattern)? {
-            let path = PathBuf::from(path.unwrap());
+            let path = path.unwrap();
             if !path.is_file() {
                 continue;
             }

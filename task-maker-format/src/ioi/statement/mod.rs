@@ -1,10 +1,10 @@
 mod asy;
 mod booklet;
+#[allow(clippy::module_inception)]
 mod statement;
 
 use crate::ioi::Task;
 use crate::list_files;
-use asy::*;
 pub use booklet::*;
 use failure::Error;
 pub use statement::*;

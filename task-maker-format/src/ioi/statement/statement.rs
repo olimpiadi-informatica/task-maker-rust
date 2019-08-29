@@ -87,7 +87,7 @@ impl Statement {
         let glob_pattern = base_dir.to_string_lossy().to_string() + "/**/*";
         let mut deps = vec![];
         for path in glob::glob(&glob_pattern).unwrap() {
-            let path = PathBuf::from(path.unwrap());
+            let path = path.unwrap();
             if !path.is_file() {
                 continue;
             }
