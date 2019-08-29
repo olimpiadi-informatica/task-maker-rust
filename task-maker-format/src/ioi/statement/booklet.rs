@@ -5,6 +5,7 @@ use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData};
 use askama::Template;
 use failure::Error;
 use itertools::Itertools;
+use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use task_maker_dag::{Execution, ExecutionCommand, File};
@@ -59,6 +60,19 @@ pub struct Booklet {
     statements: Vec<Statement>,
     /// Where to copy the booklet.
     dest: PathBuf,
+}
+
+/// Part of the schema of `contest.yaml`, used for extracting the configuration of the booklet.
+#[derive(Debug, Deserialize)]
+struct ContestYAML {
+    /// The description of the contest.
+    description: Option<String>,
+    /// The location of the contest.
+    location: Option<String>,
+    /// The date of the contest.
+    date: Option<String>,
+    /// The logo of the contest.
+    logo: Option<String>,
 }
 
 impl Booklet {
@@ -186,17 +200,37 @@ impl Booklet {
 
 impl BookletConfig {
     /// Build the `BookletConfig` from a contest.
-    pub fn from_contest<S: Into<String>>(language: S) -> BookletConfig {
-        BookletConfig {
-            language: language.into(),
-            show_solutions: false,
-            show_summary: false,
-            font_enc: "T1".into(),
-            input_enc: "utf8".into(),
-            description: None,
-            location: None,
-            date: None,
-            logo: None,
+    pub fn from_contest<S: Into<String>, P: Into<PathBuf>>(
+        language: S,
+        contest_dir: P,
+    ) -> Result<BookletConfig, Error> {
+        let contest_yaml_path = contest_dir.into().join("contest.yaml");
+        if contest_yaml_path.exists() {
+            let contest_yaml: ContestYAML =
+                serde_yaml::from_reader(std::fs::File::open(contest_yaml_path)?)?;
+            Ok(BookletConfig {
+                language: language.into(),
+                show_solutions: false,
+                show_summary: false,
+                font_enc: "T1".into(),
+                input_enc: "utf8".into(),
+                description: contest_yaml.description,
+                location: contest_yaml.location,
+                date: contest_yaml.date,
+                logo: contest_yaml.logo,
+            })
+        } else {
+            Ok(BookletConfig {
+                language: language.into(),
+                show_solutions: false,
+                show_summary: false,
+                font_enc: "T1".into(),
+                input_enc: "utf8".into(),
+                description: None,
+                location: None,
+                date: None,
+                logo: None,
+            })
         }
     }
 }

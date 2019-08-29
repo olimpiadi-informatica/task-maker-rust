@@ -38,7 +38,7 @@ pub fn make_booklets(task: &Task) -> Result<Vec<Booklet>, Error> {
             None => continue,
         };
         let statement = Statement::new(path, config.clone())?;
-        let booklet_config = BookletConfig::from_contest(language);
+        let booklet_config = BookletConfig::from_contest(language, task.path.parent().unwrap())?;
         let mut booklet = Booklet::new(booklet_config, dest);
         booklet.add_statement(statement);
         booklets.push(booklet);

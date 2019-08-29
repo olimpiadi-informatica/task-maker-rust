@@ -167,8 +167,11 @@ fn main() {
 
 /// Search for a valid task directory, starting from base and going _at most_ `max_depth` times up.
 fn find_task<P: Into<PathBuf>>(base: P, max_depth: u32) -> Option<Box<dyn TaskFormat>> {
-    let mut base = base.into().canonicalize().unwrap();
-    for _ in 0..=max_depth {
+    let mut base = base.into();
+    if !base.is_absolute() {
+        base = getcwd().join(base);
+    }
+    for _ in 0..max_depth {
         if base.join("task.yaml").exists() {
             break;
         }
@@ -187,4 +190,13 @@ fn find_task<P: Into<PathBuf>>(base: P, max_depth: u32) -> Option<Box<dyn TaskFo
             None
         }
     }
+}
+
+/// Return the current working directory.
+///
+/// `std::env::current_dir()` resolves the symlinks of the cwd's hierarchy, `$PWD` is used instead.
+fn getcwd() -> PathBuf {
+    std::env::var("PWD")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| std::env::current_dir().unwrap())
 }
