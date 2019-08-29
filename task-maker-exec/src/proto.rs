@@ -162,4 +162,11 @@ impl ChannelFileSender {
         serialize_into(&FileProtocol::End, sender)?;
         Ok(())
     }
+
+    /// Send a file's data to a channel using [`FileProtocol`](enum.FileProtocol.html).
+    pub fn send_data(data: Vec<u8>, sender: &ChannelSender) -> Result<(), Error> {
+        serialize_into(&FileProtocol::Data(data), sender)?;
+        serialize_into(&FileProtocol::End, sender)?;
+        Ok(())
+    }
 }

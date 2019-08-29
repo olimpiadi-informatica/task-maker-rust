@@ -123,7 +123,11 @@ impl Executor {
                     }
                     let mut ready_files = Vec::new();
                     for (uuid, file) in dag.provided_files.iter() {
-                        let handle = self.file_store.get(&file.key);
+                        let key = match file {
+                            ProvidedFile::Content { key, .. } => key,
+                            ProvidedFile::LocalFile { key, .. } => key,
+                        };
+                        let handle = self.file_store.get(&key);
                         if let Some(handle) = handle {
                             ready_files.push((*uuid, handle));
                         } else {

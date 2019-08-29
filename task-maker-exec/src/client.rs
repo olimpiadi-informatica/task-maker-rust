@@ -6,7 +6,7 @@ use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
-use task_maker_dag::{FileCallbacks, FileUuid};
+use task_maker_dag::{FileCallbacks, FileUuid, ProvidedFile};
 use task_maker_store::*;
 
 /// Interval between each Status message is sent asking for server status updates.
@@ -71,8 +71,20 @@ impl ExecutorClient {
         };
         let provided_files = dag.data.provided_files.clone();
         for (uuid, file) in provided_files.iter() {
-            let iterator = ReadFileIterator::new(&file.local_path)?;
-            process_provided_file(&mut dag.file_callbacks, *uuid, true, iterator)?;
+            match file {
+                ProvidedFile::LocalFile { local_path, .. } => {
+                    let iterator = ReadFileIterator::new(&local_path)?;
+                    process_provided_file(&mut dag.file_callbacks, *uuid, true, iterator)?;
+                }
+                ProvidedFile::Content { content, .. } => {
+                    process_provided_file(
+                        &mut dag.file_callbacks,
+                        *uuid,
+                        true,
+                        vec![content.clone()],
+                    )?;
+                }
+            }
         }
         serialize_into(
             &ExecutorClientMessage::Evaluate {
@@ -106,15 +118,26 @@ impl ExecutorClient {
             match deserialize_from::<ExecutorServerMessage>(&receiver) {
                 Ok(ExecutorServerMessage::AskFile(uuid)) => {
                     info!("Server is asking for {}", uuid);
-                    let path = &provided_files
-                        .get(&uuid)
-                        .expect("Server asked for non provided file")
-                        .local_path;
-                    let key = FileStoreKey::from_file(path)?;
                     // prevent the status poller for sending messages while sending the file
                     let _lock = file_mode.lock().unwrap();
-                    serialize_into(&ExecutorClientMessage::ProvideFile(uuid, key), &sender)?;
-                    ChannelFileSender::send(&path, &sender)?;
+                    match &provided_files[&uuid] {
+                        ProvidedFile::LocalFile {
+                            local_path, key, ..
+                        } => {
+                            serialize_into(
+                                &ExecutorClientMessage::ProvideFile(uuid, key.clone()),
+                                &sender,
+                            )?;
+                            ChannelFileSender::send(&local_path, &sender)?;
+                        }
+                        ProvidedFile::Content { content, key, .. } => {
+                            serialize_into(
+                                &ExecutorClientMessage::ProvideFile(uuid, key.clone()),
+                                &sender,
+                            )?;
+                            ChannelFileSender::send_data(content.clone(), &sender)?;
+                        }
+                    }
                 }
                 Ok(ExecutorServerMessage::ProvideFile(uuid, success)) => {
                     info!("Server sent the file {}, success: {}", uuid, success);

@@ -39,16 +39,28 @@ pub struct ExecutionDAGConfig {
     pub copy_exe: bool,
 }
 
-/// A wrapper around a File provided by the client, this means that the client
-/// knows the FileStoreKey and the path to that file.
+/// A wrapper around a `File` provided by the client, this means that the client knows the
+/// `FileStoreKey` and the path to that file if it's local, or it's content if it's generated.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProvidedFile {
-    /// The file handle.
-    pub file: File,
-    /// The key of the file for the lookup in the `FileStore`.
-    pub key: FileStoreKey,
-    /// Path to the file in the client.
-    pub local_path: PathBuf,
+pub enum ProvidedFile {
+    /// A file that is provided by the disk, knowing its path.
+    LocalFile {
+        /// The file handle.
+        file: File,
+        /// The key of the file for the lookup in the `FileStore`.
+        key: FileStoreKey,
+        /// Path to the file in the client.
+        local_path: PathBuf,
+    },
+    /// A file that is provided from a in-memory buffer.
+    Content {
+        /// The file handle.
+        file: File,
+        /// The key of the file for the lookup in the `FileStore`.
+        key: FileStoreKey,
+        /// The content of the file.
+        content: Vec<u8>,
+    },
 }
 
 /// Serializable part of the execution DAG: everything except the callbacks (which are not
@@ -93,13 +105,25 @@ impl ExecutionDAG {
         let path = path.into();
         self.data.provided_files.insert(
             file.uuid,
-            ProvidedFile {
+            ProvidedFile::LocalFile {
                 file,
                 key: FileStoreKey::from_file(&path)?,
                 local_path: path,
             },
         );
         Ok(())
+    }
+
+    /// Provide the content of a file for the computation.
+    pub fn provide_content(&mut self, file: File, content: Vec<u8>) {
+        self.data.provided_files.insert(
+            file.uuid,
+            ProvidedFile::Content {
+                file,
+                key: FileStoreKey::from_content(&content),
+                content,
+            },
+        );
     }
 
     /// Add an execution to the DAG.
