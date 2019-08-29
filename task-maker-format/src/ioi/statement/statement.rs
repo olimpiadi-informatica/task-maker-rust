@@ -98,9 +98,11 @@ impl Statement {
                 .unwrap_or_else(String::new);
             match ext.as_str() {
                 "asy" => {
-                    let file = AsyFile::compile(&path, eval, booklet_name)?;
                     let dest = suffix.with_extension("pdf");
-                    deps.push((dest, file));
+                    if self.content.contains(dest.to_string_lossy().as_ref()) {
+                        let file = AsyFile::compile(&path, eval, booklet_name)?;
+                        deps.push((dest, file));
+                    }
                 }
                 _ => {
                     if ext == "pdf" {

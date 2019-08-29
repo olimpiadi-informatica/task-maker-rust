@@ -1,7 +1,9 @@
 use crate::ioi::Tag;
 use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData};
 use failure::Error;
-use std::path::PathBuf;
+use regex::Regex;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use task_maker_dag::{Execution, ExecutionCommand, File};
 
 pub struct AsyFile;
@@ -48,7 +50,13 @@ impl AsyFile {
             booklet,
             name
         );
-        // TODO find deps
+        for (sandbox, local) in
+            AsyFile::find_asy_deps(&source_path, &source_path.parent().unwrap())?
+        {
+            let file = File::new(format!("Dependency {:?} of {}", sandbox, name));
+            comp.input(&file, sandbox, false);
+            eval.dag.provide_file(file, local)?;
+        }
         let compiled = comp.output("output.pdf");
         eval.dag.add_execution(comp);
 
@@ -81,5 +89,44 @@ impl AsyFile {
         eval.dag.add_execution(crop);
 
         Ok(cropped)
+    }
+
+    /// Recursively search for the asy dependencies of the specified file, where the sandbox
+    /// directory is at the specified prefix.
+    fn find_asy_deps(path: &Path, prefix: &Path) -> Result<HashMap<PathBuf, PathBuf>, Error> {
+        lazy_static! {
+            static ref ASY_INCLUDE: Regex =
+                Regex::new(r"(?:include|import) *(.+)(?: +as +.+)?;").unwrap();
+            static ref ASY_GRAPHIC: Regex = Regex::new(r#"graphic\(['"]([^'"]+)['"]"#).unwrap();
+        }
+        let dir = path.parent().unwrap();
+        let content = std::fs::read_to_string(path)?;
+        let mut result = HashMap::new();
+        for include in ASY_INCLUDE.captures_iter(&content) {
+            let include = &include[1];
+            let local_path = dir.join(include.to_owned() + ".asy");
+            let sandbox_path = local_path.strip_prefix(prefix).unwrap();
+            trace!(
+                "Asy dependency detected: {:?} -> {:?} = {:?}",
+                path,
+                sandbox_path,
+                local_path
+            );
+            result.extend(AsyFile::find_asy_deps(&local_path, prefix)?.into_iter());
+            result.insert(sandbox_path.into(), local_path);
+        }
+        for graphic in ASY_GRAPHIC.captures_iter(&content) {
+            let graphic = &graphic[1];
+            let local_path = dir.join(graphic);
+            let sandbox_path = local_path.strip_prefix(prefix).unwrap();
+            trace!(
+                "Asy graphic detected: {:?} -> {:?} = {:?}",
+                path,
+                sandbox_path,
+                local_path
+            );
+            result.insert(sandbox_path.into(), local_path);
+        }
+        Ok(result)
     }
 }
