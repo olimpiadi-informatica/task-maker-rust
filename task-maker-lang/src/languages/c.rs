@@ -42,7 +42,7 @@ impl Language for LanguageC {
     }
 
     fn compilation_command(&self, _path: &Path) -> ExecutionCommand {
-        ExecutionCommand::System("gcc".into())
+        ExecutionCommand::system("gcc")
     }
 
     fn compilation_args(&self, path: &Path) -> Vec<String> {

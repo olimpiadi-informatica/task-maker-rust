@@ -26,7 +26,7 @@ impl AsyFile {
 
         let mut comp = Execution::new(
             format!("Compilation of {}", name),
-            ExecutionCommand::System("asy".into()),
+            ExecutionCommand::system("asy"),
         );
         comp.args(vec!["-f", "pdf", "-o", "output.pdf", "source.asy"]);
         comp.limits_mut()
@@ -62,7 +62,7 @@ impl AsyFile {
 
         let mut crop = Execution::new(
             format!("Crop of {}", name),
-            ExecutionCommand::System("pdfcrop".into()),
+            ExecutionCommand::system("pdfcrop"),
         );
         crop.limits_mut()
             .read_only(false)

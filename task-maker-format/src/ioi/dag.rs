@@ -337,7 +337,7 @@ impl Checker {
                         "Checking output of {:?} of testcase {}, subtask {}",
                         solution, testcase_id, subtask_id
                     ),
-                    ExecutionCommand::System("diff".into()),
+                    ExecutionCommand::system("diff"),
                 );
                 exec.args(vec!["--ignore-all-space", "correct", "test"])
                     .input(correct_output, "correct", false)

@@ -96,7 +96,7 @@ impl Booklet {
         let mut task_names = self.statements.iter().map(|s| &s.config().name);
         let mut exec = Execution::new(
             "Compilation of the booklet",
-            ExecutionCommand::System("latexmk".into()),
+            ExecutionCommand::system("latexmk"),
         );
         exec.args(vec![
             "-f",

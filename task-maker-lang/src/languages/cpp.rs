@@ -47,9 +47,9 @@ impl Language for LanguageCpp {
     fn compilation_command(&self, _path: &Path) -> ExecutionCommand {
         match self.version {
             LanguageCppVersion::GccCpp11 | LanguageCppVersion::GccCpp14 => {
-                ExecutionCommand::System(PathBuf::from("g++"))
+                ExecutionCommand::system("g++")
             }
-            LanguageCppVersion::ClangCpp11 => ExecutionCommand::System(PathBuf::from("clang++")),
+            LanguageCppVersion::ClangCpp11 => ExecutionCommand::system("clang++"),
         }
     }
 

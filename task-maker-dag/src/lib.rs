@@ -29,7 +29,7 @@
 //! use task_maker_dag::{ExecutionDAG, Execution, ExecutionCommand};
 //!
 //! let mut dag = ExecutionDAG::new();
-//! let mut exec = Execution::new("Get the date", ExecutionCommand::System("date".into()));
+//! let mut exec = Execution::new("Get the date", ExecutionCommand::system("date"));
 //! let exec_id = exec.uuid;
 //! let output = exec.stdout();
 //! dag.add_execution(exec);

@@ -98,7 +98,7 @@ mod tests {
 
     use pretty_assertions::assert_eq;
     use serde::{Deserialize, Serialize};
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::mpsc::channel;
     use std::sync::Arc;
@@ -136,18 +136,15 @@ mod tests {
 
         let file = File::new("Input file");
 
-        let mut exec = Execution::new(
-            "An execution",
-            ExecutionCommand::System(PathBuf::from("true")),
-        );
+        let mut exec = Execution::new("An execution", ExecutionCommand::system("true"));
         exec.stdin(&file);
         let stdout = exec.stdout();
 
-        let mut exec2 = Execution::new("Nope!", ExecutionCommand::System(PathBuf::from("false")));
+        let mut exec2 = Execution::new("Nope!", ExecutionCommand::system("false"));
         exec2.stdin(&stdout);
         let stdout2 = exec2.stdout();
 
-        let mut exec3 = Execution::new("Skippp", ExecutionCommand::System(PathBuf::from("true")));
+        let mut exec3 = Execution::new("Skippp", ExecutionCommand::system("true"));
         exec3.stdin(&stdout2);
         let output3 = exec3.output(Path::new("test"));
 

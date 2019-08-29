@@ -48,10 +48,10 @@ impl Language for LanguagePython {
     fn runtime_command(&self, path: &Path) -> ExecutionCommand {
         match self.version {
             LanguagePythonVersion::Autodetect => {
-                ExecutionCommand::Local(self.executable_name(path))
+                ExecutionCommand::local(self.executable_name(path))
             }
-            LanguagePythonVersion::Python2 => ExecutionCommand::System(PathBuf::from("python2")),
-            LanguagePythonVersion::Python3 => ExecutionCommand::System(PathBuf::from("python3")),
+            LanguagePythonVersion::Python2 => ExecutionCommand::system("python2"),
+            LanguagePythonVersion::Python3 => ExecutionCommand::system("python3"),
         }
     }
 

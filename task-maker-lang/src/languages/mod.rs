@@ -83,7 +83,7 @@ pub trait Language: std::fmt::Debug + Send + Sync {
     /// Languages that need to run a separate program (e.g. a system-wise interpreter) may change
     /// the return value of this method.
     fn runtime_command(&self, path: &Path) -> ExecutionCommand {
-        ExecutionCommand::Local(self.executable_name(path))
+        ExecutionCommand::local(self.executable_name(path))
     }
 
     /// Arguments to pass to the executable to start the evaluation.

@@ -36,7 +36,7 @@
 //! std::fs::write(&path, [1, 2, 3, 4]).unwrap();
 //!
 //! // build a testing execution
-//! let mut exec = Execution::new("Testing exec", ExecutionCommand::System("true".into()));
+//! let mut exec = Execution::new("Testing exec", ExecutionCommand::system("true"));
 //! let input = File::new("Input file");
 //! exec.input(&input, "sandbox_path", false);
 //!

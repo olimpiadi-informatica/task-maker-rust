@@ -372,7 +372,7 @@ mod tests {
     #[test]
     fn test_remove_sandbox_on_drop() {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
-        let mut exec = Execution::new("test", ExecutionCommand::System("true".into()));
+        let mut exec = Execution::new("test", ExecutionCommand::system("true"));
         exec.output("fooo");
         exec.limits_mut().read_only(true);
         let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new()).unwrap();

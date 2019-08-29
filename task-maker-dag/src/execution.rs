@@ -41,9 +41,9 @@ pub struct ExecutionTag {
 /// ```
 /// use task_maker_dag::ExecutionCommand;
 ///
-/// let sys_cmd = ExecutionCommand::System("/usr/bin/env".into());
-/// let sys_cmd = ExecutionCommand::System("env".into()); // looking at $PATH
-/// let local_cmd = ExecutionCommand::Local("generator".into()); // local to the cwd of the sandbox
+/// let sys_cmd = ExecutionCommand::system("/usr/bin/env");
+/// let sys_cmd = ExecutionCommand::system("env"); // looking at $PATH
+/// let local_cmd = ExecutionCommand::local("generator"); // local to the cwd of the sandbox
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum ExecutionCommand {
@@ -93,7 +93,7 @@ pub struct ExecutionCallbacks {
 ///
 /// // first execution reading stdin, outputting to stdout, with 2s cpu limit, 3s wall limit and
 /// // 1MiB of memory.
-/// let mut exec = Execution::new("some hard work", ExecutionCommand::Local("worker".into()));
+/// let mut exec = Execution::new("some hard work", ExecutionCommand::local("worker"));
 /// exec.stdin(&stdin);
 /// let stdout = exec.stdout();
 /// exec.limits_mut().cpu_time(2.0).wall_time(3.0).memory(1024);
@@ -101,7 +101,7 @@ pub struct ExecutionCallbacks {
 /// // second execution, will run after the first because it depends on its output, only if the
 /// // first is successful. Will take the stdout of the first as a file input and will capture the
 /// // stdout.
-/// let mut exec2 = Execution::new("some other work", ExecutionCommand::Local("worker2".into()));
+/// let mut exec2 = Execution::new("some other work", ExecutionCommand::local("worker2"));
 /// exec2.input(&stdout, "data.txt", false); // put the stdout of exec inside data.txt of exec2
 /// let result = exec2.stdout();
 ///
@@ -342,13 +342,25 @@ impl std::default::Default for ExecutionLimits {
     }
 }
 
+impl ExecutionCommand {
+    /// Make a new `ExecutionCommand::System`.
+    pub fn system<P: Into<PathBuf>>(path: P) -> ExecutionCommand {
+        ExecutionCommand::System(path.into())
+    }
+
+    /// Make a new `ExecutionCommand::Local`.
+    pub fn local<P: Into<PathBuf>>(path: P) -> ExecutionCommand {
+        ExecutionCommand::Local(path.into())
+    }
+}
+
 impl Execution {
     /// Create a basic [`Execution`](struct.Execution.html) with the default limits.
     ///
     /// ```
     /// use task_maker_dag::{Execution, ExecutionCommand};
     ///
-    /// let exec = Execution::new("generator of prime numbers", ExecutionCommand::Local("foo".into()));
+    /// let exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
     /// ```
     pub fn new<S: Into<String>>(description: S, command: ExecutionCommand) -> Execution {
         Execution {
@@ -379,7 +391,7 @@ impl Execution {
     /// ```
     /// use task_maker_dag::{Execution, ExecutionCommand, File};
     ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::Local("foo".into()));
+    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
     /// let file = File::new("random file");
     /// let uuid = file.uuid;
     /// exec.stdin(file);
@@ -402,7 +414,7 @@ impl Execution {
     /// ```
     /// use task_maker_dag::{Execution, ExecutionCommand};
     ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::Local("foo".into()));
+    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
     /// let file = exec.stdout();
     /// let uuid = file.uuid;
     /// assert_eq!(exec.outputs(), vec![uuid]);
@@ -427,7 +439,7 @@ impl Execution {
     /// ```
     /// use task_maker_dag::{Execution, ExecutionCommand};
     ///
-    /// let mut exec = Execution::new("test execution", ExecutionCommand::Local("foo".into()));
+    /// let mut exec = Execution::new("test execution", ExecutionCommand::local("foo"));
     /// exec.args(vec!["test", "args"]);
     /// ```
     pub fn args<S: Into<String>, I: IntoIterator<Item = S>>(&mut self, args: I) -> &mut Self {
@@ -441,7 +453,7 @@ impl Execution {
     /// ```
     /// use task_maker_dag::{Execution, ExecutionCommand, File};
     ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::Local("foo".into()));
+    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
     /// let file = File::new("random file");
     /// let uuid = file.uuid;
     /// exec.stdin(file);
@@ -459,7 +471,7 @@ impl Execution {
     /// ```
     /// use task_maker_dag::{Execution, ExecutionCommand};
     ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::Local("foo".into()));
+    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
     /// let file = exec.stdout();
     /// assert_eq!(exec.stdout, Some(file));
     /// ```
@@ -478,7 +490,7 @@ impl Execution {
     /// ```
     /// use task_maker_dag::{Execution, ExecutionCommand};
     ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::Local("foo".into()));
+    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
     /// let file = exec.stderr();
     /// assert_eq!(exec.stderr, Some(file));
     /// ```
@@ -497,7 +509,7 @@ impl Execution {
     /// use task_maker_dag::{Execution, ExecutionCommand, File};
     /// use std::path::PathBuf;
     ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::Local("foo".into()));
+    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
     /// let file = File::new("test file");
     /// let uuid = file.uuid;
     /// exec.input(file, "test/file.txt", false);
@@ -527,7 +539,7 @@ impl Execution {
     /// use task_maker_dag::{Execution, ExecutionCommand};
     /// use std::path::PathBuf;
     ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::Local("foo".into()));
+    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
     /// let file = exec.output("foo/bar.txt");
     /// assert_eq!(exec.outputs[&PathBuf::from("foo/bar.txt")], file);
     /// ```
@@ -541,7 +553,7 @@ impl Execution {
     /// ```
     /// use task_maker_dag::{Execution, ExecutionCommand};
     ///
-    /// let mut exec = Execution::new("random exec", ExecutionCommand::Local("foo".into()));
+    /// let mut exec = Execution::new("random exec", ExecutionCommand::local("foo"));
     /// exec.env("foo", "bar");
     /// assert_eq!(exec.env["foo"], "bar");
     /// ```
@@ -555,7 +567,7 @@ impl Execution {
     /// ```
     /// use task_maker_dag::{Execution, ExecutionCommand, ExecutionLimits};
     ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::Local("foo".into()));
+    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
     /// exec.limits_mut().cpu_time(2.0).sys_time(0.5).wall_time(3.0).memory(1024).nproc(10);
     /// assert_eq!(exec.limits.cpu_time, Some(2.0));
     /// assert_eq!(exec.limits.sys_time, Some(0.5));
