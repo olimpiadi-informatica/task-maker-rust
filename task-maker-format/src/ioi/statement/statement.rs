@@ -112,24 +112,21 @@ impl Statement {
                 }
                 _ => {
                     if ext == "pdf" {
-                        match (path.file_name(), &logo) {
-                            (Some(name), Some(logo)) => {
-                                if name != logo {
-                                    // resolve the symlinks
-                                    let path = path.canonicalize()?;
-                                    // ignore .pdf files that have the .asy source
-                                    let asy_path = path.with_extension("asy");
-                                    if asy_path.exists() {
-                                        continue;
-                                    }
-                                    // ignore .pdf files that have the .tex source
-                                    let tex_path = path.with_extension("tex");
-                                    if tex_path.exists() {
-                                        continue;
-                                    }
+                        if let (Some(name), Some(logo)) = (path.file_name(), &logo) {
+                            if name != logo {
+                                // resolve the symlinks
+                                let path = path.canonicalize()?;
+                                // ignore .pdf files that have the .asy source
+                                let asy_path = path.with_extension("asy");
+                                if asy_path.exists() {
+                                    continue;
+                                }
+                                // ignore .pdf files that have the .tex source
+                                let tex_path = path.with_extension("tex");
+                                if tex_path.exists() {
+                                    continue;
                                 }
                             }
-                            _ => {}
                         }
                     }
                     let file = File::new(format!(

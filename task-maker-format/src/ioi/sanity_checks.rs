@@ -88,7 +88,7 @@ fn check_att_sample_files(task: &Task, eval: &mut EvaluationData) -> Result<(), 
     }
     if no_sample {
         eval.sender.send(UIMessage::Warning {
-            message: format!("No sample file in att/"),
+            message: "No sample file in att/".into(),
         })?;
     }
     Ok(())
@@ -133,9 +133,8 @@ fn check_statement_valid(task: &Task, ui: &mut UIMessageSender) -> Result<(), Er
     match find_statement_pdf(task) {
         None => {
             return ui.send(UIMessage::Warning {
-                message: format!(
-                    "Missing statement file (statement/statement.pdf or testo/testo.pdf)"
-                ),
+                message: "Missing statement file (statement/statement.pdf or testo/testo.pdf)"
+                    .into(),
             });
         }
         Some(path) => {
@@ -143,11 +142,14 @@ fn check_statement_valid(task: &Task, ui: &mut UIMessageSender) -> Result<(), Er
             if path.exists() {
                 let mut file = std::fs::File::open(&path)?;
                 let mut buf = [0u8; 4];
-                let mut invalid = file.read_exact(&mut buf).is_err();
-                // check PDF magic number
-                if buf != "%PDF".as_bytes() {
-                    invalid = true;
-                }
+                let invalid = match file.read_exact(&mut buf) {
+                    Err(_) => true,
+                    Ok(_) => {
+                        // check PDF magic number
+                        &buf != b"%PDF"
+                    }
+                };
+
                 if invalid {
                     return ui.send(UIMessage::Warning {
                         message: format!(
