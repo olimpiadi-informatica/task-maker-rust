@@ -105,6 +105,10 @@ impl AsyFile {
         for include in ASY_INCLUDE.captures_iter(&content) {
             let include = &include[1];
             let local_path = dir.join(include.to_owned() + ".asy");
+            // may happen for example with `import math;`
+            if !local_path.exists() {
+                continue;
+            }
             let sandbox_path = local_path.strip_prefix(prefix).unwrap();
             trace!(
                 "Asy dependency detected: {:?} -> {:?} = {:?}",

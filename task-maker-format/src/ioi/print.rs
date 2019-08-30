@@ -148,6 +148,17 @@ impl UI for PrintUI {
                 ));
                 self.write_status_details(&status);
             }
+            UIMessage::IOIGenerationStderr {
+                subtask,
+                testcase,
+                content,
+            } => {
+                println!(
+                    "[STDERR]  Generation stderr of testcase {} of subtask {}",
+                    testcase, subtask
+                );
+                print!("{}", content.trim());
+            }
             UIMessage::IOIValidation {
                 subtask,
                 testcase,
@@ -159,6 +170,17 @@ impl UI for PrintUI {
                     testcase, subtask
                 ));
                 self.write_status_details(&status);
+            }
+            UIMessage::IOIValidationStderr {
+                subtask,
+                testcase,
+                content,
+            } => {
+                println!(
+                    "[STDERR]  Validation stderr of testcase {} of subtask {}",
+                    testcase, subtask
+                );
+                print!("{}", content.trim());
             }
             UIMessage::IOISolution {
                 subtask,

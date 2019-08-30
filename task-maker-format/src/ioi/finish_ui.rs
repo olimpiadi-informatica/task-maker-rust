@@ -188,29 +188,33 @@ impl FinishUI {
                 print!("#{:<3} ", tc_num);
 
                 let mut first = true;
+                let mut gen_failed = false;
+                let mut val_failed = false;
                 if let Some(gen) = &testcase.generation {
                     if let ExecutionStatus::Success = gen.status {
                         cwrite!(self, GREEN, "Generated");
                     } else {
                         cwrite!(self, YELLOW, "Generation failed: {:?}", gen.status);
+                        gen_failed = true;
                     }
                     first = false;
                 }
-                if !first {
-                    print!(" | ");
-                }
                 if let Some(val) = &testcase.validation {
+                    if !first {
+                        print!(" | ");
+                    }
                     if let ExecutionStatus::Success = val.status {
                         cwrite!(self, GREEN, "Validated");
                     } else {
                         cwrite!(self, YELLOW, "Validation failed: {:?}", val.status);
+                        val_failed = true;
                     }
                     first = false;
                 }
-                if !first {
-                    print!(" | ");
-                }
                 if let Some(sol) = &testcase.solution {
+                    if !first {
+                        print!(" | ");
+                    }
                     if let ExecutionStatus::Success = sol.status {
                         cwrite!(self, GREEN, "Solved");
                     } else {
@@ -218,6 +222,22 @@ impl FinishUI {
                     }
                 }
                 println!();
+                if gen_failed {
+                    if let Some(stderr) = &testcase.generation_stderr {
+                        if !stderr.trim().is_empty() {
+                            cwriteln!(self, BOLD, "Generation stderr:");
+                            println!("{}", stderr.trim());
+                        }
+                    }
+                }
+                if val_failed {
+                    if let Some(stderr) = &testcase.validation_stderr {
+                        if !stderr.trim().is_empty() {
+                            cwriteln!(self, BOLD, "Validation stderr:");
+                            println!("{}", stderr.trim());
+                        }
+                    }
+                }
             }
         }
     }

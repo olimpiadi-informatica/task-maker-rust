@@ -7,7 +7,10 @@ use serde::{Deserialize, Serialize};
 use task_maker_dag::{Execution, ExecutionCommand, ExecutionStatus, File, FileUuid};
 
 use crate::ioi::*;
-use crate::{EvaluationData, SourceFile};
+use crate::ui::UIMessage;
+use crate::{EvaluationData, SourceFile, UISender};
+
+const STDERR_CONTENT_LENGTH: usize = 10 * 1024;
 
 /// Which tool to use to compute the score on a testcase given the input file, the _correct_ output
 /// file and the output file to evaluate.
@@ -207,6 +210,18 @@ impl InputGenerator {
                     testcase: testcase_id,
                     status
                 });
+                let sender = eval.sender.clone();
+                eval.dag
+                    .get_file_content(exec.stderr(), STDERR_CONTENT_LENGTH, move |content| {
+                        let content = String::from_utf8_lossy(&content);
+                        sender
+                            .send(UIMessage::IOIGenerationStderr {
+                                testcase: testcase_id,
+                                subtask: subtask_id,
+                                content: content.into(),
+                            })
+                            .unwrap()
+                    });
                 eval.dag.add_execution(exec);
                 eval.dag.write_file_to(
                     &stdout,
@@ -253,6 +268,18 @@ impl InputValidator {
                     testcase: testcase_id,
                     status
                 });
+                let sender = eval.sender.clone();
+                eval.dag
+                    .get_file_content(exec.stderr(), STDERR_CONTENT_LENGTH, move |content| {
+                        let content = String::from_utf8_lossy(&content);
+                        sender
+                            .send(UIMessage::IOIValidationStderr {
+                                testcase: testcase_id,
+                                subtask: subtask_id,
+                                content: content.into(),
+                            })
+                            .unwrap()
+                    });
                 eval.dag.add_execution(exec);
                 Ok(Some(stdout.uuid))
             }

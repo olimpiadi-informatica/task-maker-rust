@@ -203,15 +203,26 @@ impl CacheEntry {
 
         let mut outputs = HashMap::new();
 
-        if let (Some(stdout), Some(handle)) = (exec.stdout.as_ref(), try_get!(self.stdout)) {
-            outputs.insert(stdout.uuid, handle);
+        if let Some(stdout) = exec.stdout.as_ref() {
+            if let Some(handle) = try_get!(self.stdout) {
+                outputs.insert(stdout.uuid, handle);
+            } else {
+                return None;
+            }
         }
-        if let (Some(stderr), Some(handle)) = (exec.stderr.as_ref(), try_get!(self.stderr)) {
-            outputs.insert(stderr.uuid, handle);
+        if let Some(stderr) = exec.stderr.as_ref() {
+            if let Some(handle) = try_get!(self.stderr) {
+                outputs.insert(stderr.uuid, handle);
+            } else {
+                return None;
+            }
         }
-        for (path, key) in self.outputs.iter() {
-            let uuid = exec.outputs[path].uuid;
-            outputs.insert(uuid, try_get!(Some(key)).unwrap());
+        for (path, file) in exec.outputs.iter() {
+            if let Some(handle) = try_get!(self.outputs.get(path)) {
+                outputs.insert(file.uuid, handle);
+            } else {
+                return None;
+            }
         }
         Some(outputs)
     }
@@ -358,9 +369,6 @@ impl Cache {
             match entry.outputs(file_store, execution) {
                 None => {
                     // TODO: remove the entry because it's not valid anymore
-                    unimplemented!(
-                        "the flush is not implemented yet, so this code should not be reachable"
-                    );
                 }
                 Some(outputs) => {
                     if entry.is_compatible(execution) {
