@@ -31,6 +31,7 @@ impl AsyFile {
         comp.args(vec!["-f", "pdf", "-o", "output.pdf", "source.asy"]);
         comp.limits_mut()
             .read_only(false)
+            .wall_time(10.0) // asy tends to deadlock on failure
             .nproc(1000)
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true);
@@ -66,6 +67,7 @@ impl AsyFile {
         );
         crop.limits_mut()
             .read_only(false)
+            .wall_time(10.0) // asy tends to deadlock on failure
             .nproc(1000)
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true);

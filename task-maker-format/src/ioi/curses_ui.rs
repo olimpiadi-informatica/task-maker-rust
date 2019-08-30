@@ -10,7 +10,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::{Builder, JoinHandle};
 use task_maker_dag::ExecutionStatus;
-use termion::input::MouseTerminal;
+use termion::event::{Event, Key};
+use termion::input::{MouseTerminal, TermRead};
 use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
 use tui::backend::{Backend, TermionBackend};
@@ -104,7 +105,18 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
     };
     let loading = vec!['◐', '◓', '◑', '◒'];
     let mut loading_index = 0;
+    let stdin = termion::async_stdin();
+    let mut events = stdin.events();
     while !stop.load(Ordering::Relaxed) {
+        if let Some(Ok(event)) = events.next() {
+            match event {
+                Event::Key(Key::Ctrl('c')) | Event::Key(Key::Ctrl('\\')) => {
+                    drop(terminal);
+                    std::process::exit(1)
+                }
+                _ => {}
+            }
+        }
         let loading = loading[loading_index % loading.len()];
         loading_index += 1;
         terminal
