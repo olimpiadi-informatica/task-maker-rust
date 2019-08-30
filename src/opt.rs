@@ -67,6 +67,10 @@ pub struct Opt {
     /// The number of CPU cores to use
     #[structopt(long = "num-cores")]
     pub num_cores: Option<usize>,
+
+    /// Include the solutions in the booklet.
+    #[structopt(long = "booklet-solutions")]
+    pub booklet_solutions: bool,
 }
 
 impl Opt {
@@ -74,6 +78,7 @@ impl Opt {
     pub fn to_config(&self) -> EvaluationConfig {
         EvaluationConfig {
             solution_filter: self.filter.clone(),
+            booklet_solutions: self.booklet_solutions,
         }
     }
 }

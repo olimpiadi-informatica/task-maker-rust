@@ -48,6 +48,8 @@ pub struct EvaluationConfig {
     /// Execute only the solutions whose names start with the filter. If left empty all the
     /// solutions are executed.
     pub solution_filter: Vec<String>,
+    /// Include the solutions in the booklet.
+    pub booklet_solutions: bool,
 }
 
 /// The data for an evaluation, including the DAG and the UI channel.

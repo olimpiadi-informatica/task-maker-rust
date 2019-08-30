@@ -30,20 +30,8 @@ struct TaskYAML {
     /// The title of the task (the long one).
     #[serde(alias = "nome")]
     pub title: String,
-    /// The number of input files.
-    ///
-    /// This is ignored by task-maker.
-    pub n_input: Option<u32>,
-    /// The score mode for this task.
-    ///
-    /// This is ignored by task-maker.
-    pub score_mode: Option<String>,
     /// The score type to use for this task.
     pub score_type: Option<String>,
-    /// The token mode of this task.
-    ///
-    /// This is ignored by task-maker.
-    pub token_mode: Option<String>,
 
     /// The time limit for the execution of the solutions, if not set it's unlimited.
     #[serde(alias = "timeout")]
@@ -51,31 +39,24 @@ struct TaskYAML {
     /// The memory limit in MiB of the execution of the solution, if not set it's unlimited.
     #[serde(alias = "memlimit")]
     pub memory_limit: Option<u64>,
-    /// A list of comma separated numbers of the testcases with the feedback, can be set to "all".
-    ///
-    /// This is ignored by task-maker.
-    #[serde(alias = "risultati")]
-    pub public_testcases: Option<String>,
+
     /// Whether this is an output only task. Defaults to false.
     #[serde(default = "bool::default")]
     #[serde(serialize_with = "python_bool_serializer")]
     #[serde(deserialize_with = "python_bool_deserializer")]
     pub output_only: bool,
-    /// The maximum score of this task, if it's not set it will be autodetected from the testcase
-    /// definition.
-    ///
-    /// This is ignored by task-maker.
-    pub total_value: Option<f64>,
     /// The input file for the solutions, usually 'input.txt' or '' (stdin). Defaults to `''`.
     #[serde(default = "default_infile")]
     pub infile: String,
     /// The output file for the solutions, usually 'output.txt' or '' (stdout). Defaults to `''`.
     #[serde(default = "default_outfile")]
     pub outfile: String,
-    /// The primary language for this task.
-    ///
-    /// This is ignored by task-maker.
-    pub primary_language: Option<String>,
+
+    /// An integer that defines the difficulty of the task. Used only in booklet compilations.
+    pub difficulty: Option<u8>,
+    /// An integer that defines the level inside a _syllabus_ (for example for the Olympiads in
+    /// Teams). Used only in booklet compilations.
+    pub syllabuslevel: Option<u8>,
 }
 
 /// The iterator item type when following the task input testcases.
@@ -198,6 +179,8 @@ pub fn parse_task<P: AsRef<Path>>(task_dir: P) -> Result<Task, Error> {
             .map(|s| TestcaseScoreAggregator::from_str(s))
             .unwrap_or(Ok(TestcaseScoreAggregator::Min))?,
         grader_map,
+        difficulty: yaml.difficulty,
+        syllabus_level: yaml.syllabuslevel,
     })
 }
 

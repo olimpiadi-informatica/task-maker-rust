@@ -93,6 +93,11 @@ pub struct Task {
     pub testcase_score_aggregator: TestcaseScoreAggregator,
     /// The graders registered for this task.
     pub grader_map: Arc<GraderMap>,
+    /// An integer that defines the difficulty of the task. Used only in booklet compilations.
+    pub difficulty: Option<u8>,
+    /// An integer that defines the level inside a _syllabus_ (for example for the Olympiads in
+    /// Teams). Used only in booklet compilations.
+    pub syllabus_level: Option<u8>,
 }
 
 /// A subtask of a IOI task.
@@ -238,7 +243,7 @@ impl TaskFormat for Task {
             }
         }
         // build the statements
-        let booklets = make_booklets(self)?;
+        let booklets = make_booklets(self, config)?;
         for booklet in booklets {
             booklet.build(eval)?;
         }

@@ -1,10 +1,10 @@
 use crate::ioi::statement::asy::AsyFile;
-use crate::ioi::Task;
+use crate::ioi::{BookletConfig, Task};
 use crate::EvaluationData;
 use askama::Template;
 use failure::Error;
 use regex::Regex;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use task_maker_dag::File;
 
 lazy_static! {
@@ -82,9 +82,15 @@ impl Statement {
         &self,
         eval: &mut EvaluationData,
         booklet_name: &str,
+        booklet_config: &BookletConfig,
     ) -> Result<Vec<(PathBuf, File)>, Error> {
         let base_dir = self.path.parent().unwrap();
         let glob_pattern = base_dir.to_string_lossy().to_string() + "/**/*";
+        let logo = booklet_config
+            .logo
+            .as_ref()
+            .and_then(|p| Path::new(p).file_name())
+            .map(PathBuf::from);
         let mut deps = vec![];
         for path in glob::glob(&glob_pattern).unwrap() {
             let path = path.unwrap();
@@ -106,17 +112,24 @@ impl Statement {
                 }
                 _ => {
                     if ext == "pdf" {
-                        // resolve the symlinks
-                        let path = path.canonicalize()?;
-                        // ignore .pdf files that have the .asy source
-                        let asy_path = path.with_extension("asy");
-                        if asy_path.exists() {
-                            continue;
-                        }
-                        // ignore .pdf files that have the .tex source
-                        let tex_path = path.with_extension("tex");
-                        if tex_path.exists() {
-                            continue;
+                        match (path.file_name(), &logo) {
+                            (Some(name), Some(logo)) => {
+                                if name != logo {
+                                    // resolve the symlinks
+                                    let path = path.canonicalize()?;
+                                    // ignore .pdf files that have the .asy source
+                                    let asy_path = path.with_extension("asy");
+                                    if asy_path.exists() {
+                                        continue;
+                                    }
+                                    // ignore .pdf files that have the .tex source
+                                    let tex_path = path.with_extension("tex");
+                                    if tex_path.exists() {
+                                        continue;
+                                    }
+                                }
+                            }
+                            _ => {}
                         }
                     }
                     let file = File::new(format!(
@@ -193,8 +206,8 @@ impl StatementConfig {
                 .unwrap_or_else(String::new),
             time_limit: task.time_limit,
             memory_limit: task.memory_limit,
-            difficulty: None,
-            syllabus_level: None,
+            difficulty: task.difficulty,
+            syllabus_level: task.syllabus_level,
         }
     }
 }

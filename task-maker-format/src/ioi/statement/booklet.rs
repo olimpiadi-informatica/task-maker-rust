@@ -14,23 +14,23 @@ use task_maker_dag::{Execution, ExecutionCommand, File};
 #[derive(Debug)]
 pub struct BookletConfig {
     /// The language to use for this booklet, e.g. `"english"`.
-    language: String,
+    pub language: String,
     /// Whether to show the solutions in the booklet.
-    show_solutions: bool,
+    pub show_solutions: bool,
     /// Whether to show the summary of the task.
-    show_summary: bool,
+    pub show_summary: bool,
     /// The font encoding of the tex file.
-    font_enc: String,
+    pub font_enc: String,
     /// The input encoding of the tex file.
-    input_enc: String,
+    pub input_enc: String,
     /// The description of the contest.
-    description: Option<String>,
+    pub description: Option<String>,
     /// The location of the contest.
-    location: Option<String>,
+    pub location: Option<String>,
     /// The date of the contest.
-    date: Option<String>,
+    pub date: Option<String>,
     /// The logo of the contest.
-    logo: Option<String>,
+    pub logo: Option<String>,
 }
 
 /// Template to use to render the `booklet.tex` file.
@@ -73,6 +73,8 @@ struct ContestYAML {
     date: Option<String>,
     /// The logo of the contest.
     logo: Option<String>,
+    /// `Some("True")` if the time and memory limits should be put in the booklet.
+    show_summary: Option<String>,
 }
 
 impl Booklet {
@@ -124,7 +126,7 @@ impl Booklet {
             exec.input(&tex, Path::new(&name).join("statement.tex"), false);
             eval.dag.provide_content(tex, statement.tex().into_bytes());
             let base_dir = PathBuf::from(&name);
-            for (path, file) in statement.build_deps(eval, &booklet_name)? {
+            for (path, file) in statement.build_deps(eval, &booklet_name, &self.config)? {
                 exec.input(file, base_dir.join(path), false);
             }
         }
@@ -203,6 +205,7 @@ impl BookletConfig {
     pub fn from_contest<S: Into<String>, P: Into<PathBuf>>(
         language: S,
         contest_dir: P,
+        booklet_solutions: bool,
     ) -> Result<BookletConfig, Error> {
         let contest_yaml_path = contest_dir.into().join("contest.yaml");
         if contest_yaml_path.exists() {
@@ -210,8 +213,8 @@ impl BookletConfig {
                 serde_yaml::from_reader(std::fs::File::open(contest_yaml_path)?)?;
             Ok(BookletConfig {
                 language: language.into(),
-                show_solutions: false,
-                show_summary: false,
+                show_solutions: booklet_solutions,
+                show_summary: contest_yaml.show_summary == Some("True".to_string()),
                 font_enc: "T1".into(),
                 input_enc: "utf8".into(),
                 description: contest_yaml.description,
@@ -222,7 +225,7 @@ impl BookletConfig {
         } else {
             Ok(BookletConfig {
                 language: language.into(),
-                show_solutions: false,
+                show_solutions: booklet_solutions,
                 show_summary: false,
                 font_enc: "T1".into(),
                 input_enc: "utf8".into(),
