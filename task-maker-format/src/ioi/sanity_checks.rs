@@ -1,7 +1,9 @@
-use crate::ioi::Task;
+use crate::ioi::{SubtaskId, Task};
 use crate::ui::{UIMessage, UIMessageSender};
 use crate::{list_files, EvaluationData, UISender};
 use failure::Error;
+use itertools::Itertools;
+use regex::Regex;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -19,6 +21,7 @@ pub fn pre_hook(task: &Task, eval: &mut EvaluationData) -> Result<(), Error> {
     check_sol_graders(task, eval)?;
     check_sol_symlink(task, eval)?;
     check_sol_unique(task, eval)?;
+    check_statement_subtasks(task, eval)?;
     Ok(())
 }
 
@@ -124,6 +127,58 @@ fn check_sol_unique(task: &Task, eval: &mut EvaluationData) -> Result<(), Error>
         eval.sender.send(UIMessage::Warning {
             message: format!("More than an official solution found: {:?}", solutions),
         })?;
+    }
+    Ok(())
+}
+
+/// Check that the subtasks in the statement are consistent with the ones of the task.
+fn check_statement_subtasks(task: &Task, eval: &mut EvaluationData) -> Result<(), Error> {
+    let expected_subtasks = task
+        .subtasks
+        .iter()
+        .map(|(st_num, st)| (*st_num, st.max_score))
+        .sorted_by_key(|(st, _)| *st)
+        .collect_vec();
+    for booklet in task.booklets.iter() {
+        if booklet.statements.len() != 1 {
+            continue;
+        }
+        let statement = &booklet.statements[0];
+        let source = statement.tex();
+        let subtasks = match extract_subtasks(source) {
+            None => continue,
+            Some(subtasks) => subtasks,
+        };
+        let mut non_sequential = false;
+        let mut wrong = false;
+        for (expected, actual) in expected_subtasks.iter().zip(subtasks.iter()) {
+            if expected.0 != actual.0 {
+                non_sequential = true;
+                break;
+            }
+            if approx::abs_diff_ne!(expected.1, actual.1) {
+                wrong = true;
+                break;
+            }
+        }
+        if expected_subtasks.len() != subtasks.len() {
+            wrong = true;
+        }
+        if non_sequential {
+            eval.sender.send(UIMessage::Warning {
+                message: format!(
+                    "The subtasks in the statement {} are non-sequentially numbered",
+                    statement.path.strip_prefix(&task.path).unwrap().display()
+                ),
+            })?;
+        } else if wrong {
+            eval.sender.send(UIMessage::Warning {
+                message: format!(
+                    "The subtasks in the statement {} don't match the tasks's ones",
+                    statement.path.strip_prefix(&task.path).unwrap().display()
+                ),
+            })?;
+        }
     }
     Ok(())
 }
@@ -273,4 +328,78 @@ fn check_missing_graders<P: AsRef<Path>>(
         }
     }
     Ok(())
+}
+
+/// Try to extract from the tex file the list of statements, starting with zero. If the list is
+/// empty, `None` is returned.
+fn extract_subtasks(tex: String) -> Option<Vec<(SubtaskId, f64)>> {
+    let mut subtasks = if let Some(subtasks) = check_subtasks_oii(&tex) {
+        subtasks
+    } else if let Some(subtasks) = check_subtasks_ois(&tex) {
+        subtasks
+    } else {
+        return None;
+    };
+    // subtasks 1-based
+    if subtasks[0].0 == 1 {
+        for subtask in subtasks.iter_mut() {
+            // make the subtasks 0-based
+            if subtask.0 > 0 {
+                subtask.0 -= 1;
+            }
+        }
+    }
+    error!("Subtasks: {:?}", subtasks);
+    Some(subtasks)
+}
+
+/// Extract from the OII's usual format the subtasks. They are for example:
+///
+/// `\item \textbf{\makebox[2cm][l]{Subtask 2} [20 punti]}: $L\leq 10$.`
+///
+/// The regex is pretty powerful and tries to match as many variations as possible.
+fn check_subtasks_oii(text: &str) -> Option<Vec<(SubtaskId, f64)>> {
+    lazy_static! {
+        static ref FIND_SUBTASKS: Regex =
+            Regex::new(r".*\{Subtask ([0-9]+)\} *\[(?:\\phantom\{.\})?([0-9]+).*\].*").unwrap();
+    }
+    let mut result = Vec::new();
+    for subtask in FIND_SUBTASKS.captures_iter(text) {
+        let num = subtask[1].parse::<SubtaskId>();
+        let max_score = subtask[2].parse::<f64>();
+        if let (Ok(num), Ok(max_score)) = (num, max_score) {
+            result.push((num, max_score));
+        } else {
+            return None;
+        }
+    }
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
+}
+
+/// Extract from the OIS's usual format the subtasks. They are for example:
+///
+/// `\OISubtask{10}{1}{$N \le 10$.}`
+fn check_subtasks_ois(text: &str) -> Option<Vec<(SubtaskId, f64)>> {
+    lazy_static! {
+        static ref FIND_SUBTASKS: Regex =
+            Regex::new(r".*\\OISubtask\{(\d+)\}\{\d+\}\{.+\}.*").unwrap();
+    }
+    let mut result = Vec::new();
+    for (index, subtask) in FIND_SUBTASKS.captures_iter(text).enumerate() {
+        let max_score = subtask[1].parse::<f64>();
+        if let Ok(max_score) = max_score {
+            result.push((index as SubtaskId, max_score));
+        } else {
+            return None;
+        }
+    }
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
 }

@@ -4,6 +4,7 @@ use crate::EvaluationData;
 use askama::Template;
 use failure::Error;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use task_maker_dag::File;
 
@@ -13,7 +14,7 @@ lazy_static! {
 }
 
 /// The configuration of a `Statement`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatementConfig {
     /// The name of the task.
     pub name: String,
@@ -34,12 +35,12 @@ pub struct StatementConfig {
 }
 
 /// A statement is a `.tex` file with all the other assets included in its directory.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Statement {
     /// The configuration of the statement.
     config: StatementConfig,
     /// The path of the `.tex` file.
-    path: PathBuf,
+    pub path: PathBuf,
     /// The content of the `.tex` file, stored here to avoid reading the file many times.
     content: String,
 }

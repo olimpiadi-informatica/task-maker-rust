@@ -5,13 +5,13 @@ use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData};
 use askama::Template;
 use failure::Error;
 use itertools::Itertools;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use task_maker_dag::{Execution, ExecutionCommand, File};
 
 /// Configuration of a `Booklet`, including the setting from the contest configuration.
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BookletConfig {
     /// The language to use for this booklet, e.g. `"english"`.
     pub language: String,
@@ -52,12 +52,12 @@ pub struct BookletTemplate {
 
 /// A `Booklet` is a pdf file containing the statements of some tasks. It is compiled from a series
 /// of `.tex` files defined by `Statement` objects. The compiled pdf file is then copied somewhere.
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Booklet {
     /// Configuration of the booklet.
     config: BookletConfig,
     /// The list of `Statement`s that are included in this booklet.
-    statements: Vec<Statement>,
+    pub statements: Vec<Statement>,
     /// Where to copy the booklet.
     dest: PathBuf,
 }

@@ -13,10 +13,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use task_maker_lang::GraderMap;
 
 use crate::ioi::{
-    Checker, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo, Task, TaskType, TestcaseId,
-    TestcaseInfo, TestcaseScoreAggregator,
+    make_booklets, Checker, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo, Task,
+    TaskType, TestcaseId, TestcaseInfo, TestcaseScoreAggregator,
 };
-use crate::{find_source_file, list_files};
+use crate::{find_source_file, list_files, EvaluationConfig};
 
 mod gen_gen;
 mod static_inputs;
@@ -89,7 +89,10 @@ pub(crate) enum TaskInputEntry {
 ///
 /// A task must have a generator (and a GEN file) or the input files should be  put in `input/`.
 /// The official solution must be present or the output files should be put in `output/`.
-pub fn parse_task<P: AsRef<Path>>(task_dir: P) -> Result<Task, Error> {
+pub fn parse_task<P: AsRef<Path>>(
+    task_dir: P,
+    eval_config: &EvaluationConfig,
+) -> Result<Task, Error> {
     let task_dir = task_dir.as_ref();
     let yaml: TaskYAML = serde_yaml::from_reader(fs::File::open(&task_dir.join("task.yaml"))?)?;
     debug!("The yaml is {:#?}", yaml);
@@ -162,7 +165,7 @@ pub fn parse_task<P: AsRef<Path>>(task_dir: P) -> Result<Task, Error> {
     .map(Arc::new)
     .map(Checker::Custom);
 
-    Ok(Task {
+    let mut task = Task {
         path: task_dir.into(),
         task_type: TaskType::Batch,
         name: yaml.name,
@@ -179,9 +182,13 @@ pub fn parse_task<P: AsRef<Path>>(task_dir: P) -> Result<Task, Error> {
             .map(|s| TestcaseScoreAggregator::from_str(s))
             .unwrap_or(Ok(TestcaseScoreAggregator::Min))?,
         grader_map,
+        booklets: Vec::new(),
         difficulty: yaml.difficulty,
         syllabus_level: yaml.syllabuslevel,
-    })
+    };
+    // split the creation of the task because make_booklets need an instance of Task
+    task.booklets = make_booklets(&task, eval_config)?;
+    Ok(task)
 }
 
 /// Search for a valid input validator inside the task directory. Will return a function that, given

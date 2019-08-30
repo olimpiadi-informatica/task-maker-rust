@@ -94,6 +94,8 @@ pub struct Task {
     pub testcase_score_aggregator: TestcaseScoreAggregator,
     /// The graders registered for this task.
     pub grader_map: Arc<GraderMap>,
+    /// The booklets to compile for this task.
+    pub booklets: Vec<Booklet>,
     /// An integer that defines the difficulty of the task. Used only in booklet compilations.
     pub difficulty: Option<u8>,
     /// An integer that defines the level inside a _syllabus_ (for example for the Olympiads in
@@ -131,8 +133,8 @@ pub struct TestcaseInfo {
 impl Task {
     /// Try to make a `Task` from the specified path. Will return `Err` if the format of the task
     /// is not IOI or if the task is corrupted and cannot be parsed.
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Task, Error> {
-        format::italian_yaml::parse_task(path)
+    pub fn new<P: AsRef<Path>>(path: P, eval_config: &EvaluationConfig) -> Result<Task, Error> {
+        format::italian_yaml::parse_task(path, eval_config)
     }
 }
 
@@ -244,9 +246,7 @@ impl TaskFormat for Task {
                 }
             }
         }
-        // build the statements
-        let booklets = make_booklets(self, config)?;
-        for booklet in booklets {
+        for booklet in self.booklets.iter() {
             booklet.build(eval)?;
         }
         Ok(())
