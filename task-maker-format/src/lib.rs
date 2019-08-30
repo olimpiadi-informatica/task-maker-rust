@@ -39,6 +39,10 @@ pub trait TaskFormat {
     /// Execute the evaluation of this task by adding the executions to the provided DAG.
     fn execute(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error>;
 
+    /// Hook called after the execution completed, useful for sending messages to the UI about the
+    /// results of the sanity checks with data available only after the evaluation.
+    fn sanity_check_post_hook(&self, ui: &mut ui::UIMessageSender) -> Result<(), Error>;
+
     /// Clean the task folder removing the files that can be generated automatically.
     fn clean(&self) -> Result<(), Error>;
 }

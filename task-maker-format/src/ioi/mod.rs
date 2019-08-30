@@ -34,6 +34,7 @@ mod dag;
 mod finish_ui;
 mod format;
 mod print;
+mod sanity_checks;
 mod statement;
 mod tag;
 mod ui_state;
@@ -148,6 +149,7 @@ impl TaskFormat for Task {
     fn execute(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error> {
         eval.sender
             .send(UIMessage::IOITask { task: self.clone() })?;
+        sanity_checks::pre_hook(&self, eval)?;
         let graders: HashSet<PathBuf> = self
             .grader_map
             .all_paths()
@@ -248,6 +250,10 @@ impl TaskFormat for Task {
             booklet.build(eval)?;
         }
         Ok(())
+    }
+
+    fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
+        sanity_checks::post_hook(&self, ui)
     }
 
     fn clean(&self) -> Result<(), Error> {

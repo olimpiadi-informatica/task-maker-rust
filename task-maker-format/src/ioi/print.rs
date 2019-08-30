@@ -267,6 +267,10 @@ impl UI for PrintUI {
                     num_steps
                 ));
             }
+            UIMessage::Warning { message } => {
+                cwrite!(self, WARNING, "[WARNING] ");
+                print!("{}", message);
+            }
         };
         println!();
     }

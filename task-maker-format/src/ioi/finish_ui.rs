@@ -73,6 +73,7 @@ impl FinishUI {
         println!();
         ui.print_evaluations(state);
         ui.print_summary(state);
+        ui.print_messages(state);
     }
 
     /// Print the basic task info.
@@ -375,6 +376,16 @@ impl FinishUI {
             println!();
         }
         println!();
+    }
+
+    /// Print the warnings.
+    fn print_messages(&mut self, state: &UIState) {
+        if !state.warnings.is_empty() {
+            cwriteln!(self, YELLOW, "Warnings:");
+            for warning in state.warnings.iter() {
+                println!(" - {}", warning);
+            }
+        }
     }
 
     /// Print the time and memory usage of an execution.

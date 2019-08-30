@@ -158,6 +158,8 @@ fn main() {
         ui_sender.send(UIMessage::ServerStatus { status }).unwrap();
     })
     .unwrap();
+    task.sanity_check_post_hook(&mut eval.sender.lock().unwrap())
+        .expect("Sanity checks failed");
 
     // wait for the server and the ui to exit
     server.join().expect("Executor panicked");

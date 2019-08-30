@@ -209,6 +209,12 @@ pub enum UIMessage {
         /// The status of this step.
         status: UIExecutionStatus,
     },
+
+    /// A warning has been emitted.
+    Warning {
+        /// The message of the warning.
+        message: String,
+    },
 }
 
 /// The sender of the UIMessage

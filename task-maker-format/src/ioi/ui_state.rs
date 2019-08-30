@@ -213,6 +213,8 @@ pub struct UIState {
     pub executor_status: Option<ExecutorStatus<SystemTime>>,
     /// The status of the booklets
     pub booklets: HashMap<String, BookletState>,
+    /// All the emitted warnings.
+    pub warnings: Vec<String>,
 }
 
 impl TestcaseEvaluationStatus {
@@ -320,6 +322,7 @@ impl UIState {
             evaluations: HashMap::new(),
             executor_status: None,
             booklets: HashMap::new(),
+            warnings: Vec::new(),
         }
     }
 
@@ -665,6 +668,9 @@ impl UIState {
                     .get_mut(step)
                     .unwrap()
                     .status = status;
+            }
+            UIMessage::Warning { message } => {
+                self.warnings.push(message);
             }
             _ => {}
         }
