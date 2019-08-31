@@ -66,14 +66,21 @@ impl CursesUI {
 
 impl UI for CursesUI {
     fn on_message(&mut self, message: UIMessage) {
-        self.state.write().unwrap().apply(message);
+        self.state
+            .write()
+            .expect("UI state lock is poisoned")
+            .apply(message);
     }
 
     fn finish(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
-        self.ui_thread.take().unwrap().join().unwrap();
+        self.ui_thread
+            .take()
+            .expect("UI finished more than once")
+            .join()
+            .expect("UI thread failed");
         // at this point the terminal should be restored
-        let state = self.state.read().unwrap();
+        let state = self.state.read().expect("State lock is poisoned");
         FinishUI::print(&state);
     }
 }
@@ -83,7 +90,8 @@ impl Drop for CursesUI {
         // tell the ui to stop and wait for it, the terminal will be released.
         self.stop.store(true, Ordering::Relaxed);
         if self.ui_thread.is_some() {
-            self.ui_thread.take().unwrap().join().unwrap();
+            // try not to panic during unwind
+            let _ = self.ui_thread.take().unwrap().join();
         }
     }
 }
@@ -92,7 +100,7 @@ impl Drop for CursesUI {
 /// the `stop` `AtomicBool`.
 fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<AtomicBool>) {
     let header = {
-        let state = state.read().unwrap();
+        let state = state.read().expect("UI state lock is poisoned");
         [
             Text::styled(
                 state.task.title.clone(),
@@ -121,7 +129,7 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
         loading_index += 1;
         terminal
             .draw(|mut f| {
-                let state = state.read().unwrap();
+                let state = state.read().expect("UI state lock is poisoned");
                 let booklet_len: usize = state
                     .booklets
                     .values()
@@ -183,7 +191,7 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
                     .render(&mut f, chunks[5]);
                 draw_server_status(&mut f, inner_block(chunks[5]), &state, loading);
             })
-            .unwrap();
+            .expect("Failed to draw to the screen");
         // reduce the framerate to at most `FPS`
         std::thread::sleep(std::time::Duration::from_micros(1_000_000 / FPS));
     }
@@ -202,7 +210,7 @@ where
     let max_len = state
         .compilations
         .keys()
-        .map(|k| k.file_name().unwrap().len())
+        .map(|k| k.file_name().expect("Invalid file name").len())
         .max()
         .unwrap_or(0)
         + 4;
@@ -214,7 +222,9 @@ where
             vec![
                 Text::raw(format!(
                     "{:<max_len$}",
-                    file.file_name().unwrap().to_string_lossy(),
+                    file.file_name()
+                        .expect("Invalid file name")
+                        .to_string_lossy(),
                     max_len = max_len
                 )),
                 compilation_status_text(status, loading),
@@ -352,7 +362,7 @@ where
     let max_len = state
         .evaluations
         .keys()
-        .map(|k| k.file_name().unwrap().len())
+        .map(|k| k.file_name().expect("Invalid file name").len())
         .max()
         .unwrap_or(0)
         + 4;
@@ -364,7 +374,10 @@ where
             let mut texts = vec![];
             texts.push(Text::raw(format!(
                 "{:<max_len$}",
-                solution.file_name().unwrap().to_string_lossy(),
+                solution
+                    .file_name()
+                    .expect("Invalid file name")
+                    .to_string_lossy(),
                 max_len = max_len
             )));
             texts.push(evaluation_score(state, solution, loading));

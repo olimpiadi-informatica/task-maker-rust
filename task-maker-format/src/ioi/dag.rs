@@ -101,48 +101,44 @@ pub enum TaskType {
 #[macro_export]
 macro_rules! bind_exec_callbacks {
     ($eval:expr, $exec_uuid:expr, $enum:expr $(,$extra:ident)*) => {
-        #[allow(clippy::redundant_closure_call)]
         {
-            use crate::UISender;
-            use crate::ui::UIExecutionStatus;
+            #[allow(clippy::redundant_closure_call)]
             {
-                $(let $extra = $extra.clone();)*
-                let status = UIExecutionStatus::Pending;
-                $eval
-                    .sender
-                    .send(($enum)(status, $($extra,)*))
-                    .expect("Failed sending ui message");
+                use crate::UISender;
+                use crate::ui::UIExecutionStatus;
+                {
+                    $(let $extra = $extra.clone();)*
+                    let status = UIExecutionStatus::Pending;
+                    $eval
+                        .sender
+                        .send(($enum)(status, $($extra,)*))?;
+                }
+                {
+                    $(let $extra = $extra.clone();)*
+                    let sender = $eval.sender.clone();
+                    $eval.dag.on_execution_start(&$exec_uuid, move |worker| {
+                        let status = UIExecutionStatus::Started { worker };
+                        sender.send(($enum)(status, $($extra,)*))
+                    });
+                }
+                {
+                    $(let $extra = $extra.clone();)*
+                    let sender = $eval.sender.clone();
+                    $eval.dag.on_execution_done(&$exec_uuid, move |result| {
+                        let status = UIExecutionStatus::Done { result };
+                        sender.send(($enum)(status, $($extra,)*))
+                    });
+                }
+                {
+                    $(let $extra = $extra.clone();)*
+                    let sender = $eval.sender.clone();
+                    $eval.dag.on_execution_skip(&$exec_uuid, move || {
+                        let status = UIExecutionStatus::Skipped;
+                        sender.send(($enum)(status, $($extra,)*))
+                    });
+                }
             }
-            {
-                $(let $extra = $extra.clone();)*
-                let sender = $eval.sender.clone();
-                $eval.dag.on_execution_start(&$exec_uuid, move |worker| {
-                    let status = UIExecutionStatus::Started { worker };
-                    sender
-                        .send(($enum)(status, $($extra,)*))
-                        .expect("Failed sending ui message");
-                });
-            }
-            {
-                $(let $extra = $extra.clone();)*
-                let sender = $eval.sender.clone();
-                $eval.dag.on_execution_done(&$exec_uuid, move |result| {
-                    let status = UIExecutionStatus::Done { result };
-                    sender
-                        .send(($enum)(status, $($extra,)*))
-                        .expect("Failed sending ui message");
-                });
-            }
-            {
-                $(let $extra = $extra.clone();)*
-                let sender = $eval.sender.clone();
-                $eval.dag.on_execution_skip(&$exec_uuid, move || {
-                    let status = UIExecutionStatus::Skipped;
-                    sender
-                        .send(($enum)(status, $($extra,)*))
-                        .expect("Failed sending ui message");
-                });
-            }
+            Result::<(), Error>::Ok(())
         }
     };
 }
@@ -209,18 +205,16 @@ impl InputGenerator {
                     subtask: subtask_id,
                     testcase: testcase_id,
                     status
-                });
+                })?;
                 let sender = eval.sender.clone();
                 eval.dag
                     .get_file_content(exec.stderr(), STDERR_CONTENT_LENGTH, move |content| {
                         let content = String::from_utf8_lossy(&content);
-                        sender
-                            .send(UIMessage::IOIGenerationStderr {
-                                testcase: testcase_id,
-                                subtask: subtask_id,
-                                content: content.into(),
-                            })
-                            .unwrap()
+                        sender.send(UIMessage::IOIGenerationStderr {
+                            testcase: testcase_id,
+                            subtask: subtask_id,
+                            content: content.into(),
+                        })
                     });
                 eval.dag.add_execution(exec);
                 eval.dag.write_file_to(
@@ -267,18 +261,16 @@ impl InputValidator {
                     subtask: subtask_id,
                     testcase: testcase_id,
                     status
-                });
+                })?;
                 let sender = eval.sender.clone();
                 eval.dag
                     .get_file_content(exec.stderr(), STDERR_CONTENT_LENGTH, move |content| {
                         let content = String::from_utf8_lossy(&content);
-                        sender
-                            .send(UIMessage::IOIValidationStderr {
-                                testcase: testcase_id,
-                                subtask: subtask_id,
-                                content: content.into(),
-                            })
-                            .unwrap()
+                        sender.send(UIMessage::IOIValidationStderr {
+                            testcase: testcase_id,
+                            subtask: subtask_id,
+                            content: content.into(),
+                        })
                     });
                 eval.dag.add_execution(exec);
                 Ok(Some(stdout.uuid))
@@ -324,7 +316,7 @@ impl OutputGenerator {
                     subtask: subtask_id,
                     testcase: testcase_id,
                     status
-                });
+                })?;
                 eval.dag.add_execution(exec);
                 eval.dag.write_file_to(
                     &output,
@@ -354,7 +346,7 @@ impl Checker {
         callback: F,
     ) -> Result<(), Error>
     where
-        F: FnOnce(f64, String) -> () + Send + Sync + 'static,
+        F: FnOnce(f64, String) -> Result<(), Error> + Send + Sync + 'static,
     {
         let solution = solution.into();
         match self {
@@ -380,17 +372,18 @@ impl Checker {
                         status
                     },
                     solution
-                );
+                )?;
                 eval.dag.on_execution_done(&exec.uuid, move |result| {
                     match result.status {
                         // diff exits with 0 if the files are equal
-                        ExecutionStatus::Success => callback(1.0, "Output is correct".into()),
+                        ExecutionStatus::Success => callback(1.0, "Output is correct".into())?,
                         // return code 1 means the files are different
                         ExecutionStatus::ReturnCode(1) => {
-                            callback(0.0, "Output is incorrect".into())
+                            callback(0.0, "Output is incorrect".into())?
                         }
                         _ => unreachable!("diff died badly?"),
                     };
+                    Ok(())
                 });
                 eval.dag.add_execution(exec);
             }
@@ -417,7 +410,7 @@ impl Checker {
                         status
                     },
                     solution
-                );
+                )?;
                 let stdout = exec.stdout();
                 let stderr = exec.stderr();
                 eval.dag.add_execution(exec);
@@ -432,22 +425,24 @@ impl Checker {
                         // if both the score and the message are present
                         if let (Some(ref score), Some(ref message)) = *$state {
                             if let Some(f) = $callback.lock().unwrap().take() {
-                                f(*score, message.clone());
+                                f(*score, message.clone())?;
                             }
                         }
                     }};
                 }
                 eval.dag.get_file_content(stdout, 128, move |content| {
                     let score = String::from_utf8_lossy(&content);
-                    let score: f64 = score.trim().parse().expect("Invalid score from checker");
+                    let score: f64 = score.trim().parse()?;
                     let mut state = state_stdout.lock().unwrap();
                     state.0 = Some(score);
                     send_state!(callback_stdout, state);
+                    Ok(())
                 });
                 eval.dag.get_file_content(stderr, 1024, move |content| {
                     let mut state = state_stderr.lock().unwrap();
                     state.1 = Some(String::from_utf8_lossy(&content).to_string());
                     send_state!(callback_stderr, state);
+                    Ok(())
                 });
             }
         }
@@ -503,25 +498,21 @@ impl TaskType {
                         status
                     },
                     path
-                );
+                )?;
                 let sender = eval.sender.clone();
                 let path = source_file.path.clone();
                 let score_manager_err = score_manager.clone();
                 eval.dag
                     .on_execution_done(&exec.uuid, move |result| match result.status {
-                        ExecutionStatus::Success => {}
-                        _ => score_manager_err
-                            .lock()
-                            .unwrap()
-                            .score(
-                                subtask_id,
-                                testcase_id,
-                                0.0,
-                                format!("{:?}", result.status),
-                                sender,
-                                path,
-                            )
-                            .unwrap(),
+                        ExecutionStatus::Success => Ok(()),
+                        _ => score_manager_err.lock().unwrap().score(
+                            subtask_id,
+                            testcase_id,
+                            0.0,
+                            format!("{:?}", result.status),
+                            sender,
+                            path,
+                        ),
                     });
                 eval.dag.add_execution(exec);
 
@@ -536,11 +527,14 @@ impl TaskType {
                     correct_output,
                     output.uuid,
                     move |score, message| {
-                        score_manager
-                            .lock()
-                            .unwrap()
-                            .score(subtask_id, testcase_id, score, message, sender, path)
-                            .unwrap();
+                        score_manager.lock().unwrap().score(
+                            subtask_id,
+                            testcase_id,
+                            score,
+                            message,
+                            sender,
+                            path,
+                        )
                     },
                 )?;
             }

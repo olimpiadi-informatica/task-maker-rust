@@ -112,7 +112,7 @@ fn main() {
     }
 
     // setup the ui thread
-    let mut ui = task.ui(opt.ui).unwrap();
+    let mut ui = task.ui(opt.ui).expect("Invalid UI");
     let ui_thread = std::thread::Builder::new()
         .name("UI".to_owned())
         .spawn(move || {
@@ -121,13 +121,14 @@ fn main() {
             }
             ui.finish();
         })
-        .unwrap();
+        .expect("Failed to spawn UI thread");
 
     // setup the executor
     let (store_path, _tempdir) = match opt.store_dir {
         Some(dir) => (dir, None),
         None => {
-            let cwd = tempdir::TempDir::new("task-maker").unwrap();
+            let cwd =
+                tempdir::TempDir::new("task-maker").expect("Failed to create temporary directory");
             (cwd.path().to_owned(), Some(cwd))
         }
     };
@@ -139,7 +140,8 @@ fn main() {
     let executor = LocalExecutor::new(Arc::new(file_store), num_cores, sandbox_path);
 
     // build the DAG for the task
-    task.execute(&mut eval, &eval_config).unwrap();
+    task.execute(&mut eval, &eval_config)
+        .expect("Failed to build the DAG");
 
     trace!("The DAG is: {:#?}", eval.dag);
 
@@ -151,13 +153,13 @@ fn main() {
         .spawn(move || {
             executor.evaluate(tx_remote, rx_remote, cache).unwrap();
         })
-        .unwrap();
+        .expect("Failed to spawn the executor thread");
 
     let ui_sender = eval.sender.clone();
     ExecutorClient::evaluate(eval.dag, tx, &rx, move |status| {
-        ui_sender.send(UIMessage::ServerStatus { status }).unwrap();
+        ui_sender.send(UIMessage::ServerStatus { status })
     })
-    .unwrap();
+    .expect("Client failed");
     task.sanity_check_post_hook(&mut eval.sender.lock().unwrap())
         .expect("Sanity checks failed");
 

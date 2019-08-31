@@ -169,7 +169,11 @@ impl SourceFile {
     /// assert_eq!(source.name(), "sourcefile.cpp");
     /// ```
     pub fn name(&self) -> String {
-        String::from(self.path.file_name().unwrap().to_str().unwrap())
+        self.path
+            .file_name()
+            .expect("Invalid file name")
+            .to_string_lossy()
+            .to_string()
     }
 
     /// The standard output of the compilation, if the source file is compiled and `execute` has
@@ -197,7 +201,11 @@ impl SourceFile {
             comp.tag(ExecutionTag::from("compilation"));
             comp.args = self.language.compilation_args(&self.path);
             let source = File::new(&format!("Source file of {:?}", self.path));
-            comp.input(&source, Path::new(self.path.file_name().unwrap()), false);
+            comp.input(
+                &source,
+                Path::new(self.path.file_name().expect("Invalid file name")),
+                false,
+            );
             comp.limits.nproc = None;
             comp.limits.read_only(false); // the compilers may need to store some temp files
             for dep in self.language.compilation_dependencies(&self.path) {
@@ -299,13 +307,16 @@ mod tests {
         let exec_skipped = Arc::new(AtomicBool::new(false));
         let exec_skipped2 = exec_skipped.clone();
         dag.on_execution_start(&exec.uuid, move |_w| {
-            exec_start2.store(true, Ordering::Relaxed)
+            exec_start2.store(true, Ordering::Relaxed);
+            Ok(())
         });
         dag.on_execution_done(&exec.uuid, move |_res| {
-            exec_done2.store(true, Ordering::Relaxed)
+            exec_done2.store(true, Ordering::Relaxed);
+            Ok(())
         });
         dag.on_execution_skip(&exec.uuid, move || {
-            exec_skipped2.store(true, Ordering::Relaxed)
+            exec_skipped2.store(true, Ordering::Relaxed);
+            Ok(())
         });
         dag.add_execution(exec);
 

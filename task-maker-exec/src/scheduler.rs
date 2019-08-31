@@ -3,7 +3,7 @@ use crate::{
     serialize_into, ChannelSender, ExecutionDAGWatchSet, ExecutorStatus, ExecutorWorkerStatus,
     WorkerJob,
 };
-use failure::Error;
+use failure::{format_err, Error};
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
@@ -189,7 +189,12 @@ impl Scheduler {
                             continue;
                         }
                     };
-                    let execution = self.dag.as_ref().unwrap().executions[&execution_uuid].clone();
+                    let execution = self
+                        .dag
+                        .as_ref()
+                        .ok_or_else(|| format_err!("DAG is gone"))?
+                        .executions[&execution_uuid]
+                        .clone();
                     info!("Worker {:?} completed execution {}", worker, execution.uuid);
                     self.exec_completed(&execution, result, outputs)?;
                     self.assign_jobs()?;
@@ -216,6 +221,10 @@ impl Scheduler {
                     }
                 }
                 Ok(SchedulerInMessage::Status) => {
+                    let dag = self
+                        .dag
+                        .as_ref()
+                        .ok_or_else(|| format_err!("DAG is gone"))?;
                     let status = ExecutorStatus {
                         connected_workers: self
                             .connected_workers
@@ -224,21 +233,14 @@ impl Scheduler {
                                 uuid: worker.uuid,
                                 name: worker.name.clone(),
                                 current_job: worker.current_job.as_ref().map(|(exec, start)| {
-                                    (
-                                        self.dag.as_ref().unwrap().executions[&exec]
-                                            .description
-                                            .clone(),
-                                        start.elapsed(),
-                                    )
+                                    (dag.executions[&exec].description.clone(), start.elapsed())
                                 }),
                             })
                             .collect(),
                         ready_execs: self.ready_execs.len(),
                         waiting_execs: self.missing_deps.len(),
                     };
-                    self.executor
-                        .send(SchedulerOutMessage::Status(status))
-                        .unwrap();
+                    self.executor.send(SchedulerOutMessage::Status(status))?;
                 }
                 Ok(SchedulerInMessage::Exit) => {
                     break;
@@ -283,11 +285,21 @@ impl Scheduler {
             } else {
                 continue;
             }
-            if self.callbacks.as_ref().unwrap().executions.contains(&exec) {
+            if self
+                .callbacks
+                .as_ref()
+                .ok_or_else(|| format_err!("Callbacks are gone"))?
+                .executions
+                .contains(&exec)
+            {
                 self.executor
                     .send(SchedulerOutMessage::ExecutionSkipped(exec))?;
             }
-            let exec = &self.dag.as_ref().unwrap().executions[&exec];
+            let exec = &self
+                .dag
+                .as_ref()
+                .ok_or_else(|| format_err!("DAG is gone"))?
+                .executions[&exec];
             for output in exec.outputs() {
                 self.file_failed(output)?;
             }
@@ -318,7 +330,13 @@ impl Scheduler {
 
     /// Send a file to the client if its uuid is included in the callbacks.
     fn send_file(&self, file: FileUuid, status: bool) -> Result<(), Error> {
-        if !self.callbacks.as_ref().unwrap().files.contains(&file) {
+        if !self
+            .callbacks
+            .as_ref()
+            .ok_or_else(|| format_err!("Callbacks are gone"))?
+            .files
+            .contains(&file)
+        {
             return Ok(());
         }
         if !self.file_handles.contains_key(&file) {
@@ -344,7 +362,7 @@ impl Scheduler {
         if self
             .callbacks
             .as_ref()
-            .unwrap()
+            .ok_or_else(|| format_err!("Callbacks are gone"))?
             .executions
             .contains(&execution.uuid)
         {
@@ -392,7 +410,12 @@ impl Scheduler {
     /// Look at all the ready executions and mark as completed all the ones that are inside the
     /// cache.
     fn schedule_cached(&mut self) -> Result<(), Error> {
-        let cache_mode = &self.dag.as_ref().unwrap().config.cache_mode;
+        let cache_mode = &self
+            .dag
+            .as_ref()
+            .ok_or_else(|| format_err!("DAG is gone"))?
+            .config
+            .cache_mode;
         // disable the cache
         if let CacheMode::Nothing = cache_mode {
             return Ok(());
@@ -402,7 +425,12 @@ impl Scheduler {
         let mut cached = Vec::new();
 
         for exec in self.ready_execs.iter() {
-            let exec = self.dag.as_ref().unwrap().executions[exec].clone();
+            let exec = self
+                .dag
+                .as_ref()
+                .ok_or_else(|| format_err!("DAG is gone"))?
+                .executions[exec]
+                .clone();
             if !self.is_cacheable(&exec, &cache_mode) {
                 not_cached.push(exec.uuid);
                 continue;
@@ -452,7 +480,12 @@ impl Scheduler {
                 None => break,
             };
             worker.current_job = Some((exec, Instant::now()));
-            let execution = self.dag.as_ref().unwrap().executions[&exec].clone();
+            let execution = self
+                .dag
+                .as_ref()
+                .ok_or_else(|| format_err!("DAG is gone"))?
+                .executions[&exec]
+                .clone();
             let dep_keys = execution
                 .dependencies()
                 .iter()
@@ -472,7 +505,13 @@ impl Scheduler {
                 dep_keys,
             };
             serialize_into(&WorkerServerMessage::Work(Box::new(job)), &worker.sender)?;
-            if self.callbacks.as_ref().unwrap().executions.contains(&exec) {
+            if self
+                .callbacks
+                .as_ref()
+                .ok_or_else(|| format_err!("Callbacks are gone"))?
+                .executions
+                .contains(&exec)
+            {
                 self.executor
                     .send(SchedulerOutMessage::ExecutionStarted(exec, *worker_uuid))?;
             }

@@ -58,19 +58,17 @@ impl SourceFile {
                 comp_uuid,
                 |status, file| UIMessage::Compilation { file, status },
                 path
-            );
+            )?;
             if let Some(stdout) = self.base.compilation_stdout() {
                 let path = path.clone();
                 let sender = eval.sender.clone();
                 eval.dag
                     .get_file_content(stdout, COMPILATION_CONTENT_LENGTH, move |content| {
                         let content = String::from_utf8_lossy(&content);
-                        sender
-                            .send(UIMessage::CompilationStdout {
-                                file: path,
-                                content: content.into(),
-                            })
-                            .unwrap();
+                        sender.send(UIMessage::CompilationStdout {
+                            file: path,
+                            content: content.into(),
+                        })
                     });
             }
             if let Some(stderr) = self.base.compilation_stderr() {
@@ -79,12 +77,10 @@ impl SourceFile {
                 eval.dag
                     .get_file_content(stderr, COMPILATION_CONTENT_LENGTH, move |content| {
                         let content = String::from_utf8_lossy(&content);
-                        sender
-                            .send(UIMessage::CompilationStderr {
-                                file: path,
-                                content: content.into(),
-                            })
-                            .unwrap();
+                        sender.send(UIMessage::CompilationStderr {
+                            file: path,
+                            content: content.into(),
+                        })
                     });
             }
         }

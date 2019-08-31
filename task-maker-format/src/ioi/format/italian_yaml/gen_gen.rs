@@ -31,10 +31,15 @@ where
     V: Fn(SubtaskId) -> InputValidator,
     O: Fn(TestcaseId) -> OutputGenerator,
 {
-    let task_dir = path.as_ref().parent().unwrap().parent().unwrap();
+    let task_dir = path
+        .as_ref()
+        .parent()
+        .expect("Invalid gen/GEN path")
+        .parent()
+        .expect("Invalid gen/GEN path");
     let content = std::fs::read_to_string(&path)?;
     let mut file = parser::GENParser::parse(parser::Rule::file, &content)?;
-    let file = file.next().unwrap(); // extract the real file
+    let file = file.next().ok_or_else(|| format_err!("Corrupted parser"))?; // extract the real file
     let mut testcase_count = 0;
     let mut subtask_id: SubtaskId = 0;
     let mut entries = vec![];
@@ -63,11 +68,18 @@ where
     for line in file.into_inner() {
         match line.as_rule() {
             parser::Rule::line => {
-                let line = line.into_inner().next().unwrap();
+                let line = line
+                    .into_inner()
+                    .next()
+                    .ok_or_else(|| format_err!("Corrupted parser"))?;
                 match line.as_rule() {
                     parser::Rule::subtask => {
                         default_subtask.take(); // ignore the default subtask ever
-                        let score = line.into_inner().next().unwrap().as_str();
+                        let score = line
+                            .into_inner()
+                            .next()
+                            .ok_or_else(|| format_err!("Corrupted parser"))?
+                            .as_str();
                         entries.push(TaskInputEntry::Subtask(SubtaskInfo {
                             id: subtask_id,
                             max_score: score.parse::<f64>().expect("Invalid subtask score"),
@@ -80,7 +92,11 @@ where
                             entries.push(TaskInputEntry::Subtask(default));
                             subtask_id += 1;
                         }
-                        let what = line.into_inner().next().unwrap().as_str();
+                        let what = line
+                            .into_inner()
+                            .next()
+                            .ok_or_else(|| format_err!("Corrupted parser"))?
+                            .as_str();
                         entries.push(TaskInputEntry::Testcase(TestcaseInfo {
                             id: testcase_count,
                             input_generator: InputGenerator::StaticFile(task_dir.join(what)),

@@ -142,19 +142,16 @@ impl Sandbox {
         for (key, value) in self.execution.env.iter() {
             sandbox.arg("--env").arg(format!("{}={}", key, value));
         }
-        // set the cpu_limit (--time parameter) to the sum of cpu_time and
-        // sys_time
-        let mut cpu_limit = None;
-        if let Some(cpu) = self.execution.limits.cpu_time {
-            cpu_limit = Some(cpu);
-        }
-        if let Some(sys) = self.execution.limits.sys_time {
-            if cpu_limit.is_none() {
-                cpu_limit = Some(sys);
-            } else {
-                cpu_limit = Some(cpu_limit.unwrap() + sys);
-            }
-        }
+        // set the cpu_limit (--time parameter) to the sum of cpu_time and sys_time
+        let cpu_limit = match (
+            self.execution.limits.cpu_time,
+            self.execution.limits.sys_time,
+        ) {
+            (Some(cpu), Some(sys)) => Some(cpu + sys),
+            (Some(cpu), None) => Some(cpu),
+            (None, Some(sys)) => Some(sys),
+            (None, None) => None,
+        };
         if let Some(cpu) = cpu_limit {
             let cpu = cpu + self.execution.config().extra_time;
             sandbox.arg("--time").arg(cpu.to_string());
@@ -205,7 +202,9 @@ impl Sandbox {
         let outcome = serde_json::from_str::<TMBoxResult>(std::str::from_utf8(&res.stdout)?)?;
         if outcome.error {
             Ok(SandboxResult::Failed {
-                error: outcome.message.unwrap(),
+                error: outcome
+                    .message
+                    .unwrap_or_else(|| "No output from sandbox".into()),
             })
         } else {
             let signal = if outcome.signal.unwrap() == 0 {
@@ -240,7 +239,12 @@ impl Sandbox {
     /// Make the sandbox persistent, the sandbox directory won't be deleted after the execution.
     pub fn keep(&mut self) {
         let mut data = self.data.lock().unwrap();
-        let path = data.boxdir.as_ref().unwrap().path().to_owned();
+        let path = data
+            .boxdir
+            .as_ref()
+            .expect("Box dir has gone?!?")
+            .path()
+            .to_owned();
         debug!("Keeping sandbox at {:?}", path);
         data.keep_sandbox = true;
         let serialized =
@@ -314,7 +318,7 @@ impl Sandbox {
     /// - `r--------` (0o400) if not executable.
     /// - `r-x------` (0o500) if executable.
     fn write_sandbox_file(dest: &Path, source: &Path, executable: bool) -> Result<(), Error> {
-        std::fs::create_dir_all(dest.parent().unwrap())?;
+        std::fs::create_dir_all(dest.parent().expect("Invalid destination path"))?;
         std::fs::copy(source, dest)?;
         if executable {
             Sandbox::set_permissions(dest, 0o500)?;
@@ -326,7 +330,7 @@ impl Sandbox {
 
     /// Create an empty file inside the sandbox and chmod-it.
     fn touch_file(dest: &Path, mode: u32) -> Result<(), Error> {
-        std::fs::create_dir_all(dest.parent().unwrap())?;
+        std::fs::create_dir_all(dest.parent().expect("Invalid file path"))?;
         std::fs::File::create(dest)?;
         let mut permisions = std::fs::metadata(&dest)?.permissions();
         permisions.set_mode(mode);

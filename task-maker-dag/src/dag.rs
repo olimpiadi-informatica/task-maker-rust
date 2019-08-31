@@ -177,7 +177,7 @@ impl ExecutionDAG {
     /// unsuccessful) the callback **is called** anyways with the content of the file, if any.
     pub fn get_file_content<G: Into<FileUuid>, F>(&mut self, file: G, limit: usize, callback: F)
     where
-        F: (FnOnce(Vec<u8>) -> ()) + 'static,
+        F: (FnOnce(Vec<u8>) -> Result<(), Error>) + 'static,
     {
         self.file_callback(file.into()).get_content = Some((limit, BoxFnOnce::from(callback)));
     }
@@ -185,7 +185,7 @@ impl ExecutionDAG {
     /// Add a callback that will be called when the execution starts.
     pub fn on_execution_start<F>(&mut self, execution: &ExecutionUuid, callback: F)
     where
-        F: (FnOnce(WorkerUuid) -> ()) + 'static,
+        F: (FnOnce(WorkerUuid) -> Result<(), Error>) + 'static,
     {
         self.execution_callback(execution)
             .on_start
@@ -195,7 +195,7 @@ impl ExecutionDAG {
     /// Add a callback that will be called when the execution ends.
     pub fn on_execution_done<F>(&mut self, execution: &ExecutionUuid, callback: F)
     where
-        F: (FnOnce(ExecutionResult) -> ()) + 'static,
+        F: (FnOnce(ExecutionResult) -> Result<(), Error>) + 'static,
     {
         self.execution_callback(execution)
             .on_done
@@ -205,7 +205,7 @@ impl ExecutionDAG {
     /// Add a callback that will be called when the execution is skipped.
     pub fn on_execution_skip<F>(&mut self, execution: &ExecutionUuid, callback: F)
     where
-        F: (FnOnce() -> ()) + 'static,
+        F: (FnOnce() -> Result<(), Error>) + 'static,
     {
         self.execution_callback(execution)
             .on_skip

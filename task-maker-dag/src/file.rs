@@ -1,4 +1,5 @@
 use boxfnonce::BoxFnOnce;
+use failure::Error;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -8,7 +9,7 @@ use uuid::Uuid;
 pub type FileUuid = Uuid;
 
 /// Type of the callback called when a file is returned to the client.
-pub type GetContentCallback = BoxFnOnce<'static, (Vec<u8>,)>;
+pub type GetContentCallback = BoxFnOnce<'static, (Vec<u8>,), Result<(), Error>>;
 
 /// Where to write the file to with some other information.
 #[derive(Debug, Clone)]

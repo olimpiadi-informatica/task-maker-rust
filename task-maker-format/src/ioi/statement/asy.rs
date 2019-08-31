@@ -1,6 +1,6 @@
 use crate::ioi::Tag;
 use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData};
-use failure::Error;
+use failure::{format_err, Error};
 use regex::Regex;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -19,7 +19,7 @@ impl AsyFile {
         let booklet = booklet_name.to_string();
         let name = source_path
             .file_name()
-            .unwrap()
+            .ok_or_else(|| format_err!("Invalid path of asy file: {:?}", source_path))?
             .to_string_lossy()
             .to_string();
         let source_file = File::new(format!("Source of {}", name));
@@ -50,10 +50,11 @@ impl AsyFile {
             },
             booklet,
             name
-        );
-        for (sandbox, local) in
-            AsyFile::find_asy_deps(&source_path, &source_path.parent().unwrap())?
-        {
+        )?;
+        for (sandbox, local) in AsyFile::find_asy_deps(
+            &source_path,
+            &source_path.parent().expect("Invalid asy file"),
+        )? {
             let file = File::new(format!("Dependency {:?} of {}", sandbox, name));
             comp.input(&file, sandbox, false);
             eval.dag.provide_file(file, local)?;
@@ -86,7 +87,7 @@ impl AsyFile {
             },
             booklet,
             name
-        );
+        )?;
         let cropped = crop.output("source-crop.pdf");
         eval.dag.add_execution(crop);
 
@@ -98,10 +99,13 @@ impl AsyFile {
     fn find_asy_deps(path: &Path, prefix: &Path) -> Result<HashMap<PathBuf, PathBuf>, Error> {
         lazy_static! {
             static ref ASY_INCLUDE: Regex =
-                Regex::new(r"(?:include|import) *(.+)(?: +as +.+)?;").unwrap();
-            static ref ASY_GRAPHIC: Regex = Regex::new(r#"graphic\(['"]([^'"]+)['"]"#).unwrap();
+                Regex::new(r"(?:include|import) *(.+)(?: +as +.+)?;").expect("Invalid regex");
+            static ref ASY_GRAPHIC: Regex =
+                Regex::new(r#"graphic\(['"]([^'"]+)['"]"#).expect("Invalid regex");
         }
-        let dir = path.parent().unwrap();
+        let dir = path
+            .parent()
+            .ok_or_else(|| format_err!("File {:?} does not have a parent", path))?;
         let content = std::fs::read_to_string(path)?;
         let mut result = HashMap::new();
         for include in ASY_INCLUDE.captures_iter(&content) {
@@ -111,7 +115,7 @@ impl AsyFile {
             if !local_path.exists() {
                 continue;
             }
-            let sandbox_path = local_path.strip_prefix(prefix).unwrap();
+            let sandbox_path = local_path.strip_prefix(prefix)?;
             trace!(
                 "Asy dependency detected: {:?} -> {:?} = {:?}",
                 path,
@@ -124,7 +128,7 @@ impl AsyFile {
         for graphic in ASY_GRAPHIC.captures_iter(&content) {
             let graphic = &graphic[1];
             let local_path = dir.join(graphic);
-            let sandbox_path = local_path.strip_prefix(prefix).unwrap();
+            let sandbox_path = local_path.strip_prefix(prefix)?;
             trace!(
                 "Asy graphic detected: {:?} -> {:?} = {:?}",
                 path,

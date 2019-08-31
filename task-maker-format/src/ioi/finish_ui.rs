@@ -110,13 +110,15 @@ impl FinishUI {
         let max_len = state
             .compilations
             .keys()
-            .map(|p| p.file_name().unwrap().len())
+            .map(|p| p.file_name().expect("Invalid file name").len())
             .max()
             .unwrap_or(0);
         for (path, status) in &state.compilations {
             print!(
                 "{:width$}  ",
-                path.file_name().unwrap().to_string_lossy(),
+                path.file_name()
+                    .expect("Invalid file name")
+                    .to_string_lossy(),
                 width = max_len
             );
             match status {
@@ -268,7 +270,10 @@ impl FinishUI {
         eval: &SolutionEvaluationState,
         state: &UIState,
     ) {
-        let name = path.file_name().unwrap().to_string_lossy();
+        let name = path
+            .file_name()
+            .expect("Invalid file name")
+            .to_string_lossy();
         cwrite!(self, BOLD, "{}", name);
         print!(": ");
         self.print_score_frac(score, max_score);
@@ -323,7 +328,7 @@ impl FinishUI {
         let max_len = state
             .evaluations
             .keys()
-            .map(|p| p.file_name().unwrap().len())
+            .map(|p| p.file_name().expect("Invalid file name").len())
             .max()
             .unwrap_or(0);
         print!("{:width$} ", "", width = max_len);
@@ -337,7 +342,9 @@ impl FinishUI {
             let eval = &state.evaluations[path];
             print!(
                 "{:>width$} ",
-                path.file_name().unwrap().to_string_lossy(),
+                path.file_name()
+                    .expect("Invalid file name")
+                    .to_string_lossy(),
                 width = max_len
             );
             print!("{:^5.0}| ", eval.score.unwrap_or(0.0));

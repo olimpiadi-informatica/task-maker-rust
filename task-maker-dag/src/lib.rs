@@ -33,8 +33,8 @@
 //! let exec_id = exec.uuid;
 //! let output = exec.stdout();
 //! dag.add_execution(exec);
-//! dag.on_execution_done(&exec_id, |result| println!("Elapsed time: {} seconds", result.resources.cpu_time));
-//! dag.get_file_content(&output, 1000, |date| println!("The date is: {}", std::str::from_utf8(&date).unwrap()));
+//! dag.on_execution_done(&exec_id, |result| Ok(println!("Elapsed time: {} seconds", result.resources.cpu_time)));
+//! dag.get_file_content(&output, 1000, |date| Ok(println!("The date is: {}", std::str::from_utf8(&date).unwrap())));
 //! ```
 
 #![deny(missing_docs)]

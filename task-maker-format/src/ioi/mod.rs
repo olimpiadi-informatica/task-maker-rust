@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use failure::{bail, Error};
+use failure::{bail, format_err, Error};
 use serde::{Deserialize, Serialize};
 
 use task_maker_lang::GraderMap;
@@ -162,10 +162,11 @@ impl TaskFormat for Task {
             .solution_filter
             .iter()
             .map(|filter| {
-                // unfortunate lossy cast to String because currently OsString doesn't support .starts_with
+                // unfortunate lossy cast to String because currently OsString doesn't
+                // support .starts_with
                 PathBuf::from(filter)
                     .file_name()
-                    .unwrap()
+                    .expect("Invalid filter provided")
                     .to_string_lossy()
                     .to_string()
             })
@@ -272,7 +273,7 @@ impl TaskFormat for Task {
                 if !dir.exists() {
                     continue;
                 }
-                for file in glob::glob(dir.join("*.txt").to_str().unwrap()).unwrap() {
+                for file in glob::glob(dir.join("*.txt").to_string_lossy().as_ref()).unwrap() {
                     match file {
                         Ok(file) => {
                             info!("Removing {:?}", file);
@@ -355,7 +356,7 @@ impl ScoreManager {
     ) -> Result<(), Error> {
         self.testcase_scores
             .get_mut(&subtask_id)
-            .unwrap()
+            .ok_or_else(|| format_err!("Unknown subtask {}", subtask_id))?
             .insert(testcase_id, Some(score));
         sender.send(UIMessage::IOITestcaseScore {
             subtask: subtask_id,

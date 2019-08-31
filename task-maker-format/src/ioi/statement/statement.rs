@@ -10,7 +10,7 @@ use task_maker_dag::File;
 
 lazy_static! {
     /// This regex will match all the `\usepackage` inside a latex file.
-    static ref USE_PACKAGE_REGEX: Regex = Regex::new(r"\\usepackage.+").unwrap();
+    static ref USE_PACKAGE_REGEX: Regex = Regex::new(r"\\usepackage.+").expect("Invalid regex");
 }
 
 /// The configuration of a `Statement`.
@@ -85,7 +85,7 @@ impl Statement {
         booklet_name: &str,
         booklet_config: &BookletConfig,
     ) -> Result<Vec<(PathBuf, File)>, Error> {
-        let base_dir = self.path.parent().unwrap();
+        let base_dir = self.path.parent().expect("Invalid statement path");
         let glob_pattern = base_dir.to_string_lossy().to_string() + "/**/*";
         let logo = booklet_config
             .logo

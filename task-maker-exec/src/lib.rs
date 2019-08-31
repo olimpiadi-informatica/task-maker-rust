@@ -82,13 +82,17 @@ pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>>(
     let (tx_remote, rx) = channel();
     let store_dir = store_dir.into();
     let sandbox_path = sandbox_path.into();
-    let server = thread::spawn(move || {
-        let file_store = FileStore::new(&store_dir).expect("Cannot create the file store");
-        let cache = Cache::new(store_dir).expect("Cannot create the cache");
-        let executor = executors::LocalExecutor::new(Arc::new(file_store), num_cores, sandbox_path);
-        executor.evaluate(tx_remote, rx_remote, cache).unwrap();
-    });
-    ExecutorClient::evaluate(dag, tx, &rx, |_| {}).unwrap();
+    let server = thread::Builder::new()
+        .name("Local executor".into())
+        .spawn(move || {
+            let file_store = FileStore::new(&store_dir).expect("Cannot create the file store");
+            let cache = Cache::new(store_dir).expect("Cannot create the cache");
+            let executor =
+                executors::LocalExecutor::new(Arc::new(file_store), num_cores, sandbox_path);
+            executor.evaluate(tx_remote, rx_remote, cache).unwrap();
+        })
+        .expect("Failed to spawn local executor thread");
+    ExecutorClient::evaluate(dag, tx, &rx, |_| Ok(())).expect("Client failed");
     server.join().expect("Server panicked");
 }
 
@@ -160,24 +164,29 @@ mod tests {
         let exec3_skipped2 = exec3_skipped.clone();
         dag.provide_file(file, Path::new("/dev/null")).unwrap();
         dag.on_execution_done(&exec.uuid, move |_res| {
-            exec_done.store(true, Ordering::Relaxed)
+            exec_done.store(true, Ordering::Relaxed);
+            Ok(())
         });
         dag.on_execution_skip(&exec.uuid, || panic!("exec has been skipped"));
         dag.on_execution_start(&exec.uuid, move |_w| {
-            exec_start.store(true, Ordering::Relaxed)
+            exec_start.store(true, Ordering::Relaxed);
+            Ok(())
         });
         dag.add_execution(exec);
         dag.on_execution_done(&exec2.uuid, move |_res| {
-            exec2_done.store(true, Ordering::Relaxed)
+            exec2_done.store(true, Ordering::Relaxed);
+            Ok(())
         });
         dag.on_execution_skip(&exec2.uuid, || panic!("exec2 has been skipped"));
         dag.on_execution_start(&exec2.uuid, move |_w| {
-            exec2_start.store(true, Ordering::Relaxed)
+            exec2_start.store(true, Ordering::Relaxed);
+            Ok(())
         });
         dag.add_execution(exec2);
         dag.on_execution_done(&exec3.uuid, |_res| panic!("exec3 has not been skipped"));
         dag.on_execution_skip(&exec3.uuid, move || {
-            exec3_skipped.store(true, Ordering::Relaxed)
+            exec3_skipped.store(true, Ordering::Relaxed);
+            Ok(())
         });
         dag.on_execution_start(&exec3.uuid, |_w| panic!("exec3 has not been skipped"));
         dag.add_execution(exec3);

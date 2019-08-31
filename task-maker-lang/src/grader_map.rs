@@ -38,7 +38,7 @@ impl GraderMap {
                     Dependency {
                         file,
                         local_path: grader.clone(),
-                        sandbox_path: PathBuf::from(grader.file_name().unwrap()),
+                        sandbox_path: PathBuf::from(grader.file_name().expect("Invalid file name")),
                         executable: false,
                     },
                 );

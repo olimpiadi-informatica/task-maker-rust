@@ -409,7 +409,9 @@ impl Cache {
 
 impl Drop for Cache {
     fn drop(&mut self) {
-        if let Err(e) = std::fs::create_dir_all(self.cache_file.parent().unwrap()) {
+        if let Err(e) =
+            std::fs::create_dir_all(self.cache_file.parent().expect("Invalid cache file"))
+        {
             error!("Failed to create the directory of the cache file: {:?}", e);
             return;
         }

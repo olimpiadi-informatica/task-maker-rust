@@ -201,7 +201,10 @@ fn execute_job(
 ) -> Result<Sandbox, Error> {
     let (job, mut sandbox) = {
         let current_job = current_job.lock().unwrap();
-        let job = current_job.current_job.as_ref().unwrap();
+        let job = current_job
+            .current_job
+            .as_ref()
+            .expect("Worker job is gone");
         (
             job.0.clone(),
             Sandbox::new(sandbox_path, &job.0.execution, &job.1)?,
@@ -213,6 +216,7 @@ fn execute_job(
     let thread_sender = sender.clone();
     let thread_sandbox = sandbox.clone();
     let thread_job = job.clone();
+    // FIXME: if the sandbox fails badly this may deadlock
     thread::Builder::new()
         .name(format!("Sandbox of {}", job.execution.description))
         .spawn(move || {
@@ -220,7 +224,7 @@ fn execute_job(
             let sandbox = thread_sandbox;
             let job = thread_job;
 
-            let result = sandbox.run().unwrap();
+            let result = sandbox.run().expect("The sandbox failed");
             let result = compute_execution_result(&job.execution, result);
 
             let mut outputs = HashMap::new();

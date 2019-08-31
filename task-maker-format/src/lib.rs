@@ -116,6 +116,7 @@ pub(crate) fn find_source_file<P: AsRef<Path>, S: AsRef<str>, P2: Into<PathBuf>>
 ) -> Option<SourceFile> {
     for path in list_files(cwd, patterns) {
         if LanguageManager::detect_language(&path).is_some() {
+            // SourceFile::new may fail if the language is unknown
             return Some(SourceFile::new(&path, grader_map, write_bin_to).unwrap());
         }
     }

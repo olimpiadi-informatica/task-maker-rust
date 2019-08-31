@@ -9,8 +9,8 @@ fn main() {
     if !Path::new("tmbox").exists() {
         panic!("Please clone all the submodules! tmbox is missing");
     }
-    let out_dir = env::var("OUT_DIR").unwrap();
-    let num_jobs = env::var("NUM_JOBS").unwrap();
+    let out_dir = env::var("OUT_DIR").expect("Cargo didn't provide OUT_DIR");
+    let num_jobs = env::var("NUM_JOBS").expect("Cargo didn't provide NUM_JOBS");
     let cxx = env::var("CXX").unwrap_or("g++".to_string());
     let status = Command::new("make")
         .arg(format!("TARGET={}", out_dir))
@@ -23,7 +23,7 @@ fn main() {
         .expect("Failed to execute make!");
     assert!(status.success());
     println!("rerun-if-changed=tmbox");
-    for cc in glob("tmbox/**/*").unwrap() {
+    for cc in glob("tmbox/**/*").expect("glob failed") {
         if let Ok(f) = cc {
             println!("rerun-if-changed={}", f.display());
         }

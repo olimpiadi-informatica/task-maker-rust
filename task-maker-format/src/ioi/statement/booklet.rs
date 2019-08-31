@@ -3,7 +3,7 @@ use crate::ioi::statement::statement::Statement;
 use crate::ioi::Tag;
 use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData};
 use askama::Template;
-use failure::Error;
+use failure::{format_err, Error};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -94,7 +94,12 @@ impl Booklet {
 
     /// Build the booklet, eventually coping the final PDF to the specified destination.
     pub fn build(&self, eval: &mut EvaluationData) -> Result<(), Error> {
-        let booklet_name = self.dest.file_name().unwrap().to_string_lossy().to_string();
+        let booklet_name = self
+            .dest
+            .file_name()
+            .ok_or_else(|| format_err!("Invalid destination file {:?}", self.dest))?
+            .to_string_lossy()
+            .to_string();
         let mut task_names = self.statements.iter().map(|s| &s.config().name);
         let mut exec = Execution::new(
             "Compilation of the booklet",
@@ -135,16 +140,16 @@ impl Booklet {
         let data_dir = data_dir_path().join("statements");
         let glob_pattern = data_dir.to_string_lossy().to_string() + "/**/*";
         for path in glob::glob(&glob_pattern)? {
-            let path = path.unwrap();
+            let path = path?;
             if !path.is_file() {
                 continue;
             }
             let file = File::new(format!(
                 "Booklet template file {:?}",
-                path.file_name().unwrap()
+                path.file_name().expect("Invalid template file")
             ));
             eval.dag.provide_file(file.clone(), &path)?;
-            exec.input(file, path.strip_prefix(&data_dir).unwrap(), false);
+            exec.input(file, path.strip_prefix(&data_dir)?, false);
         }
 
         bind_exec_callbacks!(
@@ -152,7 +157,7 @@ impl Booklet {
             exec.uuid,
             |status, name| UIMessage::IOIBooklet { name, status },
             booklet_name
-        );
+        )?;
 
         eval.dag.add_execution(exec);
         // latexmk may fail but still produce a good-enough pdf file

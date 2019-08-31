@@ -1,7 +1,7 @@
 use crate::ioi::{SubtaskId, Task};
 use crate::ui::{UIMessage, UIMessageSender};
 use crate::{list_files, EvaluationData, UISender};
-use failure::Error;
+use failure::{format_err, Error};
 use itertools::Itertools;
 use regex::Regex;
 use std::io::Read;
@@ -55,7 +55,10 @@ fn check_att_graders(task: &Task, eval: &mut EvaluationData) -> Result<(), Error
 /// Check that all the templates are present inside att.
 fn check_att_templates(task: &Task, eval: &mut EvaluationData) -> Result<(), Error> {
     for grader in task.grader_map.all_paths() {
-        let ext = grader.extension().unwrap().to_string_lossy();
+        let ext = grader
+            .extension()
+            .ok_or_else(|| format_err!("Grader has no extension"))?
+            .to_string_lossy();
         let template = task.path.join("att").join(format!("{}.{}", task.name, ext));
         if !template.exists() {
             eval.sender.send(UIMessage::Warning {
@@ -308,7 +311,10 @@ fn check_missing_graders<P: AsRef<Path>>(
         return Ok(());
     }
     for file in list_files(task.path.join(folder.as_ref()), vec!["*.*"]) {
-        let stem = file.file_stem().unwrap();
+        let stem = match file.file_stem() {
+            Some(stem) => stem,
+            None => continue,
+        };
         // do not check the graders
         if stem == "grader" {
             continue;
@@ -361,7 +367,8 @@ fn extract_subtasks(tex: String) -> Option<Vec<(SubtaskId, f64)>> {
 fn check_subtasks_oii(text: &str) -> Option<Vec<(SubtaskId, f64)>> {
     lazy_static! {
         static ref FIND_SUBTASKS: Regex =
-            Regex::new(r".*\{Subtask ([0-9]+)\} *\[(?:\\phantom\{.\})?([0-9]+).*\].*").unwrap();
+            Regex::new(r".*\{Subtask ([0-9]+)\} *\[(?:\\phantom\{.\})?([0-9]+).*\].*")
+                .expect("Invalid regex");
     }
     let mut result = Vec::new();
     for subtask in FIND_SUBTASKS.captures_iter(text) {
@@ -386,7 +393,7 @@ fn check_subtasks_oii(text: &str) -> Option<Vec<(SubtaskId, f64)>> {
 fn check_subtasks_ois(text: &str) -> Option<Vec<(SubtaskId, f64)>> {
     lazy_static! {
         static ref FIND_SUBTASKS: Regex =
-            Regex::new(r".*\\OISubtask\{(\d+)\}\{\d+\}\{.+\}.*").unwrap();
+            Regex::new(r".*\\OISubtask\{(\d+)\}\{\d+\}\{.+\}.*").expect("Invalid regex");
     }
     let mut result = Vec::new();
     for (index, subtask) in FIND_SUBTASKS.captures_iter(text).enumerate() {

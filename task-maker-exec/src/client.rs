@@ -1,6 +1,6 @@
 use crate::proto::*;
 use crate::*;
-use failure::Error;
+use failure::{format_err, Error};
 use std::collections::HashMap;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
@@ -53,16 +53,19 @@ impl ExecutorClient {
     ///     executor.evaluate(tx_remote, rx_remote, cache).unwrap();
     /// });
     ///
-    /// ExecutorClient::evaluate(dag, tx, &rx, |_| {}).unwrap(); // this will block!
+    /// ExecutorClient::evaluate(dag, tx, &rx, |_| Ok(())).unwrap(); // this will block!
     ///
     /// server.join().expect("Server paniced");
     /// ```
-    pub fn evaluate<F: FnMut(ExecutorStatus<SystemTime>)>(
+    pub fn evaluate<F>(
         mut dag: ExecutionDAG,
         sender: ChannelSender,
         receiver: &ChannelReceiver,
         mut status_callback: F,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error>
+    where
+        F: FnMut(ExecutorStatus<SystemTime>) -> Result<(), Error>,
+    {
         trace!("ExecutorClient started");
         // list all the files/executions that want callbacks
         let dag_callbacks = ExecutionDAGWatchSet {
@@ -113,13 +116,15 @@ impl ExecutorClient {
                     thread::sleep(Duration::from_millis(STATUS_POLL_INTERVAL_MS));
                 }
             })
-            .unwrap();
+            .expect("Failed to start client status poller thread");
         loop {
             match deserialize_from::<ExecutorServerMessage>(&receiver) {
                 Ok(ExecutorServerMessage::AskFile(uuid)) => {
                     info!("Server is asking for {}", uuid);
                     // prevent the status poller for sending messages while sending the file
-                    let _lock = file_mode.lock().unwrap();
+                    let _lock = file_mode
+                        .lock()
+                        .map_err(|e| format_err!("Failed to lock: {:?}", e))?;
                     match &provided_files[&uuid] {
                         ProvidedFile::LocalFile {
                             local_path, key, ..
@@ -148,7 +153,7 @@ impl ExecutorClient {
                     info!("Execution {} started on {}", uuid, worker);
                     if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
                         for callback in callbacks.on_start.drain(..) {
-                            callback.call(worker);
+                            callback.call(worker)?;
                         }
                     }
                 }
@@ -156,7 +161,7 @@ impl ExecutorClient {
                     info!("Execution {} completed with {:?}", uuid, result);
                     if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
                         for callback in callbacks.on_done.drain(..) {
-                            callback.call(result.clone());
+                            callback.call(result.clone())?;
                         }
                     }
                 }
@@ -164,7 +169,7 @@ impl ExecutorClient {
                     info!("Execution {} skipped", uuid);
                     if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
                         for callback in callbacks.on_skip.drain(..) {
-                            callback.call();
+                            callback.call()?;
                         }
                     }
                 }
@@ -189,7 +194,7 @@ impl ExecutorClient {
                             .collect(),
                         ready_execs: status.ready_execs,
                         waiting_execs: status.waiting_execs,
-                    });
+                    })?;
                 }
                 Ok(ExecutorServerMessage::Done) => {
                     info!("Execution completed!");
@@ -207,7 +212,9 @@ impl ExecutorClient {
             }
         }
         done.store(true, Ordering::Relaxed);
-        status_poller.join().unwrap();
+        status_poller
+            .join()
+            .map_err(|e| format_err!("Failed to join status poller: {:?}", e))?;
         Ok(())
     }
 }
@@ -236,7 +243,10 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
                 if !success && !*allow_failure {
                     None
                 } else {
-                    std::fs::create_dir_all(dest.parent().unwrap())?;
+                    std::fs::create_dir_all(
+                        dest.parent()
+                            .ok_or_else(|| format_err!("Invalid file destination path"))?,
+                    )?;
                     Some(std::fs::File::create(dest)?)
                 }
             }
@@ -261,7 +271,7 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
         }
 
         if let Some(get_content) = callback.get_content.take().map(|(_, f)| f) {
-            get_content.call(buffer);
+            get_content.call(buffer)?;
         }
     } else {
         iterator.into_iter().last();

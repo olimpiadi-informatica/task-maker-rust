@@ -2,6 +2,7 @@ use crate::languages::*;
 use regex::Regex;
 use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
+use task_maker_dag::{ExecutionCommand, File};
 
 /// Version of the Python interpreter to use.
 #[allow(dead_code)]
@@ -60,7 +61,7 @@ impl Language for LanguagePython {
             LanguagePythonVersion::Autodetect => args,
             _ => {
                 // will run for example: python3 program.py args...
-                args.insert(0, self.executable_name(path).to_str().unwrap().to_owned());
+                args.insert(0, self.executable_name(path).to_string_lossy().to_string());
                 args
             }
         }
@@ -76,8 +77,8 @@ impl Language for LanguagePython {
 /// files that actually exist in the file's folder, ignoring the unresolved
 /// ones.
 fn find_python_deps(path: &Path) -> Vec<Dependency> {
-    let base = path.parent().unwrap();
-    let filename = path.file_name().unwrap();
+    let base = path.parent().expect("Invalid path");
+    let filename = path.file_name().expect("Invalid path");
     let mut result = vec![];
     let mut result_files = HashSet::new();
     let mut pending = VecDeque::new();
@@ -113,7 +114,8 @@ fn find_python_deps(path: &Path) -> Vec<Dependency> {
 /// * import __file1__, __file2__
 fn extract_imports(path: &Path) -> Vec<String> {
     lazy_static! {
-        static ref RE: Regex = Regex::new("import +(.+)|from +(.+) +import").unwrap();
+        static ref RE: Regex =
+            Regex::new("import +(.+)|from +(.+) +import").expect("Invalid regex");
     }
     let content = if let Ok(content) = std::fs::read_to_string(path) {
         content

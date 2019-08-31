@@ -107,6 +107,6 @@ pub trait Language: std::fmt::Debug + Send + Sync {
     /// The name of the executable to call inside the sandbox. It defaults to the file name of
     /// program.
     fn executable_name(&self, path: &Path) -> PathBuf {
-        PathBuf::from(path.file_name().unwrap())
+        PathBuf::from(path.file_name().expect("Invalid file name"))
     }
 }

@@ -3,7 +3,7 @@ use crate::proto::{
 };
 use crate::SchedulerInMessage;
 use crate::{deserialize_from, serialize_into, ChannelSender, WorkerConn};
-use failure::Error;
+use failure::{format_err, Error};
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
@@ -45,7 +45,7 @@ impl WorkerManager {
                 worker.name, worker.uuid
             ))
             .spawn(move || WorkerManager::worker_thread(worker, scheduler, file_store).unwrap())
-            .unwrap()
+            .expect("Failed to spawn manager of worker")
     }
 
     /// Stop all the workers by sending to them the `Exit` command and dropping the sender.
@@ -106,7 +106,7 @@ impl WorkerManager {
                             result,
                             outputs: output_handlers,
                         })
-                        .unwrap();
+                        .map_err(|e| format_err!("Failed to send message to scheduler: {:?}", e))?;;
                 }
                 Err(_) => {
                     if scheduler

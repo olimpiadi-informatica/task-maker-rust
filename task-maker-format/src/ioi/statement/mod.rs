@@ -6,7 +6,7 @@ mod statement;
 use crate::ioi::Task;
 use crate::{list_files, EvaluationConfig};
 pub use booklet::*;
-use failure::Error;
+use failure::{format_err, Error};
 pub use statement::*;
 use std::path::PathBuf;
 
@@ -21,7 +21,7 @@ fn data_dir_path() -> PathBuf {
     } else {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
-            .unwrap()
+            .expect("Invalid CARGO_MANIFEST_DIR")
             .join("data")
     }
 }
@@ -40,7 +40,9 @@ pub fn make_booklets(task: &Task, eval_config: &EvaluationConfig) -> Result<Vec<
         let statement = Statement::new(path, config.clone())?;
         let booklet_config = BookletConfig::from_contest(
             language,
-            task.path.parent().unwrap(),
+            task.path
+                .parent()
+                .ok_or_else(|| format_err!("Task is at the root"))?,
             eval_config.booklet_solutions,
         )?;
         let mut booklet = Booklet::new(booklet_config, dest);

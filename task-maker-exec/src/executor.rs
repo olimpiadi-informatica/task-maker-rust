@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use failure::Error;
+use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
 use task_maker_dag::*;
 use task_maker_store::*;
@@ -99,16 +99,19 @@ impl Executor {
             .spawn(move || {
                 Executor::scheduler_thread(sched_binder_rx, sched_binder_client).unwrap()
             })
-            .unwrap();
+            .expect("Failed to spawn scheduler binder thread");
 
         let scheduler = Scheduler::new(cache, self.file_store.clone(), sched_binder_tx);
-        let sched_rx = self.scheduler_rx.take().unwrap();
+        let sched_rx = self
+            .scheduler_rx
+            .take()
+            .ok_or_else(|| format_err!("Evaluate called more than once"))?;
         let join_scheduler = std::thread::Builder::new()
             .name("Scheduler".into())
             .spawn(move || {
                 scheduler.work(sched_rx).unwrap();
             })
-            .unwrap();
+            .expect("Failed to spawn the scheduler");
 
         loop {
             let message = deserialize_from::<ExecutorClientMessage>(&client_rx);
@@ -136,11 +139,13 @@ impl Executor {
                     }
                     self.scheduler_tx
                         .send(SchedulerInMessage::DAG { dag, callbacks })
-                        .unwrap();
+                        .map_err(|e| format_err!("Failed to send message to scheduler: {:?}", e))?;
                     for (uuid, handle) in ready_files.into_iter() {
                         self.scheduler_tx
                             .send(SchedulerInMessage::FileReady { uuid, handle })
-                            .unwrap();
+                            .map_err(|e| {
+                                format_err!("Failed to send message to scheduler: {:?}", e)
+                            })?;
                     }
                 }
                 Ok(ExecutorClientMessage::ProvideFile(uuid, key)) => {
@@ -150,7 +155,7 @@ impl Executor {
                         .store(&key, ChannelFileIterator::new(&client_rx))?;
                     self.scheduler_tx
                         .send(SchedulerInMessage::FileReady { uuid, handle })
-                        .unwrap();
+                        .map_err(|e| format_err!("Failed to send message to scheduler: {:?}", e))?;
                 }
                 Ok(ExecutorClientMessage::Status) => {
                     info!("Client asking for the status");
@@ -168,8 +173,10 @@ impl Executor {
             }
         }
         let _ = self.scheduler_tx.send(SchedulerInMessage::Exit);
-        join_scheduler.join().unwrap();
-        join_scheduler_binder.join().unwrap();
+        join_scheduler.join().expect("Scheduler thread panicked");
+        join_scheduler_binder
+            .join()
+            .expect("Scheduler binder thread panicked");
         Ok(())
     }
 

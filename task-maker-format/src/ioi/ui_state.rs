@@ -390,10 +390,10 @@ impl UIState {
                 let gen = self
                     .generations
                     .get_mut(&subtask)
-                    .unwrap()
+                    .expect("Subtask is gone")
                     .testcases
                     .get_mut(&testcase)
-                    .unwrap();
+                    .expect("Testcase is gone");
                 match status {
                     UIExecutionStatus::Pending => gen.status = TestcaseGenerationStatus::Pending,
                     UIExecutionStatus::Started { .. } => {
@@ -418,10 +418,10 @@ impl UIState {
                 let gen = self
                     .generations
                     .get_mut(&subtask)
-                    .unwrap()
+                    .expect("Subtask is gone")
                     .testcases
                     .get_mut(&testcase)
-                    .unwrap();
+                    .expect("Testcase is gone");
                 gen.generation_stderr = Some(content);
             }
             UIMessage::IOIValidation {
@@ -432,10 +432,10 @@ impl UIState {
                 let gen = self
                     .generations
                     .get_mut(&subtask)
-                    .unwrap()
+                    .expect("Subtask is gone")
                     .testcases
                     .get_mut(&testcase)
-                    .unwrap();
+                    .expect("Testcase is gone");
                 match status {
                     UIExecutionStatus::Pending => gen.status = TestcaseGenerationStatus::Pending,
                     UIExecutionStatus::Started { .. } => {
@@ -465,10 +465,10 @@ impl UIState {
                 let gen = self
                     .generations
                     .get_mut(&subtask)
-                    .unwrap()
+                    .expect("Subtask is gone")
                     .testcases
                     .get_mut(&testcase)
-                    .unwrap();
+                    .expect("Testcase is gone");
                 gen.validation_stderr = Some(content);
             }
             UIMessage::IOISolution {
@@ -479,10 +479,10 @@ impl UIState {
                 let gen = self
                     .generations
                     .get_mut(&subtask)
-                    .unwrap()
+                    .expect("Subtask is gone")
                     .testcases
                     .get_mut(&testcase)
-                    .unwrap();
+                    .expect("Testcase is gone");
                 match status {
                     UIExecutionStatus::Pending => gen.status = TestcaseGenerationStatus::Pending,
                     UIExecutionStatus::Started { .. } => {
@@ -666,7 +666,7 @@ impl UIState {
                             .collect()
                     })
                     .get_mut(step)
-                    .unwrap()
+                    .expect("Statement dependency step is gone")
                     .status = status;
             }
             UIMessage::Warning { message } => {

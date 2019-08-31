@@ -2,6 +2,7 @@ use crate::file::*;
 use crate::signals::strsignal;
 use crate::ExecutionDAGConfig;
 use boxfnonce::BoxFnOnce;
+use failure::Error;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -17,13 +18,13 @@ pub type ExecutionUuid = Uuid;
 pub type WorkerUuid = Uuid;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) starts.
-pub type OnStartCallback = BoxFnOnce<'static, (WorkerUuid,)>;
+pub type OnStartCallback = BoxFnOnce<'static, (WorkerUuid,), Result<(), Error>>;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) ends.
-pub type OnDoneCallback = BoxFnOnce<'static, (ExecutionResult,)>;
+pub type OnDoneCallback = BoxFnOnce<'static, (ExecutionResult,), Result<(), Error>>;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) is skipped.
-pub type OnSkipCallback = BoxFnOnce<'static, ()>;
+pub type OnSkipCallback = BoxFnOnce<'static, (), Result<(), Error>>;
 
 /// A tag on an `Execution`. Can be used to classify the executions into groups and refer to them,
 /// for example for splitting the cache scopes.
