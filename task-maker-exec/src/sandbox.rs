@@ -1,6 +1,8 @@
 use failure::Error;
+use itertools::Itertools;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -121,81 +123,11 @@ impl Sandbox {
             "tmbox".into()
         };
         let mut sandbox = Command::new(tmbox_path);
-        sandbox.arg("--directory").arg(&boxdir.join("box"));
-        sandbox.arg("--json");
-        sandbox.arg("--env").arg("PATH");
-        if self.execution.stdin.is_some() {
-            sandbox.arg("--stdin").arg(boxdir.join("stdin"));
-        } else {
-            sandbox.arg("--stdin").arg("/dev/null");
-        }
-        if self.execution.stdout.is_some() {
-            sandbox.arg("--stdout").arg(boxdir.join("stdout"));
-        } else {
-            sandbox.arg("--stdout").arg("/dev/null");
-        }
-        if self.execution.stderr.is_some() {
-            sandbox.arg("--stderr").arg(boxdir.join("stderr"));
-        } else {
-            sandbox.arg("--stderr").arg("/dev/null");
-        }
-        for (key, value) in self.execution.env.iter() {
-            sandbox.arg("--env").arg(format!("{}={}", key, value));
-        }
-        // set the cpu_limit (--time parameter) to the sum of cpu_time and sys_time
-        let cpu_limit = match (
-            self.execution.limits.cpu_time,
-            self.execution.limits.sys_time,
-        ) {
-            (Some(cpu), Some(sys)) => Some(cpu + sys),
-            (Some(cpu), None) => Some(cpu),
-            (None, Some(sys)) => Some(sys),
-            (None, None) => None,
+        let command = match self.build_command(&boxdir) {
+            Ok(cmd) => cmd,
+            Err(e) => return Ok(SandboxResult::Failed { error: e }),
         };
-        if let Some(cpu) = cpu_limit {
-            let cpu = cpu + self.execution.config().extra_time;
-            sandbox.arg("--time").arg(cpu.to_string());
-        }
-        if let Some(wall) = self.execution.limits.wall_time {
-            let wall = wall + self.execution.config().extra_time;
-            sandbox.arg("--wall").arg(wall.to_string());
-        }
-        match self.execution.limits.nproc {
-            Some(1) => {}
-            _ => {
-                sandbox.arg("--multiprocess");
-            }
-        }
-        // allow reading some basic directories
-        for dir in READABLE_DIRS {
-            if Path::new(dir).is_dir() {
-                sandbox.arg("--readable-dir").arg(dir);
-            }
-        }
-        for dir in &self.execution.limits.extra_readable_dirs {
-            if dir.is_dir() {
-                sandbox.arg("--readable-dir").arg(dir);
-            }
-        }
-        if self.execution.limits.mount_tmpfs {
-            sandbox.arg("--mount-tmpfs");
-        }
-        sandbox.arg("--");
-        match &self.execution.command {
-            ExecutionCommand::System(cmd) => {
-                if let Ok(cmd) = which::which(cmd) {
-                    sandbox.arg(cmd)
-                } else {
-                    return Ok(SandboxResult::Failed {
-                        error: format!("Executable {:?} not found", cmd),
-                    });
-                }
-            }
-            ExecutionCommand::Local(cmd) => sandbox.arg(cmd),
-        };
-        for arg in self.execution.args.iter() {
-            sandbox.arg(arg);
-        }
+        sandbox.args(command);
         trace!("Sandbox command: {:?}", sandbox);
         let res = sandbox.output()?;
         trace!("Sandbox output: {:?}", res);
@@ -251,6 +183,11 @@ impl Sandbox {
             serde_json::to_string_pretty(&self.execution).expect("Cannot serialize execution");
         std::fs::write(path.join("info.json"), serialized)
             .expect("Cannot write execution info inside sandbox");
+        if let Ok(command) = self.build_command(&path) {
+            let command = command.into_iter().map(|s| format!("{:?}", s)).join(" ");
+            std::fs::write(path.join("command.txt"), format!("tmbox {}\n", command))
+                .expect("Cannot write command info inside sandbox");
+        }
     }
 
     /// Path of the file where the standard output is written to.
@@ -266,6 +203,101 @@ impl Sandbox {
     /// Path of the file where that output file is written to.
     pub fn output_path(&self, output: &Path) -> PathBuf {
         self.data.lock().unwrap().path().join("box").join(output)
+    }
+
+    /// Build the command line arguments of `tmbox`.
+    fn build_command(&self, boxdir: &Path) -> Result<Vec<OsString>, String> {
+        let mut args: Vec<OsString> = vec![];
+        args.push("--directory".into());
+        args.push(boxdir.join("box").into());
+        args.push("--json".into());
+        args.push("--env".into());
+        args.push("PATH".into());
+        if self.execution.stdin.is_some() {
+            args.push("--stdin".into());
+            args.push(boxdir.join("stdin").into());
+        } else {
+            args.push("--stdin".into());
+            args.push("/dev/null".into());
+        }
+        if self.execution.stdout.is_some() {
+            args.push("--stdout".into());
+            args.push(boxdir.join("stdout").into());
+        } else {
+            args.push("--stdout".into());
+            args.push("/dev/null".into());
+        }
+        if self.execution.stderr.is_some() {
+            args.push("--stderr".into());
+            args.push(boxdir.join("stderr").into());
+        } else {
+            args.push("--stderr".into());
+            args.push("/dev/null".into());
+        }
+        for (key, value) in self.execution.env.iter() {
+            args.push("--env".into());
+            args.push(OsString::from(format!("{}={}", key, value)));
+        }
+        // set the cpu_limit (--time parameter) to the sum of cpu_time and sys_time
+        let cpu_limit = match (
+            self.execution.limits.cpu_time,
+            self.execution.limits.sys_time,
+        ) {
+            (Some(cpu), Some(sys)) => Some(cpu + sys),
+            (Some(cpu), None) => Some(cpu),
+            (None, Some(sys)) => Some(sys),
+            (None, None) => None,
+        };
+        if let Some(cpu) = cpu_limit {
+            let cpu = cpu + self.execution.config().extra_time;
+            args.push("--time".into());
+            args.push(cpu.to_string().into());
+        }
+        if let Some(wall) = self.execution.limits.wall_time {
+            let wall = wall + self.execution.config().extra_time;
+            args.push("--wall".into());
+            args.push(wall.to_string().into());
+        }
+        if let Some(mem) = self.execution.limits.memory {
+            args.push("--memory".into());
+            args.push(mem.to_string().into());
+        }
+        if let Some(1) = self.execution.limits.nproc {
+            // default is not multi process
+        } else {
+            args.push("--multiprocess".into());
+        }
+        // allow reading some basic directories
+        for dir in READABLE_DIRS {
+            if Path::new(dir).is_dir() {
+                args.push("--readable-dir".into());
+                args.push(dir.into());
+            }
+        }
+        for dir in &self.execution.limits.extra_readable_dirs {
+            if dir.is_dir() {
+                args.push("--readable-dir".into());
+                args.push(dir.into());
+            }
+        }
+        if self.execution.limits.mount_tmpfs {
+            args.push("--mount-tmpfs".into());
+        }
+        args.push("--".into());
+        match &self.execution.command {
+            ExecutionCommand::System(cmd) => {
+                if let Ok(cmd) = which::which(cmd) {
+                    args.push(cmd.into())
+                } else {
+                    return Err(format!("Executable {:?} not found", cmd));
+                }
+            }
+            ExecutionCommand::Local(cmd) => args.push(cmd.into()),
+        };
+        for arg in self.execution.args.iter() {
+            args.push(arg.into());
+        }
+        Ok(args)
     }
 
     /// Setup the sandbox directory with all the files required for the execution.
@@ -369,9 +401,28 @@ impl Drop for SandboxData {
 #[cfg(test)]
 mod tests {
     use crate::Sandbox;
+    use itertools::Itertools;
     use std::collections::HashMap;
     use std::path::Path;
     use task_maker_dag::{Execution, ExecutionCommand};
+
+    fn assert_contains(source: &[String], check: &[&str]) {
+        for i in 0..source.len() {
+            if source[i] == check[0] {
+                let mut valid = true;
+                for j in 1..check.len() {
+                    if source[i + j] != check[j] {
+                        valid = false;
+                        break;
+                    }
+                }
+                if valid {
+                    return;
+                }
+            }
+        }
+        panic!("{:?} does not contain {:?}", source, check);
+    }
 
     #[test]
     fn test_remove_sandbox_on_drop() {
@@ -386,5 +437,45 @@ mod tests {
         assert!(!outfile.exists());
         assert!(!outfile.parent().unwrap().exists()); // the box/ dir
         assert!(!outfile.parent().unwrap().parent().unwrap().exists()); // the sandbox dir
+    }
+
+    #[test]
+    fn test_command_args() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let mut exec = Execution::new("test", ExecutionCommand::local("foo"));
+        exec.args(vec!["bar", "baz"]);
+        exec.limits_mut()
+            .sys_time(1.0)
+            .cpu_time(2.6)
+            .wall_time(10.0)
+            .mount_tmpfs(true)
+            .add_extra_readable_dir("/home")
+            .nproc(2)
+            .memory(1234);
+        exec.env("foo", "bar");
+        let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new()).unwrap();
+        let args = sandbox
+            .build_command(tmpdir.path())
+            .unwrap()
+            .into_iter()
+            .map(|s| s.to_string_lossy().to_string())
+            .collect_vec();
+        let extra_time = exec.config().extra_time;
+        let total_time = 1.0 + 2.6 + extra_time;
+        let wall_time = 10.0 + extra_time;
+        let boxdir = tmpdir.path().join("box");
+        assert_contains(&args, &["--directory", &boxdir.to_string_lossy()]);
+        assert_contains(&args, &["--json"]);
+        assert_contains(&args, &["--time", &total_time.to_string()]);
+        assert_contains(&args, &["--wall", &wall_time.to_string()]);
+        assert_contains(&args, &["--memory", "1234"]);
+        assert_contains(&args, &["--readable-dir", "/home"]);
+        assert_contains(&args, &["--mount-tmpfs"]);
+        assert_contains(&args, &["--multiprocess"]);
+        assert_contains(&args, &["--env", "foo=bar"]);
+        assert_contains(&args, &["--stdin", "/dev/null"]);
+        assert_contains(&args, &["--stdout", "/dev/null"]);
+        assert_contains(&args, &["--stderr", "/dev/null"]);
+        assert_contains(&args, &["--", "foo", "bar", "baz"]);
     }
 }
