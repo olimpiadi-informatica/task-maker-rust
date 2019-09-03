@@ -547,23 +547,15 @@ impl TestcaseScoreAggregator {
     /// Aggregate the scores of a subtask from an iterator with the scores of the testcases.
     pub(crate) fn aggregate<I: IntoIterator<Item = f64>>(&self, iter: I) -> f64 {
         match self {
-            TestcaseScoreAggregator::Min => {
-                let mut min = 1.0;
-                for score in iter.into_iter() {
-                    if score < min {
-                        min = score;
-                    }
-                }
-                min
-            }
+            TestcaseScoreAggregator::Min => iter
+                .into_iter()
+                .min_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap_or(1.0),
             TestcaseScoreAggregator::Sum => {
-                let mut sum = 1.0;
-                let mut count = 0;
-                for score in iter.into_iter() {
-                    sum += score;
-                    count += 1;
-                }
-                sum / (f64::from(count))
+                let sum_count = iter
+                    .into_iter()
+                    .fold((0.0, 0), |prev, cur| (prev.0 + cur, prev.1 + 1));
+                sum_count.0 / (f64::from(sum_count.1))
             }
         }
     }

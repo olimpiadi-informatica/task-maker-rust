@@ -174,13 +174,19 @@ pub fn parse_task<P: AsRef<Path>>(
         memory_limit: yaml.memory_limit,
         infile,
         outfile,
-        subtasks,
         checker: custom_checker.unwrap_or(Checker::WhiteDiff),
         testcase_score_aggregator: yaml
             .score_type
             .as_ref()
             .map(|s| TestcaseScoreAggregator::from_str(s))
-            .unwrap_or(Ok(TestcaseScoreAggregator::Min))?,
+            .unwrap_or_else(|| {
+                if subtasks.len() == 1 {
+                    Ok(TestcaseScoreAggregator::Sum)
+                } else {
+                    Ok(TestcaseScoreAggregator::Min)
+                }
+            })?,
+        subtasks,
         grader_map,
         booklets: Vec::new(),
         difficulty: yaml.difficulty,

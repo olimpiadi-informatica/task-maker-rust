@@ -1,0 +1,13 @@
+[package]
+name = "task-maker-test"
+version = "0.1.0"
+authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+task-maker-format = { path = "../task-maker-format" }
+better-panic = "0.1"
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_json = "1.0"
+approx = "0.3"
+itertools = "0.8"

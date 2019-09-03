@@ -7,7 +7,7 @@ use task_maker_dag::*;
 use task_maker_exec::ExecutorStatus;
 
 /// The status of the compilation of a file.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CompilationStatus {
     /// The compilation is known but it has not started yet.
     Pending,
@@ -36,7 +36,7 @@ pub enum CompilationStatus {
 }
 
 /// Status of the generation of a testcase input and output.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TestcaseGenerationStatus {
     /// The generation has not started yet.
     Pending,
@@ -59,7 +59,7 @@ pub enum TestcaseGenerationStatus {
 }
 
 /// Status of the evaluation of a solution on a testcase.
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestcaseEvaluationStatus {
     /// The solution has not started yet.
     Pending,
@@ -90,7 +90,7 @@ pub enum TestcaseEvaluationStatus {
 }
 
 /// State of the generation of a testcases.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TestcaseGenerationState {
     /// Status of the generation.
     pub status: TestcaseGenerationStatus,
@@ -107,14 +107,14 @@ pub struct TestcaseGenerationState {
 }
 
 /// State of the generation of a subtask.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SubtaskGenerationState {
     /// State of the testcases of this subtask.
     pub testcases: HashMap<TestcaseId, TestcaseGenerationState>,
 }
 
 /// State of the evaluation of a testcase.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SolutionTestcaseEvaluationState {
     /// The score on that testcase
     pub score: Option<f64>,
@@ -127,7 +127,7 @@ pub struct SolutionTestcaseEvaluationState {
 }
 
 /// State of the evaluation of a subtask.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SolutionSubtaskEvaluationState {
     /// Score of the subtask.
     pub score: Option<f64>,
@@ -136,7 +136,7 @@ pub struct SolutionSubtaskEvaluationState {
 }
 
 /// State of the evaluation of a solution.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SolutionEvaluationState {
     /// Score of the solution.
     pub score: Option<f64>,
@@ -181,14 +181,14 @@ impl SolutionEvaluationState {
 }
 
 /// The status of the compilation of a dependency of a booklet.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BookletDependencyState {
     /// The status of the execution.
     pub status: UIExecutionStatus,
 }
 
 /// The status of the compilation of a booklet.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BookletState {
     /// The status of the execution.
     pub status: UIExecutionStatus,
@@ -197,7 +197,7 @@ pub struct BookletState {
 }
 
 /// The state of a IOI task, all the information for the UI are stored here.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UIState {
     /// The task.
     pub task: Task,
@@ -245,6 +245,7 @@ impl TestcaseEvaluationStatus {
         }
     }
 
+    /// A message representing this status.
     pub fn message(&self) -> String {
         use TestcaseEvaluationStatus::*;
         match self {

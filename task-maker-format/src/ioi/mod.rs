@@ -46,6 +46,7 @@ pub use print::PrintUI;
 pub use statement::*;
 use std::ops::Deref;
 pub use tag::*;
+pub use ui_state::*;
 
 /// In IOI tasks the subtask numbers are non-negative 0-based integers.
 pub type SubtaskId = u32;
