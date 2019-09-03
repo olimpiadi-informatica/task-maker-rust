@@ -80,6 +80,7 @@ fn main() {
     env_logger::Builder::from_default_env()
         .default_format_timestamp_nanos(true)
         .init();
+    better_panic::install();
 
     let opt = opt::Opt::from_args();
 

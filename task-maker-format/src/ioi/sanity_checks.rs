@@ -355,7 +355,6 @@ fn extract_subtasks(tex: String) -> Option<Vec<(SubtaskId, f64)>> {
             }
         }
     }
-    error!("Subtasks: {:?}", subtasks);
     Some(subtasks)
 }
 

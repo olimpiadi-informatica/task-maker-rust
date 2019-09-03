@@ -25,6 +25,7 @@ env_logger = "0.6"
 tempdir = "0.3"
 structopt = "0.2"
 num_cpus = "1.10"
+better-panic = "0.1"
 
 [[bin]]
 name = "task-maker"
