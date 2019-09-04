@@ -10,3 +10,7 @@ serde = { version = "1.0", features = ["derive", "rc"] }
 boxfnonce = "0.1"
 uuid = { version = "0.7", features = ["v4", "serde"] }
 failure = "0.1"
+
+[dev-dependencies]
+tempdir = "0.3"
+approx = "0.3"

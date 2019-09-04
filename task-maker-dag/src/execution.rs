@@ -658,3 +658,125 @@ impl From<&str> for ExecutionTag {
         ExecutionTag { name: name.into() }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::signals::strsignal;
+
+    #[test]
+    fn test_status_success() {
+        let exec = Execution::new("foo", ExecutionCommand::local("foo"));
+        let status = exec.status(
+            0,
+            None,
+            &ExecutionResourcesUsage {
+                cpu_time: 0.0,
+                sys_time: 0.0,
+                wall_time: 0.0,
+                memory: 0,
+            },
+        );
+        assert_eq!(ExecutionStatus::Success, status);
+    }
+
+    #[test]
+    fn test_status_cpu_time() {
+        let mut exec = Execution::new("foo", ExecutionCommand::local("foo"));
+        exec.limits_mut().cpu_time(1.0);
+        let status = exec.status(
+            0,
+            None,
+            &ExecutionResourcesUsage {
+                cpu_time: 1.1,
+                sys_time: 0.0,
+                wall_time: 0.0,
+                memory: 0,
+            },
+        );
+        assert_eq!(ExecutionStatus::TimeLimitExceeded, status);
+    }
+
+    #[test]
+    fn test_status_sys_time() {
+        let mut exec = Execution::new("foo", ExecutionCommand::local("foo"));
+        exec.limits_mut().sys_time(1.0);
+        let status = exec.status(
+            0,
+            None,
+            &ExecutionResourcesUsage {
+                cpu_time: 0.0,
+                sys_time: 1.1,
+                wall_time: 0.0,
+                memory: 0,
+            },
+        );
+        assert_eq!(ExecutionStatus::SysTimeLimitExceeded, status);
+    }
+
+    #[test]
+    fn test_status_wall_time() {
+        let mut exec = Execution::new("foo", ExecutionCommand::local("foo"));
+        exec.limits_mut().wall_time(1.0);
+        let status = exec.status(
+            0,
+            None,
+            &ExecutionResourcesUsage {
+                cpu_time: 0.0,
+                sys_time: 0.0,
+                wall_time: 1.1,
+                memory: 0,
+            },
+        );
+        assert_eq!(ExecutionStatus::WallTimeLimitExceeded, status);
+    }
+
+    #[test]
+    fn test_status_memory() {
+        let mut exec = Execution::new("foo", ExecutionCommand::local("foo"));
+        exec.limits_mut().memory(1234);
+        let status = exec.status(
+            0,
+            None,
+            &ExecutionResourcesUsage {
+                cpu_time: 0.0,
+                sys_time: 0.0,
+                wall_time: 0.0,
+                memory: 1235,
+            },
+        );
+        assert_eq!(ExecutionStatus::MemoryLimitExceeded, status);
+    }
+
+    #[test]
+    fn test_status_signal() {
+        let exec = Execution::new("foo", ExecutionCommand::local("foo"));
+        let status = exec.status(
+            0,
+            Some(11),
+            &ExecutionResourcesUsage {
+                cpu_time: 0.0,
+                sys_time: 0.0,
+                wall_time: 0.0,
+                memory: 0,
+            },
+        );
+        assert_eq!(ExecutionStatus::Signal(11, strsignal(11)), status);
+    }
+
+    #[test]
+    fn test_status_return_code() {
+        let exec = Execution::new("foo", ExecutionCommand::local("foo"));
+        let status = exec.status(
+            1,
+            None,
+            &ExecutionResourcesUsage {
+                cpu_time: 0.0,
+                sys_time: 0.0,
+                wall_time: 0.0,
+                memory: 0,
+            },
+        );
+        assert_eq!(ExecutionStatus::ReturnCode(1), status);
+    }
+}

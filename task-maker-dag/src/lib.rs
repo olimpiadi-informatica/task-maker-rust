@@ -39,6 +39,10 @@
 
 #![deny(missing_docs)]
 
+#[cfg(test)]
+#[macro_use]
+extern crate approx;
+
 mod dag;
 mod execution;
 mod file;

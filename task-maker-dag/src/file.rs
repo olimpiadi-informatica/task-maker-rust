@@ -94,3 +94,17 @@ impl AsRef<FileUuid> for File {
         &self.uuid
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_file() {
+        let file1 = File::new("file1");
+        let file2 = File::new("file1");
+        let file3 = File::new("file2");
+        assert_ne!(file1, file2); // the uuid are different!
+        assert_ne!(file1, file3);
+    }
+}

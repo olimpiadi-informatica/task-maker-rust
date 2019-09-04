@@ -295,3 +295,143 @@ impl From<Option<Option<String>>> for CacheMode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn test_provide_file() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let file_path = tmpdir.path().join("foo");
+        std::fs::write(&file_path, "bar").unwrap();
+        let mut dag = ExecutionDAG::new();
+        let file = File::new("file");
+        dag.provide_file(file.clone(), &file_path).unwrap();
+        match &dag.data.provided_files[&file.uuid] {
+            ProvidedFile::LocalFile {
+                file, local_path, ..
+            } => {
+                assert_eq!("file", &file.description);
+                assert_eq!(&file_path, local_path);
+            }
+            _ => panic!("Invalid provided file type"),
+        }
+    }
+
+    #[test]
+    fn test_provide_file_not_existing() {
+        let mut dag = ExecutionDAG::new();
+        let file = File::new("file");
+        assert!(dag.provide_file(file.clone(), "/nope").is_err());
+    }
+
+    #[test]
+    fn test_provide_content() {
+        let mut dag = ExecutionDAG::new();
+        let file = File::new("file");
+        dag.provide_content(file.clone(), b"ciao".to_vec());
+        match &dag.data.provided_files[&file.uuid] {
+            ProvidedFile::Content { file, content, .. } => {
+                assert_eq!("file", &file.description);
+                assert_eq!(b"ciao", content.as_slice());
+            }
+            _ => panic!("Invalid provided file type"),
+        }
+    }
+
+    #[test]
+    fn test_add_execution() {
+        let mut dag = ExecutionDAG::new();
+        dag.config_mut().extra_time(42.0);
+        let exec = Execution::new("exec", ExecutionCommand::local("foo"));
+        dag.add_execution(exec.clone());
+        assert_eq!("exec", &dag.data.executions[&exec.uuid].description);
+        assert_eq!(&42.0, &dag.data.executions[&exec.uuid].config.extra_time);
+    }
+
+    #[test]
+    fn test_write_file_to() {
+        let mut dag = ExecutionDAG::new();
+        let file = File::new("file");
+        dag.write_file_to(file.clone(), "foo", false);
+        let write_to = dag.file_callbacks[&file.uuid].write_to.as_ref().unwrap();
+        assert_eq!(Path::new("foo"), write_to.dest);
+        assert_eq!(false, write_to.allow_failure);
+        assert_eq!(false, write_to.executable);
+    }
+
+    #[test]
+    fn test_write_file_to_executable() {
+        let mut dag = ExecutionDAG::new();
+        let file = File::new("file");
+        dag.write_file_to(file.clone(), "foo", true);
+        let write_to = dag.file_callbacks[&file.uuid].write_to.as_ref().unwrap();
+        assert_eq!(Path::new("foo"), write_to.dest);
+        assert_eq!(false, write_to.allow_failure);
+        assert_eq!(true, write_to.executable);
+    }
+
+    #[test]
+    fn test_write_file_to_allow_fail() {
+        let mut dag = ExecutionDAG::new();
+        let file = File::new("file");
+        dag.write_file_to_allow_fail(file.clone(), "foo", false);
+        let write_to = dag.file_callbacks[&file.uuid].write_to.as_ref().unwrap();
+        assert_eq!(Path::new("foo"), write_to.dest);
+        assert_eq!(true, write_to.allow_failure);
+        assert_eq!(false, write_to.executable);
+    }
+
+    #[test]
+    fn test_write_file_to_allow_fail_executable() {
+        let mut dag = ExecutionDAG::new();
+        let file = File::new("file");
+        dag.write_file_to_allow_fail(file.clone(), "foo", true);
+        let write_to = dag.file_callbacks[&file.uuid].write_to.as_ref().unwrap();
+        assert_eq!(Path::new("foo"), write_to.dest);
+        assert_eq!(true, write_to.allow_failure);
+        assert_eq!(true, write_to.executable);
+    }
+
+    #[test]
+    fn test_get_file_content() {
+        let mut dag = ExecutionDAG::new();
+        let file = File::new("file");
+        dag.get_file_content(file.clone(), 1234, |_| Ok(()));
+        let (limit, _) = dag.file_callbacks[&file.uuid].get_content.as_ref().unwrap();
+        assert_eq!(&1234, limit);
+    }
+
+    #[test]
+    fn test_on_execution_start() {
+        let mut dag = ExecutionDAG::new();
+        let exec = Execution::new("exec", ExecutionCommand::local("foo"));
+        dag.on_execution_start(&exec.uuid, |_| Ok(()));
+        assert_eq!(1, dag.execution_callbacks[&exec.uuid].on_start.len());
+    }
+
+    #[test]
+    fn test_on_execution_done() {
+        let mut dag = ExecutionDAG::new();
+        let exec = Execution::new("exec", ExecutionCommand::local("foo"));
+        dag.on_execution_done(&exec.uuid, |_| Ok(()));
+        assert_eq!(1, dag.execution_callbacks[&exec.uuid].on_done.len());
+    }
+
+    #[test]
+    fn test_on_execution_skip() {
+        let mut dag = ExecutionDAG::new();
+        let exec = Execution::new("exec", ExecutionCommand::local("foo"));
+        dag.on_execution_skip(&exec.uuid, || Ok(()));
+        assert_eq!(1, dag.execution_callbacks[&exec.uuid].on_skip.len());
+    }
+
+    #[test]
+    fn test_config_mut() {
+        let mut dag = ExecutionDAG::new();
+        dag.config_mut().extra_time(123.0);
+        assert_abs_diff_eq!(123.0, dag.data.config.extra_time);
+    }
+}

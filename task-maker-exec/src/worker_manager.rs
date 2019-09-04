@@ -106,7 +106,7 @@ impl WorkerManager {
                             result,
                             outputs: output_handlers,
                         })
-                        .map_err(|e| format_err!("Failed to send message to scheduler: {:?}", e))?;;
+                        .map_err(|e| format_err!("Failed to send message to scheduler: {:?}", e))?;
                 }
                 Err(_) => {
                     if scheduler
