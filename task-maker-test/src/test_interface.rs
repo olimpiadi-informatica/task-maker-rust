@@ -2,8 +2,10 @@ use itertools::Itertools;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use task_maker_dag::ExecutionStatus;
 use task_maker_format::ioi::{
-    CompilationStatus, SolutionEvaluationState, SubtaskId, Task, TestcaseEvaluationStatus, UIState,
+    CompilationStatus, SolutionEvaluationState, SubtaskId, Task, TestcaseEvaluationStatus,
+    TestcaseGenerationStatus, UIState,
 };
 use task_maker_format::ui::UIMessage;
 use task_maker_format::EvaluationConfig;
@@ -33,6 +35,12 @@ pub struct TestInterface {
     pub solution_statuses: HashMap<PathBuf, Vec<TestcaseEvaluationStatus>>,
     /// Expect task-maker to fail with the specified message.
     pub fail: Option<String>,
+    /// The status of the generations of the testcases.
+    pub generation_statuses: Option<Vec<TestcaseGenerationStatus>>,
+    /// A list with the stderr message of the failing generators.
+    pub generation_fails: Option<Vec<Option<String>>>,
+    /// A list with the stderr message of the failing validations.
+    pub validation_fails: Option<Vec<Option<String>>>,
 }
 
 impl TestInterface {
@@ -53,6 +61,9 @@ impl TestInterface {
             solution_scores: HashMap::new(),
             solution_statuses: HashMap::new(),
             fail: None,
+            generation_statuses: None,
+            generation_fails: None,
+            validation_fails: None,
         }
     }
 
@@ -128,6 +139,33 @@ impl TestInterface {
         self
     }
 
+    /// Check that the statuses of the generation are those.
+    pub fn generation_statuses<I: IntoIterator<Item = TestcaseGenerationStatus>>(
+        &mut self,
+        statuses: I,
+    ) -> &mut Self {
+        self.generation_statuses = Some(statuses.into_iter().collect());
+        self
+    }
+
+    /// Check that the generators fail with the specified messages.
+    pub fn generation_fails<I: IntoIterator<Item = Option<String>>>(
+        &mut self,
+        fails: I,
+    ) -> &mut Self {
+        self.generation_fails = Some(fails.into_iter().collect());
+        self
+    }
+
+    /// Check that the validations fail with the specified messages.
+    pub fn validation_fails<I: IntoIterator<Item = Option<String>>>(
+        &mut self,
+        fails: I,
+    ) -> &mut Self {
+        self.validation_fails = Some(fails.into_iter().collect());
+        self
+    }
+
     /// Spawn task-maker, reading its json output and checking that all the checks are good.
     pub fn run(&self) {
         println!("Expecting: {:#?}", self);
@@ -157,7 +195,7 @@ impl TestInterface {
         let output = command.output().unwrap();
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!("{:?}", stderr);
+            eprintln!("Stderr:\n{}", stderr);
             if let Some(message) = &self.fail {
                 if !stderr.contains(message) {
                     panic!("Expecting task-maker to fail with {:?} but didn't", message);
@@ -182,6 +220,7 @@ impl TestInterface {
         self.check_limits(&state);
         self.check_compilation(&state);
         self.check_subtasks(&state);
+        self.check_generations(&state);
         self.check_solution_scores(&state);
         self.check_solution_statuses(&state);
     }
@@ -330,6 +369,77 @@ impl TestInterface {
                     &statuses[statuses.len() - 1]
                 };
                 assert_eq!(expected, actual, "Solution status mismatch of {:?}", name);
+            }
+        }
+    }
+
+    fn check_generations(&self, state: &UIState) {
+        let generations: Vec<_> = state
+            .generations
+            .keys()
+            .sorted()
+            .flat_map(|st| {
+                state.generations[st]
+                    .testcases
+                    .keys()
+                    .sorted()
+                    .map(move |tc| state.generations[st].testcases[tc].clone())
+            })
+            .collect();
+        if let Some(statuses) = &self.generation_statuses {
+            assert_eq!(
+                statuses.len(),
+                generations.len(),
+                "Invalid number of testcases"
+            );
+            for (expected, testcase) in statuses.iter().zip(generations.iter()) {
+                assert_eq!(expected, &testcase.status, "Testcase generation mismatch");
+            }
+        }
+        if let Some(fails) = &self.generation_fails {
+            assert_eq!(
+                fails.len(),
+                generations.len(),
+                "Invalid number of testcases"
+            );
+            for (expected, testcase) in fails.iter().zip(generations.iter()) {
+                if let Some(expected) = expected {
+                    let gen_result = testcase.generation.as_ref().unwrap().clone();
+                    let gen_stderr = testcase.generation_stderr.as_ref().unwrap().clone();
+                    assert_ne!(
+                        ExecutionStatus::Success,
+                        gen_result.status,
+                        "Expecting generation to fail"
+                    );
+                    assert!(
+                        gen_stderr.contains(expected),
+                        "Generation stderr does not contain {:?}",
+                        expected
+                    );
+                }
+            }
+        }
+        if let Some(fails) = &self.validation_fails {
+            assert_eq!(
+                fails.len(),
+                generations.len(),
+                "Invalid number of testcases"
+            );
+            for (expected, testcase) in fails.iter().zip(generations.iter()) {
+                if let Some(expected) = expected {
+                    let val_result = testcase.validation.as_ref().unwrap().clone();
+                    let val_stderr = testcase.validation_stderr.as_ref().unwrap().clone();
+                    assert_ne!(
+                        ExecutionStatus::Success,
+                        val_result.status,
+                        "Expecting validation to fail"
+                    );
+                    assert!(
+                        val_stderr.contains(expected),
+                        "Validation stderr does not contain {:?}",
+                        expected
+                    );
+                }
             }
         }
     }

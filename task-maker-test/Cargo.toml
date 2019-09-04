@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 task-maker-format = { path = "../task-maker-format" }
+task-maker-dag = { path = "../task-maker-dag" }
 better-panic = "0.1"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"

@@ -36,7 +36,7 @@ pub enum CompilationStatus {
 }
 
 /// Status of the generation of a testcase input and output.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestcaseGenerationStatus {
     /// The generation has not started yet.
     Pending,
