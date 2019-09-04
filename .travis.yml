@@ -25,5 +25,3 @@ deploy:
   local_dir: target/doc
   on:
     branch: master
-
-cache: cargo
