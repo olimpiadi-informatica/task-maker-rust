@@ -393,6 +393,12 @@ impl FileStoreHandle {
     }
 }
 
+impl PartialEq for FileStoreHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
 impl Clone for FileStoreHandle {
     fn clone(&self) -> Self {
         let mut locked_files = self.locked_files.lock().unwrap();

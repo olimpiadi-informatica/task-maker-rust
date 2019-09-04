@@ -77,56 +77,23 @@
 #[macro_use]
 extern crate log;
 
-use std::collections::{HashMap, HashSet};
+mod entry;
+mod key;
+use entry::CacheEntry;
+use key::CacheKey;
+
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use failure::Error;
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
 
-use task_maker_dag::{
-    Execution, ExecutionCommand, ExecutionLimits, ExecutionResult, ExecutionStatus, FileUuid,
-};
-use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey};
+use task_maker_dag::{Execution, ExecutionResult, ExecutionStatus, FileUuid};
+use task_maker_store::{FileStore, FileStoreHandle};
 
 /// The name of the file which holds the cache data.
 const CACHE_FILE: &str = "cache.json";
-
-/// The cache key used to address the cache entries.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-struct CacheKey {
-    /// The command of the execution. Note that this assumes that the system commands are all the
-    /// same between the different workers.
-    command: ExecutionCommand,
-    /// The list of command line arguments.
-    args: Vec<String>,
-    /// The key (aka the hash) of the stdin, if any.
-    stdin: Option<FileStoreKey>,
-    /// The key (aka the hash) of the input files, and if they are executable. Note that because the
-    /// order matters here (it changes the final hash of the key) those values are sorted
-    /// lexicographically.
-    inputs: Vec<(PathBuf, FileStoreKey, bool)>,
-    /// The list of environment variables to set. Sorted by the variable name.
-    env: Vec<(String, String)>,
-}
-
-/// A cache entry for a given cache key. Note that the result will be used only if:
-/// - all the required output files are still valid (ie inside the `FileStore`).
-/// - the limits are compatible with the limits of the query.
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-struct CacheEntry {
-    /// The result of the `Execution`.
-    result: ExecutionResult,
-    /// The limits associated with this entry.
-    limits: ExecutionLimits,
-    /// The key (aka the hash) of the stdout, if any.
-    stdout: Option<FileStoreKey>,
-    /// The key (aka the hash) of the stderr, if any.
-    stderr: Option<FileStoreKey>,
-    /// The key (aka the hash) of the output files, indexed by their path inside the sandbox.
-    outputs: HashMap<PathBuf, FileStoreKey>,
-}
 
 /// Handle the cached executions, loading and storing them to disk.
 #[derive(Debug)]
@@ -148,144 +115,6 @@ pub enum CacheResult {
         /// The outputs of the execution.
         outputs: HashMap<FileUuid, FileStoreHandle>,
     },
-}
-
-impl CacheKey {
-    /// Make a new `CacheKey` based on an `Execution` and on the mapping of its input files, from
-    /// the UUIDs of the current DAG to the persisted `FileStoreKey`s.
-    fn from_execution(
-        execution: &Execution,
-        file_keys: &HashMap<FileUuid, FileStoreHandle>,
-    ) -> CacheKey {
-        let stdin = execution.stdin.as_ref().map(|f| file_keys[f].key().clone());
-        let inputs = execution
-            .inputs
-            .clone()
-            .into_iter()
-            .map(|(p, f)| (p, file_keys[&f.file].key().clone(), f.executable))
-            .sorted()
-            .collect_vec();
-        let env = execution.env.clone().into_iter().sorted().collect_vec();
-        CacheKey {
-            command: execution.command.clone(),
-            args: execution.args.clone(),
-            stdin,
-            inputs,
-            env,
-        }
-    }
-}
-
-impl CacheEntry {
-    /// Search in the file store the handles of all the output files. Will return `None` if at least
-    /// one of them is missing.
-    fn outputs(
-        &self,
-        file_store: &FileStore,
-        exec: &Execution,
-    ) -> Option<HashMap<FileUuid, FileStoreHandle>> {
-        // given an Option<FileStoreKey> will extract its FileStoreHandle if present, otherwise will
-        // return None. If None is passed None is returned.
-        macro_rules! try_get {
-            ($key:expr) => {
-                match &$key {
-                    None => None,
-                    Some(key) => match file_store.get(key) {
-                        None => {
-                            debug!("File {} is gone", key.to_string());
-                            return None;
-                        }
-                        Some(handle) => Some(handle),
-                    },
-                }
-            };
-        }
-
-        let mut outputs = HashMap::new();
-
-        if let Some(stdout) = exec.stdout.as_ref() {
-            if let Some(handle) = try_get!(self.stdout) {
-                outputs.insert(stdout.uuid, handle);
-            } else {
-                return None;
-            }
-        }
-        if let Some(stderr) = exec.stderr.as_ref() {
-            if let Some(handle) = try_get!(self.stderr) {
-                outputs.insert(stderr.uuid, handle);
-            } else {
-                return None;
-            }
-        }
-        for (path, file) in exec.outputs.iter() {
-            if let Some(handle) = try_get!(self.outputs.get(path)) {
-                outputs.insert(file.uuid, handle);
-            } else {
-                return None;
-            }
-        }
-        Some(outputs)
-    }
-
-    /// Checks whether a given execution is compatible with the limits stored in this entry. See the
-    /// docs of the crate for the definition of _compatible_.
-    fn is_compatible(&self, execution: &Execution) -> bool {
-        // makes sure that $left <= $right where None = inf
-        // if $left is less restrictive than $right, return false
-        macro_rules! check_limit {
-            ($left:expr, $right:expr) => {
-                match ($left, $right) {
-                    (Some(left), Some(right)) => {
-                        if left > right {
-                            return false;
-                        }
-                    }
-                    (None, Some(_)) => return false,
-                    _ => {}
-                }
-            };
-        }
-        // will return false if $less is less restrictive of $right
-        macro_rules! check_limits {
-            ($left:expr, $right:expr) => {
-                check_limit!($left.cpu_time, $right.cpu_time);
-                check_limit!($left.sys_time, $right.sys_time);
-                check_limit!($left.wall_time, $right.wall_time);
-                check_limit!($left.memory, $right.memory);
-                check_limit!($left.nproc, $right.nproc);
-                check_limit!($left.nofile, $right.nofile);
-                check_limit!($left.fsize, $right.fsize);
-                check_limit!($left.memlock, $right.memlock);
-                check_limit!($left.stack, $right.stack);
-                if $left.read_only < $right.read_only {
-                    return false;
-                }
-                if $left.mount_tmpfs > $right.mount_tmpfs {
-                    return false;
-                }
-                let left_readable_dirs: HashSet<PathBuf> =
-                    $left.extra_readable_dirs.iter().cloned().collect();
-                let right_readable_dirs: HashSet<PathBuf> =
-                    $right.extra_readable_dirs.iter().cloned().collect();
-                if left_readable_dirs != right_readable_dirs
-                    && left_readable_dirs.is_superset(&right_readable_dirs)
-                {
-                    return false;
-                }
-            };
-        }
-        match self.result.status {
-            ExecutionStatus::Success => {
-                // require that the new limits are less restrictive
-                check_limits!(self.limits, execution.limits);
-            }
-            _ => {
-                // require that the new limits are more restrictive
-                check_limits!(execution.limits, self.limits);
-            }
-        }
-        true
-    }
 }
 
 impl Cache {
