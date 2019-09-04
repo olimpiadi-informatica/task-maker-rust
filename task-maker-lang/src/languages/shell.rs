@@ -1,4 +1,5 @@
 use crate::languages::*;
+use task_maker_dag::ExecutionLimits;
 
 /// The Shell language
 #[derive(Debug)]
@@ -22,5 +23,9 @@ impl Language for LanguageShell {
 
     fn need_compilation(&self) -> bool {
         false
+    }
+
+    fn custom_limits(&self, limits: &mut ExecutionLimits) {
+        limits.nproc(1000);
     }
 }

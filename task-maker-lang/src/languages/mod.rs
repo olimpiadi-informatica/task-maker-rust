@@ -104,6 +104,10 @@ pub trait Language: std::fmt::Debug + Send + Sync {
         vec![]
     }
 
+    /// Update the limits for some language-specific requirements. For example the executable may
+    /// need to fork (hence use more processes).
+    fn custom_limits(&self, _limits: &mut ExecutionLimits) {}
+
     /// The name of the executable to call inside the sandbox. It defaults to the file name of
     /// program.
     fn executable_name(&self, path: &Path) -> PathBuf {

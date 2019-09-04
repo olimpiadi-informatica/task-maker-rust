@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use failure::Error;
+use failure::{bail, Error};
 use serde::{Deserialize, Serialize};
 
 use task_maker_dag::{Execution, ExecutionCommand, ExecutionStatus, File, FileUuid};
@@ -182,6 +182,9 @@ impl InputGenerator {
     ) -> Result<FileUuid, Error> {
         match self {
             InputGenerator::StaticFile(path) => {
+                if !path.exists() {
+                    bail!("COPY from not existing file: {:?}", path);
+                }
                 let file = File::new(format!(
                     "Static input file of testcase {}, subtask {} from {:?}",
                     subtask_id, testcase_id, path
@@ -440,7 +443,7 @@ impl Checker {
                 });
                 eval.dag.get_file_content(stderr, 1024, move |content| {
                     let mut state = state_stderr.lock().unwrap();
-                    state.1 = Some(String::from_utf8_lossy(&content).to_string());
+                    state.1 = Some(String::from_utf8_lossy(&content).trim().to_string());
                     send_state!(callback_stderr, state);
                     Ok(())
                 });

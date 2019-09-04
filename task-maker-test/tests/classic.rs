@@ -24,6 +24,7 @@ fn classic() {
         .not_compiled("noop.py")
         .not_compiled("soluzione.py")
         .solution_score("soluzione.py", vec![5.0, 45.0, 50.0])
+        .solution_score("bash.sh", vec![5.0, 45.0, 50.0])
         .solution_score("float_error.cpp", vec![0.0, 0.0, 0.0])
         .solution_score("mle.cpp", vec![0.0, 0.0, 0.0])
         .solution_score("noop.py", vec![0.0, 0.0, 0.0])
@@ -33,7 +34,8 @@ fn classic() {
         .solution_score("wa.cpp", vec![0.0, 0.0, 0.0])
         .solution_score("wrong_file.cpp", vec![0.0, 0.0, 0.0])
         .solution_statuses("soluzione.py", vec![Accepted("Output is correct".into())])
-        .solution_statuses("mle.cpp", vec![RuntimeError]) // actually due to the sandbox
+        .solution_statuses("bash.sh", vec![Accepted("Output is correct".into())])
+        // .solution_statuses("mle.cpp", vec![RuntimeError]) // pretty unreliable
         .solution_statuses("nonzero.cpp", vec![RuntimeError])
         .solution_statuses("sigsegv.c", vec![RuntimeError])
         .solution_statuses(

@@ -155,6 +155,7 @@ impl SourceFile {
                 dag.provide_file(dep.file, &dep.local_path)?;
             }
         }
+        self.language.custom_limits(exec.limits_mut());
         Ok((comp, exec))
     }
 

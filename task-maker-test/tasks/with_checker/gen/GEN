@@ -1,0 +1,6 @@
+#COPY: testo/input.txt
+#COPY: gen/hard.txt
+500
+900
+1300
+2000

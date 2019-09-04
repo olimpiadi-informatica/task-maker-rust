@@ -31,6 +31,8 @@ pub struct TestInterface {
     pub solution_scores: HashMap<PathBuf, Vec<f64>>,
     /// The status of the evaluation of some solutions.
     pub solution_statuses: HashMap<PathBuf, Vec<TestcaseEvaluationStatus>>,
+    /// Expect task-maker to fail with the specified message.
+    pub fail: Option<String>,
 }
 
 impl TestInterface {
@@ -50,7 +52,14 @@ impl TestInterface {
             subtask_scores: None,
             solution_scores: HashMap::new(),
             solution_statuses: HashMap::new(),
+            fail: None,
         }
+    }
+
+    /// Check that task-maker fails with the specified message.
+    pub fn fail<S: Into<String>>(&mut self, message: S) -> &mut Self {
+        self.fail = Some(message.into());
+        self
     }
 
     /// Check that the time limit is the one specified.
@@ -147,8 +156,22 @@ impl TestInterface {
         command.stdin(Stdio::null());
         let output = command.output().unwrap();
         if !output.status.success() {
-            eprintln!("{:?}", String::from_utf8_lossy(&output.stderr));
-            panic!("task-maker exited with: {:?}", output.status);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprintln!("{:?}", stderr);
+            if let Some(message) = &self.fail {
+                if !stderr.contains(message) {
+                    panic!("Expecting task-maker to fail with {:?} but didn't", message);
+                } else {
+                    return;
+                }
+            } else {
+                panic!("task-maker exited with: {:?}", output.status);
+            }
+        } else if let Some(message) = &self.fail {
+            panic!(
+                "Expecting task-maker to fail with {:?} but didn't fail",
+                message
+            );
         }
         let mut state = UIState::new(&task);
         for message in String::from_utf8(output.stdout).unwrap().lines() {
@@ -243,6 +266,9 @@ impl TestInterface {
             .map(|(file, eval)| (PathBuf::from(file.file_name().unwrap()), eval))
             .collect();
         for (name, scores) in self.solution_scores.iter() {
+            if !evaluations.contains_key(name) {
+                panic!("No evaluation score for solution {:?}", name)
+            }
             let state = evaluations[name];
             let score: f64 = scores.iter().sum();
             assert!(
@@ -292,6 +318,9 @@ impl TestInterface {
             })
             .collect();
         for (name, statuses) in self.solution_statuses.iter() {
+            if !evaluations.contains_key(name) {
+                panic!("No evaluation statues for solution {:?}", name)
+            }
             let actuals = &evaluations[name];
             for i in 0..actuals.len() {
                 let actual = &actuals[i];
