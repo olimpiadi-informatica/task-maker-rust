@@ -170,3 +170,29 @@ impl ChannelFileSender {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_send_file() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        std::fs::write(tmpdir.path().join("file.txt"), "hello world").unwrap();
+
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let receiver = ChannelFileIterator::new(&receiver);
+        ChannelFileSender::send(tmpdir.path().join("file.txt"), &sender).unwrap();
+        let data: Vec<u8> = receiver.flat_map(|d| d.into_iter()).collect();
+        assert_eq!(String::from_utf8(data).unwrap(), "hello world");
+    }
+
+    #[test]
+    fn test_send_content() {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let receiver = ChannelFileIterator::new(&receiver);
+        ChannelFileSender::send_data(b"hello world".to_vec(), &sender).unwrap();
+        let data: Vec<u8> = receiver.flat_map(|d| d.into_iter()).collect();
+        assert_eq!(String::from_utf8(data).unwrap(), "hello world");
+    }
+}

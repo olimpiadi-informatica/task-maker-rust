@@ -12,7 +12,7 @@ use task_maker_cache::Cache;
 
 /// List of the _interesting_ files and executions, only the callbacks listed here will be called by
 /// the server. Every other callback is not sent to the client for performance reasons.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct ExecutionDAGWatchSet {
     /// Set of the handles of the executions that have at least a callback bound.
     pub executions: HashSet<ExecutionUuid>,

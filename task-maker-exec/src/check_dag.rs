@@ -30,12 +30,6 @@ pub enum DAGError {
         /// The description of an execution inside the cycle.
         description: String,
     },
-    /// There is a duplicate execution UUID.
-    #[fail(display = "duplicate execution UUID {}", uuid)]
-    DuplicateExecutionUUID {
-        /// The duplicated UUID.
-        uuid: ExecutionUuid,
-    },
     /// There is a duplicate file UUID.
     #[fail(display = "duplicate file UUID {}", uuid)]
     DuplicateFileUUID {
@@ -74,9 +68,7 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
                 return Err(DAGError::DuplicateFileUUID { uuid: out });
             }
         }
-        if num_dependencies.insert(*exec_uuid, count).is_some() {
-            return Err(DAGError::DuplicateExecutionUUID { uuid: *exec_uuid });
-        }
+        num_dependencies.insert(*exec_uuid, count);
         if count == 0 {
             ready_execs.push_back(exec_uuid.clone());
         }
@@ -150,4 +142,87 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use task_maker_dag::{Execution, ExecutionCommand, ExecutionDAG, File};
+
+    #[test]
+    fn test_missing_file() {
+        let mut dag = ExecutionDAG::new();
+        let mut exec = Execution::new("exec", ExecutionCommand::local("foo"));
+        let file = File::new("file");
+        exec.stdin(file.clone());
+        dag.add_execution(exec);
+        assert!(check_dag(&dag.data, &ExecutionDAGWatchSet::default()).is_err());
+    }
+
+    #[test]
+    fn test_missing_file_callback() {
+        let dag = ExecutionDAG::new();
+        let file = File::new("file");
+        let watch = ExecutionDAGWatchSet {
+            executions: Default::default(),
+            files: [file.uuid].iter().cloned().collect(),
+        };
+        assert!(check_dag(&dag.data, &watch).is_err());
+    }
+
+    #[test]
+    fn test_missing_execution_callback() {
+        let dag = ExecutionDAG::new();
+        let exec = Execution::new("exec", ExecutionCommand::local("foo"));
+        let watch = ExecutionDAGWatchSet {
+            executions: [exec.uuid].iter().cloned().collect(),
+            files: Default::default(),
+        };
+        assert!(check_dag(&dag.data, &watch).is_err());
+    }
+
+    #[test]
+    fn test_cycle_self() {
+        let mut dag = ExecutionDAG::new();
+        let mut exec = Execution::new("exec", ExecutionCommand::local("foo"));
+        let stdout = exec.stdout();
+        exec.stdin(stdout);
+        dag.add_execution(exec);
+        assert!(check_dag(&dag.data, &ExecutionDAGWatchSet::default()).is_err());
+    }
+
+    #[test]
+    fn test_cycle_double() {
+        let mut dag = ExecutionDAG::new();
+        let mut exec1 = Execution::new("exec", ExecutionCommand::local("foo"));
+        let mut exec2 = Execution::new("exec", ExecutionCommand::local("foo"));
+        exec1.stdin(exec2.stdout());
+        exec2.stdin(exec1.stdout());
+        dag.add_execution(exec1);
+        dag.add_execution(exec2);
+        assert!(check_dag(&dag.data, &ExecutionDAGWatchSet::default()).is_err());
+    }
+
+    #[test]
+    fn test_duplicate_file() {
+        let mut dag = ExecutionDAG::new();
+        let mut exec1 = Execution::new("exec", ExecutionCommand::local("foo"));
+        let mut exec2 = Execution::new("exec", ExecutionCommand::local("foo"));
+        let file = File::new("file");
+        exec1.stdout = Some(file.clone());
+        exec2.stdout = Some(file.clone());
+        dag.add_execution(exec1);
+        dag.add_execution(exec2);
+        assert!(check_dag(&dag.data, &ExecutionDAGWatchSet::default()).is_err());
+    }
+
+    #[test]
+    fn test_duplicate_file_provided() {
+        let mut dag = ExecutionDAG::new();
+        let mut exec = Execution::new("exec", ExecutionCommand::local("foo"));
+        let file = exec.stdout();
+        dag.add_execution(exec);
+        dag.provide_file(file, "/dev/null").unwrap();
+        assert!(check_dag(&dag.data, &ExecutionDAGWatchSet::default()).is_err());
+    }
 }
