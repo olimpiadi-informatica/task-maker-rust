@@ -267,7 +267,7 @@ fn test_tmbox_time_limit() {
     assert_eq!(out.get("status_code").unwrap().as_i64().unwrap(), 0);
     let used = out.get("cpu_time").unwrap().as_f64().unwrap()
         + out.get("sys_time").unwrap().as_f64().unwrap();
-    assert!((used - 1.0).abs() < 0.01);
+    assert!((used - 1.0).abs() < 0.05);
     assert!(out.get("wall_time").unwrap().as_f64().unwrap() >= 0.9);
 }
 
@@ -277,20 +277,20 @@ fn test_tmbox_memory_limit() {
     std::fs::write(
         tmpdir.path().join("x.py"),
         "#!/usr/bin/env python3\n\
-         l = list([i for i in range(10000000)])\n", // ~38MiB
+         l = list([i for i in range(100000000)])\n", // ~380MiB
     )
     .unwrap();
 
     let output = exec_tmbox(
         tmpdir.path(),
-        &["--memory", "10240", "--", "/usr/bin/python3", "x.py"],
+        &["--memory", "102400", "--", "/usr/bin/python3", "x.py"],
     );
     assert!(output.status.success());
     let out: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert!(!out.get("error").unwrap().as_bool().unwrap());
     assert!(!out.get("killed_by_sandbox").unwrap().as_bool().unwrap());
-    assert_ne!(out.get("signal").unwrap().as_i64().unwrap(), 0);
-    assert_eq!(out.get("status_code").unwrap().as_i64().unwrap(), 0);
+    assert_eq!(out.get("signal").unwrap().as_i64().unwrap(), 0);
+    assert_ne!(out.get("status_code").unwrap().as_i64().unwrap(), 0);
     // assert!(out.get("memory_usage").unwrap().as_i64().unwrap() >= 10240); python refuses to alloc
 }
 
