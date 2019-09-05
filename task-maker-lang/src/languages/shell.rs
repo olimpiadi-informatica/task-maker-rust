@@ -18,7 +18,7 @@ impl Language for LanguageShell {
     }
 
     fn extensions(&self) -> Vec<&'static str> {
-        return vec!["sh"];
+        vec!["sh"]
     }
 
     fn need_compilation(&self) -> bool {
@@ -26,6 +26,21 @@ impl Language for LanguageShell {
     }
 
     fn custom_limits(&self, limits: &mut ExecutionLimits) {
-        limits.nproc(1000);
+        limits.nproc = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use spectral::prelude::*;
+
+    #[test]
+    fn test_allow_fork() {
+        let lang = LanguageShell::new();
+        let mut limits = ExecutionLimits::new();
+        limits.nproc(1);
+        lang.custom_limits(&mut limits);
+        assert_that!(limits.nproc).is_none();
     }
 }

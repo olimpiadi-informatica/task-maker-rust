@@ -8,7 +8,7 @@ pub(crate) mod python;
 pub(crate) mod shell;
 
 /// A dependency of an execution, all the sandbox paths must be relative and inside of the sandbox.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Dependency {
     /// The handle of the file.
     pub file: File,
@@ -50,7 +50,7 @@ pub trait Language: std::fmt::Debug + Send + Sync {
     ///
     /// Will panic if this language does not support compilation.
     fn compilation_command(&self, _path: &Path) -> ExecutionCommand {
-        panic!("Language {} cannot be compiled!", self.name());
+        panic!("Language {} cannot be compiled!", self.name())
     }
 
     /// Arguments to pass to the compiler to compile to source file. The source file is located at
@@ -60,7 +60,7 @@ pub trait Language: std::fmt::Debug + Send + Sync {
     ///
     /// Will panic if this language does not support compilation.
     fn compilation_args(&self, _path: &Path) -> Vec<String> {
-        panic!("Language {} cannot be compiled!", self.name());
+        panic!("Language {} cannot be compiled!", self.name())
     }
 
     /// Add a file to the compilation command if the language requires that. That file can be any
@@ -70,7 +70,7 @@ pub trait Language: std::fmt::Debug + Send + Sync {
     ///
     /// Will panic if this language does not support compilation.
     fn compilation_add_file(&self, _args: Vec<String>, _file: &Path) -> Vec<String> {
-        panic!("Language {} cannot be compiled!", self.name());
+        panic!("Language {} cannot be compiled!", self.name())
     }
 
     /// The dependencies to put inside the compilation sandbox. This does not include the source

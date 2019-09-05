@@ -61,9 +61,9 @@ impl GraderMap {
     /// ```
     pub fn get_compilation_deps(&self, lang: &dyn Language) -> Vec<Dependency> {
         if !lang.need_compilation() || !self.graders.contains_key(lang.name()) {
-            return vec![];
+            vec![]
         } else {
-            return vec![self.graders[lang.name()].clone()];
+            vec![self.graders[lang.name()].clone()]
         }
     }
 
@@ -81,9 +81,9 @@ impl GraderMap {
     /// ```
     pub fn get_runtime_deps(&self, lang: &dyn Language) -> Vec<Dependency> {
         if lang.need_compilation() || !self.graders.contains_key(lang.name()) {
-            return vec![];
+            vec![]
         } else {
-            return vec![self.graders[lang.name()].clone()];
+            vec![self.graders[lang.name()].clone()]
         }
     }
 
@@ -98,5 +98,65 @@ impl GraderMap {
     /// ```
     pub fn all_paths(&self) -> impl Iterator<Item = &Path> {
         self.graders.values().map(|dep| dep.local_path.as_ref())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::languages::c::{LanguageC, LanguageCVersion};
+    use crate::languages::cpp::{LanguageCpp, LanguageCppVersion};
+    use crate::languages::python::{LanguagePython, LanguagePythonVersion};
+    use spectral::prelude::*;
+
+    #[test]
+    fn test_new() {
+        let grader_map = GraderMap::new(vec!["grader.c", "grader.cpp", "grader.foobar"]);
+        assert_that!(grader_map.graders).has_length(2);
+    }
+
+    #[test]
+    fn test_get_compilation_deps() {
+        let grader_map = GraderMap::new(vec!["grader.cpp", "grader.py"]);
+
+        let lang = LanguageCpp::new(LanguageCppVersion::GccCpp14);
+        let deps = grader_map.get_compilation_deps(&lang);
+        assert_that!(deps).has_length(1);
+        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("grader.cpp"));
+
+        let lang = LanguageC::new(LanguageCVersion::GccC11);
+        let deps = grader_map.get_compilation_deps(&lang);
+        assert_that!(deps).is_empty();
+
+        let lang = LanguagePython::new(LanguagePythonVersion::Autodetect);
+        let deps = grader_map.get_compilation_deps(&lang);
+        assert_that!(deps).is_empty();
+    }
+
+    #[test]
+    fn test_get_runtime_deps() {
+        let grader_map = GraderMap::new(vec!["grader.cpp", "grader.py"]);
+
+        let lang = LanguageCpp::new(LanguageCppVersion::GccCpp14);
+        let deps = grader_map.get_runtime_deps(&lang);
+        assert_that!(deps).is_empty();
+
+        let lang = LanguageC::new(LanguageCVersion::GccC11);
+        let deps = grader_map.get_runtime_deps(&lang);
+        assert_that!(deps).is_empty();
+
+        let lang = LanguagePython::new(LanguagePythonVersion::Autodetect);
+        let deps = grader_map.get_runtime_deps(&lang);
+        assert_that!(deps).has_length(1);
+        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("grader.py"));
+    }
+
+    #[test]
+    fn test_all_paths() {
+        let grader_map = GraderMap::new(vec!["grader.cpp", "grader.py"]);
+        let paths: Vec<_> = grader_map.all_paths().collect();
+        assert_that!(paths).has_length(2);
+        assert_that!(paths).contains(Path::new("grader.cpp"));
+        assert_that!(paths).contains(Path::new("grader.py"));
     }
 }

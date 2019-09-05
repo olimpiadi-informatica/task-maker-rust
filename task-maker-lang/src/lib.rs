@@ -109,3 +109,43 @@ lazy_static! {
     /// The singleton instance of the `LanguageManager`.
     static ref LANGUAGE_MANAGER_SINGL: LanguageManager = LanguageManager::new();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::languages::cpp::{LanguageCpp, LanguageCppVersion};
+    use spectral::prelude::*;
+
+    #[test]
+    fn test_detect_language() {
+        let lang = LanguageManager::detect_language("foo.cpp").unwrap();
+        let name = LanguageCpp::new(LanguageCppVersion::GccCpp14).name();
+        assert_that!(lang.name()).is_equal_to(name);
+    }
+
+    #[test]
+    fn test_detect_language_uppercase() {
+        let lang = LanguageManager::detect_language("foo.CPP").unwrap();
+        let name = LanguageCpp::new(LanguageCppVersion::GccCpp14).name();
+        assert_that!(lang.name()).is_equal_to(name);
+    }
+
+    #[test]
+    fn test_detect_language_unknown() {
+        let lang = LanguageManager::detect_language("foo.blah");
+        assert_that!(lang).is_none();
+    }
+
+    #[test]
+    fn test_from_name() {
+        let name = LanguageCpp::new(LanguageCppVersion::GccCpp14).name();
+        let lang = LanguageManager::from_name(name).unwrap();
+        assert_that!(lang.name()).is_equal_to(name);
+    }
+
+    #[test]
+    fn test_from_name_unknown() {
+        let lang = LanguageManager::from_name("Nope, this is not a language");
+        assert_that!(lang).is_none();
+    }
+}

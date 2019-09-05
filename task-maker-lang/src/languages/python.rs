@@ -39,7 +39,7 @@ impl Language for LanguagePython {
     }
 
     fn extensions(&self) -> Vec<&'static str> {
-        return vec!["py"];
+        vec!["py"]
     }
 
     fn need_compilation(&self) -> bool {
@@ -133,4 +133,73 @@ fn extract_imports(path: &Path) -> Vec<String> {
         }
     }
     res
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use spectral::prelude::*;
+    use std::fs::write;
+
+    #[test]
+    fn test_runtime_args_autodetect() {
+        let lang = LanguagePython::new(LanguagePythonVersion::Autodetect);
+        let path = Path::new("script.py");
+        assert_that!(lang.runtime_command(path)).is_equal_to(ExecutionCommand::local(path));
+        let args = lang.runtime_args(path, vec!["arg".to_string()]);
+        assert_that!(&args).is_equal_to(vec!["arg".to_string()]);
+    }
+
+    #[test]
+    fn test_runtime_args_py3() {
+        let lang = LanguagePython::new(LanguagePythonVersion::Python3);
+        let path = Path::new("script.py");
+        assert_that!(lang.runtime_command(path)).is_equal_to(ExecutionCommand::system("python3"));
+        let args = lang.runtime_args(path, vec!["arg".to_string()]);
+        assert_that!(&args).is_equal_to(vec!["script.py".to_string(), "arg".to_string()]);
+    }
+
+    #[test]
+    fn test_extract_imports() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let path = tmpdir.path().join("script.py");
+        write(
+            &path,
+            "random stuff\nimport foo\nfrom bar import xxx\nimport baz, biz",
+        )
+        .unwrap();
+        let imports = extract_imports(&path);
+        assert_that!(imports).is_equal_to(vec![
+            "foo".to_string(),
+            "bar".to_string(),
+            "baz".to_string(),
+            "biz".to_string(),
+        ]);
+    }
+
+    #[test]
+    fn test_find_python_deps() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let path = tmpdir.path().join("script.py");
+        let foo_path = tmpdir.path().join("foo.py");
+        write(&path, "import foo").unwrap();
+        write(&foo_path, "import not_found").unwrap();
+        let deps = find_python_deps(&path);
+        assert_that!(deps).has_length(1);
+        assert_that!(deps[0].local_path).is_equal_to(foo_path);
+        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.py"));
+    }
+
+    #[test]
+    fn test_find_python_deps_loop() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let path = tmpdir.path().join("script.py");
+        let foo_path = tmpdir.path().join("foo.py");
+        write(&path, "import foo").unwrap();
+        write(&foo_path, "import script").unwrap();
+        let deps = find_python_deps(&path);
+        assert_that!(deps).has_length(1);
+        assert_that!(deps[0].local_path).is_equal_to(foo_path);
+        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.py"));
+    }
 }

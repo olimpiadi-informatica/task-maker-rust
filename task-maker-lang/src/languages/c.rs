@@ -34,7 +34,7 @@ impl Language for LanguageC {
     }
 
     fn extensions(&self) -> Vec<&'static str> {
-        return vec!["c"];
+        vec!["c"]
     }
 
     fn need_compilation(&self) -> bool {
@@ -72,5 +72,36 @@ impl Language for LanguageC {
     fn executable_name(&self, path: &Path) -> PathBuf {
         let name = PathBuf::from(path.file_name().expect("Invalid source file name"));
         PathBuf::from(name.file_stem().expect("Invalid source file name"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use spectral::prelude::*;
+
+    #[test]
+    fn test_compilation_args() {
+        let lang = LanguageC::new(LanguageCVersion::GccC11);
+        let args = lang.compilation_args(Path::new("foo.c"));
+        assert_that!(args).contains("foo.c".to_string());
+        assert_that!(args).contains("-std=c11".to_string());
+        assert_that!(args).contains("-o".to_string());
+        assert_that!(args).contains("foo".to_string());
+    }
+
+    #[test]
+    fn test_compilation_add_file() {
+        let lang = LanguageC::new(LanguageCVersion::GccC11);
+        let args = lang.compilation_args(Path::new("foo.c"));
+        let new_args = lang.compilation_add_file(args.clone(), Path::new("bar.c"));
+        assert_that!(new_args.iter()).contains_all_of(&args.iter());
+        assert_that!(new_args.iter()).contains("bar.c".to_string());
+    }
+
+    #[test]
+    fn test_executable_name() {
+        let lang = LanguageC::new(LanguageCVersion::GccC11);
+        assert_that!(lang.executable_name(Path::new("foo.c"))).is_equal_to(PathBuf::from("foo"));
     }
 }
