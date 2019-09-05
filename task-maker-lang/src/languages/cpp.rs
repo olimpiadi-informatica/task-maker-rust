@@ -37,7 +37,7 @@ impl Language for LanguageCpp {
     }
 
     fn extensions(&self) -> Vec<&'static str> {
-        return vec!["cpp", "cc", "c++"];
+        vec!["cpp", "cc", "c++"]
     }
 
     fn need_compilation(&self) -> bool {

@@ -19,12 +19,12 @@ pub(crate) fn strsignal(signal: u32) -> String {
     {
         unsafe {
             let cstr = CStr::from_ptr(unix::strsignal(signal as i32));
-            return cstr.to_string_lossy().to_string();
+            cstr.to_string_lossy().to_string()
         }
     }
     #[cfg(not(unix))]
     {
-        return "unknown".into();
+        "unknown".into()
     }
 }
 
