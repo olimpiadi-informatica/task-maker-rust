@@ -561,8 +561,44 @@ impl TestcaseScoreAggregator {
                 let sum_count = iter
                     .into_iter()
                     .fold((0.0, 0), |prev, cur| (prev.0 + cur, prev.1 + 1));
+                if sum_count.1 == 0 {
+                    return 1.0;
+                }
                 sum_count.0 / (f64::from(sum_count.1))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_aggregate_min() {
+        let aggregator = TestcaseScoreAggregator::Min;
+        let min = aggregator.aggregate(vec![1.0, 0.1, 0.5]);
+        assert_abs_diff_eq!(0.1, min);
+    }
+
+    #[test]
+    fn test_aggregate_min_empty() {
+        let aggregator = TestcaseScoreAggregator::Min;
+        let min = aggregator.aggregate(vec![]);
+        assert_abs_diff_eq!(1.0, min);
+    }
+
+    #[test]
+    fn test_aggregate_sum() {
+        let aggregator = TestcaseScoreAggregator::Sum;
+        let sum = aggregator.aggregate(vec![1.0, 0.1, 0.7]);
+        assert_abs_diff_eq!(0.6, sum);
+    }
+
+    #[test]
+    fn test_aggregate_sum_empty() {
+        let aggregator = TestcaseScoreAggregator::Sum;
+        let sum = aggregator.aggregate(vec![]);
+        assert_abs_diff_eq!(1.0, sum);
     }
 }

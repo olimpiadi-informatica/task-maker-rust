@@ -48,6 +48,7 @@ pub trait TaskFormat {
 }
 
 /// Configuration of the evaluation of a task.
+#[derive(Debug, Clone, Default)]
 pub struct EvaluationConfig {
     /// Execute only the solutions whose names start with the filter. If left empty all the
     /// solutions are executed.

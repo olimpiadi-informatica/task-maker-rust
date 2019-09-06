@@ -56,7 +56,7 @@ pub type TestcaseId = u32;
 /// This struct will manage the scores of a solution in a task and will emit the ui messages when
 /// a new score is ready.
 #[derive(Debug, Clone)]
-pub(crate) struct ScoreManager {
+pub struct ScoreManager {
     /// The scores of each subtask.
     subtask_scores: HashMap<SubtaskId, Option<f64>>,
     /// The maximum score of each subtask.
@@ -259,37 +259,41 @@ impl TaskFormat for Task {
     }
 
     fn clean(&self) -> Result<(), Error> {
-        let has_input_generator = self
-            .subtasks
-            .values()
-            .flat_map(|st| st.testcases.values())
-            .any(|tc| match tc.input_generator {
-                InputGenerator::Custom(_, _) => true,
-                _ => false,
-            });
-        // remove the input/ and output/ folders
-        if has_input_generator {
-            for dir in &["input", "output"] {
-                let dir = self.path.join(dir);
-                if !dir.exists() {
+        for dir in &["input", "output"] {
+            let dir = self.path.join(dir);
+            if !dir.exists() {
+                continue;
+            }
+            for file in glob::glob(dir.join("*.txt").to_string_lossy().as_ref()).unwrap() {
+                let file = match file {
+                    Ok(file) => file,
+                    _ => {
+                        warn!("Cannot process {:?}", file);
+                        continue;
+                    }
+                };
+                // check if the file is used by a static generator
+                if self
+                    .subtasks
+                    .values()
+                    .flat_map(|st| st.testcases.values())
+                    .any(|tc| match (&tc.input_generator, &tc.output_generator) {
+                        (InputGenerator::StaticFile(path), _)
+                        | (_, OutputGenerator::StaticFile(path)) => path == &file,
+                        _ => false,
+                    })
+                {
                     continue;
                 }
-                for file in glob::glob(dir.join("*.txt").to_string_lossy().as_ref()).unwrap() {
-                    match file {
-                        Ok(file) => {
-                            info!("Removing {:?}", file);
-                            std::fs::remove_file(file)?;
-                        }
-                        _ => warn!("Cannot process {:?}", file),
-                    }
-                }
-                info!("Removing {:?}", dir);
-                if let Err(e) = std::fs::remove_dir(&dir) {
-                    if let std::io::ErrorKind::Other = e.kind() {
-                        warn!("Directory {:?} not empty!", dir);
-                    } else {
-                        panic!("Cannot remove {:?}: {:?}", dir, e);
-                    }
+                info!("Removing {:?}", file);
+                std::fs::remove_file(file)?;
+            }
+            info!("Removing {:?}", dir);
+            if let Err(e) = std::fs::remove_dir(&dir) {
+                if let std::io::ErrorKind::Other = e.kind() {
+                    warn!("Directory {:?} not empty!", dir);
+                } else {
+                    panic!("Cannot remove {:?}: {:?}", dir, e);
                 }
             }
         }

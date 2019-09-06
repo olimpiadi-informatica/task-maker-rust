@@ -140,3 +140,23 @@ impl AsyFile {
         Ok(result)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use spectral::prelude::*;
+    use std::fs::write;
+
+    #[test]
+    fn test_find_asy_deps() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let path = tmpdir.path().join("file.asy");
+        let foo_path = tmpdir.path().join("foo.asy");
+        write(&path, "import foo;").unwrap();
+        write(&foo_path, "import math;\ngraphic('img.png');").unwrap();
+        let deps = AsyFile::find_asy_deps(&path, tmpdir.path()).unwrap();
+        assert_that!(deps).has_length(2);
+        assert_that(&deps[Path::new("foo.asy")]).is_equal_to(&foo_path);
+        assert_that(&deps[Path::new("img.png")]).is_equal_to(tmpdir.path().join("img.png"));
+    }
+}

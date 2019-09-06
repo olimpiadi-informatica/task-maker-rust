@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use task_maker_dag::{Execution, ExecutionCommand, File};
 
 /// Configuration of a `Booklet`, including the setting from the contest configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BookletConfig {
     /// The language to use for this booklet, e.g. `"english"`.
     pub language: String,

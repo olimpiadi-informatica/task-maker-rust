@@ -29,3 +29,4 @@ askama_derive = "0.8"
 [dev-dependencies]
 tempdir = "0.3"
 pretty_assertions = "0.6"
+spectral = "0.6"

@@ -14,7 +14,7 @@ lazy_static! {
 }
 
 /// The configuration of a `Statement`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StatementConfig {
     /// The name of the task.
     pub name: String,

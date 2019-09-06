@@ -11,7 +11,7 @@ before_script:
 script:
   - cargo clippy --color=always --all-targets --all-features -- -A clippy::too_many_arguments -A clippy::large_enum_variant
   - cargo build --color=always --all
-  - RUST_BACKTRACE=1 cargo test --color=always --all
+  - RUST_BACKTRACE=1 cargo test --color=always --all --no-fail-fast
   - rm -rf target/doc  # make sure only our crates are present
   - cargo doc --color=always --no-deps --all
   - echo '<meta http-equiv="Refresh" content="0; url=./task_maker/index.html">' > target/doc/index.html
