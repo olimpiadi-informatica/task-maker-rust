@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use task_maker_dag::{ExecutionResourcesUsage, ExecutionResult, ExecutionStatus};
 use task_maker_format::ioi::*;
 use task_maker_lang::GraderMap;
 
@@ -61,4 +62,32 @@ pub fn new_task_with_context(path: &Path) -> Task {
         output_generator: OutputGenerator::StaticFile(p.clone()),
     });
     task
+}
+
+pub fn good_result() -> ExecutionResult {
+    ExecutionResult {
+        status: ExecutionStatus::Success,
+        was_killed: false,
+        was_cached: false,
+        resources: ExecutionResourcesUsage {
+            cpu_time: 0.0,
+            sys_time: 0.0,
+            wall_time: 0.0,
+            memory: 0,
+        },
+    }
+}
+
+pub fn bad_result() -> ExecutionResult {
+    ExecutionResult {
+        status: ExecutionStatus::ReturnCode(123),
+        was_killed: false,
+        was_cached: false,
+        resources: ExecutionResourcesUsage {
+            cpu_time: 0.0,
+            sys_time: 0.0,
+            wall_time: 0.0,
+            memory: 0,
+        },
+    }
 }

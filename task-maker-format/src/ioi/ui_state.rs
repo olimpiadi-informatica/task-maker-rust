@@ -7,7 +7,7 @@ use task_maker_dag::*;
 use task_maker_exec::ExecutorStatus;
 
 /// The status of the compilation of a file.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CompilationStatus {
     /// The compilation is known but it has not started yet.
     Pending,
@@ -383,6 +383,7 @@ impl UIState {
                     _ => {}
                 }
             }
+            UIMessage::IOITask { .. } => {}
             UIMessage::IOIGeneration {
                 subtask,
                 testcase,
@@ -673,7 +674,6 @@ impl UIState {
             UIMessage::Warning { message } => {
                 self.warnings.push(message);
             }
-            _ => {}
         }
     }
 }

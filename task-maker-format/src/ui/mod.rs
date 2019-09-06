@@ -22,7 +22,7 @@ pub type UIChannelSender = Sender<UIMessage>;
 pub type UIChannelReceiver = Receiver<UIMessage>;
 
 /// The status of an execution.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum UIExecutionStatus {
     /// The `Execution` is known to the DAG and when all its dependencies are ready it will
     /// started.
