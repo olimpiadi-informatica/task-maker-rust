@@ -123,3 +123,48 @@ pub(crate) fn find_source_file<P: AsRef<Path>, S: AsRef<str>, P2: Into<PathBuf>>
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_list_files() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        std::fs::create_dir_all(tmpdir.path().join("foo/bar")).unwrap();
+        std::fs::create_dir_all(tmpdir.path().join("foo/baz")).unwrap();
+        std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
+        std::fs::write(tmpdir.path().join("foo/yyy.py"), "x").unwrap();
+        std::fs::write(tmpdir.path().join("foo/yyy.aaa"), "x").unwrap();
+        std::fs::write(tmpdir.path().join("foo/bar/zzz.py"), "x").unwrap();
+        std::fs::write(tmpdir.path().join("uuu.bbb"), "x").unwrap();
+        std::fs::write(tmpdir.path().join("foo/baz/uuu.bbb"), "x").unwrap();
+        let files = list_files(tmpdir.path(), vec!["**/*.py", "foo/baz/*.bbb"]);
+        assert_eq!(files.len(), 4);
+        assert!(files.contains(&tmpdir.path().join("foo/xxx.py")));
+        assert!(files.contains(&tmpdir.path().join("foo/yyy.py")));
+        assert!(files.contains(&tmpdir.path().join("foo/bar/zzz.py")));
+        assert!(files.contains(&tmpdir.path().join("foo/baz/uuu.bbb")));
+    }
+
+    #[test]
+    fn test_find_source_file() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        std::fs::create_dir_all(tmpdir.path().join("foo/bar")).unwrap();
+        std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
+        std::fs::write(tmpdir.path().join("foo/bar/zzz.py"), "x").unwrap();
+        let source = find_source_file(tmpdir.path(), vec!["foo/bar/*.py"], None, None::<PathBuf>);
+        assert!(source.is_some());
+        let source = source.unwrap();
+        assert_eq!(source.path, tmpdir.path().join("foo/bar/zzz.py"));
+    }
+
+    #[test]
+    fn test_find_source_file_not_found() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        std::fs::create_dir_all(tmpdir.path().join("foo/bar")).unwrap();
+        std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
+        let source = find_source_file(tmpdir.path(), vec!["foo/bar/*.py"], None, None::<PathBuf>);
+        assert!(source.is_none());
+    }
+}
