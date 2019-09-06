@@ -1,3 +1,7 @@
+//! Sanity checks for IOI-like tasks.
+//!
+//! Call `pre_hook` before executing the DAG and `post_hook` after the execution.
+
 use crate::ioi::{SubtaskId, Task};
 use crate::ui::{UIMessage, UIMessageSender};
 use crate::{list_files, EvaluationData, UISender};

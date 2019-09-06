@@ -34,7 +34,7 @@ mod dag;
 mod finish_ui;
 mod format;
 mod print;
-mod sanity_checks;
+pub mod sanity_checks;
 mod statement;
 mod tag;
 mod ui_state;

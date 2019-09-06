@@ -19,8 +19,8 @@ pub fn new_task_with_context(path: &Path) -> Task {
     let mut task = Task {
         path: path.into(),
         task_type: TaskType::Batch,
-        name: "".to_string(),
-        title: "".to_string(),
+        name: "task".to_string(),
+        title: "The Task".to_string(),
         time_limit: None,
         memory_limit: None,
         infile: None,
