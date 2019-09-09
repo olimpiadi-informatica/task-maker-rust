@@ -82,17 +82,18 @@ pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>>(
     let (tx_remote, rx) = channel();
     let store_dir = store_dir.into();
     let sandbox_path = sandbox_path.into();
+    let file_store = Arc::new(FileStore::new(&store_dir).expect("Cannot create the file store"));
+    let server_file_store = file_store.clone();
     let server = thread::Builder::new()
         .name("Local executor".into())
         .spawn(move || {
-            let file_store = FileStore::new(&store_dir).expect("Cannot create the file store");
             let cache = Cache::new(store_dir).expect("Cannot create the cache");
             let executor =
-                executors::LocalExecutor::new(Arc::new(file_store), num_cores, sandbox_path);
+                executors::LocalExecutor::new(server_file_store, num_cores, sandbox_path);
             executor.evaluate(tx_remote, rx_remote, cache).unwrap();
         })
         .expect("Failed to spawn local executor thread");
-    ExecutorClient::evaluate(dag, tx, &rx, |_| Ok(())).expect("Client failed");
+    ExecutorClient::evaluate(dag, tx, &rx, file_store, |_| Ok(())).expect("Client failed");
     server.join().expect("Server panicked");
 }
 

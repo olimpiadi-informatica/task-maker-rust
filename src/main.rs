@@ -134,11 +134,11 @@ fn main() {
         }
     };
     let file_store =
-        FileStore::new(store_path.join("store")).expect("Cannot create the file store");
+        Arc::new(FileStore::new(store_path.join("store")).expect("Cannot create the file store"));
     let cache = Cache::new(store_path.join("cache")).expect("Cannot create the cache");
     let num_cores = opt.num_cores.unwrap_or_else(num_cpus::get);
     let sandbox_path = store_path.join("sandboxes");
-    let executor = LocalExecutor::new(Arc::new(file_store), num_cores, sandbox_path);
+    let executor = LocalExecutor::new(file_store.clone(), num_cores, sandbox_path);
 
     // build the DAG for the task
     task.execute(&mut eval, &eval_config)
@@ -157,7 +157,7 @@ fn main() {
         .expect("Failed to spawn the executor thread");
 
     let ui_sender = eval.sender.clone();
-    ExecutorClient::evaluate(eval.dag, tx, &rx, move |status| {
+    ExecutorClient::evaluate(eval.dag, tx, &rx, file_store, move |status| {
         ui_sender.send(UIMessage::ServerStatus { status })
     })
     .expect("Client failed");

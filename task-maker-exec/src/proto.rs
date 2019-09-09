@@ -53,6 +53,9 @@ pub enum ExecutorClientMessage {
     /// The client is providing a file. After this message there is a protocol switch for the file
     /// transmission.
     ProvideFile(FileUuid, FileStoreKey),
+    /// The client is asking the server to send a file. After this message there is a protocol
+    /// switch for the file transmission.
+    AskFile(FileUuid, FileStoreKey, bool),
     /// The client is asking to stop the evaluation. All the running executions will be killed and
     /// no more execution will be run. All the callbacks will be called as usual.
     Stop,
@@ -82,7 +85,7 @@ pub enum ExecutorServerMessage {
     /// The server status as asked by the client.
     Status(ExecutorStatus<Duration>),
     /// The evaluation of the DAG is complete, this message will close the connection.
-    Done,
+    Done(Vec<(FileUuid, FileStoreKey, bool)>),
 }
 
 /// Messages sent by the workers to the server.
