@@ -107,7 +107,11 @@ impl UI for PrintUI {
                     status.ready_execs, status.waiting_execs
                 );
                 for worker in status.connected_workers {
-                    println!(" - {} ({})", worker.name, worker.uuid);
+                    if let Some((job, _)) = &worker.current_job {
+                        println!(" - {} ({}): {}", worker.name, worker.uuid, job);
+                    } else {
+                        println!(" - {} ({})", worker.name, worker.uuid);
+                    }
                 }
             }
             UIMessage::Compilation { file, status } => {

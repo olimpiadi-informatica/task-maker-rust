@@ -43,17 +43,18 @@ impl ExecutorClient {
     /// // setup the communication channels
     /// let (tx, rx_remote) = channel();
     /// let (tx_remote, rx) = channel();
+    /// # let tmpdir = TempDir::new("tm-test").unwrap();
+    /// # let path = tmpdir.path().to_owned();
+    /// let file_store = Arc::new(FileStore::new(&path).expect("Cannot create the file store"));
+    /// let server_file_store = file_store.clone();
     /// // make a new local executor in a second thread
     /// let server = thread::spawn(move || {
-    /// #   let tmpdir = TempDir::new("tm-test").unwrap();
-    /// #   let path = tmpdir.path();
-    ///     let file_store = FileStore::new(path).expect("Cannot create the file store");
-    ///     let cache = Cache::new(path).expect("Cannot create the cache");
-    ///     let mut executor = LocalExecutor::new(Arc::new(file_store), 4, path);
+    ///     let cache = Cache::new(&path).expect("Cannot create the cache");
+    ///     let mut executor = LocalExecutor::new(server_file_store, 4, path);
     ///     executor.evaluate(tx_remote, rx_remote, cache).unwrap();
     /// });
     ///
-    /// ExecutorClient::evaluate(dag, tx, &rx, |_| Ok(())).unwrap(); // this will block!
+    /// ExecutorClient::evaluate(dag, tx, &rx, file_store, |_| Ok(())).unwrap(); // this will block!
     ///
     /// server.join().expect("Server paniced");
     /// ```
@@ -61,6 +62,7 @@ impl ExecutorClient {
         mut dag: ExecutionDAG,
         sender: ChannelSender,
         receiver: &ChannelReceiver,
+        file_store: Arc<FileStore>,
         mut status_callback: F,
     ) -> Result<(), Error>
     where
@@ -117,7 +119,8 @@ impl ExecutorClient {
                 }
             })
             .expect("Failed to start client status poller thread");
-        loop {
+        let mut missing_files = None;
+        while missing_files.unwrap_or(1) > 0 {
             match deserialize_from::<ExecutorServerMessage>(&receiver) {
                 Ok(ExecutorServerMessage::AskFile(uuid)) => {
                     info!("Server is asking for {}", uuid);
@@ -146,6 +149,9 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::ProvideFile(uuid, success)) => {
                     info!("Server sent the file {}, success: {}", uuid, success);
+                    if let Some(missing) = missing_files {
+                        missing_files = Some(missing - 1);
+                    }
                     let iterator = ChannelFileIterator::new(&receiver);
                     process_provided_file(&mut dag.file_callbacks, uuid, success, iterator)?;
                 }
@@ -196,9 +202,27 @@ impl ExecutorClient {
                         waiting_execs: status.waiting_execs,
                     })?;
                 }
-                Ok(ExecutorServerMessage::Done) => {
-                    info!("Execution completed!");
-                    break;
+                Ok(ExecutorServerMessage::Done(result)) => {
+                    info!("Execution completed producing {} files!", result.len());
+                    let mut missing = 0;
+                    for (uuid, key, success) in result {
+                        if let Some(handle) = file_store.get(&key) {
+                            let iterator = ReadFileIterator::new(handle.path())?;
+                            process_provided_file(
+                                &mut dag.file_callbacks,
+                                uuid,
+                                success,
+                                iterator,
+                            )?;
+                        } else {
+                            serialize_into(
+                                &ExecutorClientMessage::AskFile(uuid, key, success),
+                                &sender,
+                            )?;
+                            missing += 1;
+                        }
+                    }
+                    missing_files = Some(missing);
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();
@@ -265,7 +289,7 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
         if let Some(write_to) = &callback.write_to {
             if write_to.executable {
                 let mut perm = std::fs::metadata(&write_to.dest)?.permissions();
-                perm.set_mode(0o500);
+                perm.set_mode(0o755);
                 std::fs::set_permissions(&write_to.dest, perm)?;
             }
         }

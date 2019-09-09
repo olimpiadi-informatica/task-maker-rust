@@ -55,7 +55,7 @@ use std::fmt::Formatter;
 use std::sync::{Arc, Mutex};
 
 /// Whether to check the file integrity on the store before getting it.
-const INTEGRITY_CHECKS_ENABLED: bool = true;
+const INTEGRITY_CHECKS_ENABLED: bool = false;
 /// The name of the lock of the file store.
 const STORE_LOCK_FILE: &str = "exclusive.lock";
 

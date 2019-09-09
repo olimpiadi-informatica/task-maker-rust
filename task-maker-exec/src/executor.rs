@@ -94,10 +94,17 @@ impl Executor {
     ) -> Result<(), Error> {
         let (sched_binder_tx, sched_binder_rx) = channel();
         let sched_binder_client = client_tx.clone();
+        let produced_handles = Arc::new(Mutex::new(Vec::new()));
+        let produced_handles_sched = produced_handles.clone();
         let join_scheduler_binder = std::thread::Builder::new()
             .name("Scheduler binder".into())
             .spawn(move || {
-                Executor::scheduler_thread(sched_binder_rx, sched_binder_client).unwrap()
+                Executor::scheduler_thread(
+                    sched_binder_rx,
+                    sched_binder_client,
+                    produced_handles_sched,
+                )
+                .unwrap()
             })
             .expect("Failed to spawn scheduler binder thread");
 
@@ -157,6 +164,21 @@ impl Executor {
                         .send(SchedulerInMessage::FileReady { uuid, handle })
                         .map_err(|e| format_err!("Failed to send message to scheduler: {:?}", e))?;
                 }
+                Ok(ExecutorClientMessage::AskFile(uuid, key, success)) => {
+                    info!("Client asking file {:?}", key);
+                    if let Some(handle) = self.file_store.get(&key) {
+                        serialize_into(
+                            &ExecutorServerMessage::ProvideFile(uuid, success),
+                            &client_tx,
+                        )?;
+                        ChannelFileSender::send(handle.path(), &client_tx)?;
+                    } else {
+                        serialize_into(
+                            &ExecutorServerMessage::Error(format!("Unknown file {:?}", key)),
+                            &client_tx,
+                        )?;
+                    }
+                }
                 Ok(ExecutorClientMessage::Status) => {
                     info!("Client asking for the status");
                     // this may fail is the scheduler is gone
@@ -187,6 +209,7 @@ impl Executor {
     fn scheduler_thread(
         receiver: Receiver<SchedulerOutMessage>,
         client_tx: ChannelSender,
+        produced_files: Arc<Mutex<Vec<(FileUuid, FileStoreHandle, bool)>>>,
     ) -> Result<(), Error> {
         loop {
             let message = receiver.recv();
@@ -204,11 +227,7 @@ impl Executor {
                     serialize_into(&ExecutorServerMessage::NotifyDone(exec, result), &client_tx)?;
                 }
                 Ok(SchedulerOutMessage::FileReady(uuid, handle, success)) => {
-                    serialize_into(
-                        &ExecutorServerMessage::ProvideFile(uuid, success),
-                        &client_tx,
-                    )?;
-                    ChannelFileSender::send(handle.path(), &client_tx)?;
+                    produced_files.lock().unwrap().push((uuid, handle, success));
                 }
                 Ok(SchedulerOutMessage::Status(status)) => {
                     serialize_into(&ExecutorServerMessage::Status(status), &client_tx)?;
@@ -220,7 +239,13 @@ impl Executor {
             }
         }
         // at this point the scheduler is gone, the evaluation has to end.
-        let _ = serialize_into(&ExecutorServerMessage::Done, &client_tx);
+        let result = produced_files
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(f, h, s)| (*f, h.key().clone(), *s))
+            .collect();
+        let _ = serialize_into(&ExecutorServerMessage::Done(result), &client_tx);
         Ok(())
     }
 }
