@@ -172,7 +172,13 @@ impl TaskFormat for Task {
                     .to_string()
             })
             .collect_vec();
-        let solutions: Vec<_> = list_files(&self.path, vec!["sol/*"])
+
+        let solution_paths = if config.solution_paths.len() == 0 {
+            list_files(&self.path, vec!["sol/*"])
+        } else {
+            config.solution_paths.clone()
+        };
+        let solutions: Vec<_> = solution_paths
             .into_iter()
             .filter(|p| !graders.contains(p)) // the graders are not solutions
             .filter(|p| {

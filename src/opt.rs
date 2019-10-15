@@ -52,6 +52,12 @@ pub struct Opt {
     /// specifying anything all the solutions are executed.
     pub filter: Vec<String>,
 
+    /// Evaluate only the solution with the specified path
+    ///
+    /// The solution can reside anywhere in the filesystem.
+    #[structopt(long = "solution", short = "-s")]
+    pub solution: Vec<PathBuf>,
+
     /// Look at most for this number of parents for searching the task
     #[structopt(long = "max-depth", default_value = "3")]
     pub max_depth: u32,
@@ -79,6 +85,7 @@ impl Opt {
         EvaluationConfig {
             solution_filter: self.filter.clone(),
             booklet_solutions: self.booklet_solutions,
+            solution_paths: self.solution.clone(),
         }
     }
 }
