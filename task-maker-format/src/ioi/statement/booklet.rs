@@ -87,9 +87,14 @@ impl Booklet {
         }
     }
 
-    /// Return a ref to the configuration of the statement.
+    /// Return a ref to the configuration of the booklet.
     pub fn config(&self) -> &BookletConfig {
         &self.config
+    }
+
+    /// Return a ref to the destination of the booklet.
+    pub fn dest(&self) -> &PathBuf {
+        &self.dest
     }
 
     /// Add a `Statement` to this booklet.
