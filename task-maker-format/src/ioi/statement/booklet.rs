@@ -87,6 +87,11 @@ impl Booklet {
         }
     }
 
+    /// Return a ref to the configuration of the statement.
+    pub fn config(&self) -> &BookletConfig {
+        &self.config
+    }
+
     /// Add a `Statement` to this booklet.
     pub fn add_statement(&mut self, statement: Statement) {
         self.statements.push(statement);
