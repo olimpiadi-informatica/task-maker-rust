@@ -55,11 +55,11 @@ pub struct BookletTemplate {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Booklet {
     /// Configuration of the booklet.
-    config: BookletConfig,
+    pub config: BookletConfig,
     /// The list of `Statement`s that are included in this booklet.
     pub statements: Vec<Statement>,
     /// Where to copy the booklet.
-    dest: PathBuf,
+    pub dest: PathBuf,
 }
 
 /// Part of the schema of `contest.yaml`, used for extracting the configuration of the booklet.
@@ -85,16 +85,6 @@ impl Booklet {
             dest: dest.into(),
             statements: Vec::new(),
         }
-    }
-
-    /// Return a ref to the configuration of the booklet.
-    pub fn config(&self) -> &BookletConfig {
-        &self.config
-    }
-
-    /// Return a ref to the destination of the booklet.
-    pub fn dest(&self) -> &PathBuf {
-        &self.dest
     }
 
     /// Add a `Statement` to this booklet.
