@@ -175,6 +175,8 @@ pub enum UIMessage {
         subtask: SubtaskId,
         /// The path of the solution.
         solution: PathBuf,
+        /// The normalized score, a value between 0 and 1
+        normalized_score: f64,
         /// The score of the subtask.
         score: f64,
     },

@@ -41,10 +41,12 @@ fn test_score_manager() {
                 subtask,
                 solution,
                 score,
+                normalized_score,
             } => {
                 assert_eq!(subtask, 0);
                 assert_eq!(solution, PathBuf::from("sol"));
                 assert_eq!(score, 10.0);
+                assert_eq!(normalized_score, 1.0);
             }
             _ => panic!("Expecting UIMessage::IOISubtaskScore but was {:?}", mex),
         }
@@ -107,10 +109,12 @@ fn test_score_manager() {
                 subtask,
                 solution,
                 score,
+                normalized_score,
             } => {
                 assert_eq!(subtask, 1);
                 assert_eq!(solution, PathBuf::from("sol"));
                 assert_eq!(score, 0.0);
+                assert_eq!(normalized_score, 0.0);
             }
             _ => panic!("Expecting UIMessage::IOISubtaskScore but was {:?}", mex),
         }
