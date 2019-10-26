@@ -374,7 +374,9 @@ impl Checker {
                 let mut exec = Execution::new(
                     format!(
                         "Checking output of {:?} of testcase {}, subtask {}",
-                        solution, testcase_id, subtask_id
+                        solution.file_name().unwrap(),
+                        testcase_id,
+                        subtask_id
                     ),
                     ExecutionCommand::system("diff"),
                 );
@@ -412,7 +414,9 @@ impl Checker {
                     eval,
                     format!(
                         "Checking output of {:?} of testcase {}, subtask {}",
-                        solution, testcase_id, subtask_id
+                        solution.file_name().unwrap(),
+                        testcase_id,
+                        subtask_id
                     ),
                     vec!["input", "correct_output", "test_output"],
                 )?;
