@@ -58,6 +58,7 @@ where
             "gen/generator",
             "gen/generatore",
         ],
+        task_dir,
         None,
         Some(task_dir.join("bin").join("generator")),
     )

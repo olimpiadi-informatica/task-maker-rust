@@ -109,16 +109,22 @@ pub(crate) fn list_files<P: AsRef<Path>, S: AsRef<str>>(cwd: P, patterns: Vec<S>
 
 /// Make a `SourceFile` with the first file that matches the patterns provided that is in a
 /// recognised language. Returns `None` if no valid source file can be found.
-pub(crate) fn find_source_file<P: AsRef<Path>, S: AsRef<str>, P2: Into<PathBuf>>(
+pub(crate) fn find_source_file<
+    P: AsRef<Path>,
+    S: AsRef<str>,
+    P2: Into<PathBuf>,
+    P3: Into<PathBuf>,
+>(
     cwd: P,
     patterns: Vec<S>,
+    base_path: P3,
     grader_map: Option<Arc<GraderMap>>,
     write_bin_to: Option<P2>,
 ) -> Option<SourceFile> {
     for path in list_files(cwd, patterns) {
         if LanguageManager::detect_language(&path).is_some() {
             // SourceFile::new may fail if the language is unknown
-            return Some(SourceFile::new(&path, grader_map, write_bin_to).unwrap());
+            return Some(SourceFile::new(&path, base_path, grader_map, write_bin_to).unwrap());
         }
     }
     None
@@ -153,7 +159,13 @@ mod tests {
         std::fs::create_dir_all(tmpdir.path().join("foo/bar")).unwrap();
         std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
         std::fs::write(tmpdir.path().join("foo/bar/zzz.py"), "x").unwrap();
-        let source = find_source_file(tmpdir.path(), vec!["foo/bar/*.py"], None, None::<PathBuf>);
+        let source = find_source_file(
+            tmpdir.path(),
+            vec!["foo/bar/*.py"],
+            "",
+            None,
+            None::<PathBuf>,
+        );
         assert!(source.is_some());
         let source = source.unwrap();
         assert_eq!(source.path, tmpdir.path().join("foo/bar/zzz.py"));
@@ -164,7 +176,13 @@ mod tests {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
         std::fs::create_dir_all(tmpdir.path().join("foo/bar")).unwrap();
         std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
-        let source = find_source_file(tmpdir.path(), vec!["foo/bar/*.py"], None, None::<PathBuf>);
+        let source = find_source_file(
+            tmpdir.path(),
+            vec!["foo/bar/*.py"],
+            "",
+            None,
+            None::<PathBuf>,
+        );
         assert!(source.is_none());
     }
 }

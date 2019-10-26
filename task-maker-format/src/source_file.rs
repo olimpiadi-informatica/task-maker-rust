@@ -23,13 +23,14 @@ pub struct SourceFile {
 impl SourceFile {
     /// Make a new `SourceFile`. See
     /// [`task_maker_lang::SourceFile`](../task_maker_lang/struct.SourceFile.html) for the details.
-    pub fn new<P: Into<PathBuf>, P2: Into<PathBuf>>(
+    pub fn new<P: Into<PathBuf>, P2: Into<PathBuf>, P3: Into<PathBuf>>(
         path: P,
+        base_path: P3,
         grader_map: Option<Arc<GraderMap>>,
         write_bin_to: Option<P2>,
     ) -> Option<SourceFile> {
         Some(SourceFile {
-            base: task_maker_lang::SourceFile::new(path, grader_map, write_bin_to)?,
+            base: task_maker_lang::SourceFile::new(path, base_path, grader_map, write_bin_to)?,
         })
     }
 

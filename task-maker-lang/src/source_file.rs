@@ -17,6 +17,9 @@ use crate::{GraderMap, LanguageManager};
 pub struct SourceFile {
     /// Path to the source file.
     pub path: PathBuf,
+    /// Path to the base directory (e.g. the task root), used for including the source file
+    /// dependencies from the command line args of the executable (in case of relative paths).
+    pub base_path: PathBuf,
     /// Language of the source file.
     #[serde(serialize_with = "language_serializer")]
     #[serde(deserialize_with = "language_deserializer")]
@@ -44,16 +47,19 @@ impl SourceFile {
     ///
     /// Because the execution/compilation may require some additional files a
     /// [`GraderMap`](struct.GraderMap.html) is required.
-    pub fn new<P: Into<PathBuf>, P2: Into<PathBuf>>(
+    pub fn new<P: Into<PathBuf>, P2: Into<PathBuf>, P3: Into<PathBuf>>(
         path: P,
+        base_path: P2,
         grader_map: Option<Arc<GraderMap>>,
-        write_bin_to: Option<P2>,
+        write_bin_to: Option<P3>,
     ) -> Option<SourceFile> {
         let path = path.into();
+        let base_path = base_path.into();
         let lang = LanguageManager::detect_language(&path);
         lang.as_ref()?;
         Some(SourceFile {
             path,
+            base_path,
             language: lang.unwrap(),
             executable: Arc::new(Mutex::new(None)),
             grader_map,
@@ -96,7 +102,7 @@ impl SourceFile {
     /// # std::fs::write(tempdir.path().join("test.cpp"), "foobar.cpp").unwrap();
     /// # let path = tempdir.path().join("test.cpp");
     /// let mut dag = ExecutionDAG::new();
-    /// let mut source = SourceFile::new(path /* test.cpp */, None, None::<PathBuf>).unwrap();
+    /// let mut source = SourceFile::new(path /* test.cpp */, "", None, None::<PathBuf>).unwrap();
     ///
     /// let (comp, exec) = source.execute(&mut dag, "Execution", vec!["arg1".into()]).unwrap();
     /// assert!(comp.is_some());
@@ -120,7 +126,7 @@ impl SourceFile {
     /// # std::fs::write(tempdir.path().join("test.py"), "foobar.cpp").unwrap();
     /// # let path = tempdir.path().join("test.py");
     /// let mut dag = ExecutionDAG::new();
-    /// let mut source = SourceFile::new(path /* test.py */, None, None::<PathBuf>).unwrap();
+    /// let mut source = SourceFile::new(path /* test.py */, "", None, None::<PathBuf>).unwrap();
     ///
     /// let (comp, exec) = source.execute(&mut dag, "Execution", vec!["arg1".into()]).unwrap();
     /// assert!(comp.is_none());
@@ -138,6 +144,17 @@ impl SourceFile {
             description.as_ref(),
             self.language.runtime_command(&self.path),
         );
+        for arg in &args {
+            let path = self.base_path.join(arg);
+            if path.exists() {
+                let file = File::new(format!(
+                    "Command line dependency {:?} of {:?}",
+                    path, self.path
+                ));
+                exec.input(&file, arg, false);
+                dag.provide_file(file, path)?;
+            }
+        }
         exec.args(self.language.runtime_args(&self.path, args));
         exec.input(
             self.executable.lock().unwrap().as_ref().unwrap(),
@@ -165,7 +182,7 @@ impl SourceFile {
     /// use task_maker_lang::SourceFile;
     /// use std::path::PathBuf;
     ///
-    /// let source = SourceFile::new("path/to/sourcefile.cpp", None, None::<PathBuf>).unwrap();
+    /// let source = SourceFile::new("path/to/sourcefile.cpp", "", None, None::<PathBuf>).unwrap();
     ///
     /// assert_eq!(source.name(), "sourcefile.cpp");
     /// ```
@@ -297,7 +314,7 @@ mod tests {
             .unwrap()
             .write_all(source.as_bytes())
             .unwrap();
-        let source = SourceFile::new(&source_path, None, Some(cwd.path().join("bin"))).unwrap();
+        let source = SourceFile::new(&source_path, "", None, Some(cwd.path().join("bin"))).unwrap();
         let (comp, exec) = source.execute(&mut dag, "Testing exec", vec![]).unwrap();
         assert!(comp.is_some());
 

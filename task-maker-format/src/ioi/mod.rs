@@ -185,6 +185,7 @@ impl TaskFormat for Task {
             .map(|p| {
                 SourceFile::new(
                     &p,
+                    &self.path,
                     Some(self.grader_map.clone()),
                     Some(
                         self.path
