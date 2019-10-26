@@ -1,5 +1,5 @@
 use crate::ioi::Tag;
-use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData};
+use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, UISender};
 use failure::{format_err, Error};
 use regex::Regex;
 use std::collections::HashMap;
@@ -55,9 +55,15 @@ impl AsyFile {
             &source_path,
             &source_path.parent().expect("Invalid asy file"),
         )? {
-            let file = File::new(format!("Dependency {:?} of {}", sandbox, name));
-            comp.input(&file, sandbox, false);
-            eval.dag.provide_file(file, local)?;
+            if local.exists() {
+                let file = File::new(format!("Dependency {:?} of {}", sandbox, name));
+                comp.input(&file, sandbox, false);
+                eval.dag.provide_file(file, local)?;
+            } else {
+                eval.sender.send(UIMessage::Warning {
+                    message: format!("Dependency {:?} of {:?} not found", local, name),
+                })?;
+            }
         }
         let compiled = comp.output("output.pdf");
         eval.dag.add_execution(comp);
