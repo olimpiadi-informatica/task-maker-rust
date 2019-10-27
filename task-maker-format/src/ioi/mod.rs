@@ -381,17 +381,19 @@ impl ScoreManager {
             .values()
             .all(Option::is_some)
         {
+            let normalized_score = self.aggregator.aggregate(
+                self.testcase_scores[&subtask_id]
+                    .values()
+                    .map(|score| score.unwrap()),
+            );
             let subtask_score = self.max_subtask_scores[&subtask_id]
-                * self.aggregator.aggregate(
-                    self.testcase_scores[&subtask_id]
-                        .values()
-                        .map(|score| score.unwrap()),
-                );
+                * normalized_score;
             self.subtask_scores.insert(subtask_id, Some(subtask_score));
             sender.send(UIMessage::IOISubtaskScore {
                 subtask: subtask_id,
                 solution: solution.clone(),
                 score: subtask_score,
+                normalized_score,
             })?;
             if self.subtask_scores.values().all(Option::is_some) {
                 let task_score: f64 = self

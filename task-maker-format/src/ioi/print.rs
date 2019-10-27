@@ -240,11 +240,12 @@ impl UI for PrintUI {
                 subtask,
                 solution,
                 score,
+                normalized_score,
             } => {
                 print!("[SUBTASK] ");
                 self.write_message(format!(
-                    "Solution {:?} scored {} on subtask {} ",
-                    solution, score, subtask
+                    "Solution {:?} scored {} on subtask {} (normalized score {})",
+                    solution, score, subtask, normalized_score,
                 ));
             }
             UIMessage::IOITaskScore { solution, score } => {

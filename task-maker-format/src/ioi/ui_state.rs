@@ -619,6 +619,7 @@ impl UIState {
                 subtask,
                 solution,
                 score,
+                normalized_score: _,
             } => {
                 let task = &self.task;
                 let eval = self

@@ -691,6 +691,7 @@ fn test_ui_state_subtask_score() {
         subtask: 0,
         solution: file.clone(),
         score: 10.0,
+        normalized_score: 1.0,
     });
     assert_eq!(ui.evaluations[&file].subtasks[&0].score, Some(10.0));
 }
