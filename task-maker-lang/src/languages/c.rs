@@ -60,6 +60,7 @@ impl Language for LanguageC {
                 .to_string_lossy()
                 .to_string(),
         );
+        args.push("-lm".to_string());
         args
     }
 
