@@ -49,6 +49,12 @@ All the compiled files are kept in an internal folder but if you want to use the
 task-maker --copy-exe
 ```
 
+### Do not build the statement
+If you don't want to build the statement files (and the booklet) just pass `--no-statement`.
+```bash
+task-maker --no-statement
+```
+
 ### Clean the task directory
 If you want to clean everything, for example after the contest, simply run:
 ```bash

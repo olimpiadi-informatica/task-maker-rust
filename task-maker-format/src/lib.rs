@@ -55,6 +55,8 @@ pub struct EvaluationConfig {
     pub solution_filter: Vec<String>,
     /// Include the solutions in the booklet.
     pub booklet_solutions: bool,
+    /// Do not build the statement files and the booklets.
+    pub no_statement: bool,
     /// Execute only the solution with the specified paths, that can reside anywhere in the
     /// filesystem.
     pub solution_paths: Vec<PathBuf>,

@@ -77,6 +77,10 @@ pub struct Opt {
     /// Include the solutions in the booklet.
     #[structopt(long = "booklet-solutions")]
     pub booklet_solutions: bool,
+
+    /// Do not build the statement files and the booklets.
+    #[structopt(long = "no-statement")]
+    pub no_statement: bool,
 }
 
 impl Opt {
@@ -85,6 +89,7 @@ impl Opt {
         EvaluationConfig {
             solution_filter: self.filter.clone(),
             booklet_solutions: self.booklet_solutions,
+            no_statement: self.no_statement,
             solution_paths: self.solution.clone(),
         }
     }

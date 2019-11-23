@@ -174,6 +174,7 @@ impl TestInterface {
             &EvaluationConfig {
                 solution_filter: vec![],
                 booklet_solutions: false,
+                no_statement: false,
                 solution_paths: vec![],
             },
         )

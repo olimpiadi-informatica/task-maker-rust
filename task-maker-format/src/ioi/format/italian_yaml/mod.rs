@@ -194,7 +194,9 @@ pub fn parse_task<P: AsRef<Path>>(
         syllabus_level: yaml.syllabuslevel,
     };
     // split the creation of the task because make_booklets need an instance of Task
-    task.booklets = make_booklets(&task, eval_config)?;
+    if !eval_config.no_statement {
+        task.booklets = make_booklets(&task, eval_config)?;
+    }
     Ok(task)
 }
 
