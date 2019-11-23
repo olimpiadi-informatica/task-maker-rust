@@ -375,7 +375,10 @@ impl Scheduler {
             self.file_handles.insert(*uuid, handle.clone());
         }
         let successful = ExecutionStatus::Success == result.status;
-        self.cache_execution(&execution, outputs, result);
+        match &result.status {
+            ExecutionStatus::InternalError(_) => {} // do not cache internal errors
+            _ => self.cache_execution(&execution, outputs, result),
+        }
         if successful {
             for output in execution.outputs() {
                 self.file_success(output)?;

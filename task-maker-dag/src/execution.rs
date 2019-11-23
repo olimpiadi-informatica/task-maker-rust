@@ -203,7 +203,7 @@ pub enum ExecutionStatus {
 
 /// Resources used during the execution, note that on some platform these values may not be
 /// accurate.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct ExecutionResourcesUsage {
     /// Number of seconds the process used in user space.
     pub cpu_time: f64,

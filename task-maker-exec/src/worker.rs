@@ -224,7 +224,33 @@ fn execute_job(
             let sandbox = thread_sandbox;
             let job = thread_job;
 
-            let result = sandbox.run().expect("The sandbox failed");
+            defer! {{
+                let mut job = current_job.lock().unwrap();
+                job.current_job = None;
+                job.current_sandbox = None;
+                serialize_into(&WorkerClientMessage::GetWork, &sender).unwrap();
+            }}
+
+            let result = match sandbox.run() {
+                Ok(res) => res,
+                Err(e) => {
+                    let result = ExecutionResult {
+                        status: ExecutionStatus::InternalError(format!(
+                            "Sandbox failed: {}",
+                            e.to_string()
+                        )),
+                        was_killed: false,
+                        was_cached: false,
+                        resources: ExecutionResourcesUsage::default(),
+                    };
+                    serialize_into(
+                        &WorkerClientMessage::WorkerDone(result, Default::default()),
+                        &sender,
+                    )
+                    .unwrap();
+                    return;
+                }
+            };
             let result = compute_execution_result(&job.execution, result);
 
             let mut outputs = HashMap::new();
@@ -262,10 +288,6 @@ fn execute_job(
                 serialize_into(&WorkerClientMessage::ProvideFile(uuid, key), &sender).unwrap();
                 ChannelFileSender::send(&output_paths[&uuid], &sender).unwrap();
             }
-
-            current_job.lock().unwrap().current_job = None;
-            current_job.lock().unwrap().current_sandbox = None;
-            serialize_into(&WorkerClientMessage::GetWork, &sender).unwrap();
         })?;
     Ok(sandbox)
 }
@@ -287,12 +309,7 @@ fn compute_execution_result(execution: &Execution, result: SandboxResult) -> Exe
         },
         SandboxResult::Failed { error } => ExecutionResult {
             status: ExecutionStatus::InternalError(error.to_string()),
-            resources: ExecutionResourcesUsage {
-                cpu_time: 0.0,
-                sys_time: 0.0,
-                wall_time: 0.0,
-                memory: 0,
-            },
+            resources: ExecutionResourcesUsage::default(),
             was_killed: false,
             was_cached: false,
         },

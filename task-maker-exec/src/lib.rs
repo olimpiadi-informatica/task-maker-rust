@@ -19,6 +19,8 @@
 
 #[macro_use]
 extern crate log;
+#[macro_use(defer)]
+extern crate scopeguard;
 
 use bincode;
 use std::path::PathBuf;
