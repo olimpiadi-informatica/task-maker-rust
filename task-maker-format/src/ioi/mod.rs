@@ -173,7 +173,7 @@ impl TaskFormat for Task {
             })
             .collect_vec();
 
-        let solution_paths = if config.solution_paths.len() == 0 {
+        let solution_paths = if config.solution_paths.is_empty() {
             list_files(&self.path, vec!["sol/*"])
         } else {
             config.solution_paths.clone()

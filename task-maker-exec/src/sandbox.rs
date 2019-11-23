@@ -137,7 +137,7 @@ impl Sandbox {
                 .message
                 .unwrap_or_else(|| "No output from sandbox".into());
             if error.contains("No such file or directory") {
-                error = format!("No such file or directory (wrong shebang?)");
+                error = "No such file or directory (wrong shebang?)".to_string();
             }
             Ok(SandboxResult::Failed { error })
         } else {
