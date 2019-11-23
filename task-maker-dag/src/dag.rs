@@ -65,7 +65,7 @@ pub enum ProvidedFile {
 
 /// Serializable part of the execution DAG: everything except the callbacks (which are not
 /// serializable).
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ExecutionDAGData {
     /// All the files provided by the client.
     pub provided_files: HashMap<FileUuid, ProvidedFile>,

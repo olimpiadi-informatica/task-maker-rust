@@ -69,35 +69,9 @@ impl ExecutorClient {
         F: FnMut(ExecutorStatus<SystemTime>) -> Result<(), Error>,
     {
         trace!("ExecutorClient started");
-        // list all the files/executions that want callbacks
-        let dag_callbacks = ExecutionDAGWatchSet {
-            executions: dag.execution_callbacks.keys().cloned().collect(),
-            files: dag.file_callbacks.keys().cloned().collect(),
-        };
-        let provided_files = dag.data.provided_files.clone();
-        for (uuid, file) in provided_files.iter() {
-            match file {
-                ProvidedFile::LocalFile { local_path, .. } => {
-                    let iterator = ReadFileIterator::new(&local_path)?;
-                    process_provided_file(&mut dag.file_callbacks, *uuid, true, iterator)?;
-                }
-                ProvidedFile::Content { content, .. } => {
-                    process_provided_file(
-                        &mut dag.file_callbacks,
-                        *uuid,
-                        true,
-                        vec![content.clone()],
-                    )?;
-                }
-            }
-        }
-        serialize_into(
-            &ExecutorClientMessage::Evaluate {
-                dag: dag.data,
-                callbacks: dag_callbacks,
-            },
-            &sender,
-        )?;
+        ExecutorClient::start_evaluation(&mut dag, &sender)?;
+
+        let provided_files = &dag.data.provided_files;
         // setup the status poller that will send to the server a Status message every
         // STATUS_POLL_INTERVAL_MS milliseconds.
         let done = Arc::new(AtomicBool::new(false));
@@ -240,6 +214,39 @@ impl ExecutorClient {
             .join()
             .map_err(|e| format_err!("Failed to join status poller: {:?}", e))?;
         Ok(())
+    }
+
+    /// Start the evaluation calling the file callbacks on the input files and sending the start
+    /// message to the Executor.
+    fn start_evaluation(dag: &mut ExecutionDAG, sender: &ChannelSender) -> Result<(), Error> {
+        // list all the files/executions that want callbacks
+        let dag_callbacks = ExecutionDAGWatchSet {
+            executions: dag.execution_callbacks.keys().cloned().collect(),
+            files: dag.file_callbacks.keys().cloned().collect(),
+        };
+        for (uuid, file) in dag.data.provided_files.iter() {
+            match file {
+                ProvidedFile::LocalFile { local_path, .. } => {
+                    let iterator = ReadFileIterator::new(&local_path)?;
+                    process_provided_file(&mut dag.file_callbacks, *uuid, true, iterator)?;
+                }
+                ProvidedFile::Content { content, .. } => {
+                    process_provided_file(
+                        &mut dag.file_callbacks,
+                        *uuid,
+                        true,
+                        vec![content.clone()],
+                    )?;
+                }
+            }
+        }
+        serialize_into(
+            &ExecutorClientMessage::Evaluate {
+                dag: dag.data.clone(),
+                callbacks: dag_callbacks,
+            },
+            sender,
+        )
     }
 }
 
