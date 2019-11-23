@@ -1,4 +1,6 @@
-use crate::languages::Language;
+use crate::languages::{find_dependencies, Language};
+use crate::Dependency;
+use regex::Regex;
 use std::path::{Path, PathBuf};
 use task_maker_dag::*;
 
@@ -78,6 +80,10 @@ impl Language for LanguageCpp {
         args
     }
 
+    fn compilation_dependencies(&self, path: &Path) -> Vec<Dependency> {
+        find_cpp_deps(path)
+    }
+
     /// The executable name is the source file's one without the extension.
     fn executable_name(&self, path: &Path) -> PathBuf {
         let name = PathBuf::from(path.file_name().expect("Invalid source file name"));
@@ -85,10 +91,49 @@ impl Language for LanguageCpp {
     }
 }
 
+/// Extract all the dependencies of a C/C++ source file.
+pub(crate) fn find_cpp_deps(path: &Path) -> Vec<Dependency> {
+    find_dependencies(path, extract_includes)
+}
+
+/// Extracts all the #include in the file. The supported includes are the ones in the form:
+/// * `#include <file>`
+/// * `#include "file"`
+///
+/// The space after `include` is optional.
+///
+/// The returned values are in the form (local_path, sandbox_path). Those paths are equal, and are
+/// just the include itself.
+fn extract_includes(path: &Path) -> Vec<(PathBuf, PathBuf)> {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r#"#include\s*[<"]([^">]+)[>"]"#).expect("Invalid regex");
+    }
+    let path = match path.canonicalize() {
+        Ok(path) => path,
+        _ => return vec![],
+    };
+    let content = match std::fs::read_to_string(&path) {
+        Ok(content) => content,
+        _ => return vec![],
+    };
+    let mut res = Vec::new();
+    let mut add_file = |include: PathBuf| {
+        let local = path.with_file_name(&include);
+        res.push((local, include));
+    };
+    for cap in RE.captures_iter(&content) {
+        if let Some(path) = cap.get(1) {
+            add_file(PathBuf::from(path.as_str()));
+        }
+    }
+    res
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use spectral::prelude::*;
+    use std::fs::write;
 
     #[test]
     fn test_compilation_args() {
@@ -113,5 +158,53 @@ mod tests {
     fn test_executable_name() {
         let lang = LanguageCpp::new(LanguageCppVersion::GccCpp14);
         assert_that!(lang.executable_name(Path::new("foo.cpp"))).is_equal_to(PathBuf::from("foo"));
+    }
+
+    #[test]
+    fn test_extract_imports() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let path = tmpdir.path().join("file.cpp");
+        write(
+            &path,
+            r#"blabla\n#include<iostream>\n#include "test.hpp"\nrandom"#,
+        )
+        .unwrap();
+        let imports = extract_includes(&path);
+        for (i, import) in vec!["iostream", "test.hpp"].iter().enumerate() {
+            let import = PathBuf::from(import);
+            assert_that!(imports[i].0).is_equal_to(tmpdir.path().join(&import));
+            assert_that!(imports[i].1).is_equal_to(&import);
+        }
+    }
+
+    #[test]
+    fn test_find_cpp_deps() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let path = tmpdir.path().join("file.cpp");
+        let foo_path = tmpdir.path().join("foo.hpp");
+        let bar_path = tmpdir.path().join("bar.hpp");
+        write(&path, "#include <foo.hpp>").unwrap();
+        write(&foo_path, "#include <bar.hpp>").unwrap();
+        write(&bar_path, "#include <iostream>").unwrap();
+        let deps = find_cpp_deps(&path);
+        assert_that!(deps).has_length(2);
+        assert_that!(deps[0].local_path).is_equal_to(foo_path);
+        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.hpp"));
+        assert_that!(deps[1].local_path).is_equal_to(bar_path);
+        assert_that!(deps[1].sandbox_path).is_equal_to(PathBuf::from("bar.hpp"));
+    }
+
+    #[test]
+    fn test_find_cpp_deps_loop() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let file_path = tmpdir.path().join("file.cpp");
+        let foo_path = tmpdir.path().join("foo.hpp");
+        // file imports itself and foo and file import each other
+        write(&file_path, "#include <file.cpp>\n#include<foo.hpp>").unwrap();
+        write(&foo_path, "#include\"file.cpp\"").unwrap();
+        let deps = find_cpp_deps(&file_path);
+        assert_that!(deps).has_length(1);
+        assert_that!(deps[0].local_path).is_equal_to(foo_path);
+        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.hpp"));
     }
 }

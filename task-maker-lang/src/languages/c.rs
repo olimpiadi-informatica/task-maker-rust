@@ -1,4 +1,6 @@
+use crate::languages::cpp::find_cpp_deps;
 use crate::languages::Language;
+use crate::Dependency;
 use std::path::{Path, PathBuf};
 use task_maker_dag::*;
 
@@ -67,6 +69,10 @@ impl Language for LanguageC {
     fn compilation_add_file(&self, mut args: Vec<String>, file: &Path) -> Vec<String> {
         args.push(file.to_string_lossy().to_string());
         args
+    }
+
+    fn compilation_dependencies(&self, path: &Path) -> Vec<Dependency> {
+        find_cpp_deps(path)
     }
 
     /// The executable name is the source file's one without the extension.

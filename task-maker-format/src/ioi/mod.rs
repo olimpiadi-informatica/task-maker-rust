@@ -386,8 +386,7 @@ impl ScoreManager {
                     .values()
                     .map(|score| score.unwrap()),
             );
-            let subtask_score = self.max_subtask_scores[&subtask_id]
-                * normalized_score;
+            let subtask_score = self.max_subtask_scores[&subtask_id] * normalized_score;
             self.subtask_scores.insert(subtask_id, Some(subtask_score));
             sender.send(UIMessage::IOISubtaskScore {
                 subtask: subtask_id,

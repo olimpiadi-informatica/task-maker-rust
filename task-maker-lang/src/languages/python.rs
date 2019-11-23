@@ -1,8 +1,7 @@
 use crate::languages::*;
 use regex::Regex;
-use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
-use task_maker_dag::{ExecutionCommand, File};
+use task_maker_dag::ExecutionCommand;
 
 /// Version of the Python interpreter to use.
 #[allow(dead_code)]
@@ -72,64 +71,39 @@ impl Language for LanguagePython {
     }
 }
 
-/// Perform a BFS visit on the file dependencies looking for all the .py files
-/// to add to the sandbox in order to execute the script. Will take only the
-/// files that actually exist in the file's folder, ignoring the unresolved
-/// ones.
+/// Extract all the dependencies of a python file recursively.
 fn find_python_deps(path: &Path) -> Vec<Dependency> {
-    let base = path.parent().expect("Invalid path");
-    let filename = path.file_name().expect("Invalid path");
-    let mut result = vec![];
-    let mut result_files = HashSet::new();
-    let mut pending = VecDeque::new();
-    let mut done = HashSet::new();
-
-    pending.push_back(path.to_owned());
-    while !pending.is_empty() {
-        let path = pending.pop_front().unwrap();
-        let imports = extract_imports(&path);
-        done.insert(path);
-        for import in imports {
-            let import = PathBuf::from(format!("{}.py", import));
-            let path = base.join(&import);
-            if path.exists() && !done.contains(&path) && !result_files.contains(&import) {
-                result_files.insert(import.clone());
-                result.push(Dependency {
-                    file: File::new(&format!("Dependency {:?} of {:?}", import, filename)),
-                    local_path: path,
-                    sandbox_path: import,
-                    executable: false,
-                });
-            }
-        }
-    }
-
-    result
+    find_dependencies(path, extract_imports)
 }
 
 /// Extracts all the imports in the file. The supported imports are the ones in
 /// the form:
-/// * import __file__
-/// * from __file__ import stuff
-/// * import __file1__, __file2__
-fn extract_imports(path: &Path) -> Vec<String> {
+/// * `import __file__`
+/// * `from __file__ import stuff`
+/// * `import __file1__, __file2__`
+///
+/// The returned values are in the form (local_path, sandbox_path). Those paths
+/// are equal, and are just the import followed by `.py`, because of that the
+/// imports should not contain a dot (i.e. python modules are not supported).
+fn extract_imports(path: &Path) -> Vec<(PathBuf, PathBuf)> {
     lazy_static! {
         static ref RE: Regex =
             Regex::new("import +(.+)|from +(.+) +import").expect("Invalid regex");
     }
-    let content = if let Ok(content) = std::fs::read_to_string(path) {
-        content
-    } else {
-        return vec![];
+    let content = match std::fs::read_to_string(path) {
+        Ok(content) => content,
+        _ => return vec![],
     };
-    let mut res: Vec<String> = Vec::new();
+    let mut res = Vec::new();
     for cap in RE.captures_iter(&content) {
         if let Some(type1) = cap.get(1) {
             for piece in type1.as_str().split(',') {
-                res.push(piece.trim().to_string());
+                let path = PathBuf::from(format!("{}.py", piece.trim()));
+                res.push((path.clone(), path));
             }
         } else if let Some(type2) = cap.get(2) {
-            res.push(type2.as_str().to_owned());
+            let path = PathBuf::from(format!("{}.py", type2.as_str().trim()));
+            res.push((path.clone(), path));
         }
     }
     res
@@ -169,12 +143,10 @@ mod tests {
         )
         .unwrap();
         let imports = extract_imports(&path);
-        assert_that!(imports).is_equal_to(vec![
-            "foo".to_string(),
-            "bar".to_string(),
-            "baz".to_string(),
-            "biz".to_string(),
-        ]);
+        for (i, import) in vec!["foo", "bar", "baz", "biz"].iter().enumerate() {
+            let import = PathBuf::from(format!("{}.py", import));
+            assert_that!(imports[i]).is_equal_to((import.clone(), import));
+        }
     }
 
     #[test]
@@ -182,22 +154,27 @@ mod tests {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
         let path = tmpdir.path().join("script.py");
         let foo_path = tmpdir.path().join("foo.py");
+        let bar_path = tmpdir.path().join("bar.py");
         write(&path, "import foo").unwrap();
-        write(&foo_path, "import not_found").unwrap();
+        write(&foo_path, "import bar").unwrap();
+        write(&bar_path, "import not_found").unwrap();
         let deps = find_python_deps(&path);
-        assert_that!(deps).has_length(1);
+        assert_that!(deps).has_length(2);
         assert_that!(deps[0].local_path).is_equal_to(foo_path);
         assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.py"));
+        assert_that!(deps[1].local_path).is_equal_to(bar_path);
+        assert_that!(deps[1].sandbox_path).is_equal_to(PathBuf::from("bar.py"));
     }
 
     #[test]
     fn test_find_python_deps_loop() {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
-        let path = tmpdir.path().join("script.py");
+        let script_path = tmpdir.path().join("script.py");
         let foo_path = tmpdir.path().join("foo.py");
-        write(&path, "import foo").unwrap();
+        // script imports itself and foo and script import each other
+        write(&script_path, "import foo\nimport script").unwrap();
         write(&foo_path, "import script").unwrap();
-        let deps = find_python_deps(&path);
+        let deps = find_python_deps(&script_path);
         assert_that!(deps).has_length(1);
         assert_that!(deps[0].local_path).is_equal_to(foo_path);
         assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.py"));
