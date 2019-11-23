@@ -81,6 +81,10 @@ pub struct Opt {
     /// Do not build the statement files and the booklets.
     #[structopt(long = "no-statement")]
     pub no_statement: bool,
+
+    /// Verbose mode (-v, -vv, -vvv, etc.). Note that it does not play well with curses ui.
+    #[structopt(short, long, parse(from_occurrences))]
+    pub verbose: u8,
 }
 
 impl Opt {
