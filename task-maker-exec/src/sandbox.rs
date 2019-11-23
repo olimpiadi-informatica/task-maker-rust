@@ -133,11 +133,13 @@ impl Sandbox {
         trace!("Sandbox output: {:?}", res);
         let outcome = serde_json::from_str::<TMBoxResult>(std::str::from_utf8(&res.stdout)?)?;
         if outcome.error {
-            Ok(SandboxResult::Failed {
-                error: outcome
-                    .message
-                    .unwrap_or_else(|| "No output from sandbox".into()),
-            })
+            let mut error = outcome
+                .message
+                .unwrap_or_else(|| "No output from sandbox".into());
+            if error.contains("No such file or directory") {
+                error = format!("No such file or directory (wrong shebang?)");
+            }
+            Ok(SandboxResult::Failed { error })
         } else {
             let signal = if outcome.signal.unwrap() == 0 {
                 None
