@@ -34,11 +34,12 @@ use failure::Error;
 pub(crate) use check_dag::*;
 pub use client::*;
 pub use executor::*;
+use failure::_core::ops::Deref;
 pub use sandbox::*;
 pub(crate) use scheduler::*;
 use std::cell::RefCell;
 use std::io::{BufReader, Read, Write};
-use std::net::{TcpListener, TcpStream, ToSocketAddrs};
+use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use task_maker_cache::Cache;
 use task_maker_dag::ExecutionDAG;
 use task_maker_store::FileStore;
@@ -119,8 +120,16 @@ impl ChannelServer {
     }
 }
 
+impl Deref for ChannelServer {
+    type Target = TcpListener;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl Iterator for ChannelServer {
-    type Item = (ChannelSender, ChannelReceiver);
+    type Item = (ChannelSender, ChannelReceiver, SocketAddr);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -130,10 +139,12 @@ impl Iterator for ChannelServer {
                 .next()
                 .expect("TcpListener::incoming returned None");
             if let Ok(s) = next {
+                let peer_addr = s.peer_addr().expect("Peer has no remote address");
                 let s2 = s.try_clone().expect("Failed to clone the stream");
                 return Some((
                     ChannelSender::Remote(Arc::new(Mutex::new(s))),
                     ChannelReceiver::Remote(RefCell::new(BufReader::new(s2))),
+                    peer_addr,
                 ));
             }
         }
@@ -247,7 +258,7 @@ mod tests {
             sender.send(vec![9, 10, 11, 12]).unwrap();
         });
 
-        let (sender, receiver) = server.next().unwrap();
+        let (sender, receiver, _addr) = server.next().unwrap();
         let data = receiver.recv().unwrap();
         assert_eq!(data, vec![1, 2, 3, 4]);
         sender.send(vec![5, 6, 7, 8]).unwrap();

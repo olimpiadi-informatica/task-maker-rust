@@ -85,6 +85,22 @@ pub struct Opt {
     /// Verbose mode (-v, -vv, -vvv, etc.). Note that it does not play well with curses ui.
     #[structopt(short, long, parse(from_occurrences))]
     pub verbose: u8,
+
+    /// Run a server instead of the normal task-maker.
+    #[structopt(long = "server")]
+    pub server: bool,
+
+    /// Address to bind the server on.
+    ///
+    /// This option only has effect with `--server`.
+    #[structopt(long = "server-address-clients", default_value = "0.0.0.0:27182")]
+    pub server_address_clients: String,
+
+    /// Address to bind the server on.
+    ///
+    /// This option only has effect with `--server`.
+    #[structopt(long = "server-address-workers", default_value = "0.0.0.0:27183")]
+    pub server_address_workers: String,
 }
 
 impl Opt {

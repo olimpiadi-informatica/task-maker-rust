@@ -34,5 +34,7 @@
 //! ```
 
 mod local_executor;
+mod remote_executor;
 
 pub use local_executor::*;
+pub use remote_executor::*;

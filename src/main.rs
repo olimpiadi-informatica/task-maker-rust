@@ -71,6 +71,7 @@ extern crate log;
 
 mod local;
 mod opt;
+mod server;
 
 use structopt::StructOpt;
 
@@ -97,5 +98,9 @@ fn main() {
         .init();
     better_panic::install();
 
-    local::main_local(opt);
+    if opt.server {
+        server::main_server(opt);
+    } else {
+        local::main_local(opt);
+    }
 }
