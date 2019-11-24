@@ -28,6 +28,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use bincode;
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use failure::Error;
 
 pub(crate) use check_dag::*;
@@ -35,6 +36,9 @@ pub use client::*;
 pub use executor::*;
 pub use sandbox::*;
 pub(crate) use scheduler::*;
+use std::cell::RefCell;
+use std::io::{BufReader, Read, Write};
+use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use task_maker_cache::Cache;
 use task_maker_dag::ExecutionDAG;
 use task_maker_store::FileStore;
@@ -56,6 +60,8 @@ mod worker_manager;
 pub enum ChannelSender {
     /// The connection is only a local in-memory channel.
     Local(Sender<Vec<u8>>),
+    /// The connection is with a remote party.
+    Remote(Arc<Mutex<TcpStream>>),
 }
 
 /// The channel part that receives data.
@@ -63,6 +69,8 @@ pub enum ChannelSender {
 pub enum ChannelReceiver {
     /// The connection is only a local in-memory channel.
     Local(Receiver<Vec<u8>>),
+    /// The connection is with a remote party.
+    Remote(RefCell<BufReader<TcpStream>>),
 }
 
 impl ChannelSender {
@@ -70,6 +78,11 @@ impl ChannelSender {
     pub fn send(&self, data: Vec<u8>) -> Result<(), Error> {
         match self {
             ChannelSender::Local(sender) => sender.send(data).map_err(|e| e.into()),
+            ChannelSender::Remote(sender) => {
+                let mut sender = sender.lock().expect("Cannot lock ChannelSender");
+                sender.write_u32::<LittleEndian>(data.len() as u32)?;
+                sender.write_all(&data).map_err(|e| e.into())
+            }
         }
     }
 }
@@ -79,6 +92,13 @@ impl ChannelReceiver {
     pub fn recv(&self) -> Result<Vec<u8>, Error> {
         match self {
             ChannelReceiver::Local(receiver) => receiver.recv().map_err(|e| e.into()),
+            ChannelReceiver::Remote(receiver) => {
+                let mut receiver = receiver.borrow_mut();
+                let len = receiver.read_u32::<LittleEndian>()?;
+                let mut buf = vec![0; len as usize];
+                receiver.read_exact(&mut buf)?;
+                Ok(buf)
+            }
         }
     }
 }
@@ -89,12 +109,55 @@ pub fn new_local_channel() -> (ChannelSender, ChannelReceiver) {
     (ChannelSender::Local(tx), ChannelReceiver::Local(rx))
 }
 
+/// Listener for connections on some TCP socket.
+pub struct ChannelServer(TcpListener);
+
+impl ChannelServer {
+    /// Bind a socket and create a new `ChannelServer`.
+    pub fn bind<A: ToSocketAddrs>(addr: A) -> Result<ChannelServer, Error> {
+        Ok(ChannelServer(TcpListener::bind(addr)?))
+    }
+}
+
+impl Iterator for ChannelServer {
+    type Item = (ChannelSender, ChannelReceiver);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let next = self
+                .0
+                .incoming()
+                .next()
+                .expect("TcpListener::incoming returned None");
+            if let Ok(s) = next {
+                let s2 = s.try_clone().expect("Failed to clone the stream");
+                return Some((
+                    ChannelSender::Remote(Arc::new(Mutex::new(s))),
+                    ChannelReceiver::Remote(RefCell::new(BufReader::new(s2))),
+                ));
+            }
+        }
+    }
+}
+
+/// Connect to a remote channel.
+pub fn connect_channel<A: ToSocketAddrs>(
+    addr: A,
+) -> Result<(ChannelSender, ChannelReceiver), Error> {
+    let stream = TcpStream::connect(addr)?;
+    let stream2 = stream.try_clone()?;
+    Ok((
+        ChannelSender::Remote(Arc::new(Mutex::new(stream))),
+        ChannelReceiver::Remote(RefCell::new(BufReader::new(stream2))),
+    ))
+}
+
 /// Serialize a message into the sender serializing it.
 pub fn serialize_into<T>(what: &T, sender: &ChannelSender) -> Result<(), Error>
 where
     T: serde::Serialize,
 {
-    sender.send(bincode::serialize(what)?).map_err(|e| e.into())
+    sender.send(bincode::serialize(what)?)
 }
 
 /// Deserialize a message from the channel and return it.
@@ -148,6 +211,7 @@ mod tests {
     use task_maker_dag::*;
 
     use super::*;
+    use rand::Rng;
 
     #[test]
     fn test_serialize_deserialize() {
@@ -169,6 +233,28 @@ mod tests {
         let thing: Thing = deserialize_from(&rx).unwrap();
         assert_eq!(thing.x, 42);
         assert_eq!(thing.y, "foobar");
+    }
+
+    #[test]
+    fn test_remote_channels() {
+        let port = rand::thread_rng().gen_range(10000u16, 20000u16);
+        let mut server = ChannelServer::bind(("127.0.0.1", port)).unwrap();
+        let client_thread = std::thread::spawn(move || {
+            let (sender, receiver) = connect_channel(("127.0.0.1", port)).unwrap();
+            sender.send(vec![1, 2, 3, 4]).unwrap();
+            let data = receiver.recv().unwrap();
+            assert_eq!(data, vec![5, 6, 7, 8]);
+            sender.send(vec![9, 10, 11, 12]).unwrap();
+        });
+
+        let (sender, receiver) = server.next().unwrap();
+        let data = receiver.recv().unwrap();
+        assert_eq!(data, vec![1, 2, 3, 4]);
+        sender.send(vec![5, 6, 7, 8]).unwrap();
+        let data = receiver.recv().unwrap();
+        assert_eq!(data, vec![9, 10, 11, 12]);
+
+        client_thread.join().unwrap();
     }
 
     #[test]
