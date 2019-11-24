@@ -30,7 +30,7 @@ impl ExecutorClient {
     /// ```
     /// use task_maker_dag::ExecutionDAG;
     /// use task_maker_store::FileStore;
-    /// use task_maker_exec::{executors::LocalExecutor, ExecutorClient};
+    /// use task_maker_exec::{executors::LocalExecutor, ExecutorClient, new_local_channel};
     /// use std::sync::mpsc::channel;
     /// use std::sync::{Arc, Mutex};
     /// use std::thread;
@@ -41,8 +41,8 @@ impl ExecutorClient {
     /// // make a new, empty, DAG
     /// let dag = ExecutionDAG::new();
     /// // setup the communication channels
-    /// let (tx, rx_remote) = channel();
-    /// let (tx_remote, rx) = channel();
+    /// let (tx, rx_remote) = new_local_channel();
+    /// let (tx_remote, rx) = new_local_channel();
     /// # let tmpdir = TempDir::new("tm-test").unwrap();
     /// # let path = tmpdir.path().to_owned();
     /// let file_store = Arc::new(FileStore::new(&path).expect("Cannot create the file store"));

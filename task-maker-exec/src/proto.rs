@@ -183,7 +183,7 @@ mod tests {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
         std::fs::write(tmpdir.path().join("file.txt"), "hello world").unwrap();
 
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = new_local_channel();
         let receiver = ChannelFileIterator::new(&receiver);
         ChannelFileSender::send(tmpdir.path().join("file.txt"), &sender).unwrap();
         let data: Vec<u8> = receiver.flat_map(|d| d.into_iter()).collect();
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn test_send_content() {
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = new_local_channel();
         let receiver = ChannelFileIterator::new(&receiver);
         ChannelFileSender::send_data(b"hello world".to_vec(), &sender).unwrap();
         let data: Vec<u8> = receiver.flat_map(|d| d.into_iter()).collect();

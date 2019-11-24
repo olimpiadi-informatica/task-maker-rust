@@ -3,7 +3,6 @@ use crate::*;
 use failure::{Error, Fail};
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use task_maker_dag::*;
@@ -80,8 +79,8 @@ impl Worker {
         file_store: Arc<FileStore>,
         sandbox_path: P,
     ) -> (Worker, WorkerConn) {
-        let (tx, rx_worker) = channel();
-        let (tx_worker, rx) = channel();
+        let (tx, rx_worker) = new_local_channel();
+        let (tx_worker, rx) = new_local_channel();
         let uuid = Uuid::new_v4();
         let name = name.into();
         let sandbox_path = sandbox_path.into();

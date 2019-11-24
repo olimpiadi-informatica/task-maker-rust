@@ -22,21 +22,22 @@ extern crate log;
 #[macro_use(defer)]
 extern crate scopeguard;
 
-use bincode;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use task_maker_dag::ExecutionDAG;
-use task_maker_store::FileStore;
+
+use bincode;
+use failure::Error;
 
 pub(crate) use check_dag::*;
 pub use client::*;
 pub use executor::*;
-use failure::Error;
 pub use sandbox::*;
 pub(crate) use scheduler::*;
 use task_maker_cache::Cache;
+use task_maker_dag::ExecutionDAG;
+use task_maker_store::FileStore;
 pub(crate) use worker::*;
 pub(crate) use worker_manager::*;
 
@@ -51,9 +52,42 @@ mod worker;
 mod worker_manager;
 
 /// The channel part that sends data.
-pub type ChannelSender = Sender<Vec<u8>>;
+#[derive(Debug, Clone)]
+pub enum ChannelSender {
+    /// The connection is only a local in-memory channel.
+    Local(Sender<Vec<u8>>),
+}
+
 /// The channel part that receives data.
-pub type ChannelReceiver = Receiver<Vec<u8>>;
+#[derive(Debug)]
+pub enum ChannelReceiver {
+    /// The connection is only a local in-memory channel.
+    Local(Receiver<Vec<u8>>),
+}
+
+impl ChannelSender {
+    /// Send some data into the channel.
+    pub fn send(&self, data: Vec<u8>) -> Result<(), Error> {
+        match self {
+            ChannelSender::Local(sender) => sender.send(data).map_err(|e| e.into()),
+        }
+    }
+}
+
+impl ChannelReceiver {
+    /// Receive a message from the channel.
+    pub fn recv(&self) -> Result<Vec<u8>, Error> {
+        match self {
+            ChannelReceiver::Local(receiver) => receiver.recv().map_err(|e| e.into()),
+        }
+    }
+}
+
+/// Make a new pair of `ChannelSender` / `ChannelReceiver`
+pub fn new_local_channel() -> (ChannelSender, ChannelReceiver) {
+    let (tx, rx) = channel();
+    (ChannelSender::Local(tx), ChannelReceiver::Local(rx))
+}
 
 /// Serialize a message into the sender serializing it.
 pub fn serialize_into<T>(what: &T, sender: &ChannelSender) -> Result<(), Error>
@@ -80,8 +114,8 @@ pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>>(
     num_cores: usize,
     sandbox_path: P2,
 ) {
-    let (tx, rx_remote) = channel();
-    let (tx_remote, rx) = channel();
+    let (tx, rx_remote) = new_local_channel();
+    let (tx_remote, rx) = new_local_channel();
     let store_dir = store_dir.into();
     let sandbox_path = sandbox_path.into();
     let file_store = Arc::new(FileStore::new(&store_dir).expect("Cannot create the file store"));
@@ -103,14 +137,15 @@ pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>>(
 mod tests {
     extern crate pretty_assertions;
 
-    use pretty_assertions::assert_eq;
-    use serde::{Deserialize, Serialize};
     use std::path::Path;
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::mpsc::channel;
     use std::sync::Arc;
-    use task_maker_dag::*;
+
+    use pretty_assertions::assert_eq;
+    use serde::{Deserialize, Serialize};
     use tempdir::TempDir;
+
+    use task_maker_dag::*;
 
     use super::*;
 
@@ -122,7 +157,7 @@ mod tests {
             pub y: String,
         }
 
-        let (tx, rx): (ChannelSender, ChannelReceiver) = channel();
+        let (tx, rx) = new_local_channel();
         serialize_into(
             &Thing {
                 x: 42,

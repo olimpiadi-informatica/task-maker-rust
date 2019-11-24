@@ -13,6 +13,7 @@
 //! # use std::thread;
 //! # use tempdir::TempDir;
 //! use task_maker_cache::Cache;
+//! use task_maker_exec::new_local_channel;
 //!
 //! # let tmpdir = TempDir::new("tm-test").unwrap();
 //! # let path = tmpdir.path();
@@ -21,8 +22,8 @@
 //! let num_cores = 4;
 //! let mut executor = LocalExecutor::new(Arc::new(store), num_cores, path);
 //! // the communication channels for the client
-//! let (tx, rx_remote) = channel();
-//! let (tx_remote, rx) = channel();
+//! let (tx, rx_remote) = new_local_channel();
+//! let (tx_remote, rx) = new_local_channel();
 //!
 //! # let server = thread::spawn(move || {
 //! executor.evaluate(tx_remote, rx_remote, cache).unwrap();  // this will block!!

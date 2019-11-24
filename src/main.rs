@@ -72,12 +72,12 @@ extern crate log;
 mod opt;
 
 use std::path::PathBuf;
-use std::sync::{mpsc::channel, Arc};
+use std::sync::Arc;
 use std::thread;
 use structopt::StructOpt;
 use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
-use task_maker_exec::{executors::LocalExecutor, ExecutorClient};
+use task_maker_exec::{executors::LocalExecutor, new_local_channel, ExecutorClient};
 use task_maker_format::ui::UIMessage;
 use task_maker_format::{ioi, EvaluationConfig, EvaluationData, TaskFormat, UISender};
 use task_maker_store::*;
@@ -168,8 +168,8 @@ fn main() {
     trace!("The DAG is: {:#?}", eval.dag);
 
     // start the server and the client
-    let (tx, rx_remote) = channel();
-    let (tx_remote, rx) = channel();
+    let (tx, rx_remote) = new_local_channel();
+    let (tx_remote, rx) = new_local_channel();
     let server = thread::Builder::new()
         .name("Executor thread".into())
         .spawn(move || {
