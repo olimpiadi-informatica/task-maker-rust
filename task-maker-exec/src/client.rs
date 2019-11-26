@@ -209,6 +209,7 @@ impl ExecutorClient {
                 }
             }
         }
+        info!("Client has done, exiting");
         done.store(true, Ordering::Relaxed);
         status_poller
             .join()

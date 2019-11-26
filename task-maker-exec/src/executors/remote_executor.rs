@@ -1,6 +1,14 @@
-use crate::*;
+use std::sync::mpsc::channel;
 use std::sync::Arc;
+
+use uuid::Uuid;
+
 use task_maker_cache::Cache;
+use task_maker_store::FileStore;
+
+use crate::executor::{Executor, ExecutorInMessage};
+use crate::scheduler::ClientInfo;
+use crate::{ChannelServer, WorkerConn};
 
 /// An executor that accepts remote connections from clients and workers.
 pub struct RemoteExecutor {
@@ -23,6 +31,11 @@ impl RemoteExecutor {
         let file_store = self.file_store.clone();
         let bind_client_addr = bind_client_addr.into();
         let bind_worker_addr = bind_worker_addr.into();
+
+        let (executor_tx, executor_rx) = channel();
+        let executor = Executor::new(file_store, cache, executor_rx, true);
+
+        let client_executor_tx = executor_tx.clone();
         let client_listener_thread = std::thread::Builder::new()
             .name("Client listener".to_string())
             .spawn(move || {
@@ -34,7 +47,16 @@ impl RemoteExecutor {
                 );
                 for (sender, receiver, addr) in server {
                     info!("Client connected from {}", addr);
-                    // TODO handle client connection
+                    let uuid = Uuid::new_v4();
+                    let name = format!("Remote client at {:?}", addr);
+                    let client = ClientInfo { uuid, name };
+                    client_executor_tx
+                        .send(ExecutorInMessage::ClientConnected {
+                            client,
+                            sender,
+                            receiver,
+                        })
+                        .expect("Executor is gone");
                 }
             })
             .expect("Cannot spawn client listener thread");
@@ -49,10 +71,23 @@ impl RemoteExecutor {
                 );
                 for (sender, receiver, addr) in server {
                     info!("Worker connected from {}", addr);
-                    // TODO handle worker connection
+                    let uuid = Uuid::new_v4();
+                    let name = format!("Remote worker at {:?}", addr);
+                    let worker = WorkerConn {
+                        uuid,
+                        name,
+                        sender,
+                        receiver,
+                    };
+                    executor_tx
+                        .send(ExecutorInMessage::WorkerConnected { worker })
+                        .expect("Executor is dead");
                 }
             })
             .expect("Cannot spawn worker listener thread");
+
+        executor.run().expect("Executor failed");
+
         client_listener_thread
             .join()
             .expect("Client listener failed");

@@ -174,7 +174,7 @@ impl Worker {
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();
-                    if cause == "receiving on a closed channel" {
+                    if cause == "receiving on an empty and disconnected channel" {
                         trace!("Connection closed: {}", cause);
                         if let Some(sandbox) =
                             self.current_job.lock().unwrap().current_sandbox.as_ref()

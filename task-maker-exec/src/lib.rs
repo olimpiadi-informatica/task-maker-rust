@@ -22,8 +22,8 @@ extern crate log;
 #[macro_use(defer)]
 extern crate scopeguard;
 
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -31,12 +31,10 @@ use bincode;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use failure::Error;
 
-pub(crate) use check_dag::*;
 pub use client::*;
 pub use executor::*;
 use failure::_core::ops::Deref;
 pub use sandbox::*;
-pub(crate) use scheduler::*;
 use std::cell::RefCell;
 use std::io::{BufReader, Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
@@ -44,7 +42,6 @@ use task_maker_cache::Cache;
 use task_maker_dag::ExecutionDAG;
 use task_maker_store::FileStore;
 pub(crate) use worker::*;
-pub(crate) use worker_manager::*;
 
 mod check_dag;
 mod client;
@@ -106,7 +103,7 @@ impl ChannelReceiver {
 
 /// Make a new pair of `ChannelSender` / `ChannelReceiver`
 pub fn new_local_channel() -> (ChannelSender, ChannelReceiver) {
-    let (tx, rx) = channel();
+    let (tx, rx) = unbounded();
     (ChannelSender::Local(tx), ChannelReceiver::Local(rx))
 }
 

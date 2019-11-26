@@ -1,12 +1,20 @@
-use crate::*;
-use failure::{format_err, Error};
+use std::path::PathBuf;
+use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::thread;
+
+use failure::{format_err, Error};
+use uuid::Uuid;
+
 use task_maker_cache::Cache;
+use task_maker_store::FileStore;
+
+use crate::executor::{Executor, ExecutorInMessage};
+use crate::scheduler::ClientInfo;
+use crate::{ChannelReceiver, ChannelSender, Worker};
 
 /// An Executor that runs locally by spawning a number of threads with the workers inside.
 pub struct LocalExecutor {
-    executor: Executor,
     /// A reference to the [`FileStore`](../../task_maker_store/struct.FileStore.html).
     file_store: Arc<FileStore>,
     /// Where to store the sandboxes of the workers.
@@ -25,7 +33,6 @@ impl LocalExecutor {
         sandbox_path: P,
     ) -> LocalExecutor {
         LocalExecutor {
-            executor: Executor::new(file_store.clone()),
             num_workers,
             file_store,
             sandbox_path: sandbox_path.into(),
@@ -44,19 +51,21 @@ impl LocalExecutor {
         receiver: ChannelReceiver,
         cache: Cache,
     ) -> Result<(), Error> {
+        let (executor_tx, executor_rx) = channel();
+        let executor = Executor::new(self.file_store.clone(), cache, executor_rx, false);
+
         info!("Spawning {} workers", self.num_workers);
-
-        let mut worker_manager =
-            WorkerManager::new(self.file_store.clone(), self.executor.scheduler_tx.clone());
-
         let mut workers = vec![];
+        // spawn the workers and connect them to the executor
         for i in 0..self.num_workers {
             let (worker, conn) = Worker::new(
                 &format!("Local worker {}", i),
                 self.file_store.clone(),
                 self.sandbox_path.clone(),
             );
-            workers.push(worker_manager.add(conn));
+            executor_tx
+                .send(ExecutorInMessage::WorkerConnected { worker: conn })
+                .unwrap();
             workers.push(
                 thread::Builder::new()
                     .name(format!("Worker {}", worker))
@@ -65,8 +74,26 @@ impl LocalExecutor {
                     })?,
             );
         }
-        self.executor.evaluate(sender, receiver, cache)?;
-        worker_manager.stop()?;
+
+        // tell the executor that it has a new (local) client. Since the executor is not in
+        // long_running mode, after this client is done the executor will exit.
+        executor_tx
+            .send(ExecutorInMessage::ClientConnected {
+                client: ClientInfo {
+                    uuid: Uuid::new_v4(),
+                    name: "Local client".to_string(),
+                },
+                sender,
+                receiver,
+            })
+            .unwrap();
+
+        // no new client/worker can connect, make the executor stop accepting connections
+        drop(executor_tx);
+        // this method will block until all the operations are done
+        executor.run()?;
+
+        // since the executor is going down the worker are disconnecting
         for worker in workers.into_iter() {
             worker
                 .join()

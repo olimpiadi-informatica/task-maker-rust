@@ -1,14 +1,26 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
+use std::thread;
 
+use chashmap::CHashMap;
 use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
-use task_maker_dag::*;
-use task_maker_store::*;
 
-use crate::proto::*;
-use crate::*;
 use task_maker_cache::Cache;
+use task_maker_dag::{Execution, ExecutionUuid, FileUuid, ProvidedFile, WorkerUuid};
+use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey};
+
+use crate::check_dag::check_dag;
+use crate::proto::{
+    ChannelFileIterator, ChannelFileSender, ExecutorClientMessage, ExecutorServerMessage,
+};
+use crate::scheduler::{
+    ClientInfo, ClientUuid, Scheduler, SchedulerExecutorMessage, SchedulerExecutorMessageData,
+    SchedulerInMessage,
+};
+use crate::worker_manager::{WorkerManager, WorkerManagerInMessage};
+use crate::{deserialize_from, serialize_into, ChannelReceiver, ChannelSender, WorkerConn};
 
 /// List of the _interesting_ files and executions, only the callbacks listed here will be called by
 /// the server. Every other callback is not sent to the client for performance reasons.
@@ -56,196 +68,311 @@ pub struct ExecutorStatus<T> {
     pub waiting_execs: usize,
 }
 
-/// The `Executor` is the main component of the server, this will receive the DAG to evaluate and
-/// will schedule the tasks to the workers, sending to the client the responses.
+/// Message telling the executor that a new client connected or a new worker connected. The handling
+/// of the new peer is done by this executor.
+pub(crate) enum ExecutorInMessage {
+    /// A new client has connected, the executor starts listening for the messages and will directly
+    /// interact with it.
+    ClientConnected {
+        /// The information about the new client.
+        client: ClientInfo,
+        /// A channel for sending messages to the client.
+        sender: ChannelSender,
+        /// A channel for received the messages from the client.
+        receiver: ChannelReceiver,
+    },
+    /// A new worker has connected, the executor starts listening for the messages and will directly
+    /// interact with it.
+    WorkerConnected {
+        /// The information and connection details of the worker.
+        worker: WorkerConn,
+    },
+}
+
+/// The `Executor` is the main component of the server, this will listen for client and worker
+/// connections, handing them by listening to their messages. The clients will send the DAGs to the
+/// `Executor`, which will use its scheduler for executing the jobs. The workers will be attached
+/// to the `WorkerManager` which is being used by the `Scheduler` for assigning the jobs.
 pub(crate) struct Executor {
-    /// A reference to the `FileStore`. Will be used for the `Scheduler` and for storing the files
-    /// from/to the client.
+    /// The file store used by the Scheduler and the WorkerManager for the local keeping of the
+    /// files.
     file_store: Arc<FileStore>,
-    /// A channel for communicating to the `Scheduler`.
-    pub(crate) scheduler_tx: Sender<SchedulerInMessage>,
-    /// The receiving part of the `Scheduler`. Will be consumed when the `Scheduler` is
-    /// instantiated.
-    scheduler_rx: Option<Receiver<SchedulerInMessage>>,
+    /// The `Cache` the Scheduler will use.
+    cache: Cache,
+    /// The receiver of the messages for the `Executor`. The actual `LocalExecutor`/`RemoteExecutor`
+    /// use this channel for the communication.
+    receiver: Receiver<ExecutorInMessage>,
+    /// Whether this executor is running for more than a single client (aka not locally). When this
+    /// flag is set to false, after the first client is done the Scheduler, the WorkerManager and
+    /// this Executor will exit.
+    long_running: bool,
 }
 
 impl Executor {
-    /// Make a new `Executor` based on the specified
-    /// [`FileStore`](../task_maker_store/struct.FileStore.html).
-    pub fn new(file_store: Arc<FileStore>) -> Executor {
-        let (sched_tx, sched_rx) = channel();
+    /// Create a new `Executor` using the specified `FileStore` for the Scheduler and WorkerManager,
+    /// the receiver for communicating with this Executor and if it should be "long running".
+    /// When this flag is set to false, after the first client is done the Scheduler, the
+    /// WorkerManager and this Executor will exit.
+    pub fn new(
+        file_store: Arc<FileStore>,
+        cache: Cache,
+        receiver: Receiver<ExecutorInMessage>,
+        long_running: bool,
+    ) -> Executor {
         Executor {
             file_store,
-            scheduler_tx: sched_tx,
-            scheduler_rx: Some(sched_rx),
+            cache,
+            receiver,
+            long_running,
         }
     }
 
-    /// Starts the `Executor` for a client, this will block and will manage the communication with
-    /// the client.
-    ///
-    /// * `sender` - A channel that sends messages to the client.
-    /// * `receiver` - A channel that receives messages from the client.
-    pub fn evaluate(
-        mut self,
-        client_tx: ChannelSender,
-        client_rx: ChannelReceiver,
-        cache: Cache,
-    ) -> Result<(), Error> {
-        let (sched_binder_tx, sched_binder_rx) = channel();
-        let sched_binder_client = client_tx.clone();
-        let produced_handles = Arc::new(Mutex::new(Vec::new()));
-        let produced_handles_sched = produced_handles.clone();
-        let join_scheduler_binder = std::thread::Builder::new()
-            .name("Scheduler binder".into())
-            .spawn(move || {
-                Executor::scheduler_thread(
-                    sched_binder_rx,
-                    sched_binder_client,
-                    produced_handles_sched,
-                )
-                .unwrap()
-            })
-            .expect("Failed to spawn scheduler binder thread");
+    /// Run the `Executor`, listening for client and worker connections. This will block until the
+    /// first client is done (if `long_running` is false) or until the scheduler is stopped.
+    pub fn run(self) -> Result<(), Error> {
+        let (scheduler_tx, scheduler_rx) = channel();
+        let (worker_manager_tx, worker_manager_rx) = channel();
+        let (sched_executor_tx, sched_executor_rx) = channel();
 
-        let scheduler = Scheduler::new(cache, self.file_store.clone(), sched_binder_tx);
-        let sched_rx = self
-            .scheduler_rx
-            .take()
-            .ok_or_else(|| format_err!("Evaluate called more than once"))?;
-        let join_scheduler = std::thread::Builder::new()
-            .name("Scheduler".into())
-            .spawn(move || {
-                scheduler.work(sched_rx).unwrap();
-            })
-            .expect("Failed to spawn the scheduler");
+        let clients = Arc::new(CHashMap::new());
 
-        loop {
-            let message = deserialize_from::<ExecutorClientMessage>(&client_rx);
+        let scheduler = Scheduler::new(
+            self.file_store.clone(),
+            self.cache,
+            scheduler_rx,
+            sched_executor_tx,
+            worker_manager_tx.clone(),
+        );
+        let worker_manager = WorkerManager::new(
+            self.file_store.clone(),
+            scheduler_tx.clone(),
+            worker_manager_tx.clone(),
+            worker_manager_rx,
+        );
+        let scheduler_thread = thread::Builder::new()
+            .name("Scheduler thread".to_string())
+            .spawn(move || scheduler.run().expect("Scheduler failed"))
+            .expect("Failed to spawn scheduler");
+        let worker_manager_thread = thread::Builder::new()
+            .name("Worker Manager thread".to_string())
+            .spawn(move || worker_manager.run().expect("Worker manager failed"))
+            .expect("Failed to spawn worker manager");
+        let clients2 = clients.clone();
+        let scheduler_binder_thread = thread::Builder::new()
+            .name("Scheduler binder".to_string())
+            .spawn(move || {
+                Executor::handle_scheduler_messages(sched_executor_rx, clients2)
+                    .expect("Scheduler binder failed")
+            })
+            .expect("Failed to spawn scheduler binder");
+
+        while let Ok(message) = self.receiver.recv() {
             match message {
-                Ok(ExecutorClientMessage::Evaluate { dag, callbacks }) => {
+                ExecutorInMessage::ClientConnected {
+                    client,
+                    sender,
+                    receiver,
+                } => {
+                    clients.insert(client.uuid, sender.clone());
+                    let scheduler = scheduler_tx.clone();
+                    let file_store = self.file_store.clone();
+                    let long_running = self.long_running;
+                    // handle the new client in a new thread called "Client Manager"
+                    thread::Builder::new()
+                        .name(format!(
+                            "Client manager for {} ({})",
+                            client.name, client.uuid
+                        ))
+                        .spawn(move || {
+                            Executor::handle_client_messages(
+                                file_store,
+                                client,
+                                sender,
+                                receiver,
+                                scheduler.clone(),
+                            )
+                            .expect("Client manager failed");
+                            // if not in long running mode, the first client should tear down the
+                            // executor. To do so it's just required to tell the scheduler to exit,
+                            // it will bring down the WorkerManager and all should exit.
+                            if !long_running {
+                                scheduler
+                                    .send(SchedulerInMessage::Exit)
+                                    .expect("Cannot stop the scheduler");
+                            }
+                        })
+                        .expect("Failed to spawn client manager");
+                }
+                ExecutorInMessage::WorkerConnected { worker } => {
+                    worker_manager_tx
+                        .send(WorkerManagerInMessage::WorkerConnected { worker })
+                        .expect("WorkerManager died");
+                }
+            }
+        }
+        debug!("Executor no longer waits for clients/workers");
+
+        scheduler_thread.join().unwrap();
+        worker_manager_thread.join().unwrap();
+        scheduler_binder_thread.join().unwrap();
+        Ok(())
+    }
+
+    /// Handle the messages from the scheduler, sending the notifications to the client involved.
+    fn handle_scheduler_messages(
+        receiver: Receiver<SchedulerExecutorMessage>,
+        clients: Arc<CHashMap<ClientUuid, ChannelSender>>,
+    ) -> Result<(), Error> {
+        let mut ready_files: HashMap<ClientUuid, Vec<(FileUuid, FileStoreHandle, bool)>> =
+            HashMap::new();
+        while let Ok((client_uuid, message)) = receiver.recv() {
+            let client = if let Some(client) = clients.get(&client_uuid) {
+                client
+            } else {
+                // ignore messages for a disconnected client
+                continue;
+            };
+            let message = match message {
+                SchedulerExecutorMessageData::ExecutionStarted { execution, worker } => {
+                    ExecutorServerMessage::NotifyStart(execution, worker)
+                }
+                SchedulerExecutorMessageData::ExecutionSkipped { execution } => {
+                    ExecutorServerMessage::NotifySkip(execution)
+                }
+                SchedulerExecutorMessageData::ExecutionDone { execution, result } => {
+                    ExecutorServerMessage::NotifyDone(execution, result)
+                }
+                SchedulerExecutorMessageData::FileReady {
+                    file,
+                    handle,
+                    successful,
+                } => {
+                    ready_files
+                        .entry(client_uuid)
+                        .or_default()
+                        .push((file, handle, successful));
+                    continue;
+                }
+                SchedulerExecutorMessageData::Status { status } => {
+                    ExecutorServerMessage::Status(status)
+                }
+                SchedulerExecutorMessageData::EvaluationDone => {
+                    let files = ready_files
+                        .remove(&client_uuid)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|(f, h, s)| (f, h.key().clone(), s))
+                        .collect();
+                    ExecutorServerMessage::Done(files)
+                }
+            };
+            serialize_into(&message, &client)?;
+        }
+        debug!("Scheduler binder exiting");
+        Ok(())
+    }
+
+    /// Handle the messages from a client.
+    fn handle_client_messages(
+        file_store: Arc<FileStore>,
+        client: ClientInfo,
+        sender: ChannelSender,
+        receiver: ChannelReceiver,
+        scheduler: Sender<SchedulerInMessage>,
+    ) -> Result<(), Error> {
+        while let Ok(message) = deserialize_from::<ExecutorClientMessage>(&receiver) {
+            match message {
+                ExecutorClientMessage::Evaluate { dag, callbacks } => {
                     if let Err(e) = check_dag(&dag, &callbacks) {
                         warn!("Invalid DAG: {:?}", e);
-                        serialize_into(&ExecutorServerMessage::Error(e.to_string()), &client_tx)?;
+                        serialize_into(&ExecutorServerMessage::Error(e.to_string()), &sender)?;
                         break;
                     } else {
                         trace!("DAG looks valid!");
                     }
+                    // for each file marked as provided check if a local copy is present, otherwise
+                    // ask the client to send it.
                     let mut ready_files = Vec::new();
                     for (uuid, file) in dag.provided_files.iter() {
                         let key = match file {
                             ProvidedFile::Content { key, .. } => key,
                             ProvidedFile::LocalFile { key, .. } => key,
                         };
-                        let handle = self.file_store.get(&key);
+                        let handle = file_store.get(&key);
                         if let Some(handle) = handle {
                             ready_files.push((*uuid, handle));
                         } else {
-                            serialize_into(&ExecutorServerMessage::AskFile(*uuid), &client_tx)?;
+                            serialize_into(&ExecutorServerMessage::AskFile(*uuid), &sender)?;
                         }
                     }
-                    self.scheduler_tx
-                        .send(SchedulerInMessage::DAG { dag, callbacks })
+                    // tell the scheduler that a new DAG is ready to be executed.
+                    scheduler
+                        .send(SchedulerInMessage::EvaluateDAG {
+                            client: client.clone(),
+                            dag,
+                            callbacks,
+                        })
                         .map_err(|e| format_err!("Failed to send message to scheduler: {:?}", e))?;
+                    // tell the scheduler the files that are already locally ready. The others will
+                    // be ready when the client will send them.
                     for (uuid, handle) in ready_files.into_iter() {
-                        self.scheduler_tx
-                            .send(SchedulerInMessage::FileReady { uuid, handle })
+                        scheduler
+                            .send(SchedulerInMessage::FileReady {
+                                client: client.uuid,
+                                uuid,
+                                handle,
+                            })
                             .map_err(|e| {
                                 format_err!("Failed to send message to scheduler: {:?}", e)
                             })?;
                     }
                 }
-                Ok(ExecutorClientMessage::ProvideFile(uuid, key)) => {
+                ExecutorClientMessage::ProvideFile(uuid, key) => {
                     info!("Client provided file {}", uuid);
-                    let handle = self
-                        .file_store
-                        .store(&key, ChannelFileIterator::new(&client_rx))?;
-                    self.scheduler_tx
-                        .send(SchedulerInMessage::FileReady { uuid, handle })
+                    // the client provided a file that was not present locally, store it and tell
+                    // the scheduler that it's now ready.
+                    let handle = file_store.store(&key, ChannelFileIterator::new(&receiver))?;
+                    scheduler
+                        .send(SchedulerInMessage::FileReady {
+                            client: client.uuid,
+                            uuid,
+                            handle,
+                        })
                         .map_err(|e| format_err!("Failed to send message to scheduler: {:?}", e))?;
                 }
-                Ok(ExecutorClientMessage::AskFile(uuid, key, success)) => {
+                ExecutorClientMessage::AskFile(uuid, key, success) => {
                     info!("Client asking file {:?}", key);
-                    if let Some(handle) = self.file_store.get(&key) {
+                    // the client wants to know a file that was produced by the computation, send it
+                    // if it exists.
+                    if let Some(handle) = file_store.get(&key) {
                         serialize_into(
                             &ExecutorServerMessage::ProvideFile(uuid, success),
-                            &client_tx,
+                            &sender,
                         )?;
-                        ChannelFileSender::send(handle.path(), &client_tx)?;
+                        ChannelFileSender::send(handle.path(), &sender)?;
                     } else {
                         serialize_into(
                             &ExecutorServerMessage::Error(format!("Unknown file {:?}", key)),
-                            &client_tx,
+                            &sender,
                         )?;
                     }
                 }
-                Ok(ExecutorClientMessage::Status) => {
+                ExecutorClientMessage::Status => {
                     info!("Client asking for the status");
                     // this may fail is the scheduler is gone
-                    let _ = self.scheduler_tx.send(SchedulerInMessage::Status);
+                    let _ = scheduler.send(SchedulerInMessage::Status {
+                        client: client.uuid,
+                    });
                 }
-                Ok(ExecutorClientMessage::Stop) => {
+                ExecutorClientMessage::Stop => {
                     info!("Client asking to stop");
-                    unimplemented!();
-                }
-                Err(_) => {
-                    // the receiver has been dropped
                     break;
                 }
             }
         }
-        let _ = self.scheduler_tx.send(SchedulerInMessage::Exit);
-        join_scheduler.join().expect("Scheduler thread panicked");
-        join_scheduler_binder
-            .join()
-            .expect("Scheduler binder thread panicked");
-        Ok(())
-    }
-
-    /// Thread that will receive messages from the scheduler and will forward them to the client,
-    /// eventually blocking reading files.
-    ///
-    /// This function will block until the `Scheduler` drops its sender.
-    fn scheduler_thread(
-        receiver: Receiver<SchedulerOutMessage>,
-        client_tx: ChannelSender,
-        produced_files: Arc<Mutex<Vec<(FileUuid, FileStoreHandle, bool)>>>,
-    ) -> Result<(), Error> {
-        loop {
-            let message = receiver.recv();
-            match message {
-                Ok(SchedulerOutMessage::ExecutionStarted(exec, worker)) => {
-                    serialize_into(
-                        &ExecutorServerMessage::NotifyStart(exec, worker),
-                        &client_tx,
-                    )?;
-                }
-                Ok(SchedulerOutMessage::ExecutionSkipped(exec)) => {
-                    serialize_into(&ExecutorServerMessage::NotifySkip(exec), &client_tx)?;
-                }
-                Ok(SchedulerOutMessage::ExecutionDone(exec, result)) => {
-                    serialize_into(&ExecutorServerMessage::NotifyDone(exec, result), &client_tx)?;
-                }
-                Ok(SchedulerOutMessage::FileReady(uuid, handle, success)) => {
-                    produced_files.lock().unwrap().push((uuid, handle, success));
-                }
-                Ok(SchedulerOutMessage::Status(status)) => {
-                    serialize_into(&ExecutorServerMessage::Status(status), &client_tx)?;
-                }
-                Err(_) => {
-                    // Scheduler is gone.
-                    break;
-                }
-            }
-        }
-        // at this point the scheduler is gone, the evaluation has to end.
-        let result = produced_files
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|(f, h, s)| (*f, h.key().clone(), *s))
-            .collect();
-        let _ = serialize_into(&ExecutorServerMessage::Done(result), &client_tx);
+        scheduler.send(SchedulerInMessage::ClientDisconnected {
+            client: client.uuid,
+        })?;
         Ok(())
     }
 }

@@ -1,94 +1,157 @@
-use crate::proto::{
-    ChannelFileIterator, ChannelFileSender, WorkerClientMessage, WorkerServerMessage,
-};
-use crate::SchedulerInMessage;
-use crate::{deserialize_from, serialize_into, ChannelSender, WorkerConn};
-use failure::{format_err, Error};
 use std::collections::HashMap;
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
-use std::thread::JoinHandle;
+use std::thread;
+
+use failure::{format_err, Error};
+
 use task_maker_dag::WorkerUuid;
 use task_maker_store::FileStore;
 
-/// The entity that manage the connections with the workers, eventually writing files to disk and
-/// talking to the `Scheduler`.
+use crate::proto::{
+    ChannelFileIterator, ChannelFileSender, WorkerClientMessage, WorkerServerMessage,
+};
+use crate::scheduler::SchedulerInMessage;
+use crate::{deserialize_from, serialize_into, ChannelSender, WorkerConn, WorkerJob};
+
+/// Message coming from the Scheduler or the Executor for the WorkerManager
+pub(crate) enum WorkerManagerInMessage {
+    /// A new worker has connected. The WorkerManager will take care of it.
+    WorkerConnected { worker: WorkerConn },
+    /// A worker has disconnected. This message is sent by the WorkerManager itself, from a
+    /// different thread.
+    WorkerDisconnected { worker: WorkerUuid },
+    /// The scheduler sent a new job for a worker. The WorkerManager will forward the job to the
+    /// actual worker.
+    WorkerJob { worker: WorkerUuid, job: WorkerJob },
+    /// The WorkerManager is asked to exit and tell all the connected worker to exit too.
+    Exit,
+}
+
+/// The entity that manages the connections with the workers, eventually writing files to disk and
+/// telling to the `Scheduler` the connection and disconnection of the workers.
 pub(crate) struct WorkerManager {
-    /// The list of all the workers that are currently connected to the manager.
-    connected_workers: HashMap<WorkerUuid, ChannelSender>,
-    /// A reference to the `FileStore`.
+    /// A reference to the file store.
     file_store: Arc<FileStore>,
-    /// The channel to use to send messages to the `Scheduler`.
+    /// A channel for sending the messages to the scheduler.
     scheduler: Sender<SchedulerInMessage>,
+    /// A channel for sending the messages to the WorkerManager itself. It is used by the threads
+    /// that manage the actual workers for sending back the notification of disconnection.
+    sender: Sender<WorkerManagerInMessage>,
+    /// The receiver of the messages for the worker manager.
+    receiver: Receiver<WorkerManagerInMessage>,
 }
 
 impl WorkerManager {
-    /// Make a new `WorkerManager` bound to the specified `Scheduler`.
-    pub fn new(file_store: Arc<FileStore>, scheduler: Sender<SchedulerInMessage>) -> WorkerManager {
+    /// Make a new `WorkerManager` based on the specified file store, talking to the specified
+    /// scheduler. `sender` is just a sender that sends messages to the `receiver`, this is needed
+    /// internally for sending back the disconnection notification from other threads.
+    pub fn new(
+        file_store: Arc<FileStore>,
+        scheduler: Sender<SchedulerInMessage>,
+        sender: Sender<WorkerManagerInMessage>,
+        receiver: Receiver<WorkerManagerInMessage>,
+    ) -> WorkerManager {
         WorkerManager {
-            connected_workers: HashMap::new(),
             file_store,
             scheduler,
+            sender,
+            receiver,
         }
     }
 
-    /// Add a worker to the list, spawning a new thread for managing it and returning the handle for
-    /// joining it.
-    pub fn add(&mut self, worker: WorkerConn) -> JoinHandle<()> {
-        self.connected_workers
-            .insert(worker.uuid, worker.sender.clone());
-        let scheduler = self.scheduler.clone();
-        let file_store = self.file_store.clone();
-        std::thread::Builder::new()
-            .name(format!(
-                "Manager of worker {} ({})",
-                worker.name, worker.uuid
-            ))
-            .spawn(move || WorkerManager::worker_thread(worker, scheduler, file_store).unwrap())
-            .expect("Failed to spawn manager of worker")
-    }
-
-    /// Stop all the workers by sending to them the `Exit` command and dropping the sender.
-    pub fn stop(&mut self) -> Result<(), Error> {
-        for (_, sender) in self.connected_workers.drain() {
-            serialize_into(&WorkerServerMessage::Exit, &sender)?;
+    /// Run the worker manager blocking until an exit message is received. On exiting the connected
+    /// workers will stop.
+    pub fn run(self) -> Result<(), Error> {
+        let mut connected_workers: HashMap<WorkerUuid, ChannelSender> = HashMap::new();
+        while let Ok(message) = self.receiver.recv() {
+            match message {
+                WorkerManagerInMessage::WorkerConnected { worker } => {
+                    if connected_workers.contains_key(&worker.uuid) {
+                        warn!("Duplicate worker uuid");
+                        continue;
+                    }
+                    connected_workers.insert(worker.uuid, worker.sender.clone());
+                    info!("Worker {} ({}) connected", worker.name, worker.uuid);
+                    let scheduler = self.scheduler.clone();
+                    let file_store = self.file_store.clone();
+                    let sender = self.sender.clone();
+                    thread::Builder::new()
+                        .name(format!(
+                            "Manager of worker {} ({})",
+                            worker.name, worker.uuid
+                        ))
+                        .spawn(move || {
+                            WorkerManager::worker_thread(worker, scheduler, sender, file_store)
+                                .expect("The manager of a worker failed")
+                        })
+                        .expect("Failed to spawn manager for a worker");
+                }
+                WorkerManagerInMessage::WorkerDisconnected { worker } => {
+                    connected_workers
+                        .remove(&worker)
+                        .expect("Unknown worker disconnected");
+                }
+                WorkerManagerInMessage::WorkerJob { worker, job } => {
+                    // if the worker is not present, it means it has just disconnected. The
+                    // scheduler should be already informed and should have resheduled the job.
+                    if let Some(sender) = connected_workers.get(&worker) {
+                        serialize_into(&WorkerServerMessage::Work(Box::new(job)), &sender)?;
+                    }
+                }
+                WorkerManagerInMessage::Exit => {
+                    debug!("Worker manager asked to exit");
+                    break;
+                }
+            }
+        }
+        debug!("Worker manager exiting");
+        for (worker, sender) in connected_workers.iter() {
+            if serialize_into(&WorkerServerMessage::Exit, &sender).is_err() {
+                warn!("Cannot tell worker {} to exit", worker);
+            }
         }
         Ok(())
     }
 
-    /// Body of the thread that manages the connection to a worker.
+    /// Thread body that manages the actual connection with a worker. `worker_manager` will send
+    /// messages back to the `WorkerManager` main thread for the notification about the
+    /// disconnection of this worker.
     fn worker_thread(
         worker: WorkerConn,
         scheduler: Sender<SchedulerInMessage>,
+        worker_manager: Sender<WorkerManagerInMessage>,
         file_store: Arc<FileStore>,
     ) -> Result<(), Error> {
-        loop {
-            let message = deserialize_from::<WorkerClientMessage>(&worker.receiver);
+        while let Ok(message) = deserialize_from::<WorkerClientMessage>(&worker.receiver) {
             match message {
-                Ok(WorkerClientMessage::GetWork) => {
-                    if scheduler
-                        .send(SchedulerInMessage::WorkerConnected {
-                            uuid: worker.uuid,
-                            name: worker.name.clone(),
-                            sender: worker.sender.clone(),
-                        })
-                        .is_err()
-                    {
+                WorkerClientMessage::GetWork => {
+                    // the worker is asking for more work to do
+                    let res = scheduler.send(SchedulerInMessage::WorkerConnected {
+                        uuid: worker.uuid,
+                        name: worker.name.clone(),
+                    });
+                    if res.is_err() {
                         // the scheduler is gone
                         break;
                     }
                 }
-                Ok(WorkerClientMessage::AskFile(key)) => {
+                WorkerClientMessage::AskFile(key) => {
+                    // the worker is asking for a file it doesn't have locally stored
                     let handle = file_store
                         .get(&key)
                         .expect("Worker is asking for an unknown file");
                     serialize_into(&WorkerServerMessage::ProvideFile(key), &worker.sender)?;
                     ChannelFileSender::send(handle.path(), &worker.sender)?;
                 }
-                Ok(WorkerClientMessage::ProvideFile(_, _)) => {
+                WorkerClientMessage::ProvideFile(_, _) => {
+                    // the worker should not provide files unless just after a WorkerDone message is
+                    // received
                     unreachable!("Unexpected ProvideFile from worker");
                 }
-                Ok(WorkerClientMessage::WorkerDone(result, outputs)) => {
+                WorkerClientMessage::WorkerDone(result, outputs) => {
+                    // the worker completed its job and will send the produced files
+                    // TODO send only the files that are not already present in the local store
                     let mut output_handlers = HashMap::new();
                     for _ in 0..outputs.len() {
                         let message = deserialize_from::<WorkerClientMessage>(&worker.receiver)?;
@@ -108,16 +171,25 @@ impl WorkerManager {
                         })
                         .map_err(|e| format_err!("Failed to send message to scheduler: {:?}", e))?;
                 }
-                Err(_) => {
-                    if scheduler
-                        .send(SchedulerInMessage::WorkerDisconnected { uuid: worker.uuid })
-                        .is_err()
-                    {
-                        debug!("Cannot tell the scheduler that a worker left, maybe it's gone");
-                    }
-                    break;
-                }
             }
+        }
+        // when the worker disconnects, tell the scheduler that the worker is no longer alive (thus
+        // rescheduling the job if needed).
+        if scheduler
+            .send(SchedulerInMessage::WorkerDisconnected { uuid: worker.uuid })
+            .is_err()
+        {
+            debug!("Cannot tell the scheduler that a worker left, maybe it's gone");
+        }
+        // send back to the WorkerManager a message, letting it know that the worker is no longer
+        // connected, thus removing it from the list.
+        if worker_manager
+            .send(WorkerManagerInMessage::WorkerDisconnected {
+                worker: worker.uuid,
+            })
+            .is_err()
+        {
+            debug!("Worker manager is gone");
         }
         Ok(())
     }
