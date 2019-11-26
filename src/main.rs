@@ -72,6 +72,7 @@ extern crate log;
 mod local;
 mod opt;
 mod server;
+mod worker;
 
 use structopt::StructOpt;
 
@@ -100,6 +101,8 @@ fn main() {
 
     if opt.server {
         server::main_server(opt);
+    } else if opt.worker {
+        worker::main_worker(opt);
     } else {
         local::main_local(opt);
     }

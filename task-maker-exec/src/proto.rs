@@ -32,6 +32,7 @@
 //! - `B` sends [`FileProtocol::End`](enum.FileProtocol.html#variant.End) which triggers a protocol
 //!   switch, back into normal mode
 
+use crate::executor::{ExecutionDAGWatchSet, ExecutorStatus, WorkerJob};
 use crate::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

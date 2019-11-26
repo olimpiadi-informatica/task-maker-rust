@@ -1,8 +1,10 @@
+use crate::executor::WorkerJob;
 use crate::proto::*;
-use crate::*;
+use crate::sandbox::{Sandbox, SandboxResult};
+use crate::{deserialize_from, new_local_channel, serialize_into, ChannelReceiver, ChannelSender};
 use failure::{Error, Fail};
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use task_maker_dag::*;
@@ -16,13 +18,13 @@ struct WorkerCurrentJob {
     /// The currently running sandbox.
     current_sandbox: Option<Sandbox>,
     /// The dependencies that are missing and required for the execution start.
-    missing_deps: HashMap<FileStoreKey, FileUuid>,
+    missing_deps: HashMap<FileStoreKey, Vec<FileUuid>>,
 }
 
 /// The worker is the component that receives the work from the server and sends the results back.
 /// It computes the results by executing a process inside a sandbox, limiting the available
 /// resources and measuring the used ones.
-pub(crate) struct Worker {
+pub struct Worker {
     /// The identifier of this worker.
     uuid: WorkerUuid,
     /// The name of this worker.
@@ -40,7 +42,7 @@ pub(crate) struct Worker {
 }
 
 /// An handle of the connection to the worker.
-pub(crate) struct WorkerConn {
+pub struct WorkerConn {
     /// The identifier of the worker.
     pub uuid: WorkerUuid,
     /// The name of the worker.
@@ -83,17 +85,14 @@ impl Worker {
         let (tx_worker, rx) = new_local_channel();
         let uuid = Uuid::new_v4();
         let name = name.into();
-        let sandbox_path = sandbox_path.into();
         (
-            Worker {
-                uuid,
-                name: name.clone(),
-                sender: tx_worker,
-                receiver: rx_worker,
+            Worker::new_with_channel(
+                name.clone(),
                 file_store,
-                current_job: Arc::new(Mutex::new(WorkerCurrentJob::new())),
-                sandbox_path,
-            },
+                sandbox_path.into(),
+                tx_worker,
+                rx_worker,
+            ),
             WorkerConn {
                 uuid,
                 name,
@@ -101,6 +100,28 @@ impl Worker {
                 receiver: rx,
             },
         )
+    }
+
+    /// Make a new worker with an already connected channel.
+    pub fn new_with_channel<S: Into<String>, P: Into<PathBuf>>(
+        name: S,
+        file_store: Arc<FileStore>,
+        sandbox_path: P,
+        sender: ChannelSender,
+        receiver: ChannelReceiver,
+    ) -> Worker {
+        let uuid = Uuid::new_v4();
+        let name = name.into();
+        let sandbox_path = sandbox_path.into();
+        Worker {
+            uuid,
+            name,
+            sender,
+            receiver,
+            file_store,
+            current_job: Arc::new(Mutex::new(WorkerCurrentJob::new())),
+            sandbox_path,
+        }
     }
 
     /// The worker body, this function will block until the worker disconnects.
@@ -120,7 +141,7 @@ impl Worker {
                 Ok(WorkerServerMessage::Work(job)) => {
                     trace!("Worker {} got job: {:?}", self, job);
                     assert!(self.current_job.lock().unwrap().current_job.is_none());
-                    let mut missing_deps = HashMap::new();
+                    let mut missing_deps: HashMap<FileStoreKey, Vec<FileUuid>> = HashMap::new();
                     let mut handles = HashMap::new();
                     for input in job.execution.dependencies().iter() {
                         let key = job
@@ -129,11 +150,14 @@ impl Worker {
                             .ok_or(WorkerError::MissingDependencyKey { uuid: *input })?;
                         match self.file_store.get(&key) {
                             None => {
-                                serialize_into(
-                                    &WorkerClientMessage::AskFile(key.clone()),
-                                    &self.sender,
-                                )?;
-                                missing_deps.insert(key.clone(), *input);
+                                // ask the file only once
+                                if !missing_deps.contains_key(key) {
+                                    serialize_into(
+                                        &WorkerClientMessage::AskFile(key.clone()),
+                                        &self.sender,
+                                    )?;
+                                }
+                                missing_deps.entry(key.clone()).or_default().push(*input);
                             }
                             Some(handle) => {
                                 handles.insert(*input, handle);
@@ -154,17 +178,22 @@ impl Worker {
                     info!("Server sent file {:?}", key);
                     let reader = ChannelFileIterator::new(&self.receiver);
                     let handle = self.file_store.store(&key, reader)?;
-                    let mut job = self.current_job.lock().unwrap();
-                    let uuid = job
-                        .missing_deps
-                        .remove(&key)
-                        .expect("Server sent a not required dependency");
-                    job.current_job
-                        .as_mut()
-                        .expect("Received file while doing nothing")
-                        .1
-                        .insert(uuid, handle);
-                    if job.missing_deps.is_empty() {
+                    let should_start = {
+                        let mut job = self.current_job.lock().unwrap();
+                        let uuids = job
+                            .missing_deps
+                            .remove(&key)
+                            .expect("Server sent a not required dependency");
+                        for uuid in uuids {
+                            job.current_job
+                                .as_mut()
+                                .expect("Received file while doing nothing")
+                                .1
+                                .insert(uuid, handle.clone());
+                        }
+                        job.missing_deps.is_empty()
+                    };
+                    if should_start {
                         start_job()?;
                     }
                 }
@@ -176,15 +205,14 @@ impl Worker {
                     let cause = e.find_root_cause().to_string();
                     if cause == "receiving on an empty and disconnected channel" {
                         trace!("Connection closed: {}", cause);
-                        if let Some(sandbox) =
-                            self.current_job.lock().unwrap().current_sandbox.as_ref()
-                        {
-                            sandbox.kill();
-                        }
-                        break;
                     } else {
                         error!("Connection error: {}", cause);
                     }
+                    if let Some(sandbox) = self.current_job.lock().unwrap().current_sandbox.as_ref()
+                    {
+                        sandbox.kill();
+                    }
+                    break;
                 }
             }
         }

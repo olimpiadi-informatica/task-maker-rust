@@ -1,4 +1,4 @@
-use crate::ExecutionDAGWatchSet;
+use crate::executor::ExecutionDAGWatchSet;
 use failure::Fail;
 use std::collections::{HashMap, HashSet, VecDeque};
 use task_maker_dag::{ExecutionDAGData, ExecutionUuid, FileUuid};

@@ -1,14 +1,20 @@
-use crate::proto::*;
-use crate::*;
-use failure::{format_err, Error};
 use std::collections::HashMap;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::thread::JoinHandle;
 use std::time::{Duration, SystemTime};
-use task_maker_dag::{FileCallbacks, FileUuid, ProvidedFile, WriteToCallback};
+
+use failure::{format_err, Error};
+
+use task_maker_dag::{ExecutionDAG, FileCallbacks, FileUuid, ProvidedFile, WriteToCallback};
 use task_maker_store::*;
+
+use crate::executor::{ExecutionDAGWatchSet, ExecutorStatus, ExecutorWorkerStatus};
+use crate::proto::*;
+use crate::{deserialize_from, serialize_into, ChannelReceiver, ChannelSender};
 
 /// Interval between each Status message is sent asking for server status updates.
 const STATUS_POLL_INTERVAL_MS: u64 = 1000;
@@ -188,12 +194,12 @@ impl ExecutorClient {
                 }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();
-                    if cause == "receiving on a closed channel" {
+                    if cause == "receiving on an empty and disconnected channel" {
                         trace!("Connection closed: {}", cause);
-                        break;
                     } else {
                         error!("Connection error: {}", cause);
                     }
+                    break;
                 }
             }
         }

@@ -70,7 +70,7 @@ pub struct ExecutorStatus<T> {
 
 /// Message telling the executor that a new client connected or a new worker connected. The handling
 /// of the new peer is done by this executor.
-pub(crate) enum ExecutorInMessage {
+pub enum ExecutorInMessage {
     /// A new client has connected, the executor starts listening for the messages and will directly
     /// interact with it.
     ClientConnected {

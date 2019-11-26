@@ -31,17 +31,16 @@ use bincode;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use failure::Error;
 
-pub use client::*;
-pub use executor::*;
+pub use client::ExecutorClient;
+pub use executor::ExecutorStatus;
 use failure::_core::ops::Deref;
-pub use sandbox::*;
 use std::cell::RefCell;
-use std::io::{BufReader, Read, Write};
+use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use task_maker_cache::Cache;
 use task_maker_dag::ExecutionDAG;
 use task_maker_store::FileStore;
-pub(crate) use worker::*;
+pub use worker::{Worker, WorkerConn};
 
 mod check_dag;
 mod client;
@@ -68,7 +67,7 @@ pub enum ChannelReceiver {
     /// The connection is only a local in-memory channel.
     Local(Receiver<Vec<u8>>),
     /// The connection is with a remote party.
-    Remote(RefCell<BufReader<TcpStream>>),
+    Remote(RefCell<TcpStream>),
 }
 
 impl ChannelSender {
@@ -140,7 +139,7 @@ impl Iterator for ChannelServer {
                 let s2 = s.try_clone().expect("Failed to clone the stream");
                 return Some((
                     ChannelSender::Remote(Arc::new(Mutex::new(s))),
-                    ChannelReceiver::Remote(RefCell::new(BufReader::new(s2))),
+                    ChannelReceiver::Remote(RefCell::new(s2)),
                     peer_addr,
                 ));
             }
@@ -156,7 +155,7 @@ pub fn connect_channel<A: ToSocketAddrs>(
     let stream2 = stream.try_clone()?;
     Ok((
         ChannelSender::Remote(Arc::new(Mutex::new(stream))),
-        ChannelReceiver::Remote(RefCell::new(BufReader::new(stream2))),
+        ChannelReceiver::Remote(RefCell::new(stream2)),
     ))
 }
 

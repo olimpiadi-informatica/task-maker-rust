@@ -13,8 +13,8 @@ use task_maker_dag::{
 };
 use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey};
 
+use crate::executor::{ExecutionDAGWatchSet, ExecutorStatus, ExecutorWorkerStatus, WorkerJob};
 use crate::worker_manager::WorkerManagerInMessage;
-use crate::{ExecutionDAGWatchSet, ExecutorStatus, ExecutorWorkerStatus, WorkerJob};
 
 pub type ClientUuid = Uuid;
 
@@ -602,6 +602,7 @@ impl Scheduler {
                 Some(exec) => exec,
                 None => break,
             };
+            trace!("Assigning {} to worker {}", exec, worker_uuid);
             worker.current_job = Some((client_uuid, exec, Instant::now()));
             let client = self.clients.get_mut(&client_uuid).expect("Client is gone");
             client.ready_execs.remove(&exec);

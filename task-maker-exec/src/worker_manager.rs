@@ -8,11 +8,12 @@ use failure::{format_err, Error};
 use task_maker_dag::WorkerUuid;
 use task_maker_store::FileStore;
 
+use crate::executor::WorkerJob;
 use crate::proto::{
     ChannelFileIterator, ChannelFileSender, WorkerClientMessage, WorkerServerMessage,
 };
 use crate::scheduler::SchedulerInMessage;
-use crate::{deserialize_from, serialize_into, ChannelSender, WorkerConn, WorkerJob};
+use crate::{deserialize_from, serialize_into, ChannelSender, WorkerConn};
 
 /// Message coming from the Scheduler or the Executor for the WorkerManager
 pub(crate) enum WorkerManagerInMessage {

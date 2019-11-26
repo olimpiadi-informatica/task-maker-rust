@@ -1,10 +1,12 @@
 use crate::opt::Opt;
+use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
 use task_maker_exec::executors::LocalExecutor;
-use task_maker_exec::{new_local_channel, ExecutorClient};
+use task_maker_exec::{connect_channel, new_local_channel, ExecutorClient};
 use task_maker_format::ui::UIMessage;
 use task_maker_format::UISender;
 use task_maker_format::{ioi, EvaluationConfig, EvaluationData, TaskFormat};
@@ -74,15 +76,23 @@ pub fn main_local(opt: Opt) {
 
     trace!("The DAG is: {:#?}", eval.dag);
 
-    // start the server and the client
-    let (tx, rx_remote) = new_local_channel();
-    let (tx_remote, rx) = new_local_channel();
-    let server = std::thread::Builder::new()
-        .name("Executor thread".into())
-        .spawn(move || {
-            executor.evaluate(tx_remote, rx_remote, cache).unwrap();
-        })
-        .expect("Failed to spawn the executor thread");
+    let (tx, rx, server) = if let Some(evaluate_on) = opt.evaluate_on {
+        let server_addr =
+            SocketAddr::from_str(&evaluate_on).expect("Invalid server address provided");
+        let (tx, rx) = connect_channel(server_addr).expect("Failed to connect to the server");
+        (tx, rx, None)
+    } else {
+        // start the server and the client
+        let (tx, rx_remote) = new_local_channel();
+        let (tx_remote, rx) = new_local_channel();
+        let server = std::thread::Builder::new()
+            .name("Executor thread".into())
+            .spawn(move || {
+                executor.evaluate(tx_remote, rx_remote, cache).unwrap();
+            })
+            .expect("Failed to spawn the executor thread");
+        (tx, rx, Some(server))
+    };
 
     let ui_sender = eval.sender.clone();
     ExecutorClient::evaluate(eval.dag, tx, &rx, file_store, move |status| {
@@ -93,7 +103,9 @@ pub fn main_local(opt: Opt) {
         .expect("Sanity checks failed");
 
     // wait for the server and the ui to exit
-    server.join().expect("Executor panicked");
+    if let Some(server) = server {
+        server.join().expect("Executor panicked");
+    }
     drop(eval.sender); // make the UI exit
     ui_thread.join().expect("UI panicked");
 }

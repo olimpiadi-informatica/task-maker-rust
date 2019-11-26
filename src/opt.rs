@@ -86,9 +86,17 @@ pub struct Opt {
     #[structopt(short, long, parse(from_occurrences))]
     pub verbose: u8,
 
+    /// Run the evaluation on a remote server instead of locally.
+    #[structopt(long = "evaluate-on")]
+    pub evaluate_on: Option<String>,
+
     /// Run a server instead of the normal task-maker.
-    #[structopt(long = "server")]
+    #[structopt(long)]
     pub server: bool,
+
+    /// Run a worker instead of the normal task-maker.
+    #[structopt(long)]
+    pub worker: bool,
 
     /// Address to bind the server on.
     ///
@@ -101,6 +109,18 @@ pub struct Opt {
     /// This option only has effect with `--server`.
     #[structopt(long = "server-address-workers", default_value = "0.0.0.0:27183")]
     pub server_address_workers: String,
+
+    /// Address to which the worker should connect to.
+    ///
+    /// This option only has effect with `--worker`.
+    #[structopt(long = "worker-address-server")]
+    pub worker_address_server: Option<String>,
+
+    /// The name to use for the workers.
+    ///
+    /// This option only has effect with `--worker`.
+    #[structopt(long)]
+    pub name: Option<String>,
 }
 
 impl Opt {
