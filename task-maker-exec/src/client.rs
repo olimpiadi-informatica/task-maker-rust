@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread::JoinHandle;
 use std::time::{Duration, SystemTime};
 use task_maker_dag::{FileCallbacks, FileUuid, ProvidedFile, WriteToCallback};
 use task_maker_store::*;
@@ -72,27 +73,14 @@ impl ExecutorClient {
         ExecutorClient::start_evaluation(&mut dag, &sender)?;
 
         let provided_files = &dag.data.provided_files;
+
         // setup the status poller that will send to the server a Status message every
         // STATUS_POLL_INTERVAL_MS milliseconds.
         let done = Arc::new(AtomicBool::new(false));
-        let done_thread = done.clone();
         let file_mode = Arc::new(Mutex::new(()));
-        let file_mode_thread = file_mode.clone();
-        let sender_thread = sender.clone();
-        let status_poller = thread::Builder::new()
-            .name("Client status poller".into())
-            .spawn(move || {
-                while !done_thread.load(Ordering::Relaxed) {
-                    {
-                        // make sure to not interfere with the file sending protocol.
-                        let _lock = file_mode_thread.lock().unwrap();
-                        // this may fail if the server is gone
-                        let _ = serialize_into(&ExecutorClientMessage::Status, &sender_thread);
-                    }
-                    thread::sleep(Duration::from_millis(STATUS_POLL_INTERVAL_MS));
-                }
-            })
-            .expect("Failed to start client status poller thread");
+        let status_poller =
+            ExecutorClient::spawn_status_poller(done.clone(), file_mode.clone(), sender.clone());
+
         let mut missing_files = None;
         while missing_files.unwrap_or(1) > 0 {
             match deserialize_from::<ExecutorServerMessage>(&receiver) {
@@ -248,6 +236,29 @@ impl ExecutorClient {
             },
             sender,
         )
+    }
+
+    /// Spawn a thread that will ask the server status every `STATUS_POLL_INTERVAL_MS`, making sure
+    /// that the messages are not sent while being in the middle of sending a file.
+    fn spawn_status_poller(
+        done: Arc<AtomicBool>,
+        file_mode: Arc<Mutex<()>>,
+        sender: ChannelSender,
+    ) -> JoinHandle<()> {
+        thread::Builder::new()
+            .name("Client status poller".into())
+            .spawn(move || {
+                while !done.load(Ordering::Relaxed) {
+                    {
+                        // make sure to not interfere with the file sending protocol.
+                        let _lock = file_mode.lock().unwrap();
+                        // this may fail if the server is gone
+                        let _ = serialize_into(&ExecutorClientMessage::Status, &sender);
+                    }
+                    thread::sleep(Duration::from_millis(STATUS_POLL_INTERVAL_MS));
+                }
+            })
+            .expect("Failed to start client status poller thread")
     }
 }
 
