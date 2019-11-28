@@ -549,8 +549,8 @@ where
                 texts.push(Text::raw(format!(
                     "{} {} ({:.2}s)",
                     loading,
-                    job.0,
-                    (job.1.elapsed().map(|d| d.as_millis()).unwrap_or(0) as f64) / 1000.0
+                    job.job,
+                    (job.duration.elapsed().map(|d| d.as_millis()).unwrap_or(0) as f64) / 1000.0
                 )));
             }
             texts.push(Text::raw("\n"));

@@ -163,7 +163,7 @@ impl ExecutorClient {
                                 name: worker.name,
                                 current_job: worker
                                     .current_job
-                                    .map(|(name, dur)| (name, SystemTime::now() - dur)),
+                                    .map(|status| status.into_system_time()),
                             })
                             .collect(),
                         ready_execs: status.ready_execs,

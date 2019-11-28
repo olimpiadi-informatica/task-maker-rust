@@ -21,6 +21,8 @@ use crate::scheduler::{
 };
 use crate::worker_manager::{WorkerManager, WorkerManagerInMessage};
 use crate::{deserialize_from, serialize_into, ChannelReceiver, ChannelSender, WorkerConn};
+use failure::_core::time::Duration;
+use std::time::SystemTime;
 
 /// List of the _interesting_ files and executions, only the callbacks listed here will be called by
 /// the server. Every other callback is not sent to the client for performance reasons.
@@ -42,6 +44,29 @@ pub struct WorkerJob {
     pub dep_keys: HashMap<FileUuid, FileStoreKey>,
 }
 
+/// Information about the job the worker is currently doing.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct WorkerCurrentJobStatus<T> {
+    /// The name of the job the worker is currently doing.
+    pub job: String,
+    /// UUID and name of the client who owns the job.
+    pub client: ClientInfo,
+    /// Since when the job started.
+    pub duration: T,
+}
+
+impl WorkerCurrentJobStatus<Duration> {
+    /// Convert a status based on a `Duration` (the one sent in the network) to a status based on
+    /// the system time.
+    pub fn into_system_time(self) -> WorkerCurrentJobStatus<SystemTime> {
+        WorkerCurrentJobStatus {
+            job: self.job,
+            client: self.client,
+            duration: SystemTime::now() - self.duration,
+        }
+    }
+}
+
 /// Status of a worker of an `Executor`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ExecutorWorkerStatus<T> {
@@ -51,7 +76,7 @@ pub struct ExecutorWorkerStatus<T> {
     pub name: String,
     /// What the worker is currently working on: the description of the execution and the duration
     /// of that.
-    pub current_job: Option<(String, T)>,
+    pub current_job: Option<WorkerCurrentJobStatus<T>>,
 }
 
 /// The current status of the `Executor`, this is sent to the user when the server status is asked.

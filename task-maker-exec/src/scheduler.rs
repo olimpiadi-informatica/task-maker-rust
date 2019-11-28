@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
@@ -13,13 +14,15 @@ use task_maker_dag::{
 };
 use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey};
 
-use crate::executor::{ExecutionDAGWatchSet, ExecutorStatus, ExecutorWorkerStatus, WorkerJob};
+use crate::executor::{
+    ExecutionDAGWatchSet, ExecutorStatus, ExecutorWorkerStatus, WorkerCurrentJobStatus, WorkerJob,
+};
 use crate::worker_manager::WorkerManagerInMessage;
 
 pub type ClientUuid = Uuid;
 
 /// Information about a client of the scheduler.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ClientInfo {
     /// Unique identifier of the client.
     pub uuid: ClientUuid,
@@ -135,6 +138,8 @@ struct ConnectedWorker {
 
 /// The scheduling information about the DAG of a single client.
 struct SchedulerClientData {
+    /// The name of the client.
+    name: String,
     /// The DAGs the scheduler is currently working on.
     dag: ExecutionDAGData,
     /// The set of callbacks the client is interested in.
@@ -158,8 +163,13 @@ struct SchedulerClientData {
 
 impl SchedulerClientData {
     /// Make a new `SchedulerClientData` based on the DAG the client sent.
-    fn new(dag: ExecutionDAGData, callbacks: ExecutionDAGWatchSet) -> SchedulerClientData {
+    fn new(
+        name: String,
+        dag: ExecutionDAGData,
+        callbacks: ExecutionDAGWatchSet,
+    ) -> SchedulerClientData {
         SchedulerClientData {
+            name,
             dag,
             callbacks,
             input_of: HashMap::new(),
@@ -248,7 +258,7 @@ impl Scheduler {
                 } => {
                     // build the scheduler structures, insert the client in the list of working
                     // clients and schedule all the already cached executions.
-                    let mut client_data = SchedulerClientData::new(dag, callbacks);
+                    let mut client_data = SchedulerClientData::new(client.name, dag, callbacks);
                     for exec in client_data.dag.executions.values() {
                         let missing_dep = client_data.missing_deps.entry(exec.uuid).or_default();
                         for input in exec.dependencies() {
@@ -365,8 +375,13 @@ impl Scheduler {
                                 uuid: worker.uuid,
                                 name: worker.name.clone(),
                                 current_job: worker.current_job.as_ref().map(
-                                    |(_client, exec, start)| {
-                                        (dag.executions[&exec].description.clone(), start.elapsed())
+                                    |(client_uuid, exec, start)| WorkerCurrentJobStatus {
+                                        job: dag.executions[&exec].description.clone(),
+                                        client: ClientInfo {
+                                            uuid: *client_uuid,
+                                            name: client.name.clone(),
+                                        },
+                                        duration: start.elapsed(),
                                     },
                                 ),
                             })

@@ -107,8 +107,8 @@ impl UI for PrintUI {
                     status.ready_execs, status.waiting_execs
                 );
                 for worker in status.connected_workers {
-                    if let Some((job, _)) = &worker.current_job {
-                        println!(" - {} ({}): {}", worker.name, worker.uuid, job);
+                    if let Some(job) = &worker.current_job {
+                        println!(" - {} ({}): {}", worker.name, worker.uuid, job.job);
                     } else {
                         println!(" - {} ({})", worker.name, worker.uuid);
                     }
