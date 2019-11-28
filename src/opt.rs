@@ -116,9 +116,9 @@ pub struct Opt {
     #[structopt(long = "worker-address-server")]
     pub worker_address_server: Option<String>,
 
-    /// The name to use for the workers.
+    /// The name to use for the workers or for the client in remote executions.
     ///
-    /// This option only has effect with `--worker`.
+    /// This option only has no effect with `--server`.
     #[structopt(long)]
     pub name: Option<String>,
 }

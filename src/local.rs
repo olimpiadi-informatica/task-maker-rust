@@ -5,8 +5,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
-use task_maker_exec::executors::LocalExecutor;
-use task_maker_exec::{connect_channel, new_local_channel, ExecutorClient};
+use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage};
+use task_maker_exec::{connect_channel, new_local_channel, serialize_into, ExecutorClient};
 use task_maker_format::ui::UIMessage;
 use task_maker_format::UISender;
 use task_maker_format::{ioi, EvaluationConfig, EvaluationData, TaskFormat};
@@ -80,6 +80,11 @@ pub fn main_local(opt: Opt) {
         let server_addr =
             SocketAddr::from_str(&evaluate_on).expect("Invalid server address provided");
         let (tx, rx) = connect_channel(server_addr).expect("Failed to connect to the server");
+        let name = opt
+            .name
+            .unwrap_or_else(|| format!("{}@{}", whoami::username(), whoami::hostname()));
+        serialize_into(&RemoteEntityMessage::Welcome { name }, &tx)
+            .expect("Cannot send welcome to the server");
         (tx, rx, None)
     } else {
         // start the server and the client

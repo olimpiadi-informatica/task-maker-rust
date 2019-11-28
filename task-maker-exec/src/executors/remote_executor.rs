@@ -1,6 +1,7 @@
 use std::sync::mpsc::channel;
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use task_maker_cache::Cache;
@@ -8,11 +9,21 @@ use task_maker_store::FileStore;
 
 use crate::executor::{Executor, ExecutorInMessage};
 use crate::scheduler::ClientInfo;
-use crate::{ChannelServer, WorkerConn};
+use crate::{deserialize_from, ChannelServer, WorkerConn};
 
 /// An executor that accepts remote connections from clients and workers.
 pub struct RemoteExecutor {
     file_store: Arc<FileStore>,
+}
+
+/// Message sent only by remote clients and workers for sending its name.
+#[derive(Debug, Serialize, Deserialize)]
+pub enum RemoteEntityMessage {
+    /// Tell the remote executor the name of the client or of the worker.
+    Welcome {
+        /// The name of the client or of the worker.
+        name: String,
+    },
 }
 
 impl RemoteExecutor {
@@ -48,7 +59,17 @@ impl RemoteExecutor {
                 for (sender, receiver, addr) in server {
                     info!("Client connected from {}", addr);
                     let uuid = Uuid::new_v4();
-                    let name = format!("Remote client at {:?}", addr);
+                    let name = if let Ok(RemoteEntityMessage::Welcome { name }) =
+                        deserialize_from(&receiver)
+                    {
+                        name
+                    } else {
+                        warn!(
+                            "Client at {} has not sent the correct welcome message!",
+                            addr
+                        );
+                        continue;
+                    };
                     let client = ClientInfo { uuid, name };
                     client_executor_tx
                         .send(ExecutorInMessage::ClientConnected {
@@ -72,7 +93,17 @@ impl RemoteExecutor {
                 for (sender, receiver, addr) in server {
                     info!("Worker connected from {}", addr);
                     let uuid = Uuid::new_v4();
-                    let name = format!("Remote worker at {:?}", addr);
+                    let name = if let Ok(RemoteEntityMessage::Welcome { name }) =
+                        deserialize_from(&receiver)
+                    {
+                        name
+                    } else {
+                        warn!(
+                            "Worker at {} has not sent the correct welcome message!",
+                            addr
+                        );
+                        continue;
+                    };
                     let worker = WorkerConn {
                         uuid,
                         name,

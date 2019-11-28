@@ -3,10 +3,11 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
 
-use task_maker_exec::{connect_channel, Worker};
+use task_maker_exec::{connect_channel, serialize_into, Worker};
 use task_maker_store::FileStore;
 
 use crate::opt::Opt;
+use task_maker_exec::executors::RemoteEntityMessage;
 
 /// Entry point for the worker.
 pub fn main_worker(opt: Opt) {
@@ -36,6 +37,11 @@ pub fn main_worker(opt: Opt) {
     for i in 0..num_workers {
         let (executor_tx, executor_rx) =
             connect_channel(server_addr).expect("Failed to connect to the server");
+        serialize_into(
+            &RemoteEntityMessage::Welcome { name: name.clone() },
+            &executor_tx,
+        )
+        .expect("Cannot send welcome to the server");
         let worker = Worker::new_with_channel(
             &format!("{} {}", name, i),
             file_store.clone(),
