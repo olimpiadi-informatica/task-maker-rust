@@ -137,6 +137,7 @@ struct ConnectedWorker {
 }
 
 /// The scheduling information about the DAG of a single client.
+#[derive(Debug)]
 struct SchedulerClientData {
     /// The name of the client.
     name: String,
@@ -194,6 +195,7 @@ impl SchedulerClientData {
 /// ask for the evaluation of a DAG, and sends messages to the clients via the Executor. It also
 /// communicates with the WorkerManager for sending messages to the workers and known when a worker
 /// connects or disconnects.
+#[derive(Debug)]
 pub(crate) struct Scheduler {
     /// A reference to the local file store.
     file_store: Arc<FileStore>,
@@ -279,7 +281,6 @@ impl Scheduler {
                     uuid,
                     handle,
                 } => {
-                    info!("Client sent a file {:?}", uuid);
                     if let Some(client) = self.clients.get_mut(&client_uuid) {
                         client.file_handles.insert(uuid, handle);
                         self.file_success(client_uuid, uuid)?;
@@ -314,6 +315,8 @@ impl Scheduler {
                         client
                     } else {
                         warn!("Worker completed execution but client is gone");
+                        self.assign_jobs()?;
+                        self.check_completion(client_uuid)?;
                         continue;
                     };
                     let execution = client.dag.executions[&exec_uuid].clone();
@@ -359,9 +362,15 @@ impl Scheduler {
                             warn!("The client's evaluation wasn't completed yet");
                         }
                     }
-                    // TODO remove all the references to the client (ready_exec) and maybe tell the
-                    //      worker to stop doing that execution
                     self.clients.remove(&client);
+                    let mut remaining = BinaryHeap::new();
+                    while let Some((client, exec)) = self.ready_execs.pop() {
+                        if self.clients.contains_key(&client) {
+                            remaining.push((client, exec));
+                        }
+                    }
+                    self.ready_execs = remaining;
+                    // TODO tell the worker to stop doing that execution
                 }
                 SchedulerInMessage::Status {
                     client: client_uuid,
@@ -404,8 +413,12 @@ impl Scheduler {
                         waiting_execs,
                     };
 
-                    self.executor
-                        .send((client_uuid, SchedulerExecutorMessageData::Status { status }))?;
+                    if let Err(e) = self
+                        .executor
+                        .send((client_uuid, SchedulerExecutorMessageData::Status { status }))
+                    {
+                        warn!("Cannot send the status to the client: {:?}", e);
+                    }
                 }
             }
         }
@@ -454,10 +467,12 @@ impl Scheduler {
                 continue;
             }
             if client.callbacks.executions.contains(&exec) {
-                self.executor.send((
+                if let Err(e) = self.executor.send((
                     client_uuid,
                     SchedulerExecutorMessageData::ExecutionSkipped { execution: exec },
-                ))?;
+                )) {
+                    warn!("Cannot tell the client the execution was skipped: {:?}", e);
+                }
             }
             let exec = &client.dag.executions[&exec];
             for output in exec.outputs() {
@@ -517,14 +532,16 @@ impl Scheduler {
         if !client.file_handles.contains_key(&file) {
             return Ok(());
         }
-        self.executor.send((
+        if let Err(e) = self.executor.send((
             client_uuid,
             SchedulerExecutorMessageData::FileReady {
                 file,
                 handle: client.file_handles[&file].clone(),
                 successful: status,
             },
-        ))?;
+        )) {
+            warn!("Cannot send the file to the client: {:?}", e);
+        }
         Ok(())
     }
 
@@ -545,13 +562,15 @@ impl Scheduler {
             return Ok(());
         };
         if client.callbacks.executions.contains(&execution.uuid) {
-            self.executor.send((
+            if let Err(e) = self.executor.send((
                 client_uuid,
                 SchedulerExecutorMessageData::ExecutionDone {
                     execution: execution.uuid,
                     result: result.clone(),
                 },
-            ))?;
+            )) {
+                warn!("Cannot tell the client the execution is done: {:?}", e);
+            }
         }
         for (uuid, handle) in outputs.iter() {
             client.file_handles.insert(*uuid, handle.clone());
@@ -704,13 +723,15 @@ impl Scheduler {
                 })
                 .map_err(|e| format_err!("Failed to send job to worker: {:?}", e))?;
             if client.callbacks.executions.contains(&exec) {
-                self.executor.send((
+                if let Err(e) = self.executor.send((
                     client_uuid,
                     SchedulerExecutorMessageData::ExecutionStarted {
                         execution: exec,
                         worker: *worker_uuid,
                     },
-                ))?;
+                )) {
+                    warn!("Cannot tell the client the execution started: {:?}", e);
+                }
             }
         }
         Ok(())
