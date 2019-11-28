@@ -20,7 +20,7 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-targets --all-features -- -D warnings -A clippy::too_many_arguments -A clippy::large_enum_variant
+          args: --all-targets --all-features -- -D warnings -A clippy::too_many_arguments -A clippy::large_enum_variant -A clippy::cognitive-complexity
 
   rustfmt:
     name: Format
