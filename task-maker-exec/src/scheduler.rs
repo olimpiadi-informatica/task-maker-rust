@@ -275,18 +275,18 @@ impl Scheduler {
                     self.assign_jobs()?;
                 }
                 SchedulerInMessage::FileReady {
-                    client,
+                    client: client_uuid,
                     uuid,
                     handle,
                 } => {
                     info!("Client sent a file {:?}", uuid);
-                    self.clients
-                        .get_mut(&client)
-                        .expect("Client is gone")
-                        .file_handles
-                        .insert(uuid, handle);
-                    self.file_success(client, uuid)?;
-                    self.check_completion(client)?;
+                    if let Some(client) = self.clients.get_mut(&client_uuid) {
+                        client.file_handles.insert(uuid, handle);
+                        self.file_success(client_uuid, uuid)?;
+                        self.check_completion(client_uuid)?;
+                    } else {
+                        warn!("Client is gone");
+                    }
                 }
                 SchedulerInMessage::WorkerResult {
                     worker,
@@ -310,19 +310,15 @@ impl Scheduler {
                             continue;
                         }
                     };
-                    let execution = self
-                        .clients
-                        .get_mut(&client_uuid)
-                        .expect("Client is gone")
-                        .dag
-                        .executions[&exec_uuid]
-                        .clone();
+                    let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
+                        client
+                    } else {
+                        warn!("Worker completed execution but client is gone");
+                        continue;
+                    };
+                    let execution = client.dag.executions[&exec_uuid].clone();
                     info!("Worker {:?} completed execution {}", worker, execution.uuid);
-                    self.clients
-                        .get_mut(&client_uuid)
-                        .expect("Client is gone")
-                        .running_execs
-                        .remove(&exec_uuid);
+                    client.running_execs.remove(&exec_uuid);
                     self.exec_completed(client_uuid, &execution, result, outputs)?;
                     self.assign_jobs()?;
                     self.check_completion(client_uuid)?;
@@ -343,9 +339,14 @@ impl Scheduler {
                     info!("Worker {} disconnected", uuid);
                     if let Some(worker) = self.connected_workers.remove(&uuid) {
                         // reschedule the job if the worker failed
-                        if let Some((client, job, _)) = worker.current_job {
-                            self.ready_execs.push((client, job));
-                            let client = self.clients.get_mut(&client).expect("Client is gone");
+                        if let Some((client_uuid, job, _)) = worker.current_job {
+                            let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
+                                client
+                            } else {
+                                warn!("Worker was doing something for a gone client");
+                                continue;
+                            };
+                            self.ready_execs.push((client_uuid, job));
                             client.ready_execs.insert(job);
                             client.running_execs.remove(&job);
                         }
@@ -365,8 +366,12 @@ impl Scheduler {
                 SchedulerInMessage::Status {
                     client: client_uuid,
                 } => {
-                    let client = self.clients.get_mut(&client_uuid).expect("Client is gone");
-                    let dag = &client.dag;
+                    let mut ready_execs = 0;
+                    let mut waiting_execs = 0;
+                    for client in self.clients.values() {
+                        ready_execs += client.ready_execs.len();
+                        waiting_execs += client.missing_deps.len();
+                    }
                     let status = ExecutorStatus {
                         connected_workers: self
                             .connected_workers
@@ -374,21 +379,31 @@ impl Scheduler {
                             .map(|worker| ExecutorWorkerStatus {
                                 uuid: worker.uuid,
                                 name: worker.name.clone(),
-                                current_job: worker.current_job.as_ref().map(
-                                    |(client_uuid, exec, start)| WorkerCurrentJobStatus {
-                                        job: dag.executions[&exec].description.clone(),
-                                        client: ClientInfo {
-                                            uuid: *client_uuid,
-                                            name: client.name.clone(),
-                                        },
-                                        duration: start.elapsed(),
+                                current_job: worker.current_job.as_ref().and_then(
+                                    |(client_uuid, exec_uuid, start)| {
+                                        let client =
+                                            if let Some(client) = self.clients.get(&client_uuid) {
+                                                client
+                                            } else {
+                                                return None;
+                                            };
+                                        let exec = &client.dag.executions[exec_uuid];
+                                        Some(WorkerCurrentJobStatus {
+                                            job: exec.description.clone(),
+                                            client: ClientInfo {
+                                                uuid: *client_uuid,
+                                                name: client.name.clone(),
+                                            },
+                                            duration: start.elapsed(),
+                                        })
                                     },
                                 ),
                             })
                             .collect(),
-                        ready_execs: client.ready_execs.len(),
-                        waiting_execs: client.missing_deps.len(),
+                        ready_execs,
+                        waiting_execs,
                     };
+
                     self.executor
                         .send((client_uuid, SchedulerExecutorMessageData::Status { status }))?;
                 }
@@ -403,7 +418,12 @@ impl Scheduler {
 
     /// Check if the client has completed the evaluation, if so tell the client we are done.
     fn check_completion(&self, client_uuid: ClientUuid) -> Result<(), Error> {
-        let client = self.clients.get(&client_uuid).expect("Client is gone");
+        let client = if let Some(client) = self.clients.get(&client_uuid) {
+            client
+        } else {
+            // client is gone, dont worry to much about it
+            return Ok(());
+        };
         if client.is_done() {
             debug!("Computation completed for client: {}", client_uuid);
             self.executor
@@ -416,7 +436,12 @@ impl Scheduler {
     /// This will also send the file to the client, if needed.
     fn file_failed(&mut self, client_uuid: ClientUuid, file: FileUuid) -> Result<(), Error> {
         self.send_file(client_uuid, file, false)?;
-        let client = self.clients.get_mut(&client_uuid).expect("Client is gone");
+        let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
+            client
+        } else {
+            // client is gone, dont worry to much about it
+            return Ok(());
+        };
         if !client.input_of.contains_key(&file) {
             return Ok(());
         }
@@ -449,7 +474,12 @@ impl Scheduler {
     /// This will also send the file to the client, if needed.
     fn file_success(&mut self, client_uuid: ClientUuid, file: FileUuid) -> Result<(), Error> {
         self.send_file(client_uuid, file, true)?;
-        let client = self.clients.get_mut(&client_uuid).expect("Client is gone");
+        let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
+            client
+        } else {
+            // client is gone, dont worry to much about it
+            return Ok(());
+        };
         if !client.input_of.contains_key(&file) {
             return Ok(());
         }
@@ -475,7 +505,12 @@ impl Scheduler {
         file: FileUuid,
         status: bool,
     ) -> Result<(), Error> {
-        let client = self.clients.get_mut(&client_uuid).expect("Client is gone");
+        let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
+            client
+        } else {
+            // client is gone, dont worry to much about it
+            return Ok(());
+        };
         if !client.callbacks.files.contains(&file) {
             return Ok(());
         }
@@ -503,7 +538,12 @@ impl Scheduler {
         result: ExecutionResult,
         outputs: HashMap<FileUuid, FileStoreHandle>,
     ) -> Result<(), Error> {
-        let client = self.clients.get_mut(&client_uuid).expect("Client is gone");
+        let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
+            client
+        } else {
+            // client is gone, dont worry to much about it
+            return Ok(());
+        };
         if client.callbacks.executions.contains(&execution.uuid) {
             self.executor.send((
                 client_uuid,
@@ -542,7 +582,12 @@ impl Scheduler {
         outputs: HashMap<FileUuid, FileStoreHandle>,
         result: ExecutionResult,
     ) {
-        let client = self.clients.get_mut(&client_uuid).expect("Client is gone");
+        let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
+            client
+        } else {
+            // client is gone, dont worry to much about it
+            return;
+        };
         let mut file_keys: HashMap<FileUuid, FileStoreKey> = execution
             .dependencies()
             .iter()
@@ -561,7 +606,12 @@ impl Scheduler {
         let mut cached = Vec::new();
 
         for (client_uuid, exec) in self.ready_execs.iter() {
-            let client = self.clients.get_mut(&client_uuid).expect("Client is gone");
+            let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
+                client
+            } else {
+                // client is gone, dont worry to much about it
+                continue;
+            };
             let dag = &client.dag;
             let cache_mode = &dag.config.cache_mode;
             // disable the cache for the execution
@@ -619,7 +669,12 @@ impl Scheduler {
             };
             trace!("Assigning {} to worker {}", exec, worker_uuid);
             worker.current_job = Some((client_uuid, exec, Instant::now()));
-            let client = self.clients.get_mut(&client_uuid).expect("Client is gone");
+            let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
+                client
+            } else {
+                // client is gone, dont worry to much about it
+                continue;
+            };
             client.ready_execs.remove(&exec);
             client.running_execs.insert(exec);
             let execution = client.dag.executions[&exec].clone();
