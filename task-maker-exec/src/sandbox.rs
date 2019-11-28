@@ -402,7 +402,7 @@ impl Drop for SandboxData {
 
 #[cfg(test)]
 mod tests {
-    use crate::Sandbox;
+    use crate::sandbox::Sandbox;
     use itertools::Itertools;
     use std::collections::HashMap;
     use std::path::Path;
