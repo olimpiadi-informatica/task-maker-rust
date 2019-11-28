@@ -291,7 +291,9 @@ impl Executor {
                     ExecutorServerMessage::Done(files)
                 }
             };
-            serialize_into(&message, &client)?;
+            if let Err(e) = serialize_into(&message, &client) {
+                warn!("Failed to send message to the client: {:?}", e);
+            }
         }
         debug!("Scheduler binder exiting");
         Ok(())
