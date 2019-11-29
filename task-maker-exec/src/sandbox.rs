@@ -1,15 +1,20 @@
-use failure::Error;
-use itertools::Itertools;
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::{Arc, Mutex};
+use std::sync::{atomic::AtomicBool, Arc, Mutex};
+
+use failure::Error;
+use itertools::Itertools;
+use serde::Deserialize;
+use tempdir::TempDir;
+
+use std::sync::atomic::Ordering;
 use task_maker_dag::*;
 use task_maker_store::*;
-use tempdir::TempDir;
+
+const TMBOX_BIN_DATA: &'static [u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bin/tmbox"));
 
 /// The list of all the system-wide readable directories inside the sandbox.
 const READABLE_DIRS: &[&str] = &[
@@ -116,12 +121,24 @@ impl Sandbox {
     pub fn run(&self) -> Result<SandboxResult, Error> {
         let boxdir = self.data.lock().unwrap().path().to_owned();
         trace!("Running sandbox at {:?}", boxdir);
-        let tmbox_path = Path::new(env!("OUT_DIR")).join("bin").join("tmbox");
-        let tmbox_path = if tmbox_path.exists() {
-            tmbox_path
-        } else {
-            "tmbox".into()
-        };
+        lazy_static! {
+            static ref TMBOX_PATH: PathBuf = std::env::temp_dir().join("tmbox").join("tmbox");
+            static ref TMBOX_READY: AtomicBool = AtomicBool::new(false);
+            static ref TMBOX_WRITING: Mutex<()> = Mutex::new(());
+        }
+        // TMBOX_READY is set to true only after finishing writing the binary to disk. If a thread
+        // doesn't see this set to true it tries to write the file to disk, it locks a mutex and
+        // only the first one that locks actually writes.
+        let tmbox_path: &Path = &TMBOX_PATH;
+        if !TMBOX_READY.load(Ordering::SeqCst) {
+            let _guard = TMBOX_WRITING.lock().unwrap();
+            if !TMBOX_READY.load(Ordering::SeqCst) {
+                std::fs::create_dir_all(tmbox_path.parent().unwrap())?;
+                std::fs::write(tmbox_path, TMBOX_BIN_DATA)?;
+                Sandbox::set_permissions(tmbox_path, 0o755)?;
+                TMBOX_READY.store(true, Ordering::SeqCst);
+            }
+        }
         let mut sandbox = Command::new(tmbox_path);
         let command = match self.build_command(&boxdir) {
             Ok(cmd) => cmd,
@@ -402,11 +419,14 @@ impl Drop for SandboxData {
 
 #[cfg(test)]
 mod tests {
-    use crate::sandbox::Sandbox;
-    use itertools::Itertools;
     use std::collections::HashMap;
     use std::path::Path;
+
+    use itertools::Itertools;
+
     use task_maker_dag::{Execution, ExecutionCommand};
+
+    use crate::sandbox::Sandbox;
 
     fn assert_contains(source: &[String], check: &[&str]) {
         for i in 0..source.len() {

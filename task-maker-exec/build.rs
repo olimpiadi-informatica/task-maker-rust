@@ -16,6 +16,9 @@ fn main() {
         .arg(format!("TARGET={}", out_dir))
         .arg(format!("CXX={}", cxx))
         .arg(format!("SHELL=/bin/bash"))
+        .arg(format!(
+            "CXXFLAGS=-O3 -Wall -std=c++17 -flto -I. -fno-exceptions -static -s"
+        ))
         .arg("-j")
         .arg(num_jobs.to_string())
         .current_dir(Path::new("tmbox"))
