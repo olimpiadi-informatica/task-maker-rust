@@ -58,6 +58,26 @@
 //! ```
 //! This will remove the files that can be regenerated from the task directory.
 //! Note that the internal cache is not pruned by this command.
+//!
+//! ## Remote evaluation
+//! On a server (a machine accessible from clients and workers) run
+//! ```bash
+//! task-maker --server
+//! ```
+//! This will start `task-maker` in server mode, listening for connections from clients and workers
+//! respectively on port 27182 and 27183.
+//!
+//! Then on the worker machines start a worker each with
+//! ```bash
+//! task-maker --worker ip_of_the_server:27183
+//! ```
+//! This will start a worker on that machine (using all the cores unless specified), connecting to
+//! the server and executing the jobs the server assigns.
+//!
+//! For running a remote computation on your machine just add the `--evaluate-on` option, like:
+//! ```bash
+//! task-maker --evaluate-on ip_of_the_server:27182
+//! ```
 
 #![allow(clippy::borrowed_box)]
 #![allow(clippy::new_without_default)]
