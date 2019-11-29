@@ -6,16 +6,13 @@ use std::thread;
 use task_maker_exec::{connect_channel, serialize_into, Worker};
 use task_maker_store::FileStore;
 
-use crate::opt::Opt;
+use crate::opt::{Opt, WorkerOptions};
 use task_maker_exec::executors::RemoteEntityMessage;
 
 /// Entry point for the worker.
-pub fn main_worker(opt: Opt) {
-    let server_addr = SocketAddr::from_str(
-        &opt.worker_address_server
-            .expect("Please provide the address to which connect to (--worker-address-server)"),
-    )
-    .expect("Invalid server address provided");
+pub fn main_worker(opt: Opt, worker_opt: WorkerOptions) {
+    let server_addr =
+        SocketAddr::from_str(&worker_opt.server_addr).expect("Invalid server address provided");
 
     let (store_path, _tempdir) = match opt.store_dir {
         Some(dir) => (dir, None),

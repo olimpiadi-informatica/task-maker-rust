@@ -5,7 +5,7 @@ use task_maker_format::EvaluationConfig;
 #[derive(StructOpt, Debug)]
 #[structopt(
     name = "task-maker",
-    raw(setting = "structopt::clap::AppSettings::ColoredHelp")
+    setting = structopt::clap::AppSettings::ColoredHelp,
 )]
 pub struct Opt {
     /// Directory of the task to evaluate
@@ -90,37 +90,42 @@ pub struct Opt {
     #[structopt(long = "evaluate-on")]
     pub evaluate_on: Option<String>,
 
-    /// Run a server instead of the normal task-maker.
-    #[structopt(long)]
-    pub server: bool,
-
-    /// Run a worker instead of the normal task-maker.
-    #[structopt(long)]
-    pub worker: bool,
-
-    /// Address to bind the server on.
-    ///
-    /// This option only has effect with `--server`.
-    #[structopt(long = "server-address-clients", default_value = "0.0.0.0:27182")]
-    pub server_address_clients: String,
-
-    /// Address to bind the server on.
-    ///
-    /// This option only has effect with `--server`.
-    #[structopt(long = "server-address-workers", default_value = "0.0.0.0:27183")]
-    pub server_address_workers: String,
-
-    /// Address to which the worker should connect to.
-    ///
-    /// This option only has effect with `--worker`.
-    #[structopt(long = "worker-address-server")]
-    pub worker_address_server: Option<String>,
-
     /// The name to use for the workers or for the client in remote executions.
     ///
     /// This option only has no effect with `--server`.
     #[structopt(long)]
     pub name: Option<String>,
+
+    /// Options for spawning a client or a server.
+    #[structopt(subcommand)]
+    pub remote: Option<Remote>,
+}
+
+/// Options for spawning a client or a server.
+#[derive(StructOpt, Debug)]
+pub enum Remote {
+    /// Spawn a server instead of the normal task-maker.
+    #[structopt(name = "--server")]
+    Server(ServerOptions),
+    /// Spawn a worker instead of the normal task-maker.
+    #[structopt(name = "--worker")]
+    Worker(WorkerOptions),
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct ServerOptions {
+    /// Address to bind the server on for listening for the clients.
+    #[structopt(default_value = "0.0.0.0:27182")]
+    pub client_addr: String,
+    /// Address to bind the server on for listening for the workers.
+    #[structopt(default_value = "0.0.0.0:27183")]
+    pub worker_addr: String,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct WorkerOptions {
+    /// Address to use to connect to a remote server.
+    pub server_addr: String,
 }
 
 impl Opt {

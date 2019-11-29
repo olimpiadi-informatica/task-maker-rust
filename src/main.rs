@@ -99,11 +99,17 @@ fn main() {
         .init();
     better_panic::install();
 
-    if opt.server {
-        server::main_server(opt);
-    } else if opt.worker {
-        worker::main_worker(opt);
-    } else {
-        local::main_local(opt);
+    match &opt.remote {
+        Some(opt::Remote::Server(server)) => {
+            let server_opt = server.clone();
+            server::main_server(opt, server_opt);
+        }
+        Some(opt::Remote::Worker(worker)) => {
+            let worker_opt = worker.clone();
+            worker::main_worker(opt, worker_opt);
+        }
+        None => {
+            local::main_local(opt);
+        }
     }
 }
