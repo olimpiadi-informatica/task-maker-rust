@@ -30,6 +30,7 @@ num_cpus = "1.10"
 better-panic = "0.1"
 whoami = "0.6"
 directories = "2.0"
+failure = "0.1"
 
 [[bin]]
 name = "task-maker"

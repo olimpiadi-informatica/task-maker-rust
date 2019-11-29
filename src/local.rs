@@ -1,4 +1,5 @@
 use crate::opt::Opt;
+use failure::Error;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -20,8 +21,13 @@ pub fn main_local(opt: Opt) {
 
     // setup the task
     let eval_config = opt.to_config();
-    let task: Box<dyn TaskFormat> =
-        find_task(&opt.task_dir, opt.max_depth, &eval_config).expect("Invalid task directory!");
+    let task: Box<dyn TaskFormat> = match find_task(&opt.task_dir, opt.max_depth, &eval_config) {
+        Ok(task) => task,
+        Err(e) => {
+            eprintln!("Invalid task directory: {}", e.to_string());
+            std::process::exit(1);
+        }
+    };
 
     // clean the task
     if opt.clean {
@@ -64,8 +70,13 @@ pub fn main_local(opt: Opt) {
     let executor = LocalExecutor::new(file_store.clone(), num_cores, sandbox_path);
 
     // build the DAG for the task
-    task.execute(&mut eval, &eval_config)
-        .expect("Failed to build the DAG");
+    if let Err(e) = task.execute(&mut eval, &eval_config) {
+        drop(eval.sender); // make the UI exit
+        ui_thread.join().expect("UI panicked");
+        eprintln!("Cannot build task DAG!");
+        eprintln!("{:?}", e);
+        std::process::exit(1);
+    }
 
     trace!("The DAG is: {:#?}", eval.dag);
 
@@ -113,7 +124,7 @@ fn find_task<P: Into<PathBuf>>(
     base: P,
     max_depth: u32,
     eval_config: &EvaluationConfig,
-) -> Option<Box<dyn TaskFormat>> {
+) -> Result<Box<dyn TaskFormat>, Error> {
     let mut base = base.into();
     if !base.is_absolute() {
         base = getcwd().join(base);
@@ -130,11 +141,11 @@ fn find_task<P: Into<PathBuf>>(
     match ioi::Task::new(&base, eval_config) {
         Ok(task) => {
             trace!("The task is IOI: {:#?}", task);
-            Some(Box::new(task))
+            Ok(Box::new(task))
         }
         Err(e) => {
-            error!("Invalid task: {:?}", e);
-            None
+            warn!("Invalid task: {:?}", e);
+            Err(e)
         }
     }
 }
