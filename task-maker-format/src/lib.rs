@@ -34,7 +34,7 @@ use task_maker_lang::{GraderMap, LanguageManager};
 /// execution abilities.
 pub trait TaskFormat {
     /// Get an appropriate `UI` for this task.
-    fn ui(&self, ui_type: ui::UIType) -> Result<Box<dyn UI>, Error>;
+    fn ui(&self, ui_type: &ui::UIType) -> Result<Box<dyn UI>, Error>;
 
     /// Execute the evaluation of this task by adding the executions to the provided DAG.
     fn execute(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error>;

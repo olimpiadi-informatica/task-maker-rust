@@ -15,7 +15,7 @@ pub struct Opt {
     /// Which UI to use, available UIS are: print, raw, curses, json.
     ///
     /// Note that the JSON api is not stable yet.
-    #[structopt(long = "ui", default_value = "print")]
+    #[structopt(long = "ui", default_value = "curses")]
     pub ui: task_maker_format::ui::UIType,
 
     /// Keep all the sandbox directories
@@ -74,11 +74,11 @@ pub struct Opt {
     #[structopt(long = "num-cores")]
     pub num_cores: Option<usize>,
 
-    /// Include the solutions in the booklet.
+    /// Include the solutions in the booklet
     #[structopt(long = "booklet-solutions")]
     pub booklet_solutions: bool,
 
-    /// Do not build the statement files and the booklets.
+    /// Do not build the statement files and the booklets
     #[structopt(long = "no-statement")]
     pub no_statement: bool,
 
@@ -86,11 +86,11 @@ pub struct Opt {
     #[structopt(short, long, parse(from_occurrences))]
     pub verbose: u8,
 
-    /// Run the evaluation on a remote server instead of locally.
+    /// Run the evaluation on a remote server instead of locally
     #[structopt(long = "evaluate-on")]
     pub evaluate_on: Option<String>,
 
-    /// The name to use for the workers or for the client in remote executions.
+    /// The name to use for the workers or for the client in remote executions
     ///
     /// This option only has no effect with `--server`.
     #[structopt(long)]
@@ -104,27 +104,27 @@ pub struct Opt {
 /// Options for spawning a client or a server.
 #[derive(StructOpt, Debug)]
 pub enum Remote {
-    /// Spawn a server instead of the normal task-maker.
+    /// Spawn a server instead of the normal task-maker
     #[structopt(name = "--server")]
     Server(ServerOptions),
-    /// Spawn a worker instead of the normal task-maker.
+    /// Spawn a worker instead of the normal task-maker
     #[structopt(name = "--worker")]
     Worker(WorkerOptions),
 }
 
 #[derive(StructOpt, Debug, Clone)]
 pub struct ServerOptions {
-    /// Address to bind the server on for listening for the clients.
+    /// Address to bind the server on for listening for the clients
     #[structopt(default_value = "0.0.0.0:27182")]
     pub client_addr: String,
-    /// Address to bind the server on for listening for the workers.
+    /// Address to bind the server on for listening for the workers
     #[structopt(default_value = "0.0.0.0:27183")]
     pub worker_addr: String,
 }
 
 #[derive(StructOpt, Debug, Clone)]
 pub struct WorkerOptions {
-    /// Address to use to connect to a remote server.
+    /// Address to use to connect to a remote server
     pub server_addr: String,
 }
 
@@ -136,6 +136,22 @@ impl Opt {
             booklet_solutions: self.booklet_solutions,
             no_statement: self.no_statement,
             solution_paths: self.solution.clone(),
+        }
+    }
+
+    /// Get the store directory of this configuration. If nothing is specified a cache directory is
+    /// used if available, otherwise a temporary directory.
+    pub fn store_dir(&self) -> PathBuf {
+        match &self.store_dir {
+            Some(dir) => dir.clone(),
+            None => {
+                let project = directories::ProjectDirs::from("", "", "task-maker");
+                if let Some(project) = project {
+                    project.cache_dir().to_owned()
+                } else {
+                    std::env::temp_dir().join("task-maker")
+                }
+            }
         }
     }
 }

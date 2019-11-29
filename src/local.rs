@@ -35,7 +35,7 @@ pub fn main_local(opt: Opt) {
     config
         .keep_sandboxes(opt.keep_sandboxes)
         .dry_run(opt.dry_run)
-        .cache_mode(CacheMode::from(opt.no_cache))
+        .cache_mode(CacheMode::from(&opt.no_cache))
         .copy_exe(opt.copy_exe);
     if let Some(extra_time) = opt.extra_time {
         assert!(extra_time >= 0.0, "the extra time cannot be negative");
@@ -43,7 +43,7 @@ pub fn main_local(opt: Opt) {
     }
 
     // setup the ui thread
-    let mut ui = task.ui(opt.ui).expect("Invalid UI");
+    let mut ui = task.ui(&opt.ui).expect("Invalid UI");
     let ui_thread = std::thread::Builder::new()
         .name("UI".to_owned())
         .spawn(move || {
@@ -55,14 +55,7 @@ pub fn main_local(opt: Opt) {
         .expect("Failed to spawn UI thread");
 
     // setup the executor
-    let (store_path, _tempdir) = match opt.store_dir {
-        Some(dir) => (dir, None),
-        None => {
-            let cwd =
-                tempdir::TempDir::new("task-maker").expect("Failed to create temporary directory");
-            (cwd.path().to_owned(), Some(cwd))
-        }
-    };
+    let store_path = opt.store_dir();
     let file_store =
         Arc::new(FileStore::new(store_path.join("store")).expect("Cannot create the file store"));
     let cache = Cache::new(store_path.join("cache")).expect("Cannot create the cache");

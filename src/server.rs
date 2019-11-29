@@ -7,14 +7,7 @@ use task_maker_store::FileStore;
 /// Entry point for the server.
 pub fn main_server(opt: Opt, server_opt: ServerOptions) {
     // setup the executor
-    let (store_path, _tempdir) = match opt.store_dir {
-        Some(dir) => (dir, None),
-        None => {
-            let cwd =
-                tempdir::TempDir::new("task-maker").expect("Failed to create temporary directory");
-            (cwd.path().to_owned(), Some(cwd))
-        }
-    };
+    let store_path = opt.store_dir();
     let file_store =
         Arc::new(FileStore::new(store_path.join("store")).expect("Cannot create the file store"));
     let cache = Cache::new(store_path.join("cache")).expect("Cannot create the cache");

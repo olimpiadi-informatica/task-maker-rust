@@ -14,14 +14,7 @@ pub fn main_worker(opt: Opt, worker_opt: WorkerOptions) {
     let server_addr =
         SocketAddr::from_str(&worker_opt.server_addr).expect("Invalid server address provided");
 
-    let (store_path, _tempdir) = match opt.store_dir {
-        Some(dir) => (dir, None),
-        None => {
-            let cwd =
-                tempdir::TempDir::new("task-maker").expect("Failed to create temporary directory");
-            (cwd.path().to_owned(), Some(cwd))
-        }
-    };
+    let store_path = opt.store_dir();
     let file_store =
         Arc::new(FileStore::new(store_path.join("store")).expect("Cannot create the file store"));
     let sandbox_path = store_path.join("sandboxes");

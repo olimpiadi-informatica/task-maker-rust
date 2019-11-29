@@ -140,7 +140,7 @@ impl Task {
 }
 
 impl TaskFormat for Task {
-    fn ui(&self, ui_type: UIType) -> Result<Box<dyn UI>, Error> {
+    fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),
             UIType::Print => Ok(Box::new(PrintUI::new(self))),

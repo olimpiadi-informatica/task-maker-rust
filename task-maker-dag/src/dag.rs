@@ -284,8 +284,8 @@ impl Default for ExecutionDAG {
     }
 }
 
-impl From<Option<Option<String>>> for CacheMode {
-    fn from(conf: Option<Option<String>>) -> Self {
+impl From<&Option<Option<String>>> for CacheMode {
+    fn from(conf: &Option<Option<String>>) -> Self {
         match conf {
             None => CacheMode::Everything,
             Some(None) => CacheMode::Nothing,
