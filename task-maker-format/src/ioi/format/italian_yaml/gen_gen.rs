@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use failure::{format_err, Error};
+use failure::{bail, format_err, Error};
 use pest::Parser;
 
 use crate::find_source_file;
@@ -113,11 +113,15 @@ where
                         }
                         let cmd: Vec<String> =
                             line.into_inner().map(|x| x.as_str().to_owned()).collect();
+                        let output_generator = get_output_gen(testcase_count);
+                        if let OutputGenerator::StaticFile(_) = output_generator {
+                            bail!("Generator detected but no solution found. Cannot generate output files.");
+                        }
                         entries.push(TaskInputEntry::Testcase(TestcaseInfo {
                             id: testcase_count,
                             input_generator: InputGenerator::Custom(generator.clone(), cmd),
                             input_validator: get_validator(subtask_id - 1),
-                            output_generator: get_output_gen(testcase_count),
+                            output_generator,
                         }));
                         testcase_count += 1;
                     }
