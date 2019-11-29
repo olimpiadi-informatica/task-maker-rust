@@ -14,7 +14,7 @@ use std::sync::atomic::Ordering;
 use task_maker_dag::*;
 use task_maker_store::*;
 
-const TMBOX_BIN_DATA: &'static [u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bin/tmbox"));
+const TMBOX_BIN_DATA: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/bin/tmbox"));
 
 /// The list of all the system-wide readable directories inside the sandbox.
 const READABLE_DIRS: &[&str] = &[
