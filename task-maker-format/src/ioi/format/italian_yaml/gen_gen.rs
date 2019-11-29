@@ -142,9 +142,11 @@ mod tests {
     use crate::ioi::format::italian_yaml::gen_gen::parse_gen_gen;
     use crate::ioi::format::italian_yaml::TaskInputEntry;
     use crate::ioi::{InputGenerator, InputValidator, OutputGenerator, SubtaskId, TestcaseId};
+    use crate::SourceFile;
     use pretty_assertions::assert_eq;
     use std::fs;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
+    use std::sync::Arc;
     use tempdir::TempDir;
     use TaskInputEntry::*;
 
@@ -152,9 +154,15 @@ mod tests {
         let dir = TempDir::new("tm-test").unwrap();
         fs::write(dir.path().join("task.yaml"), "name: foo\ntitle: foo bar\n").unwrap();
         fs::create_dir(dir.path().join("gen")).unwrap();
+        fs::create_dir(dir.path().join("sol")).unwrap();
         fs::write(dir.path().join("gen").join("GEN"), gen_gen.as_ref()).unwrap();
         fs::write(
             dir.path().join("gen").join("generator.py"),
+            "#!/usr/bin/env python",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("sol").join("solution.py"),
             "#!/usr/bin/env python",
         )
         .unwrap();
@@ -166,7 +174,8 @@ mod tests {
     }
 
     fn get_output_generator(_testcase: TestcaseId) -> OutputGenerator {
-        OutputGenerator::StaticFile(PathBuf::from("foooo"))
+        let source = SourceFile::new("a.py", "", None, None::<&str>).unwrap();
+        OutputGenerator::Custom(Arc::new(source), vec![])
     }
 
     fn get_entries(dir: &Path) -> Vec<TaskInputEntry> {
