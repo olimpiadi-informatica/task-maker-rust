@@ -10,7 +10,9 @@ use crate::opt::{Opt, WorkerOptions};
 use task_maker_exec::executors::RemoteEntityMessage;
 
 /// Entry point for the worker.
-pub fn main_worker(opt: Opt, worker_opt: WorkerOptions) {
+pub fn main_worker(mut opt: Opt, worker_opt: WorkerOptions) {
+    opt.enable_log();
+
     let server_addr =
         SocketAddr::from_str(&worker_opt.server_addr).expect("Invalid server address provided");
 

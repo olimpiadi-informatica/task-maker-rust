@@ -14,7 +14,9 @@ use task_maker_format::{ioi, EvaluationConfig, EvaluationData, TaskFormat};
 use task_maker_store::FileStore;
 
 /// Entry point of the local execution.
-pub fn main_local(opt: Opt) {
+pub fn main_local(mut opt: Opt) {
+    opt.enable_log();
+
     if opt.exclusive {
         unimplemented!("This option is not implemented yet");
     }

@@ -99,26 +99,6 @@ use structopt::StructOpt;
 fn main() {
     let opt = opt::Opt::from_args();
 
-    // configure the logger based on the verbosity level
-    if opt.verbose > 0 {
-        if let task_maker_format::ui::UIType::Curses = opt.ui {
-            eprintln!("Do not combine -v with curses ui, bad things will happen!");
-            std::process::exit(1);
-        }
-        std::env::set_var("RUST_BACKTRACE", "1");
-        match opt.verbose {
-            0 => unreachable!(),
-            1 => std::env::set_var("RUST_LOG", "info"),
-            2 => std::env::set_var("RUST_LOG", "debug"),
-            _ => std::env::set_var("RUST_LOG", "trace"),
-        }
-    }
-
-    env_logger::Builder::from_default_env()
-        .default_format_timestamp_nanos(true)
-        .init();
-    better_panic::install();
-
     match &opt.remote {
         Some(opt::Remote::Server(server)) => {
             let server_opt = server.clone();

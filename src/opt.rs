@@ -154,4 +154,35 @@ impl Opt {
             }
         }
     }
+
+    pub fn enable_log(&mut self) {
+        // configure the logger based on the verbosity level
+        let mut show_warning = false;
+        if self.verbose > 0 {
+            if let task_maker_format::ui::UIType::Curses = self.ui {
+                if self.remote.is_none() {
+                    // warning deferred to after the logger has been initialized
+                    show_warning = true;
+                }
+                self.ui = task_maker_format::ui::UIType::Print;
+            }
+            std::env::set_var("RUST_BACKTRACE", "1");
+            match self.verbose {
+                0 => unreachable!(),
+                1 => std::env::set_var("RUST_LOG", "info"),
+                2 => std::env::set_var("RUST_LOG", "debug"),
+                _ => std::env::set_var("RUST_LOG", "trace"),
+            }
+        }
+
+        env_logger::Builder::from_default_env()
+            .default_format_timestamp_nanos(true)
+            .init();
+        better_panic::install();
+        if show_warning {
+            warn!(
+                "Do not combine -v with curses ui, bad things will happen! Fallbacking to print ui"
+            );
+        }
+    }
 }
