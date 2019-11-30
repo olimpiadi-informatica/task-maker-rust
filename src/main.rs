@@ -89,6 +89,7 @@
 #[macro_use]
 extern crate log;
 
+mod error;
 mod local;
 mod opt;
 mod server;

@@ -1,3 +1,4 @@
+use crate::error::NiceError;
 use crate::opt::Opt;
 use failure::Error;
 use std::net::SocketAddr;
@@ -23,17 +24,13 @@ pub fn main_local(mut opt: Opt) {
 
     // setup the task
     let eval_config = opt.to_config();
-    let task: Box<dyn TaskFormat> = match find_task(&opt.task_dir, opt.max_depth, &eval_config) {
-        Ok(task) => task,
-        Err(e) => {
-            eprintln!("Invalid task directory: {}", e.to_string());
-            std::process::exit(1);
-        }
-    };
+    let task: Box<dyn TaskFormat> = find_task(&opt.task_dir, opt.max_depth, &eval_config)
+        .nice_expect_with(|e| format!("Invalid task directory: {}", e.to_string()));
 
     // clean the task
     if opt.clean {
-        task.clean().expect("Cannot clean task directory!");
+        task.clean()
+            .nice_expect_with(|e| format!("Cannot clear the task directory: {}", e.to_string()));
         return;
     }
 
@@ -46,12 +43,17 @@ pub fn main_local(mut opt: Opt) {
         .cache_mode(CacheMode::from(&opt.no_cache))
         .copy_exe(opt.copy_exe);
     if let Some(extra_time) = opt.extra_time {
-        assert!(extra_time >= 0.0, "the extra time cannot be negative");
+        if extra_time < 0.0 {
+            eprintln!("The extra time ({}) cannot be negative!", extra_time);
+            std::process::exit(1);
+        }
         config.extra_time(extra_time);
     }
 
     // setup the ui thread
-    let mut ui = task.ui(&opt.ui).expect("Invalid UI");
+    let mut ui = task
+        .ui(&opt.ui)
+        .nice_expect("This UI is not supported on this task type.");
     let ui_thread = std::thread::Builder::new()
         .name("UI".to_owned())
         .spawn(move || {
@@ -60,13 +62,16 @@ pub fn main_local(mut opt: Opt) {
             }
             ui.finish();
         })
-        .expect("Failed to spawn UI thread");
+        .nice_expect_with(|e| format!("Failed to spawn UI thread: {}", e.to_string()));
 
     // setup the executor
     let store_path = opt.store_dir();
-    let file_store =
-        Arc::new(FileStore::new(store_path.join("store")).expect("Cannot create the file store"));
-    let cache = Cache::new(store_path.join("cache")).expect("Cannot create the cache");
+    let file_store = Arc::new(
+        FileStore::new(store_path.join("store"))
+            .nice_expect_with(|e| format!("Cannot create the file store: {}", e.to_string())),
+    );
+    let cache = Cache::new(store_path.join("cache"))
+        .nice_expect_with(|e| format!("Cannot create the cache: {}", e.to_string()));
     let num_cores = opt.num_cores.unwrap_or_else(num_cpus::get);
     let sandbox_path = store_path.join("sandboxes");
     let executor = LocalExecutor::new(file_store.clone(), num_cores, sandbox_path);
@@ -74,7 +79,9 @@ pub fn main_local(mut opt: Opt) {
     // build the DAG for the task
     if let Err(e) = task.execute(&mut eval, &eval_config) {
         drop(eval.sender); // make the UI exit
-        ui_thread.join().expect("UI panicked");
+        ui_thread
+            .join()
+            .nice_expect_with(|e| format!("UI panicked: {:?}", e));
         eprintln!("Cannot build task DAG!");
         eprintln!("{:?}", e);
         std::process::exit(1);
@@ -84,13 +91,14 @@ pub fn main_local(mut opt: Opt) {
 
     let (tx, rx, server) = if let Some(evaluate_on) = opt.evaluate_on {
         let server_addr =
-            SocketAddr::from_str(&evaluate_on).expect("Invalid server address provided");
-        let (tx, rx) = connect_channel(server_addr).expect("Failed to connect to the server");
+            SocketAddr::from_str(&evaluate_on).nice_expect("Invalid server address provided");
+        let (tx, rx) = connect_channel(server_addr)
+            .nice_expect_with(|e| format!("Failed to connect to the server: {}", e.to_string()));
         let name = opt
             .name
             .unwrap_or_else(|| format!("{}@{}", whoami::username(), whoami::hostname()));
         serialize_into(&RemoteEntityMessage::Welcome { name }, &tx)
-            .expect("Cannot send welcome to the server");
+            .nice_expect_with(|e| format!("Cannot send welcome to the server: {}", e.to_string()));
         (tx, rx, None)
     } else {
         // start the server and the client
@@ -101,7 +109,9 @@ pub fn main_local(mut opt: Opt) {
             .spawn(move || {
                 executor.evaluate(tx_remote, rx_remote, cache).unwrap();
             })
-            .expect("Failed to spawn the executor thread");
+            .nice_expect_with(|e| {
+                format!("Failed to spawn the executor thread: {}", e.to_string())
+            });
         (tx, rx, Some(server))
     };
 
@@ -109,16 +119,20 @@ pub fn main_local(mut opt: Opt) {
     ExecutorClient::evaluate(eval.dag, tx, &rx, file_store, move |status| {
         ui_sender.send(UIMessage::ServerStatus { status })
     })
-    .expect("Client failed");
+    .nice_expect_with(|e| format!("Client failed: {}", e.to_string()));
     task.sanity_check_post_hook(&mut eval.sender.lock().unwrap())
-        .expect("Sanity checks failed");
+        .nice_expect_with(|e| format!("Sanity checks failed: {}", e.to_string()));
 
     // wait for the server and the ui to exit
     if let Some(server) = server {
-        server.join().expect("Executor panicked");
+        server
+            .join()
+            .nice_expect_with(|e| format!("Executor panicked: {:?}", e));
     }
     drop(eval.sender); // make the UI exit
-    ui_thread.join().expect("UI panicked");
+    ui_thread
+        .join()
+        .nice_expect_with(|e| format!("UI panicked: {:?}", e));
 }
 
 /// Search for a valid task directory, starting from base and going _at most_ `max_depth` times up.
