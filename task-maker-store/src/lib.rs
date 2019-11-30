@@ -373,7 +373,7 @@ impl Drop for FileStore {
     fn drop(&mut self) {
         match self.index.lock() {
             Ok(mut index) => {
-                let mut locked = match self.locked_files.lock() {
+                let locked = match self.locked_files.lock() {
                     Ok(l) => l,
                     Err(_) => {
                         warn!("Cannot lock locked_files due to poison");
@@ -381,7 +381,7 @@ impl Drop for FileStore {
                     }
                 };
                 if index.need_flush(self.max_store_size) {
-                    if let Err(e) = index.flush(&self, &mut locked, self.min_store_size) {
+                    if let Err(e) = index.flush(&self, &locked, self.min_store_size) {
                         warn!("Cannot flush the index: {}", e.to_string());
                     }
                 }
@@ -456,6 +456,7 @@ impl FileStoreIndex {
     }
 
     /// Add a file in the index if not already present.
+    #[allow(clippy::map_entry)]
     fn add<P: AsRef<Path>>(&mut self, key: FileStoreKey, path: P) -> Result<(), Error> {
         if !self.known_files.contains_key(&key) {
             let metadata = std::fs::metadata(path.as_ref())?;
