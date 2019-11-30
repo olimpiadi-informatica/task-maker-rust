@@ -10,8 +10,14 @@ pub fn main_server(mut opt: Opt, server_opt: ServerOptions) {
 
     // setup the executor
     let store_path = opt.store_dir();
-    let file_store =
-        Arc::new(FileStore::new(store_path.join("store")).expect("Cannot create the file store"));
+    let file_store = Arc::new(
+        FileStore::new(
+            store_path.join("store"),
+            opt.max_cache * 1024 * 1024,
+            opt.min_cache * 1024 * 1024,
+        )
+        .expect("Cannot create the file store"),
+    );
     let cache = Cache::new(store_path.join("cache")).expect("Cannot create the cache");
 
     let remote_executor = RemoteExecutor::new(file_store);

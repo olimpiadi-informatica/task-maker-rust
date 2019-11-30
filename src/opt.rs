@@ -70,6 +70,14 @@ pub struct Opt {
     #[structopt(long = "store-dir")]
     pub store_dir: Option<PathBuf>,
 
+    /// Maximum size of the storage directory, in MiB
+    #[structopt(long = "max-cache", default_value = "3072")]
+    pub max_cache: u64,
+
+    /// When the storage is flushed, this is the new maximum size, in MiB.
+    #[structopt(long = "min-cache", default_value = "2048")]
+    pub min_cache: u64,
+
     /// The number of CPU cores to use
     #[structopt(long = "num-cores")]
     pub num_cores: Option<usize>,

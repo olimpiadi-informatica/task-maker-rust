@@ -185,12 +185,16 @@ pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>>(
     store_dir: P,
     num_cores: usize,
     sandbox_path: P2,
+    max_cache: u64,
+    min_cache: u64,
 ) {
     let (tx, rx_remote) = new_local_channel();
     let (tx_remote, rx) = new_local_channel();
     let store_dir = store_dir.into();
     let sandbox_path = sandbox_path.into();
-    let file_store = Arc::new(FileStore::new(&store_dir).expect("Cannot create the file store"));
+    let file_store = Arc::new(
+        FileStore::new(&store_dir, max_cache, min_cache).expect("Cannot create the file store"),
+    );
     let server_file_store = file_store.clone();
     let server = thread::Builder::new()
         .name("Local executor".into())
@@ -327,7 +331,7 @@ mod tests {
         dag.write_file_to(&stdout2, &cwd.path().join("stdout2"), false);
         dag.write_file_to(&output3, &cwd.path().join("output3"), false);
 
-        eval_dag_locally(dag, cwd.path(), 2, cwd.path());
+        eval_dag_locally(dag, cwd.path(), 2, cwd.path(), 1000, 1000);
 
         assert!(exec_done2.load(Ordering::Relaxed));
         assert!(exec_start2.load(Ordering::Relaxed));

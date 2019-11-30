@@ -17,7 +17,7 @@
 //!
 //! # let tmpdir = TempDir::new("tm-test").unwrap();
 //! # let path = tmpdir.path();
-//! let store = FileStore::new(path).unwrap();
+//! let store = FileStore::new(path, 1000, 1000).unwrap();
 //! let cache = Cache::new(path).unwrap();
 //! let num_cores = 4;
 //! let mut executor = LocalExecutor::new(Arc::new(store), num_cores, path);

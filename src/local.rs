@@ -67,8 +67,12 @@ pub fn main_local(mut opt: Opt) {
     // setup the executor
     let store_path = opt.store_dir();
     let file_store = Arc::new(
-        FileStore::new(store_path.join("store"))
-            .nice_expect_with(|e| format!("Cannot create the file store: {}", e.to_string())),
+        FileStore::new(
+            store_path.join("store"),
+            opt.max_cache * 1024 * 1024,
+            opt.min_cache * 1024 * 1024,
+        )
+        .nice_expect_with(|e| format!("Cannot create the file store: {}", e.to_string())),
     );
     let cache = Cache::new(store_path.join("cache"))
         .nice_expect_with(|e| format!("Cannot create the cache: {}", e.to_string()));

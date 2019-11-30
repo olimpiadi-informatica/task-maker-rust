@@ -19,7 +19,12 @@ pub fn main_worker(mut opt: Opt, worker_opt: WorkerOptions) {
 
     let store_path = opt.store_dir();
     let file_store = Arc::new(
-        FileStore::new(store_path.join("store")).nice_expect("Cannot create the file store"),
+        FileStore::new(
+            store_path.join("store"),
+            opt.max_cache * 1024 * 1024,
+            opt.min_cache * 1024 * 1024,
+        )
+        .nice_expect("Cannot create the file store"),
     );
     let sandbox_path = store_path.join("sandboxes");
     let num_workers = opt.num_cores.unwrap_or_else(num_cpus::get);

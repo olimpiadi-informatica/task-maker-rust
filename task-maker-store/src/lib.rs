@@ -22,7 +22,7 @@
 //! # let path = tmp.path().join("file.txt");
 //! # fs::write(&path, "hello world")?;
 //! // make a new store based on a directory, this will lock if the store is already in use
-//! let store = FileStore::new(store_dir)?;
+//! let store = FileStore::new(store_dir, 1000, 1000)?;
 //! // compute the key of a file and make an iterator over its content
 //! let key = FileStoreKey::from_file(&path)?;
 //! let iter = ReadFileIterator::new(&path)?;
@@ -39,25 +39,30 @@
 #[macro_use]
 extern crate log;
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::fs::File;
+use std::collections::{BinaryHeap, HashMap};
+use std::fmt::Formatter;
+use std::fs::{remove_dir, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 
 use blake2::{Blake2b, Digest};
 use failure::{bail, Error};
 use fs2::FileExt;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+use failure::_core::cmp::Ordering;
+pub use read_file_iterator::ReadFileIterator;
 
 mod read_file_iterator;
-pub use read_file_iterator::ReadFileIterator;
-use std::collections::HashMap;
-use std::fmt::Formatter;
-use std::sync::{Arc, Mutex};
 
 /// Whether to check the file integrity on the store before getting it.
 const INTEGRITY_CHECKS_ENABLED: bool = false;
 /// The name of the lock of the file store.
 const STORE_LOCK_FILE: &str = "exclusive.lock";
+/// The name of the index of the file store.
+const STORE_INDEX_FILE: &str = "index.json";
 
 /// The type of an hash of a file
 type HashData = Vec<u8>;
@@ -67,6 +72,35 @@ type HashData = Vec<u8>;
 struct LockedFiles {
     /// Map from a `FileStoreKey` to the number of handles alive.
     ref_counts: HashMap<FileStoreKey, usize>,
+}
+
+/// An entry of a file inside the file store.
+#[derive(Clone, Debug, Serialize, Deserialize, Ord, Eq, PartialEq)]
+struct FileStoreIndexItem {
+    /// Size of the file.
+    size: u64,
+    /// Time of the last read/write of this file.
+    last_access: SystemTime,
+}
+
+impl PartialOrd for FileStoreIndexItem {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self.last_access, other.last_access) {
+            (a, b) if a < b => Some(Ordering::Less),
+            (a, b) if a == b => Some(Ordering::Equal),
+            (a, b) if a > b => Some(Ordering::Greater),
+            _ => unreachable!(),
+        }
+    }
+}
+
+/// Index with all the files known, allowing efficient LRU file flushing.
+#[derive(Debug, Serialize, Deserialize)]
+struct FileStoreIndex {
+    /// The sum of the size of all the files in the index.
+    total_size: u64,
+    /// The list of all the files known in the index.
+    known_files: HashMap<FileStoreKey, FileStoreIndexItem>,
 }
 
 /// A file store will manage all the files in the store directory.
@@ -84,6 +118,12 @@ pub struct FileStore {
     file: File,
     /// The files locked because there are some handles still alive.
     locked_files: Arc<Mutex<LockedFiles>>,
+    /// The index with the files known to the store. This is used when flushing the old files.
+    index: Arc<Mutex<FileStoreIndex>>,
+    /// Maximum size of the file store.
+    max_store_size: u64,
+    /// Target size of the file store after the flush.
+    min_store_size: u64,
 }
 
 /// Handle of a file in the `FileStore`, this must be computable given the content of the file, i.e.
@@ -123,12 +163,16 @@ impl FileStore {
     /// # let store_dir = dir.path();
     /// // make a new store based on a directory, this will lock if the store is already in use
     /// // somewhere
-    /// let store = FileStore::new(store_dir)?;
+    /// let store = FileStore::new(store_dir, 1000, 1000)?;
     /// // let store2 = FileStore::new(store_dir) // this will lock!!
     /// # Ok(())
     /// # }
     /// ```
-    pub fn new<P: Into<PathBuf>>(base_path: P) -> Result<FileStore, Error> {
+    pub fn new<P: Into<PathBuf>>(
+        base_path: P,
+        max_store_size: u64,
+        min_store_size: u64,
+    ) -> Result<FileStore, Error> {
         let base_path = base_path.into();
         std::fs::create_dir_all(&base_path)?;
         let lock = base_path.join(STORE_LOCK_FILE);
@@ -140,10 +184,14 @@ impl FileStore {
             warn!("Store locked... waiting");
             file.lock_exclusive()?;
         }
+        let index = FileStoreIndex::load(base_path.join(STORE_INDEX_FILE))?;
         Ok(FileStore {
             base_path,
             file,
             locked_files: Arc::new(Mutex::new(LockedFiles::new())),
+            index: Arc::new(Mutex::new(index)),
+            max_store_size,
+            min_store_size,
         })
     }
 
@@ -166,7 +214,7 @@ impl FileStore {
     /// # let store_dir = tmp.path().join("store");
     /// # let path = tmp.path().join("file.txt");
     /// # fs::write(&path, "hello world")?;
-    /// let store = FileStore::new(store_dir)?;
+    /// let store = FileStore::new(store_dir, 1000, 1000)?;
     /// // compute the key of a file and make an iterator over its content
     /// let key = FileStoreKey::from_file(&path)?;
     /// let iter = ReadFileIterator::new(&path)?;
@@ -205,6 +253,12 @@ impl FileStore {
             }
             std::fs::rename(tmpfile_path, &path)?;
             FileStore::mark_readonly(&path)?;
+            {
+                let mut index = self.index.lock().unwrap();
+                index.add(key.clone(), path)?;
+                self.maybe_flush(&mut index)?;
+                index.store(self.base_path.join(STORE_INDEX_FILE))?;
+            }
         }
         Ok(handle)
     }
@@ -228,7 +282,7 @@ impl FileStore {
     /// # let store_dir = tmp.path().join("store");
     /// # let path = tmp.path().join("file.txt");
     /// # fs::write(&path, "hello world")?;
-    /// let store = FileStore::new(store_dir)?;
+    /// let store = FileStore::new(store_dir, 1000, 1000)?;
     /// let key = FileStoreKey::from_file(&path)?;
     /// # let iter = ReadFileIterator::new(&path)?;
     /// # let handle = store.store(&key, iter)?;
@@ -251,6 +305,10 @@ impl FileStore {
                 warn!("Cannot remove corrupted file: {:?}", e);
             }
             return None;
+        }
+        {
+            let mut index = self.index.lock().unwrap();
+            index.touch(&key);
         }
         Some(FileStoreHandle::new(&self, key))
     }
@@ -300,6 +358,42 @@ impl FileStore {
             Err(_) => false,
         }
     }
+
+    /// Check if the file store needs flushing, and do so if needed.
+    fn maybe_flush(&self, index: &mut FileStoreIndex) -> Result<(), Error> {
+        if index.need_flush(self.max_store_size) {
+            let locked = self.locked_files.lock().unwrap();
+            index.flush(&self, &locked, self.min_store_size)?;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for FileStore {
+    fn drop(&mut self) {
+        match self.index.lock() {
+            Ok(mut index) => {
+                let mut locked = match self.locked_files.lock() {
+                    Ok(l) => l,
+                    Err(_) => {
+                        warn!("Cannot lock locked_files due to poison");
+                        return;
+                    }
+                };
+                if index.need_flush(self.max_store_size) {
+                    if let Err(e) = index.flush(&self, &mut locked, self.min_store_size) {
+                        warn!("Cannot flush the index: {}", e.to_string());
+                    }
+                }
+                if let Err(e) = index.store(self.base_path.join(STORE_INDEX_FILE)) {
+                    warn!("Cannot store the index: {}", e.to_string());
+                }
+            }
+            Err(_) => {
+                warn!("Cannot store the index due to poisoned lock");
+            }
+        }
+    }
 }
 
 impl FileStoreKey {
@@ -329,6 +423,126 @@ impl FileStoreKey {
         FileStoreKey {
             hash: hasher.result().to_vec(),
         }
+    }
+}
+
+impl FileStoreIndex {
+    /// Load the index from the provided path.
+    fn load<P: AsRef<Path>>(path: P) -> Result<FileStoreIndex, Error> {
+        let path = path.as_ref();
+        if path.exists() {
+            debug!("Loading index from {:?}", path);
+            Ok(serde_json::from_reader(File::open(path)?)?)
+        } else {
+            debug!("Index at {:?} not found, creating new one", path);
+            Ok(FileStoreIndex {
+                total_size: 0,
+                known_files: HashMap::new(),
+            })
+        }
+    }
+
+    /// Store a dump of this index to the path provided.
+    fn store<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
+        debug!("Saving index file at {:?}", path.as_ref());
+        Ok(serde_json::to_writer(File::create(path.as_ref())?, self)?)
+    }
+
+    /// Mark a file as accessed, bumping its position in the LRU.
+    fn touch(&mut self, key: &FileStoreKey) {
+        if let Some(file) = self.known_files.get_mut(key) {
+            file.last_access = SystemTime::now();
+        }
+    }
+
+    /// Add a file in the index if not already present.
+    fn add<P: AsRef<Path>>(&mut self, key: FileStoreKey, path: P) -> Result<(), Error> {
+        if !self.known_files.contains_key(&key) {
+            let metadata = std::fs::metadata(path.as_ref())?;
+            self.known_files.insert(
+                key,
+                FileStoreIndexItem {
+                    size: metadata.len(),
+                    last_access: SystemTime::now(),
+                },
+            );
+            self.total_size += metadata.len();
+        } else {
+            self.known_files.get_mut(&key).unwrap().last_access = SystemTime::now();
+        }
+        Ok(())
+    }
+
+    /// Whether this file store needs to flush away some files to free space.
+    fn need_flush(&self, size_limit: u64) -> bool {
+        self.total_size >= size_limit
+    }
+
+    /// Perform a flushing operation, cleaning some space on the disk by removing the Least Recently
+    /// Used files. This function won't remove the files currently locked.
+    fn flush(
+        &mut self,
+        file_store: &FileStore,
+        locked_files: &LockedFiles,
+        target_size: u64,
+    ) -> Result<(), Error> {
+        debug!(
+            "Starting flushing process from {}MiB to at most {}MiB",
+            self.total_size / 1024 / 1024,
+            target_size / 1024 / 1024
+        );
+        // list of entries that survive the flush
+        let mut surviving = Vec::new();
+        let mut priority_queue: BinaryHeap<(FileStoreIndexItem, FileStoreKey)> =
+            self.known_files.drain().map(|(k, f)| (f, k)).collect();
+        // number of removed bytes
+        let mut removed = 0;
+        // continue to remove until the space requirement is met
+        while self.total_size > target_size {
+            let (entry, key) = match priority_queue.pop() {
+                Some(e) => e,
+                // the queue is emptied before reaching the space requirement (maybe because of
+                // locking)
+                None => break,
+            };
+            // cannot remove a file used by some other process
+            if locked_files.ref_counts.contains_key(&key) {
+                surviving.push((key, entry));
+            } else {
+                self.total_size -= entry.size;
+                removed += entry.size;
+
+                let path = file_store.key_to_path(&key);
+                debug!("Removing file {:?} claiming {}KiB", path, entry.size / 1024);
+                if let Err(e) = FileStore::remove_file(&path) {
+                    warn!("Cannot flush file {:?}: {}", path, e.to_string());
+                }
+                let base_path = file_store.base_path.canonicalize()?;
+                let mut path = path.parent();
+                // remove empty directories until the root of the store is reached
+                while let Some(p) = path {
+                    if p == base_path {
+                        break;
+                    }
+                    debug!("Removing {:?}", p);
+                    if remove_dir(p).is_err() {
+                        debug!("... it wasn't empty");
+                        break;
+                    }
+                    path = p.parent();
+                }
+            }
+        }
+        debug!("Claimed {}KiB", removed / 1024);
+        // the locked files that have been removed from the queue
+        for (key, entry) in surviving {
+            self.known_files.insert(key, entry);
+        }
+        // the files that survived the flush because are at new enough
+        for (entry, key) in priority_queue {
+            self.known_files.insert(key, entry);
+        }
+        Ok(())
     }
 }
 
@@ -439,11 +653,13 @@ impl LockedFiles {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use pretty_assertions::{assert_eq, assert_ne};
     use std::fs::*;
     use std::io::{Read, Write};
+
+    use pretty_assertions::{assert_eq, assert_ne};
     use tempdir::TempDir;
+
+    use super::*;
 
     fn get_cwd() -> TempDir {
         TempDir::new("tm-test").unwrap()
@@ -481,7 +697,7 @@ mod tests {
     #[test]
     fn test_new_filestore() {
         let cwd = get_cwd();
-        let _store = FileStore::new(cwd.path()).unwrap();
+        let _store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
         assert!(cwd.path().join(STORE_LOCK_FILE).exists());
     }
 
@@ -491,10 +707,10 @@ mod tests {
 
         let cwd = get_cwd();
         let store_dir = cwd.path().to_owned();
-        let store = FileStore::new(cwd.path()).unwrap();
+        let store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
         let thr = std::thread::spawn(move || {
             let start = Instant::now();
-            let _store = FileStore::new(&store_dir).unwrap();
+            let _store = FileStore::new(&store_dir, 1000, 1000).unwrap();
             let end = Instant::now();
             assert!(end - start >= Duration::from_millis(300));
         });
@@ -506,7 +722,7 @@ mod tests {
     #[test]
     fn test_store() {
         let cwd = get_cwd();
-        let store = FileStore::new(cwd.path()).unwrap();
+        let store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
         let handle = add_file_to_store(&cwd.path().join("test.txt"), "test", &store);
         let path_in_store = store.key_to_path(&handle.key);
         assert!(path_in_store.exists());
@@ -527,7 +743,7 @@ mod tests {
     #[test]
     fn test_get() {
         let cwd = get_cwd();
-        let store = FileStore::new(cwd.path()).unwrap();
+        let store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
         let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &store);
 
         let handle = store.get(&handle.key).unwrap();
@@ -539,7 +755,7 @@ mod tests {
     #[test]
     fn test_get_removed() {
         let cwd = get_cwd();
-        let store = FileStore::new(cwd.path()).unwrap();
+        let store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
         let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &store);
         let path_in_store = store.key_to_path(&handle.key);
 
@@ -552,7 +768,7 @@ mod tests {
     #[test]
     fn test_get_not_known() {
         let cwd = get_cwd();
-        let store = FileStore::new(cwd.path()).unwrap();
+        let store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
         let key = fake_file(&cwd.path().join("test.txt"), "ciao");
         let handle = store.get(&key);
         assert!(handle.is_none());
@@ -564,7 +780,7 @@ mod tests {
             return;
         }
         let cwd = get_cwd();
-        let store = FileStore::new(cwd.path()).unwrap();
+        let store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
         let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciao", &store);
         let path_in_store = store.key_to_path(&handle.key);
         corrupt_file(&path_in_store);
@@ -575,10 +791,10 @@ mod tests {
     #[test]
     fn test_key_to_path() {
         let cwd = get_cwd();
-        let store = FileStore::new(cwd.path()).unwrap();
+        let store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
         let key = fake_file(&cwd.path().join("test.txt"), "ciao");
         let path = store.key_to_path(&key);
-        assert!(path.starts_with(store.base_path));
+        assert!(path.starts_with(&store.base_path));
         assert!(path.ends_with(key.to_string()));
     }
 
@@ -609,7 +825,7 @@ mod tests {
     #[test]
     fn test_check_integrity() {
         let cwd = get_cwd();
-        let store = FileStore::new(&cwd.path()).unwrap();
+        let store = FileStore::new(&cwd.path(), 1000, 1000).unwrap();
         let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &store);
         let path = store.key_to_path(&handle.key);
         corrupt_file(&path);
@@ -619,7 +835,7 @@ mod tests {
     #[test]
     fn test_locked_files() {
         let cwd = get_cwd();
-        let store = FileStore::new(&cwd.path()).unwrap();
+        let store = FileStore::new(&cwd.path(), 1000, 1000).unwrap();
         let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &store);
         let key = handle.key.clone();
         assert_eq!(store.locked_files.lock().unwrap().ref_counts[&key], 1);
@@ -639,7 +855,7 @@ mod tests {
     #[test]
     fn test_locked_files_different_means() {
         let cwd = get_cwd();
-        let store = FileStore::new(&cwd.path()).unwrap();
+        let store = FileStore::new(&cwd.path(), 1000, 1000).unwrap();
         let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &store);
         let key = handle.key.clone();
         assert_eq!(store.locked_files.lock().unwrap().ref_counts[&key], 1);

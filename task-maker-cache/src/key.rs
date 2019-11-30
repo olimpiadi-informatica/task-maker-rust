@@ -118,7 +118,7 @@ mod tests {
     #[test]
     fn test_stdin() {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
-        let store = FileStore::new(tmpdir.path()).unwrap();
+        let store = FileStore::new(tmpdir.path(), 1000, 1000).unwrap();
         let handle1 = fake_file(tmpdir.path().join("file1"), "foo", &store);
         let handle2 = fake_file(tmpdir.path().join("file2"), "bar", &store);
         let file1 = task_maker_dag::File::new("file1");
@@ -149,7 +149,7 @@ mod tests {
     #[test]
     fn test_inputs() {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
-        let store = FileStore::new(tmpdir.path()).unwrap();
+        let store = FileStore::new(tmpdir.path(), 1000, 1000).unwrap();
         let handle1 = fake_file(tmpdir.path().join("file1"), "foo", &store);
         let handle2 = fake_file(tmpdir.path().join("file2"), "bar", &store);
         let file1 = task_maker_dag::File::new("file1");

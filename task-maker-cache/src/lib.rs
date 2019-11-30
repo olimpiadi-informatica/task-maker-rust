@@ -29,7 +29,7 @@
 //! // make a new store and a new cache in a testing environment
 //! let dir = TempDir::new("tm-test").unwrap();
 //! let mut cache = Cache::new(dir.path()).expect("Cannot create the cache");
-//! let mut store = FileStore::new(dir.path()).expect("Cannot create the store");
+//! let mut store = FileStore::new(dir.path(), 1000, 1000).expect("Cannot create the store");
 //!
 //! // setup a testing file
 //! let path = dir.path().join("file.txt");
