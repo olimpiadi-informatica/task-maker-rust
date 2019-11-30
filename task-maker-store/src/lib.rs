@@ -39,22 +39,22 @@
 #[macro_use]
 extern crate log;
 
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::HashMap;
 use std::fmt::Formatter;
-use std::fs::{remove_dir, File};
+use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
 
 use blake2::{Blake2b, Digest};
 use failure::{bail, Error};
 use fs2::FileExt;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use failure::_core::cmp::Ordering;
+use crate::index::FileStoreIndex;
 pub use read_file_iterator::ReadFileIterator;
 
+mod index;
 mod read_file_iterator;
 
 /// Whether to check the file integrity on the store before getting it.
@@ -72,35 +72,6 @@ type HashData = Vec<u8>;
 struct LockedFiles {
     /// Map from a `FileStoreKey` to the number of handles alive.
     ref_counts: HashMap<FileStoreKey, usize>,
-}
-
-/// An entry of a file inside the file store.
-#[derive(Clone, Debug, Serialize, Deserialize, Ord, Eq, PartialEq)]
-struct FileStoreIndexItem {
-    /// Size of the file.
-    size: u64,
-    /// Time of the last read/write of this file.
-    last_access: SystemTime,
-}
-
-impl PartialOrd for FileStoreIndexItem {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (self.last_access, other.last_access) {
-            (a, b) if a < b => Some(Ordering::Less),
-            (a, b) if a == b => Some(Ordering::Equal),
-            (a, b) if a > b => Some(Ordering::Greater),
-            _ => unreachable!(),
-        }
-    }
-}
-
-/// Index with all the files known, allowing efficient LRU file flushing.
-#[derive(Debug, Serialize, Deserialize)]
-struct FileStoreIndex {
-    /// The sum of the size of all the files in the index.
-    total_size: u64,
-    /// The list of all the files known in the index.
-    known_files: HashMap<FileStoreKey, FileStoreIndexItem>,
 }
 
 /// A file store will manage all the files in the store directory.
@@ -423,127 +394,6 @@ impl FileStoreKey {
         FileStoreKey {
             hash: hasher.result().to_vec(),
         }
-    }
-}
-
-impl FileStoreIndex {
-    /// Load the index from the provided path.
-    fn load<P: AsRef<Path>>(path: P) -> Result<FileStoreIndex, Error> {
-        let path = path.as_ref();
-        if path.exists() {
-            debug!("Loading index from {:?}", path);
-            Ok(serde_json::from_reader(File::open(path)?)?)
-        } else {
-            debug!("Index at {:?} not found, creating new one", path);
-            Ok(FileStoreIndex {
-                total_size: 0,
-                known_files: HashMap::new(),
-            })
-        }
-    }
-
-    /// Store a dump of this index to the path provided.
-    fn store<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
-        debug!("Saving index file at {:?}", path.as_ref());
-        Ok(serde_json::to_writer(File::create(path.as_ref())?, self)?)
-    }
-
-    /// Mark a file as accessed, bumping its position in the LRU.
-    fn touch(&mut self, key: &FileStoreKey) {
-        if let Some(file) = self.known_files.get_mut(key) {
-            file.last_access = SystemTime::now();
-        }
-    }
-
-    /// Add a file in the index if not already present.
-    #[allow(clippy::map_entry)]
-    fn add<P: AsRef<Path>>(&mut self, key: FileStoreKey, path: P) -> Result<(), Error> {
-        if !self.known_files.contains_key(&key) {
-            let metadata = std::fs::metadata(path.as_ref())?;
-            self.known_files.insert(
-                key,
-                FileStoreIndexItem {
-                    size: metadata.len(),
-                    last_access: SystemTime::now(),
-                },
-            );
-            self.total_size += metadata.len();
-        } else {
-            self.known_files.get_mut(&key).unwrap().last_access = SystemTime::now();
-        }
-        Ok(())
-    }
-
-    /// Whether this file store needs to flush away some files to free space.
-    fn need_flush(&self, size_limit: u64) -> bool {
-        self.total_size >= size_limit
-    }
-
-    /// Perform a flushing operation, cleaning some space on the disk by removing the Least Recently
-    /// Used files. This function won't remove the files currently locked.
-    fn flush(
-        &mut self,
-        file_store: &FileStore,
-        locked_files: &LockedFiles,
-        target_size: u64,
-    ) -> Result<(), Error> {
-        debug!(
-            "Starting flushing process from {}MiB to at most {}MiB",
-            self.total_size / 1024 / 1024,
-            target_size / 1024 / 1024
-        );
-        // list of entries that survive the flush
-        let mut surviving = Vec::new();
-        let mut priority_queue: BinaryHeap<(FileStoreIndexItem, FileStoreKey)> =
-            self.known_files.drain().map(|(k, f)| (f, k)).collect();
-        // number of removed bytes
-        let mut removed = 0;
-        // continue to remove until the space requirement is met
-        while self.total_size > target_size {
-            let (entry, key) = match priority_queue.pop() {
-                Some(e) => e,
-                // the queue is emptied before reaching the space requirement (maybe because of
-                // locking)
-                None => break,
-            };
-            // cannot remove a file used by some other process
-            if locked_files.ref_counts.contains_key(&key) {
-                surviving.push((key, entry));
-            } else {
-                self.total_size -= entry.size;
-                removed += entry.size;
-
-                let path = file_store.key_to_path(&key);
-                debug!("Removing file {:?} claiming {}KiB", path, entry.size / 1024);
-                if let Err(e) = FileStore::remove_file(&path) {
-                    warn!("Cannot flush file {:?}: {}", path, e.to_string());
-                }
-                let base_path = file_store.base_path.canonicalize()?;
-                let mut path = path.parent();
-                // remove empty directories until the root of the store is reached
-                while let Some(p) = path {
-                    if p == base_path {
-                        break;
-                    }
-                    debug!("Removing {:?}", p);
-                    if remove_dir(p).is_err() {
-                        debug!("... it wasn't empty");
-                        break;
-                    }
-                    path = p.parent();
-                }
-            }
-        }
-        debug!("Claimed {}KiB", removed / 1024);
-        // the locked files that have been removed from the queue
-        for (key, entry) in surviving {
-            self.known_files.insert(key, entry);
-        }
-        // the files that survived the flush because are at new enough
-        for (entry, key) in priority_queue {
-            self.known_files.insert(key, entry);
-        }
-        Ok(())
     }
 }
 
