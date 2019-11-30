@@ -675,6 +675,11 @@ mod tests {
 
     #[test]
     fn test_check_integrity() {
+        if std::env::var("GITHUB_WORKFLOW").is_ok() {
+            // skip this test on Github Actions because the runner does not support the last
+            // modified time, so the fast integrity check skips the actual sanity check.
+            return;
+        }
         let cwd = get_cwd();
         let store = FileStore::new(&cwd.path(), 1000, 1000).unwrap();
         let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &store);

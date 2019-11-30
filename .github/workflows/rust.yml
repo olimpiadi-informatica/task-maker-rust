@@ -39,3 +39,29 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          submodules: recursive
+      - name: Coverage
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          set -xe
+          sudo apt update
+          sudo apt install -yy curl build-essential python libseccomp-dev
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          rustup default nightly
+          source $HOME/.cargo/env
+          curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-linux-x86_64.tar.bz2 | tar jxf -
+          export CARGO_INCREMENTAL=0
+          export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Zno-landing-pads"
+          cargo build --verbose
+          cargo test --verbose --all
+          zip -0 ccov.zip `find . \( -name "task_maker*.gc*" \) -print`
+          ./grcov ccov.zip -s . -t lcov --llvm --branch --ignore-not-existing --ignore "/*" -o lcov.info
+          bash <(curl -s https://codecov.io/bash) -f lcov.info
