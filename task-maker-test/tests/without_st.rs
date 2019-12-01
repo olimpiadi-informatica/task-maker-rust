@@ -1,11 +1,9 @@
 use task_maker_format::ioi::TestcaseEvaluationStatus::*;
 use task_maker_test::*;
 
-#[test]
-fn without_st() {
-    better_panic::install();
-
-    TestInterface::new("without_st")
+fn without_st() -> TestInterface {
+    let mut test_interface = TestInterface::new("without_st");
+    test_interface
         .time_limit(1.0)
         .memory_limit(64)
         .max_score(100.0)
@@ -24,6 +22,20 @@ fn without_st() {
                 WrongAnswer("Output is incorrect".into()),
                 WrongAnswer("Output is incorrect".into()),
             ],
-        )
-        .run();
+        );
+    test_interface
+}
+
+#[test]
+fn without_st_local() {
+    better_panic::install();
+
+    without_st().run_local();
+}
+
+#[test]
+fn without_st_remote() {
+    better_panic::install();
+
+    without_st().run_remote();
 }

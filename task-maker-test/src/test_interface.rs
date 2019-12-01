@@ -2,6 +2,7 @@ use itertools::Itertools;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::time::Duration;
 use task_maker_dag::ExecutionStatus;
 use task_maker_format::ioi::{
     CompilationStatus, SolutionEvaluationState, SubtaskId, Task, TestcaseEvaluationStatus,
@@ -41,6 +42,8 @@ pub struct TestInterface {
     pub generation_fails: Option<Vec<Option<String>>>,
     /// A list with the stderr message of the failing validations.
     pub validation_fails: Option<Vec<Option<String>>>,
+    /// Whether the cache is allowed.
+    pub cache: bool,
 }
 
 impl TestInterface {
@@ -64,6 +67,7 @@ impl TestInterface {
             generation_statuses: None,
             generation_fails: None,
             validation_fails: None,
+            cache: false,
         }
     }
 
@@ -166,9 +170,72 @@ impl TestInterface {
         self
     }
 
+    /// Allow or disallow the cache.
+    pub fn cache(&mut self, cache: bool) -> &mut Self {
+        self.cache = cache;
+        self
+    }
+
     /// Spawn task-maker, reading its json output and checking that all the checks are good.
-    pub fn run(&self) {
+    pub fn run_local(&self) -> &Self {
         println!("Expecting: {:#?}", self);
+        let task_maker = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("target")
+            .join("debug")
+            .join("task-maker");
+        let mut command = Command::new(task_maker);
+        command.arg("--task-dir").arg(&self.path);
+        command.arg("--ui").arg("json");
+        if !self.cache {
+            command.arg("--no-cache");
+        }
+        command.arg("--dry-run");
+        command.arg("-vv");
+        command.stdout(Stdio::piped());
+        command.stderr(Stdio::piped());
+        command.stdin(Stdio::null());
+
+        self.run_task_maker(command);
+
+        self
+    }
+
+    /// Evaluate the task using a "remote" setup (spawning a local server and local workers).
+    pub fn run_remote(&self) -> &Self {
+        if !port_scanner::scan_port(27182) {
+            eprintln!("Server not spawned, spawning");
+            TestInterface::spawn_server();
+            TestInterface::wait_port(27182);
+        }
+
+        println!("Expecting: {:#?}", self);
+        let task_maker = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("target")
+            .join("debug")
+            .join("task-maker");
+        let mut command = Command::new(task_maker);
+        command.arg("--task-dir").arg(&self.path);
+        command.arg("--ui").arg("json");
+        if !self.cache {
+            command.arg("--no-cache");
+        }
+        command.arg("--dry-run");
+        command.arg("-vv");
+        command.arg("--evaluate-on").arg("127.0.0.1:27182");
+        command.stdout(Stdio::piped());
+        command.stderr(Stdio::piped());
+        command.stdin(Stdio::null());
+
+        self.run_task_maker(command);
+
+        self
+    }
+
+    fn run_task_maker(&self, mut command: Command) {
         let task = Task::new(
             &self.path,
             &EvaluationConfig {
@@ -179,21 +246,6 @@ impl TestInterface {
             },
         )
         .unwrap();
-        let task_maker = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .join("target")
-            .join("debug")
-            .join("task-maker");
-        let mut command = Command::new(task_maker);
-        command.arg("--task-dir").arg(&self.path);
-        command.arg("--ui").arg("json");
-        command.arg("--no-cache");
-        command.arg("--dry-run");
-        command.env("RUST_BACKTRACE", "1");
-        command.stdout(Stdio::piped());
-        command.stderr(Stdio::piped());
-        command.stdin(Stdio::null());
         let output = command.output().unwrap();
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -225,6 +277,55 @@ impl TestInterface {
         self.check_generations(&state);
         self.check_solution_scores(&state);
         self.check_solution_statuses(&state);
+    }
+
+    fn wait_port(port: u16) {
+        for _ in 0..10 {
+            eprintln!("Waiting for the server...");
+            std::thread::sleep(Duration::from_millis(500));
+            if port_scanner::scan_port(port) {
+                break;
+            }
+        }
+    }
+
+    fn spawn_server() {
+        std::thread::Builder::new()
+            .name("Test server".to_string())
+            .spawn(|| {
+                let store = tempdir::TempDir::new("tm-test").unwrap();
+                let task_maker = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .parent()
+                    .unwrap()
+                    .join("target")
+                    .join("debug")
+                    .join("task-maker");
+                let mut command = Command::new(task_maker);
+                command.arg("--store-dir").arg(store.path());
+                command.arg("--server");
+                command.arg("0.0.0.0:27182");
+                command.arg("0.0.0.0:27183");
+                assert!(command.spawn().unwrap().wait().unwrap().success());
+            })
+            .unwrap();
+        std::thread::Builder::new()
+            .name("Test worker".to_string())
+            .spawn(|| {
+                TestInterface::wait_port(27183);
+                let store = tempdir::TempDir::new("tm-test").unwrap();
+                let task_maker = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .parent()
+                    .unwrap()
+                    .join("target")
+                    .join("debug")
+                    .join("task-maker");
+                let mut command = Command::new(task_maker);
+                command.arg("--store-dir").arg(store.path());
+                command.arg("--worker");
+                command.arg("127.0.0.1:27183");
+                assert!(command.spawn().unwrap().wait().unwrap().success());
+            })
+            .unwrap();
     }
 
     /// Check the task limits are met.

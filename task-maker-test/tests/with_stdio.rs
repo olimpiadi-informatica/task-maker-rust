@@ -1,11 +1,9 @@
 use task_maker_format::ioi::TestcaseEvaluationStatus::*;
 use task_maker_test::*;
 
-#[test]
-fn with_stdio() {
-    better_panic::install();
-
-    TestInterface::new("with_stdio")
+fn with_stdio() -> TestInterface {
+    let mut test_interface = TestInterface::new("with_stdio");
+    test_interface
         .time_limit(1.0)
         .memory_limit(64)
         .max_score(100.0)
@@ -32,6 +30,20 @@ fn with_stdio() {
             "wrong_file.cpp",
             vec![WrongAnswer("Output is incorrect".into())],
         )
-        .solution_statuses("noop.py", vec![WrongAnswer("Output is incorrect".into())])
-        .run();
+        .solution_statuses("noop.py", vec![WrongAnswer("Output is incorrect".into())]);
+    test_interface
+}
+
+#[test]
+fn with_stdio_local() {
+    better_panic::install();
+
+    with_stdio().run_local();
+}
+
+#[test]
+fn with_stdio_remote() {
+    better_panic::install();
+
+    with_stdio().run_remote();
 }

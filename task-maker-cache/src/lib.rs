@@ -124,11 +124,20 @@ impl Cache {
         let path = cache_dir.as_ref().join(CACHE_FILE);
         if path.exists() {
             let file = std::fs::File::open(&path)?;
-            let entries: Vec<(CacheKey, Vec<CacheEntry>)> = serde_json::from_reader(file)?;
-            Ok(Cache {
-                entries: entries.into_iter().collect(),
-                cache_file: path,
-            })
+            let entries: Result<Vec<(CacheKey, Vec<CacheEntry>)>, _> =
+                serde_json::from_reader(file);
+            if let Ok(entries) = entries {
+                Ok(Cache {
+                    entries: entries.into_iter().collect(),
+                    cache_file: path,
+                })
+            } else {
+                Ok(Cache {
+                    entries: HashMap::new(),
+                    cache_file: path,
+                })
+            }
+        //            let entries: Vec<(CacheKey, Vec<CacheEntry>)> = ?;
         } else {
             Ok(Cache {
                 entries: HashMap::new(),

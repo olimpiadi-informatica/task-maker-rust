@@ -1,11 +1,9 @@
 use task_maker_format::ioi::TestcaseEvaluationStatus::*;
 use task_maker_test::*;
 
-#[test]
-fn classic() {
-    better_panic::install();
-
-    TestInterface::new("classic")
+fn classic() -> TestInterface {
+    let mut test_interface = TestInterface::new("classic");
+    test_interface
         .time_limit(1.0)
         .memory_limit(64)
         .max_score(100.0)
@@ -53,6 +51,18 @@ fn classic() {
         .solution_statuses(
             "wrong_file.cpp",
             vec![WrongAnswer("Output is incorrect".into())],
-        )
-        .run();
+        );
+    test_interface
+}
+
+#[test]
+fn classic_local() {
+    better_panic::install();
+    classic().run_local();
+}
+
+#[test]
+fn classic_remote() {
+    better_panic::install();
+    classic().run_remote();
 }
