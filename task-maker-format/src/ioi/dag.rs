@@ -403,7 +403,7 @@ impl Checker {
                         ExecutionStatus::ReturnCode(1) => {
                             callback(0.0, "Output is incorrect".into())?
                         }
-                        _ => unreachable!("diff died badly?"),
+                        _ => unreachable!("diff died badly? {:?}", result),
                     };
                     Ok(())
                 });

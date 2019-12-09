@@ -137,7 +137,6 @@ impl Cache {
                     cache_file: path,
                 })
             }
-        //            let entries: Vec<(CacheKey, Vec<CacheEntry>)> = ?;
         } else {
             Ok(Cache {
                 entries: HashMap::new(),

@@ -146,6 +146,7 @@ impl TaskFormat for Task {
             UIType::Print => Ok(Box::new(PrintUI::new(self))),
             UIType::Curses => Ok(Box::new(CursesUI::new(self)?)),
             UIType::Json => Ok(Box::new(JsonUI::new())),
+            UIType::Silent => Ok(Box::new(SilentUI::new())),
         }
     }
 

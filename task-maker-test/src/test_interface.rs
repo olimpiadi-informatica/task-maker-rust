@@ -1,15 +1,17 @@
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use structopt::StructOpt;
 use task_maker_dag::ExecutionStatus;
 use task_maker_format::ioi::{
     CompilationStatus, SolutionEvaluationState, SubtaskId, Task, TestcaseEvaluationStatus,
     TestcaseGenerationStatus, UIState,
 };
-use task_maker_format::ui::UIMessage;
 use task_maker_format::EvaluationConfig;
+use task_maker_rust::{main_server, main_worker, run_evaluation, Evaluation, Opt, Remote};
+use tempdir::TempDir;
 
 /// Interface for testing a task.
 #[derive(Debug)]
@@ -44,6 +46,9 @@ pub struct TestInterface {
     pub validation_fails: Option<Vec<Option<String>>>,
     /// Whether the cache is allowed.
     pub cache: bool,
+    /// Storage directory for the test interface. This is used only by the client, not the server
+    /// nor the workers.
+    pub store_dir: TempDir,
 }
 
 impl TestInterface {
@@ -68,6 +73,7 @@ impl TestInterface {
             generation_fails: None,
             validation_fails: None,
             cache: false,
+            store_dir: TempDir::new("tm-test").unwrap(),
         }
     }
 
@@ -176,66 +182,42 @@ impl TestInterface {
         self
     }
 
-    /// Spawn task-maker, reading its json output and checking that all the checks are good.
-    pub fn run_local(&self) -> &Self {
-        println!("Expecting: {:#?}", self);
-        let task_maker = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .join("target")
-            .join("debug")
-            .join("task-maker");
-        let mut command = Command::new(task_maker);
-        command.arg("--task-dir").arg(&self.path);
-        command.arg("--ui").arg("json");
-        if !self.cache {
-            command.arg("--no-cache");
-        }
-        command.arg("--dry-run");
-        command.arg("-vv");
-        command.stdout(Stdio::piped());
-        command.stderr(Stdio::piped());
-        command.stdin(Stdio::null());
-
-        self.run_task_maker(command);
-
-        self
+    /// Run the tests using task-maker in local mode, i.e. not spawning a separate server and
+    /// workers.
+    pub fn run_local(&self) {
+        self.run_task_maker(&[]);
     }
 
     /// Evaluate the task using a "remote" setup (spawning a local server and local workers).
-    pub fn run_remote(&self) -> &Self {
+    pub fn run_remote(&self) {
         if !port_scanner::scan_port(27182) {
             eprintln!("Server not spawned, spawning");
             TestInterface::spawn_server();
             TestInterface::wait_port(27182);
         }
 
-        println!("Expecting: {:#?}", self);
-        let task_maker = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .unwrap()
-            .join("target")
-            .join("debug")
-            .join("task-maker");
-        let mut command = Command::new(task_maker);
-        command.arg("--task-dir").arg(&self.path);
-        command.arg("--ui").arg("json");
-        if !self.cache {
-            command.arg("--no-cache");
-        }
-        command.arg("--dry-run");
-        command.arg("-vv");
-        command.arg("--evaluate-on").arg("127.0.0.1:27182");
-        command.stdout(Stdio::piped());
-        command.stderr(Stdio::piped());
-        command.stdin(Stdio::null());
-
-        self.run_task_maker(command);
-
-        self
+        self.run_task_maker(&["--evaluate-on", "127.0.0.1:27182"]);
     }
 
-    fn run_task_maker(&self, mut command: Command) {
+    fn run_task_maker(&self, extra_args: &[&str]) {
+        let mut args: Vec<&str> = vec!["task-maker"];
+        let path = self.path.to_string_lossy().into_owned();
+        let path = format!("--task-dir={}", path);
+        args.push(&path);
+        args.push("--ui=silent".into());
+        if !self.cache {
+            args.push("--no-cache".into());
+        }
+        args.push("--dry-run".into());
+        args.push("-vv".into());
+        let store_dir = format!("--store-dir={}", self.store_dir.path().to_string_lossy());
+        args.push(&store_dir);
+        for arg in extra_args {
+            args.push(arg);
+        }
+        let opt = Opt::from_iter(&args);
+
+        println!("Expecting: {:#?}", self);
         let task = Task::new(
             &self.path,
             &EvaluationConfig {
@@ -246,30 +228,39 @@ impl TestInterface {
             },
         )
         .unwrap();
-        let output = command.output().unwrap();
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            eprintln!("Stderr:\n{}", stderr);
-            if let Some(message) = &self.fail {
-                if !stderr.contains(message) {
-                    panic!("Expecting task-maker to fail with {:?} but didn't", message);
-                } else {
-                    return;
+        let state = Arc::new(Mutex::new(UIState::new(&task)));
+
+        let state2 = state.clone();
+        let res = run_evaluation(opt, move |_, mex| state2.lock().unwrap().apply(mex));
+        match res {
+            Ok(Evaluation::Done) => {
+                if let Some(message) = &self.fail {
+                    panic!(
+                        "Expecting task-maker to fail with \"{}\" but didn't",
+                        message
+                    );
                 }
-            } else {
-                panic!("task-maker exited with: {:?}", output.status);
             }
-        } else if let Some(message) = &self.fail {
-            panic!(
-                "Expecting task-maker to fail with {:?} but didn't fail",
-                message
-            );
+            Ok(Evaluation::Clean) => {
+                panic!("Unexpected task cleaning");
+            }
+            Err(e) => {
+                if let Some(message) = &self.fail {
+                    if !e.to_string().contains(message) {
+                        panic!(
+                            "Expecting task-maker to fail with \"{}\" but failed with: {:?}",
+                            message, e
+                        );
+                    } else {
+                        return;
+                    }
+                } else {
+                    panic!("Task-maker failed unexpectedly with: {:?}", e);
+                }
+            }
         }
-        let mut state = UIState::new(&task);
-        for message in String::from_utf8(output.stdout).unwrap().lines() {
-            let message = serde_json::from_str::<UIMessage>(&message).expect("Invalid message");
-            state.apply(message);
-        }
+
+        let state = state.lock().unwrap();
         println!("State is: {:#?}", state);
         self.check_limits(&state);
         self.check_compilation(&state);
@@ -294,18 +285,19 @@ impl TestInterface {
             .name("Test server".to_string())
             .spawn(|| {
                 let store = tempdir::TempDir::new("tm-test").unwrap();
-                let task_maker = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .parent()
-                    .unwrap()
-                    .join("target")
-                    .join("debug")
-                    .join("task-maker");
-                let mut command = Command::new(task_maker);
-                command.arg("--store-dir").arg(store.path());
-                command.arg("--server");
-                command.arg("0.0.0.0:27182");
-                command.arg("0.0.0.0:27183");
-                assert!(command.spawn().unwrap().wait().unwrap().success());
+                let store = store.path().to_string_lossy().to_string();
+                let opt = Opt::from_iter(&[
+                    "task-maker",
+                    "--store-dir",
+                    &store,
+                    "--server",
+                    "0.0.0.0:27182",
+                    "0.0.0.0:27183",
+                ]);
+                if let Remote::Server(server_opt) = &opt.remote.as_ref().unwrap() {
+                    let server_opt = server_opt.clone();
+                    main_server(opt, server_opt);
+                }
             })
             .unwrap();
         std::thread::Builder::new()
@@ -313,17 +305,18 @@ impl TestInterface {
             .spawn(|| {
                 TestInterface::wait_port(27183);
                 let store = tempdir::TempDir::new("tm-test").unwrap();
-                let task_maker = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .parent()
-                    .unwrap()
-                    .join("target")
-                    .join("debug")
-                    .join("task-maker");
-                let mut command = Command::new(task_maker);
-                command.arg("--store-dir").arg(store.path());
-                command.arg("--worker");
-                command.arg("127.0.0.1:27183");
-                assert!(command.spawn().unwrap().wait().unwrap().success());
+                let store = store.path().to_string_lossy().to_string();
+                let opt = Opt::from_iter(&[
+                    "task-maker",
+                    "--store-dir",
+                    &store,
+                    "--worker",
+                    "127.0.0.1:27183",
+                ]);
+                if let Remote::Worker(worker_opt) = &opt.remote.as_ref().unwrap() {
+                    let worker_opt = worker_opt.clone();
+                    main_worker(opt, worker_opt);
+                }
             })
             .unwrap();
     }

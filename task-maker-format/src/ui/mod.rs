@@ -10,9 +10,11 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 
 mod json;
 mod raw;
+mod silent;
 
 pub use json::JsonUI;
 pub use raw::RawUI;
+pub use silent::SilentUI;
 use std::time::SystemTime;
 use task_maker_exec::ExecutorStatus;
 
@@ -256,6 +258,8 @@ pub enum UIType {
     Curses,
     /// The `JsonUI`.
     Json,
+    /// The `SilentUI`.
+    Silent,
 }
 
 impl std::str::FromStr for UIType {
@@ -267,6 +271,7 @@ impl std::str::FromStr for UIType {
             "raw" => Ok(UIType::Raw),
             "curses" => Ok(UIType::Curses),
             "json" => Ok(UIType::Json),
+            "silent" => Ok(UIType::Silent),
             _ => Err(format!("Unknown ui: {}", s)),
         }
     }

@@ -95,10 +95,15 @@ mod opt;
 mod server;
 mod worker;
 
+pub use local::{run_evaluation, Evaluation};
+pub use server::main_server;
+pub use worker::main_worker;
+
 use structopt::StructOpt;
 
 fn main() {
-    let opt = opt::Opt::from_args();
+    let mut opt = opt::Opt::from_args();
+    opt.enable_log();
 
     match &opt.remote {
         Some(opt::Remote::Server(server)) => {

@@ -11,9 +11,7 @@ use crate::error::NiceError;
 use crate::opt::{Opt, WorkerOptions};
 
 /// Entry point for the worker.
-pub fn main_worker(mut opt: Opt, worker_opt: WorkerOptions) {
-    opt.enable_log();
-
+pub fn main_worker(opt: Opt, worker_opt: WorkerOptions) {
     let server_addr = SocketAddr::from_str(&worker_opt.server_addr)
         .nice_expect("Invalid server address provided");
 

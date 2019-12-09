@@ -5,9 +5,7 @@ use task_maker_exec::executors::RemoteExecutor;
 use task_maker_store::FileStore;
 
 /// Entry point for the server.
-pub fn main_server(mut opt: Opt, server_opt: ServerOptions) {
-    opt.enable_log();
-
+pub fn main_server(opt: Opt, server_opt: ServerOptions) {
     // setup the executor
     let store_path = opt.store_dir();
     let file_store = Arc::new(

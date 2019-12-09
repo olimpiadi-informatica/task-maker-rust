@@ -22,7 +22,6 @@ scopeguard = "1.0"
 byteorder = "1.3"
 chashmap = "2.2"
 crossbeam-channel = "0.4"
-lazy_static = "1.3"
 
 [dev-dependencies]
 pretty_assertions = "0.6"
