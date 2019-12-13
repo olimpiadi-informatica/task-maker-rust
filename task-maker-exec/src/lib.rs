@@ -51,6 +51,7 @@ mod sandbox;
 mod scheduler;
 mod worker;
 mod worker_manager;
+pub use sandbox::RawSandboxResult;
 
 /// The channel part that sends data.
 #[derive(Debug, Clone)]

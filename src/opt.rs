@@ -107,6 +107,12 @@ pub struct Opt {
     /// Options for spawning a client or a server.
     #[structopt(subcommand)]
     pub remote: Option<Remote>,
+
+    /// Run the sandbox instead of the normal task-maker.
+    ///
+    /// This option is left as undocumented as it's not part of the public API.
+    #[structopt(long, hidden(true))]
+    pub sandbox: bool,
 }
 
 /// Options for spawning a client or a server.
@@ -177,9 +183,9 @@ impl Opt {
             std::env::set_var("RUST_BACKTRACE", "1");
             match self.verbose {
                 0 => unreachable!(),
-                1 => std::env::set_var("RUST_LOG", "info"),
-                2 => std::env::set_var("RUST_LOG", "debug"),
-                _ => std::env::set_var("RUST_LOG", "trace"),
+                1 => std::env::set_var("RUST_LOG", "info,tabox=info"),
+                2 => std::env::set_var("RUST_LOG", "debug,tabox=debug"),
+                _ => std::env::set_var("RUST_LOG", "trace,tabox=trace"),
             }
         }
 

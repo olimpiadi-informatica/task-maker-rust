@@ -92,6 +92,7 @@ extern crate log;
 mod error;
 mod local;
 mod opt;
+mod sandbox;
 mod server;
 mod worker;
 
@@ -104,6 +105,12 @@ use structopt::StructOpt;
 fn main() {
     let mut opt = opt::Opt::from_args();
     opt.enable_log();
+
+    // internal API: run in sandbox mode if `--sandbox` is provided
+    if opt.sandbox {
+        sandbox::main_sandbox();
+        return;
+    }
 
     match &opt.remote {
         Some(opt::Remote::Server(server)) => {
