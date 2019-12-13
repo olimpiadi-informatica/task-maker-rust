@@ -11,7 +11,8 @@ use task_maker_store::FileStore;
 
 use crate::executor::{Executor, ExecutorInMessage};
 use crate::scheduler::ClientInfo;
-use crate::{ChannelReceiver, ChannelSender, Worker};
+use crate::{ChannelReceiver, ChannelSender, RawSandboxResult, Worker};
+use tabox::configuration::SandboxConfiguration;
 
 /// An Executor that runs locally by spawning a number of threads with the workers inside.
 pub struct LocalExecutor {
@@ -45,23 +46,33 @@ impl LocalExecutor {
     /// * `sender` - Channel that sends messages to the client.
     /// * `receiver` - Channel that receives messages from the client.
     /// * `cache` - The cache the executor has to use.
-    pub fn evaluate(
+    /// * `sandbox_runner` - The function to call for running a process in a sandbox.
+    pub fn evaluate<F>(
         self,
         sender: ChannelSender,
         receiver: ChannelReceiver,
         cache: Cache,
-    ) -> Result<(), Error> {
+        sandbox_runner: F,
+    ) -> Result<(), Error>
+    where
+        F: Fn(SandboxConfiguration) -> RawSandboxResult + Send + Sync + 'static,
+    {
         let (executor_tx, executor_rx) = channel();
         let executor = Executor::new(self.file_store.clone(), cache, executor_rx, false);
+
+        // share the runner for all the workers
+        let sandbox_runner = Arc::new(sandbox_runner);
 
         info!("Spawning {} workers", self.num_workers);
         let mut workers = vec![];
         // spawn the workers and connect them to the executor
         for i in 0..self.num_workers {
+            let runner = sandbox_runner.clone();
             let (worker, conn) = Worker::new(
                 &format!("Local worker {}", i),
                 self.file_store.clone(),
                 self.sandbox_path.clone(),
+                move |c| runner(c),
             );
             executor_tx
                 .send(ExecutorInMessage::WorkerConnected { worker: conn })

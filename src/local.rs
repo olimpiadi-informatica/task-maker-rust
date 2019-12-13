@@ -1,10 +1,10 @@
-use crate::error::NiceError;
-use crate::opt::Opt;
-use failure::{bail, format_err, Error};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
+
+use failure::{bail, format_err, Error};
+
 use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
 use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage};
@@ -13,6 +13,10 @@ use task_maker_format::ui::{UIMessage, UI};
 use task_maker_format::UISender;
 use task_maker_format::{ioi, EvaluationConfig, EvaluationData, TaskFormat};
 use task_maker_store::FileStore;
+
+use crate::error::NiceError;
+use crate::opt::Opt;
+use crate::sandbox::self_exec_sandbox;
 
 /// The result of an evaluation.
 pub enum Evaluation {
@@ -132,7 +136,9 @@ where
         let server = std::thread::Builder::new()
             .name("Executor thread".into())
             .spawn(move || {
-                executor.evaluate(tx_remote, rx_remote, cache).unwrap();
+                executor
+                    .evaluate(tx_remote, rx_remote, cache, self_exec_sandbox)
+                    .unwrap();
             })
             .map_err(|e| format_err!("Failed to spawn the executor thread: {}", e.to_string()))?;
         (tx, rx, Some(server))

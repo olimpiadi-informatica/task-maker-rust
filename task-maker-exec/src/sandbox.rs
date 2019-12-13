@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
 use failure::{bail, Error};
@@ -103,7 +102,10 @@ impl Sandbox {
     }
 
     /// Starts the sandbox and blocks the thread until the sandbox exits.
-    pub fn run(&self) -> Result<SandboxResult, Error> {
+    pub fn run<F>(&self, runner: F) -> Result<SandboxResult, Error>
+    where
+        F: FnOnce(SandboxConfiguration) -> RawSandboxResult,
+    {
         let boxdir = self.data.lock().unwrap().path().to_owned();
         trace!("Running sandbox at {:?}", boxdir);
 
@@ -113,27 +115,7 @@ impl Sandbox {
         }
         trace!("Sandbox configuration: {:#?}", config);
 
-        // TODO take this block as a parameter
-        let mut cmd = Command::new(std::env::current_exe()?)
-            .arg("--sandbox")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
-        {
-            let stdin = cmd.stdin.as_mut().expect("Failed to open stdin");
-            serde_json::to_writer(stdin, &config.build())?;
-        }
-        let output = cmd.wait_with_output()?;
-        if !output.status.success() {
-            bail!(
-                "Sandbox failed with code: {:?}\n{}",
-                output.status.code(),
-                String::from_utf8_lossy(&output.stderr)
-            );
-        }
-
-        let raw_result: RawSandboxResult = serde_json::from_slice(&output.stdout)?;
+        let raw_result = runner(config.build());
         let res = match raw_result {
             RawSandboxResult::Success(res) => res,
             RawSandboxResult::Error(e) => bail!("Sandbox failed: {}", e),
@@ -408,28 +390,14 @@ mod tests {
     use std::collections::HashMap;
     use std::path::Path;
 
-    use itertools::Itertools;
-
     use task_maker_dag::{Execution, ExecutionCommand};
 
     use crate::sandbox::Sandbox;
+    use crate::RawSandboxResult;
+    use tabox::configuration::SandboxConfiguration;
 
-    fn assert_contains(source: &[String], check: &[&str]) {
-        for i in 0..source.len() {
-            if source[i] == check[0] {
-                let mut valid = true;
-                for j in 1..check.len() {
-                    if source[i + j] != check[j] {
-                        valid = false;
-                        break;
-                    }
-                }
-                if valid {
-                    return;
-                }
-            }
-        }
-        panic!("{:?} does not contain {:?}", source, check);
+    fn fake_sandbox(_: SandboxConfiguration) -> RawSandboxResult {
+        RawSandboxResult::Error("Nope".to_owned())
     }
 
     #[test]
@@ -440,50 +408,55 @@ mod tests {
         exec.limits_mut().read_only(true);
         let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new()).unwrap();
         let outfile = sandbox.output_path(Path::new("fooo"));
-        sandbox.run().unwrap();
+        if let Err(e) = sandbox.run(&fake_sandbox) {
+            assert!(e.to_string().contains("Nope"));
+        } else {
+            panic!("Sandbox not called");
+        }
         drop(sandbox);
         assert!(!outfile.exists());
         assert!(!outfile.parent().unwrap().exists()); // the box/ dir
         assert!(!outfile.parent().unwrap().parent().unwrap().exists()); // the sandbox dir
     }
 
-    //    #[test]
-    //    fn test_command_args() {
-    //        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
-    //        let mut exec = Execution::new("test", ExecutionCommand::local("foo"));
-    //        exec.args(vec!["bar", "baz"]);
-    //        exec.limits_mut()
-    //            .sys_time(1.0)
-    //            .cpu_time(2.6)
-    //            .wall_time(10.0)
-    //            .mount_tmpfs(true)
-    //            .add_extra_readable_dir("/home")
-    //            .nproc(2)
-    //            .memory(1234);
-    //        exec.env("foo", "bar");
-    //        let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new()).unwrap();
-    //        let args = sandbox
-    //            .build_command(tmpdir.path())
-    //            .unwrap()
-    //            .into_iter()
-    //            .map(|s| s.to_string_lossy().to_string())
-    //            .collect_vec();
-    //        let extra_time = exec.config().extra_time;
-    //        let total_time = 1.0 + 2.6 + extra_time;
-    //        let wall_time = 10.0 + extra_time;
-    //        let boxdir = tmpdir.path().join("box");
-    //        assert_contains(&args, &["--directory", &boxdir.to_string_lossy()]);
-    //        assert_contains(&args, &["--json"]);
-    //        assert_contains(&args, &["--time", &total_time.to_string()]);
-    //        assert_contains(&args, &["--wall", &wall_time.to_string()]);
-    //        assert_contains(&args, &["--memory", "1234"]);
-    //        assert_contains(&args, &["--readable-dir", "/home"]);
-    //        assert_contains(&args, &["--mount-tmpfs"]);
-    //        assert_contains(&args, &["--multiprocess"]);
-    //        assert_contains(&args, &["--env", "foo=bar"]);
-    //        assert_contains(&args, &["--stdin", "/dev/null"]);
-    //        assert_contains(&args, &["--stdout", "/dev/null"]);
-    //        assert_contains(&args, &["--stderr", "/dev/null"]);
-    //        assert_contains(&args, &["--", "foo", "bar", "baz"]);
-    //    }
+    #[test]
+    fn test_command_args() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let mut exec = Execution::new("test", ExecutionCommand::local("foo"));
+        exec.args(vec!["bar", "baz"]);
+        exec.limits_mut()
+            .sys_time(1.0)
+            .cpu_time(2.6)
+            .wall_time(10.0)
+            .mount_tmpfs(true)
+            .add_extra_readable_dir("/home")
+            .nproc(2)
+            .memory(1234);
+        exec.env("foo", "bar");
+        let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new()).unwrap();
+        let mut config = SandboxConfiguration::default();
+        sandbox.build_command(tmpdir.path(), &mut config).unwrap();
+        let extra_time = exec.config().extra_time;
+        let total_time = (1.0 + 2.6 + extra_time).ceil() as u64;
+        let wall_time = (10.0 + extra_time).ceil() as u64;
+        let boxdir = tmpdir.path().join("box");
+        assert_eq!(config.working_directory, boxdir);
+        assert_eq!(config.time_limit, Some(total_time));
+        assert_eq!(config.wall_time_limit, Some(wall_time));
+        assert_eq!(config.memory_limit, Some(1234 * 1024));
+        // TODO DirectoryMount is not Eq...
+        // assert!(config.mount_paths.contains(&DirectoryMount {
+        //     target: "/home".into(),
+        //     source: "/home".into(),
+        //     writable: false
+        // }));
+        assert!(config.mount_tmpfs);
+        // TODO test multiprocess
+        assert!(config.env.contains(&("foo".to_string(), "bar".to_string())));
+        assert_eq!(config.stdin, Some("/dev/null".into()));
+        assert_eq!(config.stdout, Some("/dev/null".into()));
+        assert_eq!(config.stderr, Some("/dev/null".into()));
+        assert_eq!(config.executable, boxdir.join("foo"));
+        assert_eq!(config.args, vec!["bar", "baz"]);
+    }
 }

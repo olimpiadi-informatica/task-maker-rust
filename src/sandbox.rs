@@ -1,9 +1,11 @@
 use std::io::{stdin, stdout};
 
-use failure::{format_err, Error};
+use failure::{bail, format_err, Error};
 use tabox::result::SandboxExecutionResult;
 use tabox::{Sandbox, SandboxImplementation};
 
+use std::process::{Command, Stdio};
+use tabox::configuration::SandboxConfiguration;
 use task_maker_exec::RawSandboxResult;
 
 /// Actually parse the input and return the result.
@@ -32,4 +34,37 @@ pub fn main_sandbox() {
                 .expect("Failed to print result");
         }
     }
+}
+
+/// Run the sandbox integrated in the task-maker binary, by executing itself with different command
+/// line arguments.
+pub fn self_exec_sandbox(config: SandboxConfiguration) -> RawSandboxResult {
+    match self_exec_sandbox_internal(config) {
+        Ok(res) => res,
+        Err(e) => RawSandboxResult::Error(e.to_string()),
+    }
+}
+
+/// Actually run the sandbox, but with a return type that supports the `?` operator.
+fn self_exec_sandbox_internal(config: SandboxConfiguration) -> Result<RawSandboxResult, Error> {
+    let mut cmd = Command::new(std::env::current_exe()?)
+        .arg("--sandbox")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    {
+        let stdin = cmd.stdin.as_mut().expect("Failed to open stdin");
+        serde_json::to_writer(stdin, &config.build())?;
+    }
+    let output = cmd.wait_with_output()?;
+    if !output.status.success() {
+        bail!(
+            "Sandbox failed with code: {:?}\n{}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    Ok(serde_json::from_slice(&output.stdout)?)
 }

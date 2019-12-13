@@ -1,12 +1,16 @@
 use crate::executor::WorkerJob;
 use crate::proto::*;
 use crate::sandbox::{Sandbox, SandboxResult};
-use crate::{deserialize_from, new_local_channel, serialize_into, ChannelReceiver, ChannelSender};
+use crate::{
+    deserialize_from, new_local_channel, serialize_into, ChannelReceiver, ChannelSender,
+    RawSandboxResult,
+};
 use failure::{Error, Fail};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use tabox::configuration::SandboxConfiguration;
 use task_maker_dag::*;
 use task_maker_store::*;
 use uuid::Uuid;
@@ -39,6 +43,8 @@ pub struct Worker {
     current_job: Arc<Mutex<WorkerCurrentJob>>,
     /// Where to put the sandboxes.
     sandbox_path: PathBuf,
+    /// The function that spawns an actual sandbox.
+    sandbox_runner: Arc<dyn Fn(SandboxConfiguration) -> RawSandboxResult + Send + Sync>,
 }
 
 /// An handle of the connection to the worker.
@@ -76,11 +82,15 @@ impl Worker {
     /// Make a new worker attached to a [`FileStore`](../task_maker_store/struct.FileStore.html),
     /// will return a pair with the actual `Worker` and an handle with the channels to connect to
     /// communicate with the worker.
-    pub fn new<S: Into<String>, P: Into<PathBuf>>(
+    pub fn new<S: Into<String>, P: Into<PathBuf>, F>(
         name: S,
         file_store: Arc<FileStore>,
         sandbox_path: P,
-    ) -> (Worker, WorkerConn) {
+        runner: F,
+    ) -> (Worker, WorkerConn)
+    where
+        F: Fn(SandboxConfiguration) -> RawSandboxResult + Send + Sync + 'static,
+    {
         let (tx, rx_worker) = new_local_channel();
         let (tx_worker, rx) = new_local_channel();
         let uuid = Uuid::new_v4();
@@ -92,6 +102,7 @@ impl Worker {
                 sandbox_path.into(),
                 tx_worker,
                 rx_worker,
+                runner,
             ),
             WorkerConn {
                 uuid,
@@ -103,13 +114,17 @@ impl Worker {
     }
 
     /// Make a new worker with an already connected channel.
-    pub fn new_with_channel<S: Into<String>, P: Into<PathBuf>>(
+    pub fn new_with_channel<S: Into<String>, P: Into<PathBuf>, F>(
         name: S,
         file_store: Arc<FileStore>,
         sandbox_path: P,
         sender: ChannelSender,
         receiver: ChannelReceiver,
-    ) -> Worker {
+        runner: F,
+    ) -> Worker
+    where
+        F: Fn(SandboxConfiguration) -> RawSandboxResult + Send + Sync + 'static,
+    {
         let uuid = Uuid::new_v4();
         let name = name.into();
         let sandbox_path = sandbox_path.into();
@@ -121,6 +136,7 @@ impl Worker {
             file_store,
             current_job: Arc::new(Mutex::new(WorkerCurrentJob::new())),
             sandbox_path,
+            sandbox_runner: Arc::new(runner),
         }
     }
 
@@ -130,7 +146,12 @@ impl Worker {
         serialize_into(&WorkerClientMessage::GetWork, &self.sender)?;
 
         let start_job = || -> Result<(), Error> {
-            let sandbox = execute_job(self.current_job.clone(), &self.sender, &self.sandbox_path)?;
+            let sandbox = execute_job(
+                self.current_job.clone(),
+                &self.sender,
+                &self.sandbox_path,
+                self.sandbox_runner.clone(),
+            )?;
             self.current_job.lock().unwrap().current_sandbox = Some(sandbox);
             Ok(())
         };
@@ -225,6 +246,7 @@ fn execute_job(
     current_job: Arc<Mutex<WorkerCurrentJob>>,
     sender: &ChannelSender,
     sandbox_path: &Path,
+    runner: Arc<dyn Fn(SandboxConfiguration) -> RawSandboxResult + Send + Sync + 'static>,
 ) -> Result<Sandbox, Error> {
     let (job, mut sandbox) = {
         let current_job = current_job.lock().unwrap();
@@ -258,7 +280,7 @@ fn execute_job(
                 serialize_into(&WorkerClientMessage::GetWork, &sender).unwrap();
             }}
 
-            let result = match sandbox.run() {
+            let result = match sandbox.run(move |config| runner(config)) {
                 Ok(res) => res,
                 Err(e) => {
                     let result = ExecutionResult {

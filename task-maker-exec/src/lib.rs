@@ -52,6 +52,7 @@ mod scheduler;
 mod worker;
 mod worker_manager;
 pub use sandbox::RawSandboxResult;
+use tabox::configuration::SandboxConfiguration;
 
 /// The channel part that sends data.
 #[derive(Debug, Clone)]
@@ -179,14 +180,17 @@ where
 
 /// Evaluate a DAG locally spawning a new [`LocalExecutor`](executors/struct.LocalExecutor.html)
 /// with the specified number of workers.
-pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>>(
+pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>, F>(
     dag: ExecutionDAG,
     store_dir: P,
     num_cores: usize,
     sandbox_path: P2,
     max_cache: u64,
     min_cache: u64,
-) {
+    sandbox_runner: F,
+) where
+    F: Fn(SandboxConfiguration) -> RawSandboxResult + Send + Sync + 'static,
+{
     let (tx, rx_remote) = new_local_channel();
     let (tx_remote, rx) = new_local_channel();
     let store_dir = store_dir.into();
@@ -201,7 +205,9 @@ pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>>(
             let cache = Cache::new(store_dir).expect("Cannot create the cache");
             let executor =
                 executors::LocalExecutor::new(server_file_store, num_cores, sandbox_path);
-            executor.evaluate(tx_remote, rx_remote, cache).unwrap();
+            executor
+                .evaluate(tx_remote, rx_remote, cache, sandbox_runner)
+                .unwrap();
         })
         .expect("Failed to spawn local executor thread");
     ExecutorClient::evaluate(dag, tx, &rx, file_store, |_| Ok(())).expect("Client failed");
@@ -224,6 +230,7 @@ mod tests {
 
     use super::*;
     use rand::Rng;
+    use tabox::result::{ExitStatus, ResourceUsage, SandboxExecutionResult};
 
     #[test]
     fn test_serialize_deserialize() {
@@ -267,6 +274,26 @@ mod tests {
         assert_eq!(data, vec![9, 10, 11, 12]);
 
         client_thread.join().unwrap();
+    }
+
+    fn fake_sandbox(config: SandboxConfiguration) -> RawSandboxResult {
+        let resource_usage = ResourceUsage {
+            memory_usage: 0,
+            user_cpu_time: 0.0,
+            system_cpu_time: 0.0,
+            wall_time_usage: 0.0,
+        };
+        if config.executable.ends_with("true") {
+            RawSandboxResult::Success(SandboxExecutionResult {
+                status: ExitStatus::ExitCode(0),
+                resource_usage,
+            })
+        } else {
+            RawSandboxResult::Success(SandboxExecutionResult {
+                status: ExitStatus::ExitCode(1),
+                resource_usage,
+            })
+        }
     }
 
     #[test]
@@ -330,7 +357,7 @@ mod tests {
         dag.write_file_to(&stdout2, &cwd.path().join("stdout2"), false);
         dag.write_file_to(&output3, &cwd.path().join("output3"), false);
 
-        eval_dag_locally(dag, cwd.path(), 2, cwd.path(), 1000, 1000);
+        eval_dag_locally(dag, cwd.path(), 2, cwd.path(), 1000, 1000, fake_sandbox);
 
         assert!(exec_done2.load(Ordering::Relaxed));
         assert!(exec_start2.load(Ordering::Relaxed));
