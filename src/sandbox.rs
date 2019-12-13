@@ -4,6 +4,7 @@ use failure::{bail, format_err, Error};
 use tabox::result::SandboxExecutionResult;
 use tabox::{Sandbox, SandboxImplementation};
 
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use tabox::configuration::SandboxConfiguration;
 use task_maker_exec::RawSandboxResult;
@@ -47,7 +48,10 @@ pub fn self_exec_sandbox(config: SandboxConfiguration) -> RawSandboxResult {
 
 /// Actually run the sandbox, but with a return type that supports the `?` operator.
 fn self_exec_sandbox_internal(config: SandboxConfiguration) -> Result<RawSandboxResult, Error> {
-    let mut cmd = Command::new(std::env::current_exe()?)
+    let command = std::env::var_os("TASK_MAKER_SANDBOX_BIN")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::current_exe().unwrap());
+    let mut cmd = Command::new(command)
         .arg("--sandbox")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -65,6 +69,5 @@ fn self_exec_sandbox_internal(config: SandboxConfiguration) -> Result<RawSandbox
             String::from_utf8_lossy(&output.stderr)
         );
     }
-
     Ok(serde_json::from_slice(&output.stdout)?)
 }

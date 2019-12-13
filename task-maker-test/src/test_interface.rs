@@ -215,6 +215,10 @@ impl TestInterface {
         for arg in extra_args {
             args.push(arg);
         }
+        std::env::set_var(
+            "TASK_MAKER_SANDBOX_BIN",
+            PathBuf::from(env!("OUT_DIR")).join("sandbox"),
+        );
         let opt = Opt::from_iter(&args);
 
         println!("Expecting: {:#?}", self);
@@ -406,11 +410,14 @@ impl TestInterface {
             }
             let state = evaluations[name];
             let score: f64 = scores.iter().sum();
+            let state_score = state
+                .score
+                .unwrap_or_else(|| panic!("missing score of {:?}", name));
             assert!(
-                abs_diff_eq!(score, state.score.unwrap()),
+                abs_diff_eq!(score, state_score),
                 "Solution score mismatch: {} != {}",
                 score,
-                state.score.unwrap()
+                state_score
             );
             assert_eq!(
                 scores.len(),
