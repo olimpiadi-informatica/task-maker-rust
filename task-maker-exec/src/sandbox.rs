@@ -391,7 +391,8 @@ mod tests {
 
     use crate::sandbox::Sandbox;
     use crate::RawSandboxResult;
-    use tabox::configuration::SandboxConfiguration;
+    use tabox::configuration::{DirectoryMount, SandboxConfiguration};
+    use tabox::syscall_filter::SyscallFilterAction;
 
     fn fake_sandbox(_: SandboxConfiguration) -> RawSandboxResult {
         RawSandboxResult::Error("Nope".to_owned())
@@ -441,14 +442,17 @@ mod tests {
         assert_eq!(config.time_limit, Some(total_time));
         assert_eq!(config.wall_time_limit, Some(wall_time));
         assert_eq!(config.memory_limit, Some(1234 * 1024));
-        // TODO DirectoryMount is not Eq...
-        // assert!(config.mount_paths.contains(&DirectoryMount {
-        //     target: "/home".into(),
-        //     source: "/home".into(),
-        //     writable: false
-        // }));
+        assert!(config.mount_paths.contains(&DirectoryMount {
+            target: "/home".into(),
+            source: "/home".into(),
+            writable: false
+        }));
         assert!(config.mount_tmpfs);
-        // TODO test multiprocess
+        let filter = config.syscall_filter.unwrap();
+        assert_eq!(filter.default_action, SyscallFilterAction::Allow);
+        let rules: HashMap<_, _> = filter.rules.into_iter().collect();
+        assert!(!rules.contains_key("fork"));
+        assert!(!rules.contains_key("vfork"));
         assert!(config.env.contains(&("foo".to_string(), "bar".to_string())));
         assert_eq!(config.stdin, Some("/dev/null".into()));
         assert_eq!(config.stdout, Some("/dev/null".into()));

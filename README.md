@@ -7,8 +7,10 @@ The new cmsMake!
 ## Installation
 The official way for installing `task-maker-rust` is not defined yet.
 
-For now you should clone the repo (with `--recurse-submodules`!) and run `cargo build --release`.
+For now you should clone the repo and run `cargo build --release`.
 The executable should be located at `target/release/task-maker`.
+
+You may need to install `libseccomp` (or maybe `libseccomp-dev` on Ubuntu) for compiling task-maker.
 
 ## Usage
 
