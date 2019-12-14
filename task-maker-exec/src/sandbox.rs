@@ -199,7 +199,7 @@ impl Sandbox {
         self.data.lock().unwrap().path().join("box").join(output)
     }
 
-    /// Build the command line arguments of `tmbox`.
+    /// Build the configuration of the tabox sandbox.
     fn build_command(
         &self,
         boxdir: &Path,
