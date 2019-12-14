@@ -4,6 +4,7 @@ addons:
   apt:
     packages:
       - g++
+      - libseccomp-dev
 rust:
   - stable
 before_script:
