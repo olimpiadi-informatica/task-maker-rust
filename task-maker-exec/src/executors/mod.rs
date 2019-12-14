@@ -26,7 +26,8 @@
 //! let (tx_remote, rx) = new_local_channel();
 //!
 //! # let server = thread::spawn(move || {
-//! executor.evaluate(tx_remote, rx_remote, cache).unwrap();  // this will block!!
+//! # let sandbox_runner = |_config| panic!("The sandbox should not be called from this example");
+//! executor.evaluate(tx_remote, rx_remote, cache, sandbox_runner).unwrap();  // this will block!!
 //! # });
 //! # drop(tx);
 //! # drop(rx);

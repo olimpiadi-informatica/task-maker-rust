@@ -317,6 +317,10 @@ impl TestInterface {
                     "--worker",
                     "127.0.0.1:27183",
                 ]);
+                std::env::set_var(
+                    "TASK_MAKER_SANDBOX_BIN",
+                    PathBuf::from(env!("OUT_DIR")).join("sandbox"),
+                );
                 if let Remote::Worker(worker_opt) = &opt.remote.as_ref().unwrap() {
                     let worker_opt = worker_opt.clone();
                     main_worker(opt, worker_opt);

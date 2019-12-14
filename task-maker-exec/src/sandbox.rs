@@ -206,11 +206,8 @@ impl Sandbox {
         config: &mut SandboxConfiguration,
     ) -> Result<(), String> {
         config.working_directory(boxdir.join("box"));
-        config.mount(
-            boxdir.join("box"),
-            boxdir.join("box"),
-            !self.execution.limits.read_only,
-        );
+        // the box directory must be writable otherwise the output files cannot be written
+        config.mount(boxdir.join("box"), boxdir.join("box"), true);
         config.env("PATH", std::env::var("PATH").unwrap_or_default());
         if self.execution.stdin.is_some() {
             config.stdin(boxdir.join("stdin"));
