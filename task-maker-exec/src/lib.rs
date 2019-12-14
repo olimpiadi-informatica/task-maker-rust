@@ -13,7 +13,56 @@
 //! cancelled.
 //!
 //! All the tasks are run inside a [`Sandbox`](struct.Sandbox.html) provided by
-//! [`tmbox`](https://github.com/veluca93/tmbox).
+//! [`tabox`](https://crates.io/crates/tabox).
+//!
+//! ## Implementation details
+//!
+//! In order to support both local and remote evaluation, sharing the same code and logic we need a
+//! layer of abstraction over the execution.
+//!
+//! The components of the execution are:
+//!
+//! - [`ExecutorClient`](struct.ExecutorClient.html) (from now `Client`) is the component that runs
+//!   on the process that wants to execute the DAG, it asks to its executor to run it and gets the
+//!   results eventually processing them.
+//! - [`LocalExecutor`](executors/struct.LocalExecutor.html) the component to which the `Client`
+//!   connects to for executing a DAG locally, it internally uses an `Executor` for actually running
+//!   the DAG, but also spawns local workers.
+//! - [`RemoteExecutor`](executors/struct.RemoteExecutor.html) the component to which the `Client`
+//!   connects to for executing a DAG remotely. This usually runs on a remote machine w.r.t the
+//!   client's one. It internally uses an `Executor` for running the DAG but doesn't spawn the
+//!   workers since they are remote too. This component is also responsible for listening to the
+//!   sockets for the connections of the clients and the workers.
+//! - `Executor` the component that abstracts the connection of workers and clients and handles the
+//!   actual communication between the scheduler and the clients. This component is also responsible
+//!   for spawning the scheduler and keeping it working.
+//! - `Scheduler` the component that, given DAGs and notification about the status of the workers
+//!   (i.e. worker connection/disconnection/job completion) schedules the execution of the ready
+//!   jobs and sends to the clients the notification about their status.
+//! - `WorkerManager` the component that handles the connections with the workers and notifies the
+//!   scheduler about worker events.
+//! - `Worker` the component that actively asks for work to do, waiting a response from the
+//!   scheduler, and eventually receive and execute it. After the execution completes, the worker
+//!   asks for another job to do.
+//!
+//! ### Local execution
+//!
+//! ![Local execution diagram](https://www.lucidchart.com/publicSegments/view/f0ad0719-2dd4-4c60-9da0-ca0614fd37a1/image.png)
+//!
+//! Running locally all the components are spawn in the current process, but different threads.
+//! The communication between them is done using in memory channels, including the one from the
+//! `Client` to the `LocalExecutor`.
+//!
+//! The `Client` connects to the `LocalExecutor`, specifying also the number of workers to spawn.
+//! The local executor spawns an actual executor, a worker manager and that number of workers.
+//!
+//! ### Remote execution
+//!
+//! ![Local execution diagram](https://www.lucidchart.com/publicSegments/view/86167d8f-b231-4698-a8ac-a26ed995fd19/image.png)
+//!
+//! In a remote environment the `Client` connects to the `RemoteExecutor` via a TCP socket, the
+//! remote executor listens for client and worker connections. The workers then connect to the
+//! `RemoteExecutor` and they are handled by the `WorkerManager`.
 
 #![deny(missing_docs)]
 
