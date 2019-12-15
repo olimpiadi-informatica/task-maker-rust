@@ -10,8 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
-        with:
-          submodules: recursive
       - name: Install & Build
         run: |
           sudo apt update
@@ -20,7 +18,8 @@ jobs:
           rustup target add x86_64-unknown-linux-musl
           source $HOME/.cargo/env
           cargo install cargo-deb
-          cargo deb --target x86_64-unknown-linux-musl
+          cargo build --bin task-maker --release --target x86_64-unknown-linux-musl
+          cargo deb --no-build --target x86_64-unknown-linux-musl
       - name: Upload the artifacts
         uses: skx/github-action-publish-binaries@master
         env:
