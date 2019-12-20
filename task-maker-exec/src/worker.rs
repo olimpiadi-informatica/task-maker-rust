@@ -357,7 +357,7 @@ fn compute_execution_result(execution: &Execution, result: SandboxResult) -> Exe
             was_cached: false,
         },
         SandboxResult::Failed { error } => ExecutionResult {
-            status: ExecutionStatus::InternalError(error.to_string()),
+            status: ExecutionStatus::InternalError(error),
             resources: ExecutionResourcesUsage::default(),
             was_killed: false,
             was_cached: false,

@@ -247,7 +247,7 @@ fn detect_output_generator(
             "sol/soluzione",
         ],
         &task_dir,
-        Some(grader_map.clone()),
+        Some(grader_map),
         Some(task_dir.join("bin").join("official_solution")),
     )
     .map(Arc::new);

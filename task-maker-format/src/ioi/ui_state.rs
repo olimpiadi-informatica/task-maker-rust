@@ -334,7 +334,7 @@ impl UIState {
             UIMessage::Compilation { file, status } => {
                 let comp = self
                     .compilations
-                    .entry(file.clone())
+                    .entry(file)
                     .or_insert(CompilationStatus::Pending);
                 match status {
                     UIExecutionStatus::Pending => *comp = CompilationStatus::Pending,
@@ -360,7 +360,7 @@ impl UIState {
             UIMessage::CompilationStdout { file, content } => {
                 let comp = self
                     .compilations
-                    .entry(file.clone())
+                    .entry(file)
                     .or_insert(CompilationStatus::Pending);
                 match comp {
                     CompilationStatus::Done { stdout, .. }
@@ -373,7 +373,7 @@ impl UIState {
             UIMessage::CompilationStderr { file, content } => {
                 let comp = self
                     .compilations
-                    .entry(file.clone())
+                    .entry(file)
                     .or_insert(CompilationStatus::Pending);
                 match comp {
                     CompilationStatus::Done { stderr, .. }

@@ -39,7 +39,7 @@ impl RemoteExecutor {
         bind_worker_addr: S2,
         cache: Cache,
     ) {
-        let file_store = self.file_store.clone();
+        let file_store = self.file_store;
         let bind_client_addr = bind_client_addr.into();
         let bind_worker_addr = bind_worker_addr.into();
 

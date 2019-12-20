@@ -402,7 +402,7 @@ impl ScoreManager {
                     .map(|score| score.unwrap())
                     .sum();
                 sender.send(UIMessage::IOITaskScore {
-                    solution: solution.clone(),
+                    solution,
                     score: task_score,
                 })?;
             }
