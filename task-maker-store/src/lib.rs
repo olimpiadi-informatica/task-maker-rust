@@ -675,9 +675,9 @@ mod tests {
 
     #[test]
     fn test_check_integrity() {
-        if std::env::var("GITHUB_WORKFLOW").is_ok() {
-            // skip this test on Github Actions because the runner does not support the last
-            // modified time, so the fast integrity check skips the actual sanity check.
+        if std::env::var("GITHUB_WORKFLOW").is_ok() || std::env::var("CI").is_ok() {
+            // skip this test CI because the runner does not support the last modified time, so the
+            // fast integrity check skips the actual sanity check.
             return;
         }
         let cwd = get_cwd();
