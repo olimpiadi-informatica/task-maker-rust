@@ -1,9 +1,8 @@
 use task_maker_format::ioi::TestcaseEvaluationStatus::*;
 use task_maker_test::*;
 
-fn without_gen() -> TestInterface {
-    let mut test_interface = TestInterface::new("without_gen");
-    test_interface
+fn without_gen(test: TestInterface) {
+    test.success()
         .time_limit(1.0)
         .memory_limit(64)
         .max_score(100.0)
@@ -28,19 +27,18 @@ fn without_gen() -> TestInterface {
             "wrong_file.cpp",
             vec![WrongAnswer("Output is incorrect".into())],
         );
-    test_interface
 }
 
 #[test]
 fn without_gen_local() {
     better_panic::install();
 
-    without_gen().run_local();
+    without_gen(TestInterface::run_local("without_gen"));
 }
 
 #[test]
 fn without_gen_remote() {
     better_panic::install();
 
-    without_gen().run_remote();
+    without_gen(TestInterface::run_remote("without_gen"));
 }

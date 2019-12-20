@@ -4,16 +4,12 @@ use task_maker_test::*;
 fn invalid_copy_local() {
     better_panic::install();
 
-    TestInterface::new("invalid_copy")
-        .fail("COPY from not existing file")
-        .run_local();
+    TestInterface::run_local("invalid_copy").fail("COPY from not existing file");
 }
 
 #[test]
 fn invalid_copy_remote() {
     better_panic::install();
 
-    TestInterface::new("invalid_copy")
-        .fail("COPY from not existing file")
-        .run_remote();
+    TestInterface::run_remote("invalid_copy").fail("COPY from not existing file");
 }
