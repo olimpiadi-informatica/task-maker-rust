@@ -199,6 +199,9 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
 
 /// Get the rect of the inner rect of a block with the borders.
 fn inner_block(rect: Rect) -> Rect {
+    if rect.width < 2 || rect.height < 2 {
+        return Rect::new(rect.x + 1, rect.y + 1, 0, 0);
+    }
     Rect::new(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2)
 }
 
