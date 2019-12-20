@@ -155,7 +155,7 @@ impl Cache {
         result: ExecutionResult,
     ) {
         let key = CacheKey::from_execution(execution, file_keys);
-        let set = self.entries.entry(key.clone()).or_default();
+        let set = self.entries.entry(key).or_default();
         let stdout = execution
             .stdout
             .as_ref()
