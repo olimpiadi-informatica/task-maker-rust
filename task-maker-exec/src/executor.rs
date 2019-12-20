@@ -20,13 +20,13 @@ use crate::scheduler::{
     SchedulerInMessage,
 };
 use crate::worker_manager::{WorkerManager, WorkerManagerInMessage};
-use crate::{deserialize_from, serialize_into, ChannelReceiver, ChannelSender, WorkerConn};
+use crate::{ChannelReceiver, ChannelSender, WorkerConn};
 use failure::_core::time::Duration;
 use std::time::SystemTime;
 
 /// List of the _interesting_ files and executions, only the callbacks listed here will be called by
 /// the server. Every other callback is not sent to the client for performance reasons.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ExecutionDAGWatchSet {
     /// Set of the handles of the executions that have at least a callback bound.
     pub executions: HashSet<ExecutionUuid>,
@@ -102,9 +102,9 @@ pub enum ExecutorInMessage {
         /// The information about the new client.
         client: ClientInfo,
         /// A channel for sending messages to the client.
-        sender: ChannelSender,
+        sender: ChannelSender<ExecutorServerMessage>,
         /// A channel for received the messages from the client.
-        receiver: ChannelReceiver,
+        receiver: ChannelReceiver<ExecutorClientMessage>,
     },
     /// A new worker has connected, the executor starts listening for the messages and will directly
     /// interact with it.
@@ -246,7 +246,7 @@ impl Executor {
     /// Handle the messages from the scheduler, sending the notifications to the client involved.
     fn handle_scheduler_messages(
         receiver: Receiver<SchedulerExecutorMessage>,
-        clients: Arc<CHashMap<ClientUuid, ChannelSender>>,
+        clients: Arc<CHashMap<ClientUuid, ChannelSender<ExecutorServerMessage>>>,
     ) -> Result<(), Error> {
         let mut ready_files: HashMap<ClientUuid, Vec<(FileUuid, FileStoreHandle, bool)>> =
             HashMap::new();
@@ -291,7 +291,7 @@ impl Executor {
                     ExecutorServerMessage::Done(files)
                 }
             };
-            if let Err(e) = serialize_into(&message, &client) {
+            if let Err(e) = client.send(message) {
                 warn!("Failed to send message to the client: {:?}", e);
             }
         }
@@ -303,16 +303,16 @@ impl Executor {
     fn handle_client_messages(
         file_store: Arc<FileStore>,
         client: ClientInfo,
-        sender: ChannelSender,
-        receiver: ChannelReceiver,
+        sender: ChannelSender<ExecutorServerMessage>,
+        receiver: ChannelReceiver<ExecutorClientMessage>,
         scheduler: Sender<SchedulerInMessage>,
     ) -> Result<(), Error> {
-        while let Ok(message) = deserialize_from::<ExecutorClientMessage>(&receiver) {
+        while let Ok(message) = receiver.recv() {
             match message {
                 ExecutorClientMessage::Evaluate { dag, callbacks } => {
                     if let Err(e) = check_dag(&dag, &callbacks) {
                         warn!("Invalid DAG: {:?}", e);
-                        serialize_into(&ExecutorServerMessage::Error(e.to_string()), &sender)?;
+                        sender.send(ExecutorServerMessage::Error(e.to_string()))?;
                         break;
                     } else {
                         trace!("DAG looks valid!");
@@ -329,7 +329,7 @@ impl Executor {
                         if let Some(handle) = handle {
                             ready_files.push((*uuid, handle));
                         } else {
-                            serialize_into(&ExecutorServerMessage::AskFile(*uuid), &sender)?;
+                            sender.send(ExecutorServerMessage::AskFile(*uuid))?;
                         }
                     }
                     // tell the scheduler that a new DAG is ready to be executed.
@@ -372,16 +372,13 @@ impl Executor {
                     // the client wants to know a file that was produced by the computation, send it
                     // if it exists.
                     if let Some(handle) = file_store.get(&key) {
-                        serialize_into(
-                            &ExecutorServerMessage::ProvideFile(uuid, success),
-                            &sender,
-                        )?;
+                        sender.send(ExecutorServerMessage::ProvideFile(uuid, success))?;
                         ChannelFileSender::send(handle.path(), &sender)?;
                     } else {
-                        serialize_into(
-                            &ExecutorServerMessage::Error(format!("Unknown file {:?}", key)),
-                            &sender,
-                        )?;
+                        sender.send(ExecutorServerMessage::Error(format!(
+                            "Unknown file {:?}",
+                            key
+                        )))?;
                     }
                 }
                 ExecutorClientMessage::Status => {

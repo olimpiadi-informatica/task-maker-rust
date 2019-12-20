@@ -13,7 +13,7 @@ use crate::proto::{
     ChannelFileIterator, ChannelFileSender, WorkerClientMessage, WorkerServerMessage,
 };
 use crate::scheduler::SchedulerInMessage;
-use crate::{deserialize_from, serialize_into, ChannelSender, WorkerConn};
+use crate::{ChannelSender, WorkerConn};
 
 /// Message coming from the Scheduler or the Executor for the WorkerManager
 pub(crate) enum WorkerManagerInMessage {
@@ -64,7 +64,8 @@ impl WorkerManager {
     /// Run the worker manager blocking until an exit message is received. On exiting the connected
     /// workers will stop.
     pub fn run(self) -> Result<(), Error> {
-        let mut connected_workers: HashMap<WorkerUuid, ChannelSender> = HashMap::new();
+        let mut connected_workers: HashMap<WorkerUuid, ChannelSender<WorkerServerMessage>> =
+            HashMap::new();
         while let Ok(message) = self.receiver.recv() {
             match message {
                 WorkerManagerInMessage::WorkerConnected { worker } => {
@@ -97,7 +98,7 @@ impl WorkerManager {
                     // if the worker is not present, it means it has just disconnected. The
                     // scheduler should be already informed and should have resheduled the job.
                     if let Some(sender) = connected_workers.get(&worker) {
-                        serialize_into(&WorkerServerMessage::Work(Box::new(job)), &sender)?;
+                        sender.send(WorkerServerMessage::Work(Box::new(job)))?;
                     }
                 }
                 WorkerManagerInMessage::Exit => {
@@ -108,7 +109,7 @@ impl WorkerManager {
         }
         debug!("Worker manager exiting");
         for (worker, sender) in connected_workers.iter() {
-            if serialize_into(&WorkerServerMessage::Exit, &sender).is_err() {
+            if sender.send(WorkerServerMessage::Exit).is_err() {
                 warn!("Cannot tell worker {} to exit", worker);
             }
         }
@@ -124,7 +125,7 @@ impl WorkerManager {
         worker_manager: Sender<WorkerManagerInMessage>,
         file_store: Arc<FileStore>,
     ) -> Result<(), Error> {
-        while let Ok(message) = deserialize_from::<WorkerClientMessage>(&worker.receiver) {
+        while let Ok(message) = worker.receiver.recv() {
             match message {
                 WorkerClientMessage::GetWork => {
                     // the worker is asking for more work to do
@@ -142,7 +143,7 @@ impl WorkerManager {
                     let handle = file_store
                         .get(&key)
                         .expect("Worker is asking for an unknown file");
-                    serialize_into(&WorkerServerMessage::ProvideFile(key), &worker.sender)?;
+                    worker.sender.send(WorkerServerMessage::ProvideFile(key))?;
                     ChannelFileSender::send(handle.path(), &worker.sender)?;
                 }
                 WorkerClientMessage::ProvideFile(_, _) => {
@@ -155,7 +156,7 @@ impl WorkerManager {
                     // TODO send only the files that are not already present in the local store
                     let mut output_handlers = HashMap::new();
                     for _ in 0..outputs.len() {
-                        let message = deserialize_from::<WorkerClientMessage>(&worker.receiver)?;
+                        let message = worker.receiver.recv()?;
                         if let WorkerClientMessage::ProvideFile(uuid, key) = message {
                             let handle = file_store
                                 .store(&key, ChannelFileIterator::new(&worker.receiver))?;

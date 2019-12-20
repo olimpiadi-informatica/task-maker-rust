@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::thread;
 
 use task_maker_exec::executors::RemoteEntityMessage;
-use task_maker_exec::{connect_channel, serialize_into, Worker};
+use task_maker_exec::{connect_channel, Worker};
 use task_maker_store::FileStore;
 
 use crate::error::NiceError;
@@ -35,17 +35,15 @@ pub fn main_worker(opt: Opt, worker_opt: WorkerOptions) {
     for i in 0..num_workers {
         let (executor_tx, executor_rx) =
             connect_channel(server_addr).nice_expect("Failed to connect to the server");
-        serialize_into(
-            &RemoteEntityMessage::Welcome { name: name.clone() },
-            &executor_tx,
-        )
-        .nice_expect("Cannot send welcome to the server");
+        executor_tx
+            .send(RemoteEntityMessage::Welcome { name: name.clone() })
+            .nice_expect("Cannot send welcome to the server");
         let worker = Worker::new_with_channel(
             &format!("{} {}", name, i),
             file_store.clone(),
             sandbox_path.clone(),
-            executor_tx,
-            executor_rx,
+            executor_tx.change_type(),
+            executor_rx.change_type(),
             self_exec_sandbox,
         );
         workers.push(

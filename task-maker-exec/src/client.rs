@@ -14,7 +14,7 @@ use task_maker_store::*;
 
 use crate::executor::{ExecutionDAGWatchSet, ExecutorStatus, ExecutorWorkerStatus};
 use crate::proto::*;
-use crate::{deserialize_from, serialize_into, ChannelReceiver, ChannelSender};
+use crate::{ChannelReceiver, ChannelSender};
 
 /// Interval between each Status message is sent asking for server status updates.
 const STATUS_POLL_INTERVAL_MS: u64 = 1000;
@@ -68,8 +68,8 @@ impl ExecutorClient {
     /// ```
     pub fn evaluate<F>(
         mut dag: ExecutionDAG,
-        sender: ChannelSender,
-        receiver: &ChannelReceiver,
+        sender: ChannelSender<ExecutorClientMessage>,
+        receiver: &ChannelReceiver<ExecutorServerMessage>,
         file_store: Arc<FileStore>,
         mut status_callback: F,
     ) -> Result<(), Error>
@@ -90,7 +90,7 @@ impl ExecutorClient {
 
         let mut missing_files = None;
         while missing_files.unwrap_or(1) > 0 {
-            match deserialize_from::<ExecutorServerMessage>(&receiver) {
+            match receiver.recv() {
                 Ok(ExecutorServerMessage::AskFile(uuid)) => {
                     info!("Server is asking for {}", uuid);
                     // prevent the status poller for sending messages while sending the file
@@ -101,17 +101,11 @@ impl ExecutorClient {
                         ProvidedFile::LocalFile {
                             local_path, key, ..
                         } => {
-                            serialize_into(
-                                &ExecutorClientMessage::ProvideFile(uuid, key.clone()),
-                                &sender,
-                            )?;
+                            sender.send(ExecutorClientMessage::ProvideFile(uuid, key.clone()))?;
                             ChannelFileSender::send(&local_path, &sender)?;
                         }
                         ProvidedFile::Content { content, key, .. } => {
-                            serialize_into(
-                                &ExecutorClientMessage::ProvideFile(uuid, key.clone()),
-                                &sender,
-                            )?;
+                            sender.send(ExecutorClientMessage::ProvideFile(uuid, key.clone()))?;
                             ChannelFileSender::send_data(content.clone(), &sender)?;
                         }
                     }
@@ -184,10 +178,7 @@ impl ExecutorClient {
                                 iterator,
                             )?;
                         } else {
-                            serialize_into(
-                                &ExecutorClientMessage::AskFile(uuid, key, success),
-                                &sender,
-                            )?;
+                            sender.send(ExecutorClientMessage::AskFile(uuid, key, success))?;
                             missing += 1;
                         }
                     }
@@ -214,7 +205,10 @@ impl ExecutorClient {
 
     /// Start the evaluation calling the file callbacks on the input files and sending the start
     /// message to the Executor.
-    fn start_evaluation(dag: &mut ExecutionDAG, sender: &ChannelSender) -> Result<(), Error> {
+    fn start_evaluation(
+        dag: &mut ExecutionDAG,
+        sender: &ChannelSender<ExecutorClientMessage>,
+    ) -> Result<(), Error> {
         // list all the files/executions that want callbacks
         let dag_callbacks = ExecutionDAGWatchSet {
             executions: dag.execution_callbacks.keys().cloned().collect(),
@@ -236,13 +230,10 @@ impl ExecutorClient {
                 }
             }
         }
-        serialize_into(
-            &ExecutorClientMessage::Evaluate {
-                dag: dag.data.clone(),
-                callbacks: dag_callbacks,
-            },
-            sender,
-        )
+        sender.send(ExecutorClientMessage::Evaluate {
+            dag: dag.data.clone(),
+            callbacks: dag_callbacks,
+        })
     }
 
     /// Spawn a thread that will ask the server status every `STATUS_POLL_INTERVAL_MS`, making sure
@@ -250,7 +241,7 @@ impl ExecutorClient {
     fn spawn_status_poller(
         done: Arc<AtomicBool>,
         file_mode: Arc<Mutex<()>>,
-        sender: ChannelSender,
+        sender: ChannelSender<ExecutorClientMessage>,
     ) -> JoinHandle<()> {
         thread::Builder::new()
             .name("Client status poller".into())
@@ -260,7 +251,7 @@ impl ExecutorClient {
                         // make sure to not interfere with the file sending protocol.
                         let _lock = file_mode.lock().unwrap();
                         // this may fail if the server is gone
-                        let _ = serialize_into(&ExecutorClientMessage::Status, &sender);
+                        let _ = sender.send(ExecutorClientMessage::Status);
                     }
                     thread::sleep(Duration::from_millis(STATUS_POLL_INTERVAL_MS));
                 }

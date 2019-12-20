@@ -9,7 +9,7 @@ use task_maker_store::FileStore;
 
 use crate::executor::{Executor, ExecutorInMessage};
 use crate::scheduler::ClientInfo;
-use crate::{deserialize_from, ChannelServer, WorkerConn};
+use crate::{ChannelServer, WorkerConn};
 
 /// An executor that accepts remote connections from clients and workers.
 pub struct RemoteExecutor {
@@ -59,9 +59,7 @@ impl RemoteExecutor {
                 for (sender, receiver, addr) in server {
                     info!("Client connected from {}", addr);
                     let uuid = Uuid::new_v4();
-                    let name = if let Ok(RemoteEntityMessage::Welcome { name }) =
-                        deserialize_from(&receiver)
-                    {
+                    let name = if let Ok(RemoteEntityMessage::Welcome { name }) = receiver.recv() {
                         name
                     } else {
                         warn!(
@@ -75,7 +73,7 @@ impl RemoteExecutor {
                         .send(ExecutorInMessage::ClientConnected {
                             client,
                             sender,
-                            receiver,
+                            receiver: receiver.change_type(),
                         })
                         .expect("Executor is gone");
                 }
@@ -93,9 +91,7 @@ impl RemoteExecutor {
                 for (sender, receiver, addr) in server {
                     info!("Worker connected from {}", addr);
                     let uuid = Uuid::new_v4();
-                    let name = if let Ok(RemoteEntityMessage::Welcome { name }) =
-                        deserialize_from(&receiver)
-                    {
+                    let name = if let Ok(RemoteEntityMessage::Welcome { name }) = receiver.recv() {
                         name
                     } else {
                         warn!(
@@ -108,7 +104,7 @@ impl RemoteExecutor {
                         uuid,
                         name,
                         sender,
-                        receiver,
+                        receiver: receiver.change_type(),
                     };
                     executor_tx
                         .send(ExecutorInMessage::WorkerConnected { worker })

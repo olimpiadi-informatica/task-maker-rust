@@ -42,7 +42,7 @@ use task_maker_dag::*;
 use task_maker_store::*;
 
 /// Messages that the client sends to the server.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExecutorClientMessage {
     /// The client is asking to evaluate a DAG.
     Evaluate {
@@ -66,7 +66,7 @@ pub enum ExecutorClientMessage {
 }
 
 /// Messages that the server sends to the client.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ExecutorServerMessage {
     /// The server needs the file with that Uuid. The client must send back that file in order to
     /// proceed with the execution.
@@ -90,7 +90,7 @@ pub enum ExecutorServerMessage {
 }
 
 /// Messages sent by the workers to the server.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WorkerClientMessage {
     /// The worker is ready for some job. The worker will wait for a
     /// [`Work`](enum.WorkerServerMessage.html#variant.Work) message.
@@ -107,7 +107,7 @@ pub enum WorkerClientMessage {
 }
 
 /// Messages sent by the server to the worker.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WorkerServerMessage {
     /// The job the worker should do. Boxed to reduce the enum size.
     Work(Box<WorkerJob>),
@@ -122,7 +122,7 @@ pub enum WorkerServerMessage {
 ///
 /// In this mode a series of `Data` messages is sent, ended by an `End` message. After this message
 /// the protocol switches back to normal mode.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum FileProtocol {
     /// A chunk of data.
     Data(Vec<u8>),
@@ -131,23 +131,32 @@ pub enum FileProtocol {
 }
 
 /// An iterator over the byte chunks sent during the FileProtocol mode in a channel.
-pub struct ChannelFileIterator<'a> {
+pub struct ChannelFileIterator<'a, T>
+where
+    T: Send + Sync + DeserializeOwned,
+{
     /// Reference to the channel from where to read
-    reader: &'a ChannelReceiver,
+    reader: &'a ChannelReceiver<T>,
 }
 
-impl<'a> ChannelFileIterator<'a> {
+impl<'a, T> ChannelFileIterator<'a, T>
+where
+    T: 'static + Send + Sync + DeserializeOwned,
+{
     /// Create a new iterator over a receiver channel.
-    pub fn new(reader: &'a ChannelReceiver) -> ChannelFileIterator<'a> {
+    pub fn new(reader: &'a ChannelReceiver<T>) -> ChannelFileIterator<'a, T> {
         ChannelFileIterator { reader }
     }
 }
 
-impl<'a> Iterator for ChannelFileIterator<'a> {
+impl<'a, T> Iterator for ChannelFileIterator<'a, T>
+where
+    T: 'static + Send + Sync + DeserializeOwned,
+{
     type Item = Vec<u8>;
     fn next(&mut self) -> Option<Self::Item> {
         // errors cannot be handled in this iterator yet
-        match deserialize_from::<FileProtocol>(self.reader).expect("deserialize error") {
+        match self.reader.recv_file().expect("deserialize error") {
             FileProtocol::Data(d) => Some(d),
             FileProtocol::End => None,
         }
@@ -159,18 +168,24 @@ pub struct ChannelFileSender;
 
 impl ChannelFileSender {
     /// Send a local file to a channel using [`FileProtocol`](enum.FileProtocol.html).
-    pub fn send<P: AsRef<Path>>(path: P, sender: &ChannelSender) -> Result<(), Error> {
+    pub fn send<P: AsRef<Path>, T>(path: P, sender: &ChannelSender<T>) -> Result<(), Error>
+    where
+        T: 'static + Send + Sync + Serialize,
+    {
         for buf in ReadFileIterator::new(path.as_ref())? {
-            serialize_into(&FileProtocol::Data(buf), sender)?;
+            sender.send_file(FileProtocol::Data(buf))?;
         }
-        serialize_into(&FileProtocol::End, sender)?;
+        sender.send_file(FileProtocol::End)?;
         Ok(())
     }
 
     /// Send a file's data to a channel using [`FileProtocol`](enum.FileProtocol.html).
-    pub fn send_data(data: Vec<u8>, sender: &ChannelSender) -> Result<(), Error> {
-        serialize_into(&FileProtocol::Data(data), sender)?;
-        serialize_into(&FileProtocol::End, sender)?;
+    pub fn send_data<T>(data: Vec<u8>, sender: &ChannelSender<T>) -> Result<(), Error>
+    where
+        T: 'static + Send + Sync + Serialize,
+    {
+        sender.send_file(FileProtocol::Data(data))?;
+        sender.send_file(FileProtocol::End)?;
         Ok(())
     }
 }
@@ -184,7 +199,7 @@ mod tests {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
         std::fs::write(tmpdir.path().join("file.txt"), "hello world").unwrap();
 
-        let (sender, receiver) = new_local_channel();
+        let (sender, receiver) = new_local_channel::<()>();
         let receiver = ChannelFileIterator::new(&receiver);
         ChannelFileSender::send(tmpdir.path().join("file.txt"), &sender).unwrap();
         let data: Vec<u8> = receiver.flat_map(|d| d.into_iter()).collect();
@@ -193,7 +208,7 @@ mod tests {
 
     #[test]
     fn test_send_content() {
-        let (sender, receiver) = new_local_channel();
+        let (sender, receiver) = new_local_channel::<()>();
         let receiver = ChannelFileIterator::new(&receiver);
         ChannelFileSender::send_data(b"hello world".to_vec(), &sender).unwrap();
         let data: Vec<u8> = receiver.flat_map(|d| d.into_iter()).collect();

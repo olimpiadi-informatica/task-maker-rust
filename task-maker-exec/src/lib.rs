@@ -71,25 +71,30 @@ extern crate log;
 #[macro_use(defer)]
 extern crate scopeguard;
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
+use std::cell::RefCell;
+use std::marker::PhantomData;
+use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 use bincode;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use failure::Error;
+use crossbeam_channel::{unbounded, Receiver, Sender};
+use failure::{bail, Error};
+use serde::{Deserialize, Serialize};
+use tabox::configuration::SandboxConfiguration;
 
 pub use client::ExecutorClient;
 pub use executor::ExecutorStatus;
-use failure::_core::ops::Deref;
-use std::cell::RefCell;
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+pub use sandbox::RawSandboxResult;
 use task_maker_cache::Cache;
 use task_maker_dag::ExecutionDAG;
 use task_maker_store::FileStore;
 pub use worker::{Worker, WorkerConn};
+
+use crate::proto::FileProtocol;
+use serde::de::DeserializeOwned;
+use std::ops::{Deref, DerefMut};
 
 mod check_dag;
 mod client;
@@ -100,74 +105,156 @@ mod sandbox;
 mod scheduler;
 mod worker;
 mod worker_manager;
-pub use sandbox::RawSandboxResult;
-use tabox::configuration::SandboxConfiguration;
+
+/// Message type that can be send in a channel.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ChannelMessage<T> {
+    /// The message is a normal application message of type T.
+    Message(T),
+    /// The message is part of of the `FileProtocol`.
+    FileData(FileProtocol),
+}
 
 /// The channel part that sends data.
 #[derive(Debug, Clone)]
-pub enum ChannelSender {
+pub enum ChannelSender<T> {
     /// The connection is only a local in-memory channel.
-    Local(Sender<Vec<u8>>),
+    Local(Sender<ChannelMessage<T>>),
     /// The connection is with a remote party.
     Remote(Arc<Mutex<TcpStream>>),
 }
 
 /// The channel part that receives data.
 #[derive(Debug)]
-pub enum ChannelReceiver {
+pub enum ChannelReceiver<T> {
     /// The connection is only a local in-memory channel.
-    Local(Receiver<Vec<u8>>),
+    Local(Receiver<ChannelMessage<T>>),
     /// The connection is with a remote party.
     Remote(RefCell<TcpStream>),
 }
 
-impl ChannelSender {
+impl<T> ChannelSender<T>
+where
+    T: 'static + Send + Sync + Serialize,
+{
     /// Send some data into the channel.
-    pub fn send(&self, data: Vec<u8>) -> Result<(), Error> {
+    pub fn send(&self, data: T) -> Result<(), Error> {
         match self {
-            ChannelSender::Local(sender) => sender.send(data).map_err(|e| e.into()),
+            ChannelSender::Local(sender) => sender
+                .send(ChannelMessage::Message(data))
+                .map_err(|e| e.into()),
             ChannelSender::Remote(sender) => {
-                let mut sender = sender.lock().expect("Cannot lock ChannelSender");
-                sender.write_u32::<LittleEndian>(data.len() as u32)?;
-                sender.write_all(&data).map_err(|e| e.into())
+                ChannelSender::<T>::send_remote_raw(sender, ChannelMessage::Message(data))
             }
+        }
+    }
+
+    /// Send some `FileProtocol` data in the channel.
+    pub(crate) fn send_file(&self, data: FileProtocol) -> Result<(), Error> {
+        match self {
+            ChannelSender::Local(sender) => Ok(sender.send(ChannelMessage::FileData(data))?),
+            ChannelSender::Remote(sender) => {
+                ChannelSender::<T>::send_remote_raw(sender, ChannelMessage::FileData(data))
+            }
+        }
+    }
+
+    /// Send some unchecked data to the remote channel.
+    fn send_remote_raw(
+        sender: &Arc<Mutex<TcpStream>>,
+        data: ChannelMessage<T>,
+    ) -> Result<(), Error> {
+        let mut sender = sender.lock().expect("Cannot lock ChannelSender");
+        let stream = sender.deref_mut();
+        bincode::serialize_into(stream, &data)?;
+        Ok(())
+    }
+
+    /// Given this is a `ChannelSender::Remote`, change the type of the message. Will panic if this
+    /// is a `ChannelSender::Local`.
+    ///
+    /// This function is useful for implementing a protocol where the message types change during
+    /// the execution, for example because initially there is an handshake message, followed by the
+    /// actual protocol messages.
+    pub fn change_type<T2>(self) -> ChannelSender<T2> {
+        match self {
+            ChannelSender::Local(_) => panic!("Cannot change ChannelSender::Local type"),
+            ChannelSender::Remote(r) => ChannelSender::Remote(r),
         }
     }
 }
 
-impl ChannelReceiver {
+impl<'a, T> ChannelReceiver<T>
+where
+    T: 'static + DeserializeOwned,
+{
     /// Receive a message from the channel.
-    pub fn recv(&self) -> Result<Vec<u8>, Error> {
+    pub fn recv(&self) -> Result<T, Error> {
+        let message = match self {
+            ChannelReceiver::Local(receiver) => receiver.recv()?,
+            ChannelReceiver::Remote(receiver) => ChannelReceiver::recv_remote_raw(receiver)?,
+        };
+        match message {
+            ChannelMessage::Message(mex) => Ok(mex),
+            _ => bail!("Expected ChannelMessage::Message"),
+        }
+    }
+
+    /// Receive a message of the `FileProtocol` from the channel.
+    pub(crate) fn recv_file(&self) -> Result<FileProtocol, Error> {
+        let message = match self {
+            ChannelReceiver::Local(receiver) => receiver.recv()?,
+            ChannelReceiver::Remote(receiver) => ChannelReceiver::recv_remote_raw(receiver)?,
+        };
+        match message {
+            ChannelMessage::FileData(mex) => Ok(mex),
+            _ => bail!("Expected ChannelMessage::FileData"),
+        }
+    }
+
+    /// Receive a message from the TCP stream of a channel.
+    fn recv_remote_raw(receiver: &RefCell<TcpStream>) -> Result<ChannelMessage<T>, Error> {
+        let mut receiver = receiver.borrow_mut();
+        Ok(bincode::deserialize_from(receiver.deref_mut())?)
+    }
+
+    /// Given this is a `ChannelReceiver::Remote`, change the type of the message. Will panic if
+    /// this is a `ChannelReceiver::Local`.
+    ///
+    /// This function is useful for implementing a protocol where the message types change during
+    /// the execution, for example because initially there is an handshake message, followed by the
+    /// actual protocol messages.
+    pub fn change_type<T2>(self) -> ChannelReceiver<T2> {
         match self {
-            ChannelReceiver::Local(receiver) => receiver.recv().map_err(|e| e.into()),
-            ChannelReceiver::Remote(receiver) => {
-                let mut receiver = receiver.borrow_mut();
-                let len = receiver.read_u32::<LittleEndian>()?;
-                let mut buf = vec![0; len as usize];
-                receiver.read_exact(&mut buf)?;
-                Ok(buf)
-            }
+            ChannelReceiver::Local(_) => panic!("Cannot change ChannelReceiver::Local type"),
+            ChannelReceiver::Remote(r) => ChannelReceiver::Remote(r),
         }
     }
 }
 
 /// Make a new pair of `ChannelSender` / `ChannelReceiver`
-pub fn new_local_channel() -> (ChannelSender, ChannelReceiver) {
+pub fn new_local_channel<T>() -> (ChannelSender<T>, ChannelReceiver<T>) {
     let (tx, rx) = unbounded();
     (ChannelSender::Local(tx), ChannelReceiver::Local(rx))
 }
 
 /// Listener for connections on some TCP socket.
-pub struct ChannelServer(TcpListener);
+///
+/// `S` and `R` are the types of message sent and received respectively.
+pub struct ChannelServer<S, R>(TcpListener, PhantomData<*const S>, PhantomData<*const R>);
 
-impl ChannelServer {
+impl<S, R> ChannelServer<S, R> {
     /// Bind a socket and create a new `ChannelServer`.
-    pub fn bind<A: ToSocketAddrs>(addr: A) -> Result<ChannelServer, Error> {
-        Ok(ChannelServer(TcpListener::bind(addr)?))
+    pub fn bind<A: ToSocketAddrs>(addr: A) -> Result<ChannelServer<S, R>, Error> {
+        Ok(ChannelServer(
+            TcpListener::bind(addr)?,
+            PhantomData::default(),
+            PhantomData::default(),
+        ))
     }
 }
 
-impl Deref for ChannelServer {
+impl<S, R> Deref for ChannelServer<S, R> {
     type Target = TcpListener;
 
     fn deref(&self) -> &Self::Target {
@@ -175,8 +262,8 @@ impl Deref for ChannelServer {
     }
 }
 
-impl Iterator for ChannelServer {
-    type Item = (ChannelSender, ChannelReceiver, SocketAddr);
+impl<S, R> Iterator for ChannelServer<S, R> {
+    type Item = (ChannelSender<S>, ChannelReceiver<R>, SocketAddr);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -199,32 +286,15 @@ impl Iterator for ChannelServer {
 }
 
 /// Connect to a remote channel.
-pub fn connect_channel<A: ToSocketAddrs>(
+pub fn connect_channel<A: ToSocketAddrs, T>(
     addr: A,
-) -> Result<(ChannelSender, ChannelReceiver), Error> {
+) -> Result<(ChannelSender<T>, ChannelReceiver<T>), Error> {
     let stream = TcpStream::connect(addr)?;
     let stream2 = stream.try_clone()?;
     Ok((
         ChannelSender::Remote(Arc::new(Mutex::new(stream))),
         ChannelReceiver::Remote(RefCell::new(stream2)),
     ))
-}
-
-/// Serialize a message into the sender serializing it.
-pub fn serialize_into<T>(what: &T, sender: &ChannelSender) -> Result<(), Error>
-where
-    T: serde::Serialize,
-{
-    sender.send(bincode::serialize(what)?)
-}
-
-/// Deserialize a message from the channel and return it.
-pub fn deserialize_from<T>(reader: &ChannelReceiver) -> Result<T, Error>
-where
-    for<'de> T: serde::Deserialize<'de>,
-{
-    let data = reader.recv()?;
-    bincode::deserialize(&data).map_err(|e| e.into())
 }
 
 /// Evaluate a DAG locally spawning a new [`LocalExecutor`](executors/struct.LocalExecutor.html)
@@ -272,14 +342,14 @@ mod tests {
     use std::sync::Arc;
 
     use pretty_assertions::assert_eq;
+    use rand::Rng;
     use serde::{Deserialize, Serialize};
+    use tabox::result::{ExitStatus, ResourceUsage, SandboxExecutionResult};
     use tempdir::TempDir;
 
     use task_maker_dag::*;
 
     use super::*;
-    use rand::Rng;
-    use tabox::result::{ExitStatus, ResourceUsage, SandboxExecutionResult};
 
     #[test]
     fn test_serialize_deserialize() {
@@ -290,15 +360,12 @@ mod tests {
         }
 
         let (tx, rx) = new_local_channel();
-        serialize_into(
-            &Thing {
-                x: 42,
-                y: "foobar".into(),
-            },
-            &tx,
-        )
+        tx.send(Thing {
+            x: 42,
+            y: "foobar".into(),
+        })
         .unwrap();
-        let thing: Thing = deserialize_from(&rx).unwrap();
+        let thing: Thing = rx.recv().unwrap();
         assert_eq!(thing.x, 42);
         assert_eq!(thing.y, "foobar");
     }
@@ -316,7 +383,7 @@ mod tests {
         });
 
         let (sender, receiver, _addr) = server.next().unwrap();
-        let data = receiver.recv().unwrap();
+        let data: Vec<i32> = receiver.recv().unwrap();
         assert_eq!(data, vec![1, 2, 3, 4]);
         sender.send(vec![5, 6, 7, 8]).unwrap();
         let data = receiver.recv().unwrap();

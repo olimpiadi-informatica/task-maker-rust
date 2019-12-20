@@ -10,6 +10,7 @@ use task_maker_cache::Cache;
 use task_maker_store::FileStore;
 
 use crate::executor::{Executor, ExecutorInMessage};
+use crate::proto::{ExecutorClientMessage, ExecutorServerMessage};
 use crate::scheduler::ClientInfo;
 use crate::{ChannelReceiver, ChannelSender, RawSandboxResult, Worker};
 use tabox::configuration::SandboxConfiguration;
@@ -49,8 +50,8 @@ impl LocalExecutor {
     /// * `sandbox_runner` - The function to call for running a process in a sandbox.
     pub fn evaluate<F>(
         self,
-        sender: ChannelSender,
-        receiver: ChannelReceiver,
+        sender: ChannelSender<ExecutorServerMessage>,
+        receiver: ChannelReceiver<ExecutorClientMessage>,
         cache: Cache,
         sandbox_runner: F,
     ) -> Result<(), Error>

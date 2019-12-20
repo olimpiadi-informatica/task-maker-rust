@@ -8,7 +8,7 @@ use failure::{bail, format_err, Error};
 use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
 use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage};
-use task_maker_exec::{connect_channel, new_local_channel, serialize_into, ExecutorClient};
+use task_maker_exec::{connect_channel, new_local_channel, ExecutorClient};
 use task_maker_format::ui::{UIMessage, UI};
 use task_maker_format::UISender;
 use task_maker_format::{ioi, EvaluationConfig, EvaluationData, TaskFormat};
@@ -126,9 +126,9 @@ where
         let name = opt
             .name
             .unwrap_or_else(|| format!("{}@{}", whoami::username(), whoami::hostname()));
-        serialize_into(&RemoteEntityMessage::Welcome { name }, &tx)
+        tx.send(RemoteEntityMessage::Welcome { name })
             .map_err(|e| format_err!("Cannot send welcome to the server: {}", e.to_string()))?;
-        (tx, rx, None)
+        (tx.change_type(), rx.change_type(), None)
     } else {
         // start the server and the client
         let (tx, rx_remote) = new_local_channel();
