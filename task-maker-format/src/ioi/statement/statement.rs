@@ -1,12 +1,15 @@
-use crate::ioi::statement::asy::AsyFile;
-use crate::ioi::{BookletConfig, Task};
-use crate::EvaluationData;
+use std::path::{Path, PathBuf};
+
 use askama::Template;
 use failure::Error;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+
 use task_maker_dag::File;
+
+use crate::ioi::statement::asy::AsyFile;
+use crate::ioi::{BookletConfig, Task};
+use crate::EvaluationData;
 
 lazy_static! {
     /// This regex will match all the `\usepackage` inside a latex file.
@@ -98,58 +101,14 @@ impl Statement {
             if !path.is_file() {
                 continue;
             }
-            let suffix = path.strip_prefix(base_dir).unwrap();
-            let ext = path
-                .extension()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_else(String::new);
-            match ext.as_str() {
-                "asy" => {
-                    let dest = suffix.with_extension("pdf");
-                    if self.content.contains(dest.to_string_lossy().as_ref()) {
-                        let file = AsyFile::compile(&path, eval, booklet_name)?;
-                        deps.push((dest, file));
-                    }
-                }
-                _ => {
-                    if ext == "pdf" {
-                        let check_pdf = || -> Result<bool, Error> {
-                            // resolve the symlinks
-                            let path = path.canonicalize()?;
-                            // ignore .pdf files that have the .asy source
-                            let asy_path = path.with_extension("asy");
-                            if asy_path.exists() {
-                                return Ok(true);
-                            }
-                            // ignore .pdf files that have the .tex source
-                            let tex_path = path.with_extension("tex");
-                            if tex_path.exists() {
-                                return Ok(true);
-                            }
-                            Ok(false)
-                        };
-                        match (path.file_name(), &logo) {
-                            (_, None) => {
-                                if check_pdf()? {
-                                    continue;
-                                }
-                            }
-                            (Some(name), Some(logo)) if name != logo => {
-                                if check_pdf()? {
-                                    continue;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                    let file = File::new(format!(
-                        "Dependency of {} at {:?}",
-                        self.config.name, suffix
-                    ));
-                    eval.dag.provide_file(file.clone(), &path)?;
-                    deps.push((suffix.into(), file));
-                }
-            }
+            self.process_possible_dependency(
+                base_dir,
+                &path,
+                &mut deps,
+                eval,
+                booklet_name,
+                &logo,
+            )?;
         }
         Ok(deps)
     }
@@ -196,6 +155,71 @@ impl Statement {
         }
         packages
     }
+
+    /// Process a possible statement dependency, eventually adding it to the compilation.
+    fn process_possible_dependency(
+        &self,
+        base_dir: &Path,
+        path: &Path,
+        deps: &mut Vec<(PathBuf, File)>,
+        eval: &mut EvaluationData,
+        booklet_name: &str,
+        logo: &Option<PathBuf>,
+    ) -> Result<(), Error> {
+        let suffix = path.strip_prefix(base_dir).unwrap();
+        let ext = path
+            .extension()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(String::new);
+        if ext.as_str() == "asy" {
+            let dest = suffix.with_extension("pdf");
+            if self.content.contains(dest.to_string_lossy().as_ref()) {
+                let file = AsyFile::compile(&path, eval, booklet_name)?;
+                deps.push((dest, file));
+            }
+        } else {
+            if ext == "pdf" {
+                // the .pdf file can be the logo of the contest (is present). If it's the logo it is
+                // always added.
+                let is_logo = match (path.file_name(), &logo) {
+                    (Some(name), Some(logo)) => name == logo,
+                    _ => false,
+                };
+                // skip this file if it's not the logo and it's not a valid pdf dependency.
+                if !is_logo && !Statement::is_valid_pdf_dependency(path)? {
+                    return Ok(());
+                }
+            }
+            let file = File::new(format!(
+                "Dependency of {} at {:?}",
+                self.config.name, suffix
+            ));
+            eval.dag.provide_file(file.clone(), &path)?;
+            deps.push((suffix.into(), file));
+        }
+        Ok(())
+    }
+
+    /// Check if this pdf file should be considered a valid dependency.
+    /// There are some cases where the .pdf should not be considered a dependency:
+    /// - The file is the output of an asy compilation: asy will build it from scratch (or use the
+    ///   cache)
+    /// - The file is the output of a .tex file (i.e. statement.tex, english.tex, ...): it could be
+    ///   the previous output of this statement, do not add it to the sandbox, otherwise the cache
+    ///   will miss every time.
+    fn is_valid_pdf_dependency(path: &Path) -> Result<bool, Error> {
+        // resolve the symlinks
+        let path = path.canonicalize()?;
+        // ignore .pdf files that have the .asy source
+        if path.with_extension("asy").exists() {
+            return Ok(false);
+        }
+        // ignore .pdf files that have the .tex source
+        if path.with_extension("tex").exists() {
+            return Ok(false);
+        }
+        Ok(true)
+    }
 }
 
 impl StatementConfig {
@@ -219,5 +243,82 @@ impl StatementConfig {
             difficulty: task.difficulty,
             syllabus_level: task.syllabus_level,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ioi::{Statement, StatementConfig};
+    use crate::EvaluationData;
+    use std::path::Path;
+    use tempdir::TempDir;
+
+    #[test]
+    fn test_is_valid_pdf_dependency_valid() {
+        let tmpdir = TempDir::new("tm-test").unwrap();
+        let path = tmpdir.path().join("test.pdf");
+        std::fs::write(&path, "").unwrap();
+        assert!(Statement::is_valid_pdf_dependency(&path).unwrap());
+    }
+
+    #[test]
+    fn test_is_valid_pdf_dependency_asy() {
+        let tmpdir = TempDir::new("tm-test").unwrap();
+        let path = tmpdir.path().join("test.pdf");
+        std::fs::write(&path, "").unwrap();
+        std::fs::write(&path.with_extension("asy"), "").unwrap();
+        assert!(!Statement::is_valid_pdf_dependency(&path).unwrap());
+    }
+
+    #[test]
+    fn test_is_valid_pdf_dependency_tex() {
+        let tmpdir = TempDir::new("tm-test").unwrap();
+        let path = tmpdir.path().join("test.pdf");
+        std::fs::write(&path, "").unwrap();
+        std::fs::write(&path.with_extension("tex"), "").unwrap();
+        assert!(!Statement::is_valid_pdf_dependency(&path).unwrap());
+    }
+
+    #[test]
+    fn test_is_valid_pdf_dependency_invalid() {
+        assert!(Statement::is_valid_pdf_dependency(Path::new("/do/not/exists")).is_err());
+    }
+
+    #[test]
+    fn test_process_possible_dependency() {
+        let tmpdir = TempDir::new("tm-test").unwrap();
+        let path = tmpdir.path().join("test.tex");
+        let logo = tmpdir.path().join("logo.pdf");
+        std::fs::write(&path, "lol").unwrap();
+        std::fs::write(&logo, "lol").unwrap();
+        let statement = Statement::new(&path, StatementConfig::default()).unwrap();
+        let logo2 = Some(logo.clone());
+
+        let mut eval = EvaluationData::new().0;
+        let in_files = vec!["logo.pdf", "test.png", "asset.pdf"];
+        let not_in_files = vec!["asy_image.pdf", "tex_file.pdf"];
+        std::fs::write(tmpdir.path().join("asy_image.asy"), "").unwrap();
+        std::fs::write(tmpdir.path().join("tex_file.tex"), "").unwrap();
+
+        let mut deps = vec![];
+        for file in in_files.iter().chain(not_in_files.iter()) {
+            let path = tmpdir.path().join(file);
+            std::fs::write(&path, "").unwrap();
+            statement
+                .process_possible_dependency(
+                    tmpdir.path(),
+                    &path,
+                    &mut deps,
+                    &mut eval,
+                    "name",
+                    &logo2,
+                )
+                .unwrap();
+        }
+        let deps: Vec<_> = deps
+            .into_iter()
+            .map(|v| v.0.to_string_lossy().to_string())
+            .collect();
+        assert_eq!(deps, in_files);
     }
 }
