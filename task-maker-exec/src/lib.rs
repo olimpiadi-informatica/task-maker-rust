@@ -72,8 +72,10 @@ extern crate log;
 extern crate scopeguard;
 
 use std::cell::RefCell;
+use std::io::{Read, Write};
 use std::marker::PhantomData;
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -81,6 +83,7 @@ use std::thread;
 use bincode;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use failure::{bail, Error};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use tabox::configuration::SandboxConfiguration;
 
@@ -93,8 +96,6 @@ use task_maker_store::FileStore;
 pub use worker::{Worker, WorkerConn};
 
 use crate::proto::FileProtocol;
-use serde::de::DeserializeOwned;
-use std::ops::{Deref, DerefMut};
 
 mod check_dag;
 mod client;
@@ -111,8 +112,14 @@ mod worker_manager;
 pub enum ChannelMessage<T> {
     /// The message is a normal application message of type T.
     Message(T),
-    /// The message is part of of the `FileProtocol`.
-    FileData(FileProtocol),
+    /// The message encodes a `FileProtocol` message. This variant is only used in local channels.
+    FileProtocol(FileProtocol),
+    /// Message telling the other end that a file is coming of the specified length. This variant is
+    /// only used in remote channels.
+    RawFileData(usize),
+    /// Message telling the other end that the file is ended, i.e. this was the last chunk. This
+    /// variant is only used in remote channels.
+    RawFileEnd,
 }
 
 /// The channel part that sends data.
@@ -152,10 +159,23 @@ where
     /// Send some `FileProtocol` data in the channel.
     pub(crate) fn send_file(&self, data: FileProtocol) -> Result<(), Error> {
         match self {
-            ChannelSender::Local(sender) => Ok(sender.send(ChannelMessage::FileData(data))?),
-            ChannelSender::Remote(sender) => {
-                ChannelSender::<T>::send_remote_raw(sender, ChannelMessage::FileData(data))
-            }
+            ChannelSender::Local(sender) => Ok(sender.send(ChannelMessage::FileProtocol(data))?),
+            ChannelSender::Remote(sender) => match data {
+                // Data is special, to avoid costly serialization of raw bytes, send the size of the
+                // buffer and then the raw content.
+                FileProtocol::Data(data) => {
+                    ChannelSender::<T>::send_remote_raw(
+                        sender,
+                        ChannelMessage::RawFileData(data.len()),
+                    )?;
+                    let mut sender = sender.lock().expect("Cannot lock ChannelSender");
+                    let stream = sender.deref_mut();
+                    stream.write_all(&data).map_err(|e| e.into())
+                }
+                FileProtocol::End => {
+                    ChannelSender::<T>::send_remote_raw(sender, ChannelMessage::RawFileEnd)
+                }
+            },
         }
     }
 
@@ -202,13 +222,25 @@ where
 
     /// Receive a message of the `FileProtocol` from the channel.
     pub(crate) fn recv_file(&self) -> Result<FileProtocol, Error> {
-        let message = match self {
-            ChannelReceiver::Local(receiver) => receiver.recv()?,
-            ChannelReceiver::Remote(receiver) => ChannelReceiver::recv_remote_raw(receiver)?,
-        };
-        match message {
-            ChannelMessage::FileData(mex) => Ok(mex),
-            _ => bail!("Expected ChannelMessage::FileData"),
+        match self {
+            ChannelReceiver::Local(receiver) => match receiver.recv()? {
+                ChannelMessage::FileProtocol(data) => Ok(data),
+                _ => bail!("Expected ChannelMessage::FileProtocol"),
+            },
+            ChannelReceiver::Remote(receiver) => {
+                match ChannelReceiver::<T>::recv_remote_raw(receiver)? {
+                    ChannelMessage::RawFileData(len) => {
+                        let mut receiver = receiver.borrow_mut();
+                        let mut buf = vec![0u8; len];
+                        receiver.read_exact(&mut buf)?;
+                        Ok(FileProtocol::Data(buf))
+                    }
+                    ChannelMessage::RawFileEnd => Ok(FileProtocol::End),
+                    _ => {
+                        bail!("Expected ChannelMessage::RawFileData or ChannelMessage::RawFileEnd")
+                    }
+                }
+            }
         }
     }
 
