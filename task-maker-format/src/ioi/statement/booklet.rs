@@ -59,7 +59,7 @@ pub struct Booklet {
     /// The list of `Statement`s that are included in this booklet.
     pub statements: Vec<Statement>,
     /// Where to copy the booklet.
-    dest: PathBuf,
+    pub dest: PathBuf,
 }
 
 /// Part of the schema of `contest.yaml`, used for extracting the configuration of the booklet.

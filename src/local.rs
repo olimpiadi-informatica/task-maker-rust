@@ -9,7 +9,7 @@ use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
 use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage};
 use task_maker_exec::{connect_channel, new_local_channel, ExecutorClient};
-use task_maker_format::ui::{UIMessage, UI};
+use task_maker_format::ui::{UIMessage, UIType, UI};
 use task_maker_format::UISender;
 use task_maker_format::{ioi, EvaluationConfig, EvaluationData, TaskFormat};
 use task_maker_store::FileStore;
@@ -54,6 +54,18 @@ where
     let eval_config = opt.to_config();
     let task: Box<dyn TaskFormat> = find_task(&opt.task_dir, opt.max_depth, &eval_config)
         .map_err(|e| format_err!("Invalid task directory: {}", e.to_string()))?;
+
+    if opt.task_info {
+        match opt.ui {
+            UIType::Json => {
+                println!("{}", serde_json::to_string(&task.task_info()?)?);
+            }
+            _ => {
+                println!("{:#?} ", task.task_info()?);
+            }
+        }
+        return Ok(Evaluation::Done);
+    }
 
     // clean the task
     if opt.clean {

@@ -26,7 +26,10 @@ use serde::{Deserialize, Serialize};
 use task_maker_lang::GraderMap;
 
 use crate::ui::*;
-use crate::{list_files, EvaluationData, SourceFile, TaskFormat};
+use crate::{
+    list_files, EvaluationData, SourceFile, TaskFormat, TaskInfo, TaskInfoAttachment,
+    TaskInfoLimits, TaskInfoScoring, TaskInfoStatement, TaskInfoSubtask,
+};
 use crate::{EvaluationConfig, UISender};
 
 mod curses_ui;
@@ -322,6 +325,57 @@ impl TaskFormat for Task {
             }
         }
         Ok(())
+    }
+
+    fn task_info(&self) -> Result<TaskInfo, Error> {
+        Ok(TaskInfo {
+            version: 1.0,
+            task_type: "ioi-task".to_string(),
+            name: self.name.clone(),
+            title: self.title.clone(),
+            scoring: TaskInfoScoring {
+                max_score: 100.0,
+                subtasks: self
+                    .subtasks
+                    .iter()
+                    .map(|(_, subtask)| TaskInfoSubtask {
+                        max_score: subtask.max_score,
+                        testcases: subtask.testcases.len() as u64,
+                    })
+                    .collect(),
+            },
+            limits: TaskInfoLimits {
+                time: self.time_limit,
+                memory: self.memory_limit,
+            },
+            statements: self
+                .booklets
+                .iter()
+                .map(|booklet| TaskInfoStatement {
+                    language: "UNKNOWN".to_string(),
+                    content_type: "applicationqqq:/pdf".to_string(),
+                    path: booklet.dest.strip_prefix(&self.path).unwrap().into(),
+                })
+                .collect(),
+            attachments: self
+                .path
+                .join("att")
+                .read_dir()?
+                .map(|entry| {
+                    if let Ok(entry) = entry {
+                        Some(TaskInfoAttachment {
+                            name: entry.file_name().to_str().unwrap().into(),
+                            content_type: "UNKNOWN".into(),
+                            path: entry.path().strip_prefix(&self.path).unwrap().into(),
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .filter(|x| x.is_some())
+                .map(|x| x.unwrap())
+                .collect(),
+        })
     }
 }
 
