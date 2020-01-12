@@ -334,7 +334,10 @@ impl TaskFormat for Task {
             name: self.name.clone(),
             title: self.title.clone(),
             scoring: TaskInfoScoring {
-                max_score: 100.0,
+                max_score: self
+                    .subtasks
+                    .iter()
+                    .fold(0.0, |sum, (_, subtask)| sum + subtask.max_score),
                 subtasks: self
                     .subtasks
                     .iter()
@@ -352,8 +355,10 @@ impl TaskFormat for Task {
                 .booklets
                 .iter()
                 .map(|booklet| TaskInfoStatement {
-                    language: "UNKNOWN".to_string(),
-                    content_type: "applicationqqq:/pdf".to_string(),
+                    language: booklet.config.language.clone(),
+                    content_type: mime_guess::from_path(&booklet.dest)
+                        .first()
+                        .map_or("UNKNOWN".into(), |t| t.to_string()),
                     path: booklet.dest.strip_prefix(&self.path).unwrap().into(),
                 })
                 .collect(),
@@ -361,19 +366,18 @@ impl TaskFormat for Task {
                 .path
                 .join("att")
                 .read_dir()?
+                .filter(|entry| entry.as_ref().unwrap().file_type().unwrap().is_file())
                 .map(|entry| {
-                    if let Ok(entry) = entry {
-                        Some(TaskInfoAttachment {
-                            name: entry.file_name().to_str().unwrap().into(),
-                            content_type: "UNKNOWN".into(),
-                            path: entry.path().strip_prefix(&self.path).unwrap().into(),
-                        })
-                    } else {
-                        None
+                    let entry = entry.unwrap();
+                    let path = entry.path();
+                    TaskInfoAttachment {
+                        name: entry.file_name().to_str().unwrap().into(),
+                        content_type: mime_guess::from_path(path)
+                            .first()
+                            .map_or("UNKNOWN".into(), |t| t.to_string()),
+                        path: entry.path().strip_prefix(&self.path).unwrap().into(),
                     }
                 })
-                .filter(|x| x.is_some())
-                .map(|x| x.unwrap())
                 .collect(),
         })
     }
