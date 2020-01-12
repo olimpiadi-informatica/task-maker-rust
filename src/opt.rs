@@ -108,6 +108,10 @@ pub struct Opt {
     #[structopt(subcommand)]
     pub remote: Option<Remote>,
 
+    /// Show task information
+    #[structopt(long)]
+    pub task_info: bool,
+
     /// Run the sandbox instead of the normal task-maker.
     ///
     /// This option is left as undocumented as it's not part of the public API.

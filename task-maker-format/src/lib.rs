@@ -25,6 +25,7 @@ pub mod ui;
 pub use source_file::SourceFile;
 
 use failure::Error;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use task_maker_dag::ExecutionDAG;
@@ -45,6 +46,79 @@ pub trait TaskFormat {
 
     /// Clean the task folder removing the files that can be generated automatically.
     fn clean(&self) -> Result<(), Error>;
+
+    /// Get task information
+    fn task_info(&self) -> Result<TaskInfo, Error>;
+}
+
+/// Limits of the task.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskInfoLimits {
+    /// Time limit in seconds.
+    time: Option<f64>,
+    /// Memory limit in megabytes.
+    memory: Option<u64>,
+}
+
+/// Attachment of the task.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskInfoAttachment {
+    /// Name of this attachment.
+    name: String,
+    /// MIME type of this attachment.
+    content_type: String,
+    /// Path of this attachment relative to task directory.
+    path: PathBuf,
+}
+
+/// Info of the subtasks.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskInfoSubtask {
+    /// Maximum score for this subtask.
+    max_score: f64,
+    /// Number of testcases for this subtask.
+    testcases: u64,
+}
+
+/// Scoring for the task.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskInfoScoring {
+    /// Maximum score for the task.
+    max_score: f64,
+    /// Subtasks of this task.
+    subtasks: Vec<TaskInfoSubtask>,
+}
+
+/// Statement of the task.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskInfoStatement {
+    /// Language of the statement.
+    language: String,
+    /// Content type of the statement, as MIME type.
+    content_type: String,
+    /// Path of the task, relative to the task directory.
+    path: PathBuf,
+}
+
+/// Task information structure.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskInfo {
+    /// Version of this task-info structure.
+    version: f32,
+    /// Type of the task.
+    task_type: String,
+    /// Short name of the task.
+    name: String,
+    /// Title of the task.
+    title: String,
+    /// Scoring info.
+    scoring: TaskInfoScoring,
+    /// Limits of the task.
+    limits: TaskInfoLimits,
+    /// Statements of the task.
+    statements: Vec<TaskInfoStatement>,
+    /// Attachments of the task.
+    attachments: Vec<TaskInfoAttachment>,
 }
 
 /// Configuration of the evaluation of a task.
