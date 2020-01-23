@@ -75,13 +75,14 @@ where
     }
 
     // setup the configuration and the evaluation metadata
-    let (mut eval, ui_receiver) = EvaluationData::new();
+    let (mut eval, ui_receiver) = EvaluationData::new(opt.task_dir.clone());
     let config = eval.dag.config_mut();
     config
         .keep_sandboxes(opt.keep_sandboxes)
         .dry_run(opt.dry_run)
         .cache_mode(CacheMode::from(&opt.no_cache))
-        .copy_exe(opt.copy_exe);
+        .copy_exe(opt.copy_exe)
+        .copy_logs(opt.copy_logs);
     if let Some(extra_time) = opt.extra_time {
         if extra_time < 0.0 {
             bail!("The extra time ({}) cannot be negative!", extra_time);

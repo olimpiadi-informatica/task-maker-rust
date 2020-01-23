@@ -66,6 +66,15 @@ impl AsyFile {
             }
         }
         let compiled = comp.output("output.pdf");
+        if eval.dag.data.config.copy_logs {
+            let log_dir = eval.task_root.join("bin/logs/asy");
+            let stderr_dest = log_dir.join(format!("{}.stderr.log", name));
+            let stdout_dest = log_dir.join(format!("{}.stdout.log", name));
+            eval.dag
+                .write_file_to_allow_fail(comp.stderr(), stderr_dest, false);
+            eval.dag
+                .write_file_to_allow_fail(comp.stdout(), stdout_dest, false);
+        }
         eval.dag.add_execution(comp);
 
         let mut crop = Execution::new(

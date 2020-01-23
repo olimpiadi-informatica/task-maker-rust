@@ -653,7 +653,7 @@ mod tests {
         std::fs::write(&path, "x").unwrap();
         let generator = InputGenerator::StaticFile(path.clone());
         let task = make_task(tmpdir.path());
-        let (mut eval, _) = EvaluationData::new();
+        let (mut eval, _) = EvaluationData::new(tmpdir.path());
         let out = generator.generate(&task, &mut eval, 0, 0).unwrap();
         assert!(eval.dag.data.provided_files.contains_key(&out));
         assert!(eval
@@ -671,7 +671,7 @@ mod tests {
         let path = tmpdir.path().join("input.txt");
         let generator = InputGenerator::StaticFile(path.clone());
         let task = make_task(tmpdir.path());
-        let (mut eval, _) = EvaluationData::new();
+        let (mut eval, _) = EvaluationData::new(tmpdir.path());
         let gen = generator.generate(&task, &mut eval, 0, 0);
         assert!(gen.is_err());
         let err = gen.unwrap_err().to_string();
@@ -687,7 +687,7 @@ mod tests {
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
         let generator = InputGenerator::Custom(Arc::new(source), vec![]);
         let task = make_task(tmpdir.path());
-        let (mut eval, _recv) = EvaluationData::new();
+        let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let out = generator.generate(&task, &mut eval, 0, 0).unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.executions.len(), 1);
@@ -707,7 +707,7 @@ mod tests {
     fn test_input_validator_assume_valid() {
         let validator = InputValidator::AssumeValid;
         let file = File::new("input");
-        let (mut eval, _recv) = EvaluationData::new();
+        let (mut eval, _recv) = EvaluationData::new("");
         let out = validator.validate(&mut eval, 0, 0, file.uuid).unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 0);
         assert_eq!(eval.dag.data.executions.len(), 0);
@@ -722,7 +722,7 @@ mod tests {
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
         let validator = InputValidator::Custom(Arc::new(source), vec![]);
         let file = File::new("input");
-        let (mut eval, _recv) = EvaluationData::new();
+        let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let out = validator.validate(&mut eval, 0, 0, file.uuid).unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.executions.len(), 1);
@@ -741,7 +741,7 @@ mod tests {
         let generator = OutputGenerator::StaticFile(path.clone());
         let file = File::new("input");
         let task = make_task(tmpdir.path());
-        let (mut eval, _) = EvaluationData::new();
+        let (mut eval, _) = EvaluationData::new(tmpdir.path());
         let out = generator
             .generate(&task, &mut eval, 0, 0, file.uuid, None)
             .unwrap();
@@ -762,7 +762,7 @@ mod tests {
         let generator = OutputGenerator::StaticFile(path.clone());
         let file = File::new("input");
         let task = make_task(tmpdir.path());
-        let (mut eval, _) = EvaluationData::new();
+        let (mut eval, _) = EvaluationData::new(tmpdir.path());
         let gen = generator.generate(&task, &mut eval, 0, 0, file.uuid, None);
         assert!(gen.is_err());
         let err = gen.unwrap_err().to_string();
@@ -780,7 +780,7 @@ mod tests {
         let file = File::new("input");
         let val = File::new("validation");
         let task = make_task(tmpdir.path());
-        let (mut eval, _recv) = EvaluationData::new();
+        let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let out = generator
             .generate(&task, &mut eval, 0, 0, file.uuid, Some(val.uuid))
             .unwrap();
@@ -803,7 +803,7 @@ mod tests {
     #[test]
     fn test_checker_whitediff() {
         let checker = Checker::WhiteDiff;
-        let (mut eval, _recv) = EvaluationData::new();
+        let (mut eval, _recv) = EvaluationData::new("");
         let input = File::new("input").uuid;
         let output = File::new("output").uuid;
         let test = File::new("test").uuid;
@@ -824,7 +824,7 @@ mod tests {
     #[test]
     fn test_checker_whitediff_correct() {
         let checker = Checker::WhiteDiff;
-        let (mut eval, _recv) = EvaluationData::new();
+        let (mut eval, _recv) = EvaluationData::new("");
         let input = File::new("input").uuid;
         let output = File::new("output").uuid;
         let test = File::new("test").uuid;
@@ -860,7 +860,7 @@ mod tests {
     #[test]
     fn test_checker_whitediff_incorrect() {
         let checker = Checker::WhiteDiff;
-        let (mut eval, _recv) = EvaluationData::new();
+        let (mut eval, _recv) = EvaluationData::new("");
         let input = File::new("input").uuid;
         let output = File::new("output").uuid;
         let test = File::new("test").uuid;
@@ -900,7 +900,7 @@ mod tests {
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
         let checker = Checker::Custom(Arc::new(source));
-        let (mut eval, _recv) = EvaluationData::new();
+        let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let input = File::new("input").uuid;
         let output = File::new("output").uuid;
         let test = File::new("test").uuid;
@@ -925,7 +925,7 @@ mod tests {
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
         let checker = Checker::Custom(Arc::new(source));
-        let (mut eval, _recv) = EvaluationData::new();
+        let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let input = File::new("input").uuid;
         let output = File::new("output").uuid;
         let test = File::new("test").uuid;
@@ -959,7 +959,7 @@ mod tests {
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
         let checker = Checker::Custom(Arc::new(source));
-        let (mut eval, _recv) = EvaluationData::new();
+        let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let input = File::new("input").uuid;
         let output = File::new("output").uuid;
         let test = File::new("test").uuid;
@@ -993,7 +993,7 @@ mod tests {
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
         let checker = Checker::Custom(Arc::new(source));
-        let (mut eval, _recv) = EvaluationData::new();
+        let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let input = File::new("input").uuid;
         let output = File::new("output").uuid;
         let test = File::new("test").uuid;

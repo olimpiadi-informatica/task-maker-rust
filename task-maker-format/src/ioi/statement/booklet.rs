@@ -158,7 +158,15 @@ impl Booklet {
             |status, name| UIMessage::IOIBooklet { name, status },
             booklet_name
         )?;
-
+        if eval.dag.data.config.copy_logs {
+            let log_dir = eval.task_root.join("bin/logs/booklets");
+            let stderr_dest = log_dir.join(format!("{}.stderr.log", booklet_name));
+            let stdout_dest = log_dir.join(format!("{}.stdout.log", booklet_name));
+            eval.dag
+                .write_file_to_allow_fail(exec.stderr(), stderr_dest, false);
+            eval.dag
+                .write_file_to_allow_fail(exec.stdout(), stdout_dest, false);
+        }
         eval.dag.add_execution(exec);
         // latexmk may fail but still produce a good-enough pdf file
         eval.dag.write_file_to_allow_fail(output, &self.dest, false);
@@ -240,5 +248,49 @@ impl BookletConfig {
                 logo: None,
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ioi::StatementConfig;
+
+    fn get_outputs_with_logs(task_root: &Path, copy_logs: bool) -> Vec<PathBuf> {
+        let (mut eval, _recv) = EvaluationData::new(task_root);
+        eval.dag.data.config.copy_logs = copy_logs;
+        let mut booklet = Booklet::new(BookletConfig::default(), task_root.join("dest.pdf"));
+        std::fs::write(task_root.join("text.tex"), "loltex").unwrap();
+        let statement =
+            Statement::new(task_root.join("text.tex"), StatementConfig::default()).unwrap();
+        booklet.add_statement(statement);
+        booklet.build(&mut eval).unwrap();
+        eval.dag
+            .file_callbacks
+            .values()
+            .map(|f| f.write_to.as_ref())
+            .filter_map(|f| f)
+            .map(|f| f.dest.clone())
+            .collect()
+    }
+
+    #[test]
+    fn test_logs_emitted_with_copy_logs() {
+        let tmpdir = tempdir::TempDir::new("tm-tests").unwrap();
+        let outputs = get_outputs_with_logs(tmpdir.path(), true);
+        let stderr_path = tmpdir.path().join("bin/logs/booklets/dest.pdf.stderr.log");
+        let stdout_path = tmpdir.path().join("bin/logs/booklets/dest.pdf.stdout.log");
+        assert!(outputs.contains(&stderr_path));
+        assert!(outputs.contains(&stdout_path));
+    }
+
+    #[test]
+    fn test_logs_not_emitted_by_default() {
+        let tmpdir = tempdir::TempDir::new("tm-tests").unwrap();
+        let outputs = get_outputs_with_logs(tmpdir.path(), false);
+        let stderr_path = tmpdir.path().join("bin/logs/booklets/dest.pdf.stderr.log");
+        let stdout_path = tmpdir.path().join("bin/logs/booklets/dest.pdf.stdout.log");
+        assert!(!outputs.contains(&stderr_path));
+        assert!(!outputs.contains(&stdout_path));
     }
 }

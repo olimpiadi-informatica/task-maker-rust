@@ -37,6 +37,8 @@ pub struct ExecutionDAGConfig {
     pub extra_time: f64,
     /// Whether to copy the executables of the compilation inside their default destinations.
     pub copy_exe: bool,
+    /// Whether to copy the log files of some interesting executions.
+    pub copy_logs: bool,
 }
 
 /// A wrapper around a `File` provided by the client, this means that the client knows the
@@ -237,6 +239,7 @@ impl ExecutionDAGConfig {
             cache_mode: CacheMode::Everything,
             extra_time: 0.5,
             copy_exe: false,
+            copy_logs: false,
         }
     }
 
@@ -268,6 +271,12 @@ impl ExecutionDAGConfig {
     /// Set whether to copy the executables of the compilation inside their default destinations.
     pub fn copy_exe(&mut self, copy_exe: bool) -> &mut Self {
         self.copy_exe = copy_exe;
+        self
+    }
+
+    /// Set whether to copy the log files of some interesting executions.
+    pub fn copy_logs(&mut self, copy_logs: bool) -> &mut Self {
+        self.copy_logs = copy_logs;
         self
     }
 }

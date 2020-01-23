@@ -46,6 +46,10 @@ pub struct Opt {
     #[structopt(long = "copy-exe")]
     pub copy_exe: bool,
 
+    /// Copy the logs of some executions to the bin/logs/ folder
+    #[structopt(long = "copy-logs")]
+    pub copy_logs: bool,
+
     /// Execute only the solutions whose names start with the filter
     ///
     /// Note that just the file name is checked (e.g. sol.cpp is the same as sol/sol.cpp). Without

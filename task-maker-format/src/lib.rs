@@ -138,6 +138,8 @@ pub struct EvaluationConfig {
 
 /// The data for an evaluation, including the DAG and the UI channel.
 pub struct EvaluationData {
+    /// Root directory of the task.
+    pub task_root: PathBuf,
     /// The DAG with the evaluation data.
     pub dag: ExecutionDAG,
     /// The sender of the UI.
@@ -146,10 +148,11 @@ pub struct EvaluationData {
 
 impl EvaluationData {
     /// Crate a new `EvaluationData` returning the data and the receiving part of the UI channel.
-    pub fn new() -> (EvaluationData, ui::UIChannelReceiver) {
+    pub fn new<P: Into<PathBuf>>(task_root: P) -> (EvaluationData, ui::UIChannelReceiver) {
         let (sender, receiver) = ui::UIMessageSender::new();
         (
             EvaluationData {
+                task_root: task_root.into(),
                 dag: ExecutionDAG::new(),
                 sender: Arc::new(Mutex::new(sender)),
             },

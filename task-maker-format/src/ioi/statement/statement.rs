@@ -294,7 +294,7 @@ mod tests {
         let statement = Statement::new(&path, StatementConfig::default()).unwrap();
         let logo2 = Some(logo.clone());
 
-        let mut eval = EvaluationData::new().0;
+        let mut eval = EvaluationData::new(tmpdir.path()).0;
         let in_files = vec!["logo.pdf", "test.png", "asset.pdf"];
         let not_in_files = vec!["asy_image.pdf", "tex_file.pdf"];
         std::fs::write(tmpdir.path().join("asy_image.asy"), "").unwrap();
