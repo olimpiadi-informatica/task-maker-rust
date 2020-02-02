@@ -5,6 +5,7 @@ addons:
     packages:
       - g++
       - libseccomp-dev
+      - fpc
 rust:
   - stable
 before_script:

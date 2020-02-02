@@ -59,6 +59,7 @@ impl LanguageManager {
                     python::LanguagePythonVersion::Autodetect,
                 )),
                 Arc::new(shell::LanguageShell::new()),
+                Arc::new(pascal::LanguagePascal::new()),
             ],
         }
     }
