@@ -143,6 +143,10 @@ impl Task {
 }
 
 impl TaskFormat for Task {
+    fn path(&self) -> &Path {
+        return &self.path;
+    }
+
     fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),

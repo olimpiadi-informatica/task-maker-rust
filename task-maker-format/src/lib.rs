@@ -34,6 +34,9 @@ use task_maker_lang::{GraderMap, LanguageManager};
 /// Trait that defines the capabilities of a task format, providing a UI and the parsing and
 /// execution abilities.
 pub trait TaskFormat {
+    /// Get the root directory of the task.
+    fn path(&self) -> &Path;
+
     /// Get an appropriate `UI` for this task.
     fn ui(&self, ui_type: &ui::UIType) -> Result<Box<dyn UI>, Error>;
 

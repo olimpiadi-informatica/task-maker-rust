@@ -75,7 +75,7 @@ where
     }
 
     // setup the configuration and the evaluation metadata
-    let (mut eval, ui_receiver) = EvaluationData::new(opt.task_dir.clone());
+    let (mut eval, ui_receiver) = EvaluationData::new(task.path());
     let config = eval.dag.config_mut();
     config
         .keep_sandboxes(opt.keep_sandboxes)
