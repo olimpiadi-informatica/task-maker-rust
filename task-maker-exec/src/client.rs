@@ -304,7 +304,7 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
         }
         drop(file);
         if let Some(write_to) = &callback.write_to {
-            if write_to.executable {
+            if write_to.executable && write_to.dest.exists() {
                 let mut perm = std::fs::metadata(&write_to.dest)?.permissions();
                 perm.set_mode(0o755);
                 std::fs::set_permissions(&write_to.dest, perm)?;
