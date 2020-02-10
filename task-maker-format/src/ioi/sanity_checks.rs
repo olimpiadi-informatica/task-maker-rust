@@ -78,8 +78,10 @@ fn check_att_sample_files(task: &Task, eval: &mut EvaluationData) -> Result<(), 
     let mut no_sample = true;
     for sample in list_files(&task.path, vec!["att/*input*.txt", "att/*output*.txt"]) {
         no_sample = false;
-        if let Ok(path) = sample.read_link() {
-            if !path.exists() {
+        // check if the file is a symlink
+        if sample.read_link().is_ok() {
+            // check if the symlink is broken
+            if sample.canonicalize().is_err() {
                 eval.sender.send(UIMessage::Warning {
                     message: format!(
                         "Sample case {} is a broken link",
@@ -241,6 +243,7 @@ fn check_statement_git(task: &Task, ui: &mut UIMessageSender) -> Result<(), Erro
     match find_statement_pdf(task) {
         None => return Ok(()),
         Some(path) => {
+            let path = path.strip_prefix(&task.path).unwrap();
             let mut command = Command::new("git");
             command
                 .arg("ls-files")
@@ -258,10 +261,7 @@ fn check_statement_git(task: &Task, ui: &mut UIMessageSender) -> Result<(), Erro
                     // file not know to git
                     if output.stdout.is_empty() {
                         ui.send(UIMessage::Warning {
-                            message: format!(
-                                "File {} is not known to git",
-                                path.strip_prefix(&task.path).unwrap().display()
-                            ),
+                            message: format!("File {} is not known to git", path.display()),
                         })?;
                     }
                 }
