@@ -93,7 +93,7 @@ use task_maker_dag::{Execution, ExecutionResult, ExecutionStatus, FileUuid};
 use task_maker_store::{FileStore, FileStoreHandle};
 
 /// The name of the file which holds the cache data.
-const CACHE_FILE: &str = "cache.json";
+const CACHE_FILE: &str = "cache.bin";
 
 /// Handle the cached executions, loading and storing them to disk.
 #[derive(Debug)]
@@ -125,7 +125,7 @@ impl Cache {
         if path.exists() {
             let file = std::fs::File::open(&path)?;
             let entries: Result<Vec<(CacheKey, Vec<CacheEntry>)>, _> =
-                serde_json::from_reader(file);
+                bincode::deserialize_from(file);
             if let Ok(entries) = entries {
                 Ok(Cache {
                     entries: entries.into_iter().collect(),
@@ -259,14 +259,14 @@ impl Drop for Cache {
                 return;
             }
         };
-        let serialized = match serde_json::to_string(&self.entries.iter().collect_vec()) {
+        let serialized = match bincode::serialize(&self.entries.iter().collect_vec()) {
             Ok(data) => data,
             Err(e) => {
                 error!("Cannot serialize cache! {:?}", e);
                 return;
             }
         };
-        match file.write_all(serialized.as_bytes()) {
+        match file.write_all(&serialized) {
             Ok(_) => {}
             Err(e) => error!("Cannot write cache file to disk! {:?}", e),
         }

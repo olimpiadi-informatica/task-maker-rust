@@ -9,7 +9,7 @@ task-maker-dag = { path = "../task-maker-dag" }
 task-maker-store = { path = "../task-maker-store" }
 itertools = "0.8"
 serde = { version = "1.0", features = ["derive", "rc"] }
-serde_json = "1.0"
+bincode = "1.2"
 failure = "0.1"
 log = "0.4"
 
