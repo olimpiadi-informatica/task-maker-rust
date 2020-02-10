@@ -53,7 +53,7 @@ jobs:
         run: |
           set -xe
           sudo apt update
-          sudo apt install -yy curl build-essential python libseccomp-dev
+          sudo apt install -yy curl build-essential python libseccomp-dev fpc
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           rustup default nightly
           source $HOME/.cargo/env
