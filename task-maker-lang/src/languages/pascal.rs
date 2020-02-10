@@ -55,7 +55,7 @@ impl Language for LanguagePascal {
         return vec![Dependency {
             file: File::new("fpc configuration"),
             local_path: PathBuf::from("/etc/fpc.cfg"),
-            sandbox_path: PathBuf::from("etc/fpc.cfg"),
+            sandbox_path: PathBuf::from("fpc.cfg"),
             executable: false,
         }];
     }
