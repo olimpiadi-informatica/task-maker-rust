@@ -103,7 +103,7 @@
 \renewcommand{\headrulewidth}{0pt}
 \renewcommand{\footrulewidth}{0pt}
 
-\headheight=-5mm
+\headheight=0mm
 \headsep=8mm
 \parindent=0mm
 \parskip=6pt
@@ -120,7 +120,7 @@
 \exmpthreewidnote=0.30\textwidth
 \afterproblemhead=3mm
 \afterconstraints=2mm
-\logolength=16mm
+\logolength=21mm
 \logomargin=3mm
 
 %*********************************************************************
@@ -551,17 +551,17 @@
         \begin{minipage}[t]{\exmpwidinf}%
             \rightskip=0pt plus 1fill\relax%
             \ifthenelse{\equal{##1}{nowrap}}{%
-                \lstinputlisting[aboveskip=0]{##2}%
+                \lstinputlisting[aboveskip=0pt]{##2}%
             }{%
-                \lstinputlisting[aboveskip=0,breaklines]{##2}%
+                \lstinputlisting[aboveskip=0pt,breaklines]{##2}%
             }%
         \end{minipage}&%
         \begin{minipage}[t]{\exmpwidouf}%
             \rightskip=0pt plus 1fill\relax%
             \ifthenelse{\equal{##1}{nowrap}}{%
-                \lstinputlisting[aboveskip=0]{##3}%
+                \lstinputlisting[aboveskip=0pt]{##3}%
             }{%
-                \lstinputlisting[aboveskip=0,breaklines]{##3}%
+                \lstinputlisting[aboveskip=0pt,breaklines]{##3}%
             }%
         \end{minipage}\\%
         \hline%
