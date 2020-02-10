@@ -144,7 +144,7 @@ impl Task {
 
 impl TaskFormat for Task {
     fn path(&self) -> &Path {
-        return &self.path;
+        &self.path
     }
 
     fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
