@@ -6,6 +6,8 @@ use tabox::{Sandbox, SandboxImplementation};
 
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 use tabox::configuration::SandboxConfiguration;
 use task_maker_exec::RawSandboxResult;
 
@@ -39,15 +41,18 @@ pub fn main_sandbox() {
 
 /// Run the sandbox integrated in the task-maker binary, by executing itself with different command
 /// line arguments.
-pub fn self_exec_sandbox(config: SandboxConfiguration) -> RawSandboxResult {
-    match self_exec_sandbox_internal(config) {
+pub fn self_exec_sandbox(config: SandboxConfiguration, pid: Arc<AtomicU32>) -> RawSandboxResult {
+    match self_exec_sandbox_internal(config, pid) {
         Ok(res) => res,
         Err(e) => RawSandboxResult::Error(e.to_string()),
     }
 }
 
 /// Actually run the sandbox, but with a return type that supports the `?` operator.
-fn self_exec_sandbox_internal(config: SandboxConfiguration) -> Result<RawSandboxResult, Error> {
+fn self_exec_sandbox_internal(
+    config: SandboxConfiguration,
+    pid: Arc<AtomicU32>,
+) -> Result<RawSandboxResult, Error> {
     let command = std::env::var_os("TASK_MAKER_SANDBOX_BIN")
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::current_exe().unwrap());
@@ -57,6 +62,7 @@ fn self_exec_sandbox_internal(config: SandboxConfiguration) -> Result<RawSandbox
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
+    pid.store(cmd.id(), Ordering::SeqCst);
     {
         let stdin = cmd.stdin.as_mut().expect("Failed to open stdin");
         serde_json::to_writer(stdin, &config.build())?;

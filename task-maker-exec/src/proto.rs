@@ -111,6 +111,8 @@ pub enum WorkerClientMessage {
 pub enum WorkerServerMessage {
     /// The job the worker should do. Boxed to reduce the enum size.
     Work(Box<WorkerJob>),
+    /// Stop the current worker sandbox if currently running the specified execution.
+    KillJob(ExecutionUuid),
     /// The file the workers as asked. After this message there is a protocol switch for the file
     /// transmission.
     ProvideFile(FileStoreKey),

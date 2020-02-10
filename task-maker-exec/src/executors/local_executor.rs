@@ -13,6 +13,7 @@ use crate::executor::{Executor, ExecutorInMessage};
 use crate::proto::{ExecutorClientMessage, ExecutorServerMessage};
 use crate::scheduler::ClientInfo;
 use crate::{ChannelReceiver, ChannelSender, RawSandboxResult, Worker};
+use std::sync::atomic::AtomicU32;
 use tabox::configuration::SandboxConfiguration;
 
 /// An Executor that runs locally by spawning a number of threads with the workers inside.
@@ -56,7 +57,7 @@ impl LocalExecutor {
         sandbox_runner: F,
     ) -> Result<(), Error>
     where
-        F: Fn(SandboxConfiguration) -> RawSandboxResult + Send + Sync + 'static,
+        F: Fn(SandboxConfiguration, Arc<AtomicU32>) -> RawSandboxResult + Send + Sync + 'static,
     {
         let (executor_tx, executor_rx) = channel();
         let executor = Executor::new(self.file_store.clone(), cache, executor_rx, false);
@@ -73,7 +74,7 @@ impl LocalExecutor {
                 &format!("Local worker {}", i),
                 self.file_store.clone(),
                 self.sandbox_path.clone(),
-                move |c| runner(c),
+                move |c, pid| runner(c, pid),
             );
             executor_tx
                 .send(ExecutorInMessage::WorkerConnected { worker: conn })

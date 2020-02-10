@@ -5,6 +5,7 @@ use crate::{new_local_channel, ChannelReceiver, ChannelSender, RawSandboxResult}
 use failure::{Error, Fail};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicU32;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use tabox::configuration::SandboxConfiguration;
@@ -41,7 +42,8 @@ pub struct Worker {
     /// Where to put the sandboxes.
     sandbox_path: PathBuf,
     /// The function that spawns an actual sandbox.
-    sandbox_runner: Arc<dyn Fn(SandboxConfiguration) -> RawSandboxResult + Send + Sync>,
+    sandbox_runner:
+        Arc<dyn Fn(SandboxConfiguration, Arc<AtomicU32>) -> RawSandboxResult + Send + Sync>,
 }
 
 /// An handle of the connection to the worker.
@@ -86,7 +88,7 @@ impl Worker {
         runner: F,
     ) -> (Worker, WorkerConn)
     where
-        F: Fn(SandboxConfiguration) -> RawSandboxResult + Send + Sync + 'static,
+        F: Fn(SandboxConfiguration, Arc<AtomicU32>) -> RawSandboxResult + Send + Sync + 'static,
     {
         let (tx, rx_worker) = new_local_channel();
         let (tx_worker, rx) = new_local_channel();
@@ -120,7 +122,7 @@ impl Worker {
         runner: F,
     ) -> Worker
     where
-        F: Fn(SandboxConfiguration) -> RawSandboxResult + Send + Sync + 'static,
+        F: Fn(SandboxConfiguration, Arc<AtomicU32>) -> RawSandboxResult + Send + Sync + 'static,
     {
         let uuid = Uuid::new_v4();
         let name = name.into();
@@ -216,6 +218,18 @@ impl Worker {
                     info!("Worker {} ({}) is asked to exit", self.name, self.uuid);
                     break;
                 }
+                Ok(WorkerServerMessage::KillJob(job)) => {
+                    let current_job = self.current_job.lock().unwrap();
+                    if let Some((worker_job, _)) = current_job.current_job.as_ref() {
+                        // check that the job is the same
+                        if worker_job.execution.uuid == job {
+                            if let Some(sandbox) = current_job.current_sandbox.as_ref() {
+                                // ask the sandbox to kill the process
+                                sandbox.kill();
+                            }
+                        }
+                    }
+                }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();
                     if cause == "receiving on an empty and disconnected channel" {
@@ -240,7 +254,9 @@ fn execute_job(
     current_job: Arc<Mutex<WorkerCurrentJob>>,
     sender: &ChannelSender<WorkerClientMessage>,
     sandbox_path: &Path,
-    runner: Arc<dyn Fn(SandboxConfiguration) -> RawSandboxResult + Send + Sync + 'static>,
+    runner: Arc<
+        dyn Fn(SandboxConfiguration, Arc<AtomicU32>) -> RawSandboxResult + Send + Sync + 'static,
+    >,
 ) -> Result<Sandbox, Error> {
     let (job, mut sandbox) = {
         let current_job = current_job.lock().unwrap();
@@ -274,7 +290,7 @@ fn execute_job(
                 sender.send(WorkerClientMessage::GetWork).unwrap();
             }}
 
-            let result = match sandbox.run(move |config| runner(config)) {
+            let result = match sandbox.run(move |config, pid| runner(config, pid)) {
                 Ok(res) => res,
                 Err(e) => {
                     let result = ExecutionResult {

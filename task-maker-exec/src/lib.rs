@@ -96,6 +96,7 @@ use task_maker_store::FileStore;
 pub use worker::{Worker, WorkerConn};
 
 use crate::proto::FileProtocol;
+use std::sync::atomic::AtomicU32;
 
 mod check_dag;
 mod client;
@@ -340,7 +341,7 @@ pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>, F>(
     min_cache: u64,
     sandbox_runner: F,
 ) where
-    F: Fn(SandboxConfiguration) -> RawSandboxResult + Send + Sync + 'static,
+    F: Fn(SandboxConfiguration, Arc<AtomicU32>) -> RawSandboxResult + Send + Sync + 'static,
 {
     let (tx, rx_remote) = new_local_channel();
     let (tx_remote, rx) = new_local_channel();
@@ -424,7 +425,7 @@ mod tests {
         client_thread.join().unwrap();
     }
 
-    fn fake_sandbox(config: SandboxConfiguration) -> RawSandboxResult {
+    fn fake_sandbox(config: SandboxConfiguration, _pid: Arc<AtomicU32>) -> RawSandboxResult {
         let resource_usage = ResourceUsage {
             memory_usage: 0,
             user_cpu_time: 0.0,

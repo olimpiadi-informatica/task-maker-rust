@@ -4,12 +4,16 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use failure::{bail, Error};
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
 use serde::{Deserialize, Serialize};
 use tabox::configuration::SandboxConfiguration;
 use tabox::result::SandboxExecutionResult;
 use tabox::syscall_filter::SyscallFilter;
 use tempdir::TempDir;
 
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Duration;
 use task_maker_dag::*;
 use task_maker_store::*;
 
@@ -57,6 +61,8 @@ struct SandboxData {
     boxdir: Option<TempDir>,
     /// Whether to keep the sandbox after exit.
     keep_sandbox: bool,
+    /// The PID of the sandbox process, zero if not available or not spawned yet.
+    box_pid: Arc<AtomicU32>,
 }
 
 /// Response of the internal implementation of the sandbox.
@@ -96,6 +102,7 @@ impl Sandbox {
             data: Arc::new(Mutex::new(SandboxData {
                 boxdir: Some(boxdir),
                 keep_sandbox: false,
+                box_pid: Arc::new(AtomicU32::new(0)),
             })),
             execution: execution.clone(),
         })
@@ -104,9 +111,12 @@ impl Sandbox {
     /// Starts the sandbox and blocks the thread until the sandbox exits.
     pub fn run<F>(&self, runner: F) -> Result<SandboxResult, Error>
     where
-        F: FnOnce(SandboxConfiguration) -> RawSandboxResult,
+        F: FnOnce(SandboxConfiguration, Arc<AtomicU32>) -> RawSandboxResult,
     {
-        let boxdir = self.data.lock().unwrap().path().to_owned();
+        let (boxdir, pid) = {
+            let data = self.data.lock().unwrap();
+            (data.path().to_owned(), data.box_pid.clone())
+        };
         trace!("Running sandbox at {:?}", boxdir);
 
         let mut config = SandboxConfiguration::default();
@@ -115,7 +125,7 @@ impl Sandbox {
         }
         trace!("Sandbox configuration: {:#?}", config);
 
-        let raw_result = runner(config.build());
+        let raw_result = runner(config.build(), pid);
         let res = match raw_result {
             RawSandboxResult::Success(res) => res,
             RawSandboxResult::Error(e) => bail!("Sandbox failed: {}", e),
@@ -155,11 +165,34 @@ impl Sandbox {
     /// Tell the sandbox process to kill the underlying process, this will make `run` terminate more
     /// quickly.
     pub fn kill(&self) {
-        info!(
-            "Sandbox at {:?} got killed",
-            self.data.lock().unwrap().path()
-        );
-        unimplemented!();
+        let (path, box_pid) = {
+            let data = self.data.lock().unwrap();
+            (data.path().to_path_buf(), data.box_pid.clone())
+        };
+        let path = path.display();
+        let mut pid = 0;
+        // Race condition here: the sandbox may have been created but the process is not spawned
+        // yet. This means that the PID is not available yet but will be soon.
+        for _ in 0..5 {
+            // try getting the PID
+            pid = box_pid.load(Ordering::SeqCst);
+            if pid != 0 {
+                break;
+            } else {
+                // if the PID has not been set yet try again in few milliseconds
+                warn!("Sandbox at {} has no known pid... waiting", path);
+                std::thread::sleep(Duration::from_millis(200));
+            }
+        }
+        // if after many tries the PID has not been set lose hope and don't kill the sandbox.
+        if pid == 0 {
+            warn!("Cannot kill sandbox at {} since the pid is unknown", path);
+            return;
+        }
+        info!("Sandbox at {:?} (pid {}) will be killed", path, pid);
+        if let Err(e) = signal::kill(Pid::from_raw(pid as i32), Signal::SIGKILL) {
+            warn!("Cannot kill sandbox at {} (pid {}): {:?}", path, pid, e);
+        }
     }
 
     /// Make the sandbox persistent, the sandbox directory won't be deleted after the execution.
@@ -391,10 +424,12 @@ mod tests {
 
     use crate::sandbox::Sandbox;
     use crate::RawSandboxResult;
+    use std::sync::atomic::AtomicU32;
+    use std::sync::Arc;
     use tabox::configuration::{DirectoryMount, SandboxConfiguration};
     use tabox::syscall_filter::SyscallFilterAction;
 
-    fn fake_sandbox(_: SandboxConfiguration) -> RawSandboxResult {
+    fn fake_sandbox(_: SandboxConfiguration, _: Arc<AtomicU32>) -> RawSandboxResult {
         RawSandboxResult::Error("Nope".to_owned())
     }
 

@@ -370,7 +370,25 @@ impl Scheduler {
                         }
                     }
                     self.ready_execs = remaining;
-                    // TODO tell the worker to stop doing that execution
+                    // stop the jobs that are still running in the workers
+                    for (uuid, worker) in self.connected_workers.iter() {
+                        if let Some((owner, exec, _)) = worker.current_job {
+                            if owner == client {
+                                warn!(
+                                    "Worker {} is doing {} owned by disconnected client, killing",
+                                    uuid, exec
+                                );
+                                self.worker_manager
+                                    .send(WorkerManagerInMessage::StopWorkerJob {
+                                        worker: *uuid,
+                                        job: exec,
+                                    })
+                                    .map_err(|e| {
+                                        format_err!("Failed to send job to worker: {:?}", e)
+                                    })?;
+                            }
+                        }
+                    }
                 }
                 SchedulerInMessage::Status {
                     client: client_uuid,

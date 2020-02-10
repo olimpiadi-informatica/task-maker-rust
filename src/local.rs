@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use failure::{bail, format_err, Error};
 
@@ -158,11 +158,34 @@ where
     };
 
     let ui_sender = eval.sender.clone();
+    // a shared sender for the ctrl-c handler, it has to be wrapped in Arc-Mutex-Option to be freed
+    // at the end of the computation to allow the client to exit.
+    let client_sender = Arc::new(Mutex::new(Some(tx.clone())));
+    // `ctrlc` crate doesn't allow multiple calls of set_handler, and the tests may call this
+    // function multiple times, so in the tests ^C handler is disabled.
+    #[cfg(not(test))]
+    {
+        use task_maker_exec::proto::ExecutorClientMessage;
+
+        let client_sender_ctrlc = client_sender.clone();
+        if let Err(e) = ctrlc::set_handler(move || {
+            let sender = client_sender_ctrlc.lock().unwrap();
+            if let Some(sender) = sender.as_ref() {
+                if sender.send(ExecutorClientMessage::Stop).is_err() {
+                    error!("Cannot tell the server to stop");
+                }
+            }
+        }) {
+            warn!("Cannot bind control-C handler: {:?}", e);
+        }
+    }
     // run the actual computation and block until it ends
     ExecutorClient::evaluate(eval.dag, tx, &rx, file_store, move |status| {
         ui_sender.send(UIMessage::ServerStatus { status })
     })
     .map_err(|e| format_err!("Client failed: {}", e.to_string()))?;
+    // disable the ctrl-c handler dropping the owned clone of the sender, letting the client exit
+    client_sender.lock().unwrap().take();
 
     task.sanity_check_post_hook(&mut eval.sender.lock().unwrap())
         .map_err(|e| format_err!("Sanity checks failed: {}", e.to_string()))?;

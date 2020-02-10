@@ -25,6 +25,9 @@ pub(crate) enum WorkerManagerInMessage {
     /// The scheduler sent a new job for a worker. The WorkerManager will forward the job to the
     /// actual worker.
     WorkerJob { worker: WorkerUuid, job: WorkerJob },
+    /// The scheduler is asking a worker to stop doing a job, if the worker is still working on
+    /// that.
+    StopWorkerJob { worker: WorkerUuid, job: WorkerUuid },
     /// The WorkerManager is asked to exit and tell all the connected worker to exit too.
     Exit,
 }
@@ -84,8 +87,11 @@ impl WorkerManager {
                             worker.name, worker.uuid
                         ))
                         .spawn(move || {
-                            WorkerManager::worker_thread(worker, scheduler, sender, file_store)
-                                .expect("The manager of a worker failed")
+                            if let Err(e) =
+                                WorkerManager::worker_thread(worker, scheduler, sender, file_store)
+                            {
+                                warn!("The manager of a worker failed: {:?}", e);
+                            }
                         })
                         .expect("Failed to spawn manager for a worker");
                 }
@@ -104,6 +110,11 @@ impl WorkerManager {
                 WorkerManagerInMessage::Exit => {
                     debug!("Worker manager asked to exit");
                     break;
+                }
+                WorkerManagerInMessage::StopWorkerJob { worker, job } => {
+                    if let Some(sender) = connected_workers.get(&worker) {
+                        sender.send(WorkerServerMessage::KillJob(job))?;
+                    }
                 }
             }
         }

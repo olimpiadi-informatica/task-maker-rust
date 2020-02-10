@@ -339,7 +339,7 @@ mod tests {
         });
         dag.add_execution(exec);
 
-        eval_dag_locally(dag, cwd.path(), 2, cwd.path(), 1000, 1000, |_| {
+        eval_dag_locally(dag, cwd.path(), 2, cwd.path(), 1000, 1000, |_, _| {
             RawSandboxResult::Success(SandboxExecutionResult {
                 status: ExitStatus::ExitCode(0),
                 resource_usage: ResourceUsage {

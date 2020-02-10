@@ -52,7 +52,7 @@ impl ExecutorClient {
     /// let (tx_remote, rx) = new_local_channel();
     /// # let tmpdir = TempDir::new("tm-test").unwrap();
     /// # let path = tmpdir.path().to_owned();
-    /// # let sandbox_runner = |_config| panic!("The sandbox should not be called from this example");
+    /// # let sandbox_runner = |_config, _pid| panic!("The sandbox should not be called from this example");
     /// let file_store = Arc::new(FileStore::new(&path, 1000, 1000).expect("Cannot create the file store"));
     /// let server_file_store = file_store.clone();
     /// // make a new local executor in a second thread
