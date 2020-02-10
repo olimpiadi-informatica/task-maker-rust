@@ -1,4 +1,5 @@
 language: rust
+os: linux
 dist: bionic
 addons:
   apt:
@@ -19,8 +20,8 @@ script:
 
 deploy:
   provider: pages
-  skip_cleanup: true
-  github_token: $GITHUB_TOKEN
+  cleanup: false
+  token: $GITHUB_TOKEN
   keep_history: true
   allow_empty_commit: true
   local_dir: target/doc
