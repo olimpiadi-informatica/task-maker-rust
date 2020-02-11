@@ -101,6 +101,7 @@ impl UI for PrintUI {
     fn on_message(&mut self, message: UIMessage) {
         self.state.apply(message.clone());
         match message {
+            UIMessage::StopUI => {}
             UIMessage::ServerStatus { status } => {
                 println!(
                     "[STATUS]  Server status: {} ready exec, {} waiting exec",

@@ -98,6 +98,9 @@ where
         .name("UI".to_owned())
         .spawn(move || {
             while let Ok(message) = ui_receiver.recv() {
+                if let UIMessage::StopUI = message {
+                    break;
+                }
                 on_message(ui.as_mut(), message);
             }
             ui.finish();
@@ -122,7 +125,7 @@ where
 
     // build the DAG for the task
     if let Err(e) = task.execute(&mut eval, &eval_config) {
-        drop(eval.sender); // make the UI exit
+        eval.sender.send(UIMessage::StopUI)?;
         ui_thread
             .join()
             .map_err(|e| format_err!("UI panicked: {:?}", e))?;

@@ -330,6 +330,7 @@ impl UIState {
     /// Apply a `UIMessage` to this state.
     pub fn apply(&mut self, message: UIMessage) {
         match message {
+            UIMessage::StopUI => {}
             UIMessage::ServerStatus { status } => self.executor_status = Some(status),
             UIMessage::Compilation { file, status } => {
                 let comp = self

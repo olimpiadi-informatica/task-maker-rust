@@ -46,6 +46,9 @@ pub enum UIExecutionStatus {
 /// A message sent to the UI.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum UIMessage {
+    /// A message asking the UI to exit.
+    StopUI,
+
     /// An update on the status of the executor.
     ServerStatus {
         /// The status of the executor.
