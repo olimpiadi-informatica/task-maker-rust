@@ -186,7 +186,9 @@ pub(crate) fn list_files<P: AsRef<Path>, S: AsRef<str>>(cwd: P, patterns: Vec<S>
         let pattern = cwd.as_ref().join(pattern.as_ref());
         for file in glob::glob(&pattern.to_string_lossy()).expect("Invalid pattern for list_files")
         {
-            results.push(file.unwrap().to_owned());
+            if let Ok(path) = file {
+                results.push(path);
+            }
         }
     }
     results
@@ -207,7 +209,7 @@ pub(crate) fn find_source_file<
     write_bin_to: Option<P2>,
 ) -> Option<SourceFile> {
     for path in list_files(cwd, patterns) {
-        if LanguageManager::detect_language(&path).is_some() {
+        if path.exists() && LanguageManager::detect_language(&path).is_some() {
             // SourceFile::new may fail if the language is unknown
             return Some(SourceFile::new(&path, base_path, grader_map, write_bin_to).unwrap());
         }
