@@ -182,7 +182,7 @@ impl SanityCheck for AttSampleFilesValid {
                     correct_output,
                     output_uuid,
                     move |score, message| {
-                        if score != 1.0 {
+                        if abs_diff_ne!(score, 1.0) {
                             sender.send(UIMessage::Warning {
                                 message: format!(
                                     "Sample output file {} scores {}: {}",
@@ -262,7 +262,7 @@ fn get_sample_files(
             eval.sender.send(UIMessage::Warning {
                 message: format!(
                     "Sample input file {} does not have its output file",
-                    input.display()
+                    input.strip_prefix(&task.path).unwrap().display()
                 ),
             })?;
             continue;
@@ -273,7 +273,7 @@ fn get_sample_files(
         eval.sender.send(UIMessage::Warning {
             message: format!(
                 "Sample output file {} does not have its input file",
-                output.display()
+                output.strip_prefix(&task.path).unwrap().display()
             ),
         })?;
     }

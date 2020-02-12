@@ -108,6 +108,54 @@ fn test_sanity_checks_att_sample_files_not_link() {
 }
 
 #[test]
+fn test_sanity_checks_duplicate_att_input() {
+    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let task = utils::new_task_with_context(tmpdir.path());
+    std::fs::create_dir(tmpdir.path().join("att")).unwrap();
+    std::fs::write(tmpdir.path().join("att/input0.txt"), "x").unwrap();
+    std::fs::write(tmpdir.path().join("att/task.input0.txt"), "x").unwrap();
+    let warnings = get_warnings(&task);
+    has_warning(&warnings, "Duplicate sample input file with number 0");
+}
+
+#[test]
+fn test_sanity_checks_duplicate_att_output() {
+    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let task = utils::new_task_with_context(tmpdir.path());
+    std::fs::create_dir(tmpdir.path().join("att")).unwrap();
+    std::fs::write(tmpdir.path().join("att/output0.txt"), "x").unwrap();
+    std::fs::write(tmpdir.path().join("att/task.output0.txt"), "x").unwrap();
+    let warnings = get_warnings(&task);
+    has_warning(&warnings, "Duplicate sample output file with number 0");
+}
+
+#[test]
+fn test_sanity_checks_att_input_without_output() {
+    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let task = utils::new_task_with_context(tmpdir.path());
+    std::fs::create_dir(tmpdir.path().join("att")).unwrap();
+    std::fs::write(tmpdir.path().join("att/input0.txt"), "x").unwrap();
+    let warnings = get_warnings(&task);
+    has_warning(
+        &warnings,
+        "Sample input file att/input0.txt does not have its output file",
+    );
+}
+
+#[test]
+fn test_sanity_checks_att_output_without_input() {
+    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let task = utils::new_task_with_context(tmpdir.path());
+    std::fs::create_dir(tmpdir.path().join("att")).unwrap();
+    std::fs::write(tmpdir.path().join("att/output0.txt"), "x").unwrap();
+    let warnings = get_warnings(&task);
+    has_warning(
+        &warnings,
+        "Sample output file att/output0.txt does not have its input file",
+    );
+}
+
+#[test]
 fn test_sanity_checks_sol_graders() {
     let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
