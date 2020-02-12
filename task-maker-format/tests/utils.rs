@@ -32,6 +32,7 @@ pub fn new_task_with_context(path: &Path) -> Task {
         booklets: vec![],
         difficulty: None,
         syllabus_level: None,
+        sanity_checks: Default::default(),
     };
     let st0 = task.subtasks.entry(0).or_insert(SubtaskInfo {
         id: 0,

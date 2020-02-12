@@ -110,7 +110,7 @@ pub struct Task {
     /// It's also not `Serialize` nor `Deserialize`, all the sanity checks will be lost on
     /// serialization.
     #[serde(skip_serializing, skip_deserializing)]
-    sanity_checks: Arc<SanityChecks>,
+    pub sanity_checks: Arc<SanityChecks>,
 }
 
 /// A subtask of a IOI task.
@@ -230,15 +230,19 @@ impl TaskFormat for Task {
                     subtask.id
                 );
 
-                let input =
-                    testcase
-                        .input_generator
-                        .generate(&self, eval, subtask.id, testcase.id)?;
-                let val_handle =
-                    testcase
-                        .input_validator
-                        .validate(eval, subtask.id, testcase.id, input)?;
-                let output = testcase.output_generator.generate(
+                let input = testcase.input_generator.generate_and_bind(
+                    &self,
+                    eval,
+                    subtask.id,
+                    testcase.id,
+                )?;
+                let val_handle = testcase.input_validator.validate_and_bind(
+                    eval,
+                    subtask.id,
+                    testcase.id,
+                    input,
+                )?;
+                let output = testcase.output_generator.generate_and_bind(
                     &self,
                     eval,
                     subtask.id,
