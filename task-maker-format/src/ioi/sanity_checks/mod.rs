@@ -11,15 +11,38 @@ mod att;
 mod sol;
 mod statement;
 mod task;
-use task as task_mod;
+use std::sync::Mutex;
 
-#[derive(Debug, Clone, Default)]
-struct SanityChecksState;
+/// Trait that describes the behaviour of a sanity check.
+trait SanityCheck: Send + Sync + std::fmt::Debug {
+    /// The name of the sanity check.
+    fn name(&self) -> &'static str;
+
+    /// This function will be called before the actual execution of the DAG. It can add new
+    /// executions to the DAG.
+    fn pre_hook(&mut self, _task: &Task, _eval: &mut EvaluationData) -> Result<(), Error> {
+        Ok(())
+    }
+
+    /// This function will be called after the execution of the DAG completes.
+    fn post_hook(&mut self, _task: &Task, _ui: &mut UIMessageSender) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+/// Internal state of the sanity checks.
+#[derive(Debug, Default)]
+struct SanityChecksState {
+    /// The list of enabled sanity checks.
+    sanity_checks: Vec<Box<dyn SanityCheck>>,
+}
 
 /// Sanity checks for a IOI task.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug)]
 pub struct SanityChecks {
-    state: SanityChecksState,
+    /// The internal state of the sanity checks. Mutex to allow interior mutability and Send+Sync
+    /// support.
+    state: Mutex<SanityChecksState>,
 }
 
 impl SanityChecks {
@@ -27,24 +50,51 @@ impl SanityChecks {
     /// statically checkable properties of the task and may add some executions for checking dynamic
     /// properties of the task.
     pub fn pre_hook(&self, task: &Task, eval: &mut EvaluationData) -> Result<(), Error> {
-        task_mod::check_task_max_score(task, eval)?;
-        att::check_att_graders(task, eval)?;
-        att::check_att_templates(task, eval)?;
-        att::check_att_sample_files(task, eval)?;
-        sol::check_sol_graders(task, eval)?;
-        sol::check_sol_symlink(task, eval)?;
-        sol::check_sol_unique(task, eval)?;
-        statement::check_statement_subtasks(task, eval)?;
+        let mut state = self.state.lock().unwrap();
+        for check in state.sanity_checks.iter_mut() {
+            if let Err(e) = check.pre_hook(task, eval) {
+                eval.sender.send(UIMessage::Warning {
+                    message: format!("Sanity check {} failed: {}", check.name(), e),
+                })?;
+            }
+        }
         Ok(())
     }
 
     /// Function called after the evaluation completes. This will check that the produced assets are
     /// valid and the executions added by the pre_hook produced the correct results.
     pub fn post_hook(&self, task: &Task, ui: &mut UIMessageSender) -> Result<(), Error> {
-        statement::check_statement_valid(task, ui)?;
-        statement::check_statement_git(task, ui)?;
-        task_mod::check_broken_symlinks(task, ui)?;
+        let mut state = self.state.lock().unwrap();
+        for check in state.sanity_checks.iter_mut() {
+            if let Err(e) = check.post_hook(task, ui) {
+                ui.send(UIMessage::Warning {
+                    message: format!("Sanity check {} failed: {}", check.name(), e),
+                })?;
+            }
+        }
         Ok(())
+    }
+}
+
+impl Default for SanityChecks {
+    fn default() -> SanityChecks {
+        SanityChecks {
+            state: Mutex::new(SanityChecksState {
+                sanity_checks: vec![
+                    Box::new(task::TaskMaxScore::default()),
+                    Box::new(task::BrokenSymlinks::default()),
+                    Box::new(att::AttGraders::default()),
+                    Box::new(att::AttTemplates::default()),
+                    Box::new(att::AttSampleFiles::default()),
+                    Box::new(sol::SolGraders::default()),
+                    Box::new(sol::SolSymlink::default()),
+                    Box::new(sol::SolUnique::default()),
+                    Box::new(statement::StatementSubtasks::default()),
+                    Box::new(statement::StatementValid::default()),
+                    Box::new(statement::StatementGit::default()),
+                ],
+            }),
+        }
     }
 }
 

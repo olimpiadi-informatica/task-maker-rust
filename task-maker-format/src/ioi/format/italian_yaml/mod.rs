@@ -193,7 +193,7 @@ pub fn parse_task<P: AsRef<Path>>(
         booklets: Vec::new(),
         difficulty: yaml.difficulty,
         syllabus_level: yaml.syllabuslevel,
-        sanity_checks: SanityChecks::default(),
+        sanity_checks: Arc::new(SanityChecks::default()),
     };
     // split the creation of the task because make_booklets need an instance of Task
     if !eval_config.no_statement {

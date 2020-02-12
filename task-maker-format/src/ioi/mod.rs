@@ -106,8 +106,11 @@ pub struct Task {
     /// An integer that defines the level inside a _syllabus_ (for example for the Olympiads in
     /// Teams). Used only in booklet compilations.
     pub syllabus_level: Option<u8>,
+    /// The sanity checks attached to this task. Wrapped in Arc since `SanityChecks` is not Clone.
+    /// It's also not `Serialize` nor `Deserialize`, all the sanity checks will be lost on
+    /// serialization.
     #[serde(skip_serializing, skip_deserializing)]
-    sanity_checks: SanityChecks,
+    sanity_checks: Arc<SanityChecks>,
 }
 
 /// A subtask of a IOI task.
