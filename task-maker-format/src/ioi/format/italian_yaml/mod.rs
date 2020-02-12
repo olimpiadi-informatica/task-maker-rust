@@ -12,6 +12,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use task_maker_lang::GraderMap;
 
+use crate::ioi::sanity_checks::SanityChecks;
 use crate::ioi::{
     make_booklets, Checker, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo, Task,
     TaskType, TestcaseId, TestcaseInfo, TestcaseScoreAggregator,
@@ -192,6 +193,7 @@ pub fn parse_task<P: AsRef<Path>>(
         booklets: Vec::new(),
         difficulty: yaml.difficulty,
         syllabus_level: yaml.syllabuslevel,
+        sanity_checks: SanityChecks::default(),
     };
     // split the creation of the task because make_booklets need an instance of Task
     if !eval_config.no_statement {

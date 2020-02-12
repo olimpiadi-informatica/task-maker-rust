@@ -42,6 +42,7 @@ mod statement;
 mod tag;
 mod ui_state;
 
+use crate::ioi::sanity_checks::SanityChecks;
 use curses_ui::CursesUI;
 pub use dag::*;
 use itertools::Itertools;
@@ -105,6 +106,8 @@ pub struct Task {
     /// An integer that defines the level inside a _syllabus_ (for example for the Olympiads in
     /// Teams). Used only in booklet compilations.
     pub syllabus_level: Option<u8>,
+    #[serde(skip_serializing, skip_deserializing)]
+    sanity_checks: SanityChecks,
 }
 
 /// A subtask of a IOI task.
@@ -160,7 +163,7 @@ impl TaskFormat for Task {
     fn build_dag(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error> {
         eval.sender
             .send(UIMessage::IOITask { task: self.clone() })?;
-        sanity_checks::pre_hook(&self, eval)?;
+        self.sanity_checks.pre_hook(&self, eval)?;
         let graders: HashSet<PathBuf> = self
             .grader_map
             .all_paths()
@@ -270,7 +273,7 @@ impl TaskFormat for Task {
     }
 
     fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
-        sanity_checks::post_hook(&self, ui)
+        self.sanity_checks.post_hook(&self, ui)
     }
 
     fn clean(&self) -> Result<(), Error> {
