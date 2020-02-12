@@ -86,6 +86,7 @@ impl Default for SanityChecks {
                     Box::new(att::AttGraders::default()),
                     Box::new(att::AttTemplates::default()),
                     Box::new(att::AttSampleFiles::default()),
+                    Box::new(att::AttSampleFilesValid::default()),
                     Box::new(sol::SolGraders::default()),
                     Box::new(sol::SolSymlink::default()),
                     Box::new(sol::SolUnique::default()),
