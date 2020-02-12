@@ -343,6 +343,16 @@ impl std::default::Default for ExecutionLimits {
     }
 }
 
+impl ExecutionStatus {
+    /// Returns true only if it is `ExecutionStatus::Success`.
+    pub fn is_success(&self) -> bool {
+        match self {
+            ExecutionStatus::Success => true,
+            _ => false,
+        }
+    }
+}
+
 impl ExecutionCommand {
     /// Make a new `ExecutionCommand::System`.
     pub fn system<P: Into<PathBuf>>(path: P) -> ExecutionCommand {

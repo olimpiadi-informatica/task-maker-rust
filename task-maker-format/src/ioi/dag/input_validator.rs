@@ -28,6 +28,7 @@ impl InputValidator {
     pub(crate) fn validate(
         &self,
         eval: &mut EvaluationData,
+        description: String,
         subtask_id: SubtaskId,
         testcase_id: TestcaseId,
         input: FileUuid,
@@ -35,14 +36,7 @@ impl InputValidator {
         match self {
             InputValidator::AssumeValid => Ok((None, None)),
             InputValidator::Custom(source_file, args) => {
-                let mut exec = source_file.execute(
-                    eval,
-                    format!(
-                        "Validation of input file of testcase {}, subtask {}",
-                        testcase_id, subtask_id
-                    ),
-                    args.clone(),
-                )?;
+                let mut exec = source_file.execute(eval, description, args.clone())?;
                 exec.input(input, "tm_validation_file", false)
                     .tag(Tag::Generation.into())
                     .env("TM_SUBTASK", subtask_id.to_string())
@@ -64,7 +58,16 @@ impl InputValidator {
         testcase_id: TestcaseId,
         input: FileUuid,
     ) -> Result<Option<FileUuid>, Error> {
-        let (handle, val) = self.validate(eval, subtask_id, testcase_id, input)?;
+        let (handle, val) = self.validate(
+            eval,
+            format!(
+                "Validation of input file of testcase {}, subtask {}",
+                testcase_id, subtask_id
+            ),
+            subtask_id,
+            testcase_id,
+            input,
+        )?;
         if let Some(mut val) = val {
             bind_exec_callbacks!(eval, val.uuid, |status| UIMessage::IOIValidation {
                 subtask: subtask_id,

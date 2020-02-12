@@ -166,7 +166,11 @@ pub fn parse_task<P: AsRef<Path>>(
     )
     .map(Arc::new)
     .map(Checker::Custom);
-
+    let official_solution =
+        match detect_output_generator(task_dir.to_path_buf(), grader_map.clone())(0) {
+            gen @ OutputGenerator::Custom(_, _) => Some(gen),
+            _ => None,
+        };
     let mut task = Task {
         path: task_dir.into(),
         task_type: TaskType::Batch,
@@ -194,6 +198,8 @@ pub fn parse_task<P: AsRef<Path>>(
         difficulty: yaml.difficulty,
         syllabus_level: yaml.syllabuslevel,
         sanity_checks: Arc::new(SanityChecks::default()),
+        input_validator: detect_validator(task_dir.to_path_buf())(0),
+        output_generator: official_solution,
     };
     // split the creation of the task because make_booklets need an instance of Task
     if !eval_config.no_statement {

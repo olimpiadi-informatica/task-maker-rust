@@ -30,6 +30,7 @@ impl OutputGenerator {
         &self,
         task: &Task,
         eval: &mut EvaluationData,
+        description: String,
         subtask_id: SubtaskId,
         testcase_id: TestcaseId,
         input: FileUuid,
@@ -45,25 +46,11 @@ impl OutputGenerator {
                     subtask_id, testcase_id, path
                 ));
                 let uuid = file.uuid;
-                eval.dag.write_file_to(
-                    &file,
-                    task.path
-                        .join("output")
-                        .join(format!("output{}.txt", testcase_id)),
-                    false,
-                );
                 eval.dag.provide_file(file, &path)?;
                 Ok((uuid, None))
             }
             OutputGenerator::Custom(source_file, args) => {
-                let mut exec = source_file.execute(
-                    eval,
-                    format!(
-                        "Generation of output file of testcase {}, subtask {}",
-                        testcase_id, subtask_id
-                    ),
-                    args.clone(),
-                )?;
+                let mut exec = source_file.execute(eval, description, args.clone())?;
                 exec.tag(Tag::Generation.into());
                 let output = bind_exec_io!(exec, task, input, validation_handle);
                 Ok((output.uuid, Some(exec)))
@@ -85,6 +72,10 @@ impl OutputGenerator {
         let (output, sol) = self.generate(
             task,
             eval,
+            format!(
+                "Generation of output file of testcase {}, subtask {}",
+                testcase_id, subtask_id
+            ),
             subtask_id,
             testcase_id,
             input,

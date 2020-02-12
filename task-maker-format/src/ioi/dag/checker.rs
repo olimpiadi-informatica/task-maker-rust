@@ -30,12 +30,10 @@ impl Checker {
     /// Build the execution of the checker for the specified files, the callback will be called when
     /// the result is ready. The execution does not send UI messages yet and it's not added to the
     /// DAG.
-    pub(crate) fn check<S: Into<PathBuf>, F>(
+    pub(crate) fn check<F>(
         &self,
         eval: &mut EvaluationData,
-        subtask_id: SubtaskId,
-        testcase_id: TestcaseId,
-        solution: S,
+        description: String,
         input: FileUuid,
         correct_output: FileUuid,
         test_output: FileUuid,
@@ -44,18 +42,9 @@ impl Checker {
     where
         F: FnOnce(f64, String) -> Result<(), Error> + Send + Sync + 'static,
     {
-        let solution = solution.into();
         match self {
             Checker::WhiteDiff => {
-                let mut exec = Execution::new(
-                    format!(
-                        "Checking output of {:?} of testcase {}, subtask {}",
-                        solution.file_name().unwrap(),
-                        testcase_id,
-                        subtask_id
-                    ),
-                    ExecutionCommand::system("diff"),
-                );
+                let mut exec = Execution::new(description, ExecutionCommand::system("diff"));
                 exec.args(vec!["--ignore-all-space", "correct", "test"])
                     .input(correct_output, "correct", false)
                     .input(test_output, "test", false)
@@ -78,12 +67,7 @@ impl Checker {
             Checker::Custom(source_file) => {
                 let mut exec = source_file.execute(
                     eval,
-                    format!(
-                        "Checking output of {:?} of testcase {}, subtask {}",
-                        solution.file_name().unwrap(),
-                        testcase_id,
-                        subtask_id
-                    ),
+                    description,
                     vec!["input", "correct_output", "test_output"],
                 )?;
                 exec.input(input, "input", false)
@@ -149,9 +133,12 @@ impl Checker {
         let solution = solution.into();
         let exec = self.check(
             eval,
-            subtask_id,
-            testcase_id,
-            solution.clone(),
+            format!(
+                "Checking output of {:?} of testcase {}, subtask {}",
+                solution.file_name().unwrap(),
+                testcase_id,
+                subtask_id
+            ),
             input,
             correct_output,
             test_output,

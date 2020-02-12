@@ -92,6 +92,10 @@ pub struct Task {
     pub outfile: Option<PathBuf>,
     /// The list of the subtasks.
     pub subtasks: HashMap<SubtaskId, SubtaskInfo>,
+    /// The default input validator for this task, if any.
+    pub input_validator: InputValidator,
+    /// The default output generator for this task, if any.
+    pub output_generator: Option<OutputGenerator>,
     /// The checker to use for this task.
     pub checker: Checker,
     /// The aggregator to use to compute the score of the subtask based on the score of the

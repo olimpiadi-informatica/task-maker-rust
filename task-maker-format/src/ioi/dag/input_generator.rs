@@ -27,8 +27,8 @@ impl InputGenerator {
     /// added to the DAG.
     pub(crate) fn generate(
         &self,
-        task: &Task,
         eval: &mut EvaluationData,
+        description: String,
         subtask_id: SubtaskId,
         testcase_id: TestcaseId,
     ) -> Result<(FileUuid, Option<Execution>), Error> {
@@ -42,25 +42,11 @@ impl InputGenerator {
                     subtask_id, testcase_id, path
                 ));
                 let uuid = file.uuid;
-                eval.dag.write_file_to(
-                    &file,
-                    task.path
-                        .join("input")
-                        .join(format!("input{}.txt", testcase_id)),
-                    false,
-                );
                 eval.dag.provide_file(file, &path)?;
                 Ok((uuid, None))
             }
             InputGenerator::Custom(source_file, args) => {
-                let mut exec = source_file.execute(
-                    eval,
-                    format!(
-                        "Generation of input file of testcase {}, subtask {}",
-                        testcase_id, subtask_id
-                    ),
-                    args.clone(),
-                )?;
+                let mut exec = source_file.execute(eval, description, args.clone())?;
                 exec.tag(Tag::Generation.into());
                 let stdout = exec.stdout();
                 Ok((stdout.uuid, Some(exec)))
@@ -77,7 +63,15 @@ impl InputGenerator {
         subtask_id: SubtaskId,
         testcase_id: TestcaseId,
     ) -> Result<FileUuid, Error> {
-        let (input, gen) = self.generate(task, eval, subtask_id, testcase_id)?;
+        let (input, gen) = self.generate(
+            eval,
+            format!(
+                "Generation of input file of testcase {}, subtask {}",
+                testcase_id, subtask_id
+            ),
+            subtask_id,
+            testcase_id,
+        )?;
         // if there is an execution, bind its callbacks and store the input file
         if let Some(mut gen) = gen {
             bind_exec_callbacks!(eval, gen.uuid, |status| UIMessage::IOIGeneration {
