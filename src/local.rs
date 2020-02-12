@@ -124,7 +124,7 @@ where
     let executor = LocalExecutor::new(file_store.clone(), num_cores, sandbox_path);
 
     // build the DAG for the task
-    if let Err(e) = task.execute(&mut eval, &eval_config) {
+    if let Err(e) = task.build_dag(&mut eval, &eval_config) {
         eval.sender.send(UIMessage::StopUI)?;
         ui_thread
             .join()

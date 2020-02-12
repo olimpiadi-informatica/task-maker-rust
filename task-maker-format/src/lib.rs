@@ -40,8 +40,8 @@ pub trait TaskFormat {
     /// Get an appropriate `UI` for this task.
     fn ui(&self, ui_type: &ui::UIType) -> Result<Box<dyn UI>, Error>;
 
-    /// Execute the evaluation of this task by adding the executions to the provided DAG.
-    fn execute(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error>;
+    /// Add the executions required for evaluating this task to the execution DAG.
+    fn build_dag(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error>;
 
     /// Hook called after the execution completed, useful for sending messages to the UI about the
     /// results of the sanity checks with data available only after the evaluation.

@@ -13,7 +13,7 @@ fn test_ioi_task_execute_copy() {
     let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
     let (mut eval, _receiver) = EvaluationData::new(tmpdir.path());
-    task.execute(&mut eval, &EvaluationConfig::default())
+    task.build_dag(&mut eval, &EvaluationConfig::default())
         .unwrap();
     assert_eq!(eval.dag.data.provided_files.len(), 6);
 }
@@ -35,7 +35,7 @@ fn test_ioi_task_execute_gen() {
         .input_generator = gen;
 
     let (mut eval, _receiver) = EvaluationData::new(tmpdir.path());
-    task.execute(&mut eval, &EvaluationConfig::default())
+    task.build_dag(&mut eval, &EvaluationConfig::default())
         .unwrap();
     assert_eq!(eval.dag.data.provided_files.len(), 5 + 1); // io + gen.py
     assert_eq!(eval.dag.data.executions.len(), 1);
@@ -58,7 +58,7 @@ fn test_ioi_task_execute_val() {
         .input_validator = val;
 
     let (mut eval, _receiver) = EvaluationData::new(tmpdir.path());
-    task.execute(&mut eval, &EvaluationConfig::default())
+    task.build_dag(&mut eval, &EvaluationConfig::default())
         .unwrap();
     assert_eq!(eval.dag.data.provided_files.len(), 6 + 1); // io + val.py
     assert_eq!(eval.dag.data.executions.len(), 1);
@@ -81,7 +81,7 @@ fn test_ioi_task_execute_sol() {
         .output_generator = sol;
 
     let (mut eval, _receiver) = EvaluationData::new(tmpdir.path());
-    task.execute(&mut eval, &EvaluationConfig::default())
+    task.build_dag(&mut eval, &EvaluationConfig::default())
         .unwrap();
     assert_eq!(eval.dag.data.provided_files.len(), 5 + 1); // io + sol.py
     assert_eq!(eval.dag.data.executions.len(), 1);
@@ -96,7 +96,7 @@ fn test_ioi_task_execute_eval() {
     std::fs::write(tmpdir.path().join("sol").join("sol.py"), "foo").unwrap();
 
     let (mut eval, _receiver) = EvaluationData::new(tmpdir.path());
-    task.execute(&mut eval, &EvaluationConfig::default())
+    task.build_dag(&mut eval, &EvaluationConfig::default())
         .unwrap();
     assert_eq!(eval.dag.data.provided_files.len(), 6 + 1); // io + sol/sol.py
     assert_eq!(eval.dag.data.executions.len(), 3 + 3); // eval + checker
@@ -118,7 +118,7 @@ fn test_ioi_task_execute_booklet() {
     task.booklets.push(booklet);
 
     let (mut eval, _receiver) = EvaluationData::new(tmpdir.path());
-    task.execute(&mut eval, &EvaluationConfig::default())
+    task.build_dag(&mut eval, &EvaluationConfig::default())
         .unwrap();
     assert_eq!(eval.dag.data.executions.len(), 1); // latexmk
 }

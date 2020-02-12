@@ -157,7 +157,7 @@ impl TaskFormat for Task {
         }
     }
 
-    fn execute(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error> {
+    fn build_dag(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error> {
         eval.sender
             .send(UIMessage::IOITask { task: self.clone() })?;
         sanity_checks::pre_hook(&self, eval)?;
