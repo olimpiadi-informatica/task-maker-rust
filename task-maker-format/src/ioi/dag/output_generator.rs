@@ -88,14 +88,14 @@ impl OutputGenerator {
                 status
             })?;
             eval.dag.add_execution(sol);
-            eval.dag.write_file_to(
-                output,
-                task.path
-                    .join("output")
-                    .join(format!("output{}.txt", testcase_id)),
-                false,
-            );
         }
+        eval.dag.write_file_to(
+            output,
+            task.path
+                .join("output")
+                .join(format!("output{}.txt", testcase_id)),
+            false,
+        );
         Ok(output)
     }
 }

@@ -163,6 +163,8 @@ mod tests {
             infile: None,
             outfile: None,
             subtasks: Default::default(),
+            input_validator: InputValidator::AssumeValid,
+            output_generator: None,
             checker: Checker::WhiteDiff,
             testcase_score_aggregator: TestcaseScoreAggregator::Min,
             grader_map: Arc::new(GraderMap::new(Vec::<PathBuf>::new())),

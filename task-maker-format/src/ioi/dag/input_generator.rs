@@ -72,6 +72,13 @@ impl InputGenerator {
             subtask_id,
             testcase_id,
         )?;
+        eval.dag.write_file_to(
+            input,
+            task.path
+                .join("input")
+                .join(format!("input{}.txt", testcase_id)),
+            false,
+        );
         // if there is an execution, bind its callbacks and store the input file
         if let Some(mut gen) = gen {
             bind_exec_callbacks!(eval, gen.uuid, |status| UIMessage::IOIGeneration {
@@ -90,13 +97,6 @@ impl InputGenerator {
                     })
                 });
             eval.dag.add_execution(gen);
-            eval.dag.write_file_to(
-                input,
-                task.path
-                    .join("input")
-                    .join(format!("input{}.txt", testcase_id)),
-                false,
-            );
         }
         Ok(input)
     }

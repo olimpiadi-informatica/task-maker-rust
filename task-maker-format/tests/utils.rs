@@ -26,6 +26,8 @@ pub fn new_task_with_context(path: &Path) -> Task {
         infile: None,
         outfile: None,
         subtasks: HashMap::new(),
+        input_validator: InputValidator::AssumeValid,
+        output_generator: None,
         checker: Checker::WhiteDiff,
         testcase_score_aggregator: TestcaseScoreAggregator::Min,
         grader_map: Arc::new(GraderMap::new(Vec::<PathBuf>::new())),
