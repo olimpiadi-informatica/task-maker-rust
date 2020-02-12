@@ -1,17 +1,19 @@
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::thread;
+
+use failure::{Error, Fail};
+use uuid::Uuid;
+
+use task_maker_dag::*;
+use task_maker_store::*;
+
 use crate::executor::WorkerJob;
 use crate::proto::*;
 use crate::sandbox::{Sandbox, SandboxResult};
-use crate::{new_local_channel, ChannelReceiver, ChannelSender, RawSandboxResult};
-use failure::{Error, Fail};
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicU32;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use tabox::configuration::SandboxConfiguration;
-use task_maker_dag::*;
-use task_maker_store::*;
-use uuid::Uuid;
+use crate::sandbox_runner::SandboxRunner;
+use crate::{new_local_channel, ChannelReceiver, ChannelSender};
 
 /// The information about the current job the worker is doing.
 struct WorkerCurrentJob {
@@ -42,8 +44,7 @@ pub struct Worker {
     /// Where to put the sandboxes.
     sandbox_path: PathBuf,
     /// The function that spawns an actual sandbox.
-    sandbox_runner:
-        Arc<dyn Fn(SandboxConfiguration, Arc<AtomicU32>) -> RawSandboxResult + Send + Sync>,
+    sandbox_runner: Arc<dyn SandboxRunner>,
 }
 
 /// An handle of the connection to the worker.
@@ -81,14 +82,14 @@ impl Worker {
     /// Make a new worker attached to a [`FileStore`](../task_maker_store/struct.FileStore.html),
     /// will return a pair with the actual `Worker` and an handle with the channels to connect to
     /// communicate with the worker.
-    pub fn new<S: Into<String>, P: Into<PathBuf>, F>(
+    pub fn new<S: Into<String>, P: Into<PathBuf>, R>(
         name: S,
         file_store: Arc<FileStore>,
         sandbox_path: P,
-        runner: F,
+        runner: R,
     ) -> (Worker, WorkerConn)
     where
-        F: Fn(SandboxConfiguration, Arc<AtomicU32>) -> RawSandboxResult + Send + Sync + 'static,
+        R: SandboxRunner + 'static,
     {
         let (tx, rx_worker) = new_local_channel();
         let (tx_worker, rx) = new_local_channel();
@@ -113,16 +114,16 @@ impl Worker {
     }
 
     /// Make a new worker with an already connected channel.
-    pub fn new_with_channel<S: Into<String>, P: Into<PathBuf>, F>(
+    pub fn new_with_channel<S: Into<String>, P: Into<PathBuf>, R>(
         name: S,
         file_store: Arc<FileStore>,
         sandbox_path: P,
         sender: ChannelSender<WorkerClientMessage>,
         receiver: ChannelReceiver<WorkerServerMessage>,
-        runner: F,
+        runner: R,
     ) -> Worker
     where
-        F: Fn(SandboxConfiguration, Arc<AtomicU32>) -> RawSandboxResult + Send + Sync + 'static,
+        R: SandboxRunner + 'static,
     {
         let uuid = Uuid::new_v4();
         let name = name.into();
@@ -254,9 +255,7 @@ fn execute_job(
     current_job: Arc<Mutex<WorkerCurrentJob>>,
     sender: &ChannelSender<WorkerClientMessage>,
     sandbox_path: &Path,
-    runner: Arc<
-        dyn Fn(SandboxConfiguration, Arc<AtomicU32>) -> RawSandboxResult + Send + Sync + 'static,
-    >,
+    runner: Arc<dyn SandboxRunner>,
 ) -> Result<Sandbox, Error> {
     let (job, mut sandbox) = {
         let current_job = current_job.lock().unwrap();
@@ -290,7 +289,7 @@ fn execute_job(
                 sender.send(WorkerClientMessage::GetWork).unwrap();
             }}
 
-            let result = match sandbox.run(move |config, pid| runner(config, pid)) {
+            let result = match sandbox.run(runner.as_ref()) {
                 Ok(res) => res,
                 Err(e) => {
                     let result = ExecutionResult {

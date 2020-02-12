@@ -297,10 +297,9 @@ mod tests {
 
     use tempdir::TempDir;
 
-    use task_maker_exec::{eval_dag_locally, RawSandboxResult};
+    use task_maker_exec::{eval_dag_locally, SuccessSandboxRunner};
 
     use super::*;
-    use tabox::result::{ExitStatus, ResourceUsage, SandboxExecutionResult};
 
     #[test]
     fn test_source_file_cpp() {
@@ -339,17 +338,15 @@ mod tests {
         });
         dag.add_execution(exec);
 
-        eval_dag_locally(dag, cwd.path(), 2, cwd.path(), 1000, 1000, |_, _| {
-            RawSandboxResult::Success(SandboxExecutionResult {
-                status: ExitStatus::ExitCode(0),
-                resource_usage: ResourceUsage {
-                    memory_usage: 0,
-                    user_cpu_time: 0.0,
-                    system_cpu_time: 0.0,
-                    wall_time_usage: 0.0,
-                },
-            })
-        });
+        eval_dag_locally(
+            dag,
+            cwd.path(),
+            2,
+            cwd.path(),
+            1000,
+            1000,
+            SuccessSandboxRunner::default(),
+        );
 
         assert!(exec_start.load(Ordering::Relaxed));
         assert!(exec_done.load(Ordering::Relaxed));

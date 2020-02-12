@@ -9,7 +9,7 @@ use task_maker_store::FileStore;
 
 use crate::error::NiceError;
 use crate::opt::{Opt, WorkerOptions};
-use crate::sandbox::self_exec_sandbox;
+use crate::sandbox::SelfExecSandboxRunner;
 
 /// Entry point for the worker.
 pub fn main_worker(opt: Opt, worker_opt: WorkerOptions) {
@@ -44,7 +44,7 @@ pub fn main_worker(opt: Opt, worker_opt: WorkerOptions) {
             sandbox_path.clone(),
             executor_tx.change_type(),
             executor_rx.change_type(),
-            self_exec_sandbox,
+            SelfExecSandboxRunner::default(),
         );
         workers.push(
             thread::Builder::new()

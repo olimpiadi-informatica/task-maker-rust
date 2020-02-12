@@ -1,15 +1,15 @@
 use std::io::{stdin, stdout};
-
-use failure::{bail, format_err, Error};
-use tabox::result::SandboxExecutionResult;
-use tabox::{Sandbox, SandboxImplementation};
-
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+
+use failure::{bail, format_err, Error};
 use tabox::configuration::SandboxConfiguration;
-use task_maker_exec::RawSandboxResult;
+use tabox::result::SandboxExecutionResult;
+use tabox::{Sandbox, SandboxImplementation};
+
+use task_maker_exec::{RawSandboxResult, SandboxRunner};
 
 /// Actually parse the input and return the result.
 fn run_sandbox() -> Result<SandboxExecutionResult, Error> {
@@ -41,10 +41,15 @@ pub fn main_sandbox() {
 
 /// Run the sandbox integrated in the task-maker binary, by executing itself with different command
 /// line arguments.
-pub fn self_exec_sandbox(config: SandboxConfiguration, pid: Arc<AtomicU32>) -> RawSandboxResult {
-    match self_exec_sandbox_internal(config, pid) {
-        Ok(res) => res,
-        Err(e) => RawSandboxResult::Error(e.to_string()),
+#[derive(Default)]
+pub struct SelfExecSandboxRunner;
+
+impl SandboxRunner for SelfExecSandboxRunner {
+    fn run(&self, config: SandboxConfiguration, pid: Arc<AtomicU32>) -> RawSandboxResult {
+        match self_exec_sandbox_internal(config, pid) {
+            Ok(res) => res,
+            Err(e) => RawSandboxResult::Error(e.to_string()),
+        }
     }
 }
 

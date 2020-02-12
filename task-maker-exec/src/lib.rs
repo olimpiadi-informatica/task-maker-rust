@@ -85,18 +85,19 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use failure::{bail, Error};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use tabox::configuration::SandboxConfiguration;
 
 pub use client::ExecutorClient;
 pub use executor::ExecutorStatus;
 pub use sandbox::RawSandboxResult;
+pub use sandbox_runner::{
+    ErrorSandboxRunner, FakeSandboxRunner, SandboxRunner, SuccessSandboxRunner,
+};
 use task_maker_cache::Cache;
 use task_maker_dag::ExecutionDAG;
 use task_maker_store::FileStore;
 pub use worker::{Worker, WorkerConn};
 
 use crate::proto::FileProtocol;
-use std::sync::atomic::AtomicU32;
 
 mod check_dag;
 mod client;
@@ -104,6 +105,7 @@ mod executor;
 pub mod executors;
 pub mod proto;
 mod sandbox;
+mod sandbox_runner;
 mod scheduler;
 mod worker;
 mod worker_manager;
@@ -332,16 +334,16 @@ pub fn connect_channel<A: ToSocketAddrs, T>(
 
 /// Evaluate a DAG locally spawning a new [`LocalExecutor`](executors/struct.LocalExecutor.html)
 /// with the specified number of workers.
-pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>, F>(
+pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>, R>(
     dag: ExecutionDAG,
     store_dir: P,
     num_cores: usize,
     sandbox_path: P2,
     max_cache: u64,
     min_cache: u64,
-    sandbox_runner: F,
+    sandbox_runner: R,
 ) where
-    F: Fn(SandboxConfiguration, Arc<AtomicU32>) -> RawSandboxResult + Send + Sync + 'static,
+    R: SandboxRunner + 'static,
 {
     let (tx, rx_remote) = new_local_channel();
     let (tx_remote, rx) = new_local_channel();
@@ -377,7 +379,6 @@ mod tests {
     use pretty_assertions::assert_eq;
     use rand::Rng;
     use serde::{Deserialize, Serialize};
-    use tabox::result::{ExitStatus, ResourceUsage, SandboxExecutionResult};
     use tempdir::TempDir;
 
     use task_maker_dag::*;
@@ -423,26 +424,6 @@ mod tests {
         assert_eq!(data, vec![9, 10, 11, 12]);
 
         client_thread.join().unwrap();
-    }
-
-    fn fake_sandbox(config: SandboxConfiguration, _pid: Arc<AtomicU32>) -> RawSandboxResult {
-        let resource_usage = ResourceUsage {
-            memory_usage: 0,
-            user_cpu_time: 0.0,
-            system_cpu_time: 0.0,
-            wall_time_usage: 0.0,
-        };
-        if config.executable.ends_with("true") {
-            RawSandboxResult::Success(SandboxExecutionResult {
-                status: ExitStatus::ExitCode(0),
-                resource_usage,
-            })
-        } else {
-            RawSandboxResult::Success(SandboxExecutionResult {
-                status: ExitStatus::ExitCode(1),
-                resource_usage,
-            })
-        }
     }
 
     #[test]
@@ -506,7 +487,15 @@ mod tests {
         dag.write_file_to(&stdout2, &cwd.path().join("stdout2"), false);
         dag.write_file_to(&output3, &cwd.path().join("output3"), false);
 
-        eval_dag_locally(dag, cwd.path(), 2, cwd.path(), 1000, 1000, fake_sandbox);
+        eval_dag_locally(
+            dag,
+            cwd.path(),
+            2,
+            cwd.path(),
+            1000,
+            1000,
+            FakeSandboxRunner::default(),
+        );
 
         assert!(exec_done2.load(Ordering::Relaxed));
         assert!(exec_start2.load(Ordering::Relaxed));

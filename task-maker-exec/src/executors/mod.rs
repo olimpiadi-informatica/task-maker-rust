@@ -13,7 +13,7 @@
 //! # use std::thread;
 //! # use tempdir::TempDir;
 //! use task_maker_cache::Cache;
-//! use task_maker_exec::new_local_channel;
+//! use task_maker_exec::{new_local_channel, ErrorSandboxRunner};
 //!
 //! # let tmpdir = TempDir::new("tm-test").unwrap();
 //! # let path = tmpdir.path();
@@ -26,7 +26,7 @@
 //! let (tx_remote, rx) = new_local_channel();
 //!
 //! # let server = thread::spawn(move || {
-//! # let sandbox_runner = |_config, _pid| panic!("The sandbox should not be called from this example");
+//! # let sandbox_runner = ErrorSandboxRunner::default();
 //! executor.evaluate(tx_remote, rx_remote, cache, sandbox_runner).unwrap();  // this will block!!
 //! # });
 //! # drop(tx);

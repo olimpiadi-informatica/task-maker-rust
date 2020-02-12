@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use failure::{bail, Error};
 use nix::sys::signal::{self, Signal};
@@ -12,10 +14,10 @@ use tabox::result::SandboxExecutionResult;
 use tabox::syscall_filter::SyscallFilter;
 use tempdir::TempDir;
 
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::Duration;
 use task_maker_dag::*;
 use task_maker_store::*;
+
+use crate::sandbox_runner::SandboxRunner;
 
 /// The list of all the system-wide readable directories inside the sandbox.
 const READABLE_DIRS: &[&str] = &[
@@ -109,10 +111,7 @@ impl Sandbox {
     }
 
     /// Starts the sandbox and blocks the thread until the sandbox exits.
-    pub fn run<F>(&self, runner: F) -> Result<SandboxResult, Error>
-    where
-        F: FnOnce(SandboxConfiguration, Arc<AtomicU32>) -> RawSandboxResult,
-    {
+    pub fn run(&self, runner: &dyn SandboxRunner) -> Result<SandboxResult, Error> {
         let (boxdir, pid) = {
             let data = self.data.lock().unwrap();
             (data.path().to_owned(), data.box_pid.clone())
@@ -125,7 +124,7 @@ impl Sandbox {
         }
         trace!("Sandbox configuration: {:#?}", config);
 
-        let raw_result = runner(config.build(), pid);
+        let raw_result = runner.run(config.build(), pid);
         let res = match raw_result {
             RawSandboxResult::Success(res) => res,
             RawSandboxResult::Error(e) => bail!("Sandbox failed: {}", e),
@@ -420,18 +419,13 @@ mod tests {
     use std::collections::HashMap;
     use std::path::Path;
 
-    use task_maker_dag::{Execution, ExecutionCommand};
-
-    use crate::sandbox::Sandbox;
-    use crate::RawSandboxResult;
-    use std::sync::atomic::AtomicU32;
-    use std::sync::Arc;
     use tabox::configuration::{DirectoryMount, SandboxConfiguration};
     use tabox::syscall_filter::SyscallFilterAction;
 
-    fn fake_sandbox(_: SandboxConfiguration, _: Arc<AtomicU32>) -> RawSandboxResult {
-        RawSandboxResult::Error("Nope".to_owned())
-    }
+    use task_maker_dag::{Execution, ExecutionCommand};
+
+    use crate::sandbox::Sandbox;
+    use crate::ErrorSandboxRunner;
 
     #[test]
     fn test_remove_sandbox_on_drop() {
@@ -441,7 +435,7 @@ mod tests {
         exec.limits_mut().read_only(true);
         let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new()).unwrap();
         let outfile = sandbox.output_path(Path::new("fooo"));
-        if let Err(e) = sandbox.run(&fake_sandbox) {
+        if let Err(e) = sandbox.run(&ErrorSandboxRunner::default()) {
             assert!(e.to_string().contains("Nope"));
         } else {
             panic!("Sandbox not called");

@@ -16,7 +16,7 @@ use task_maker_store::FileStore;
 
 use crate::error::NiceError;
 use crate::opt::Opt;
-use crate::sandbox::self_exec_sandbox;
+use crate::sandbox::SelfExecSandboxRunner;
 
 /// The result of an evaluation.
 pub enum Evaluation {
@@ -153,7 +153,12 @@ where
             .name("Executor thread".into())
             .spawn(move || {
                 executor
-                    .evaluate(tx_remote, rx_remote, cache, self_exec_sandbox)
+                    .evaluate(
+                        tx_remote,
+                        rx_remote,
+                        cache,
+                        SelfExecSandboxRunner::default(),
+                    )
                     .unwrap();
             })
             .map_err(|e| format_err!("Failed to spawn the executor thread: {}", e.to_string()))?;
