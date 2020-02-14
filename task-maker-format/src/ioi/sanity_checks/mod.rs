@@ -11,6 +11,7 @@ mod att;
 mod sol;
 mod statement;
 mod task;
+use itertools::Itertools;
 use std::sync::Mutex;
 
 /// Trait that describes the behavior of a sanity check.
@@ -46,6 +47,15 @@ pub struct SanityChecks {
 }
 
 impl SanityChecks {
+    /// Make a new `SanityChecks` excluding some of the checks.
+    pub fn new(skip: &[String]) -> SanityChecks {
+        SanityChecks {
+            state: Mutex::new(SanityChecksState {
+                sanity_checks: get_sanity_checks(skip),
+            }),
+        }
+    }
+
     /// Function called for the first pass of sanity checks of the task. This will check all the
     /// statically checkable properties of the task and may add some executions for checking dynamic
     /// properties of the task.
@@ -80,23 +90,36 @@ impl Default for SanityChecks {
     fn default() -> SanityChecks {
         SanityChecks {
             state: Mutex::new(SanityChecksState {
-                sanity_checks: vec![
-                    Box::new(task::TaskMaxScore::default()),
-                    Box::new(task::BrokenSymlinks::default()),
-                    Box::new(att::AttGraders::default()),
-                    Box::new(att::AttTemplates::default()),
-                    Box::new(att::AttSampleFiles::default()),
-                    Box::new(att::AttSampleFilesValid::default()),
-                    Box::new(sol::SolGraders::default()),
-                    Box::new(sol::SolSymlink::default()),
-                    Box::new(sol::SolUnique::default()),
-                    Box::new(statement::StatementSubtasks::default()),
-                    Box::new(statement::StatementValid::default()),
-                    Box::new(statement::StatementGit::default()),
-                ],
+                sanity_checks: get_sanity_checks(&[]),
             }),
         }
     }
+}
+
+/// Return the list of sanity checks excluding the ones with their name in the provided list.
+fn get_sanity_checks(skip: &[String]) -> Vec<Box<dyn SanityCheck>> {
+    let all: Vec<Box<dyn SanityCheck>> = vec![
+        Box::new(task::TaskMaxScore::default()),
+        Box::new(task::BrokenSymlinks::default()),
+        Box::new(att::AttGraders::default()),
+        Box::new(att::AttTemplates::default()),
+        Box::new(att::AttSampleFiles::default()),
+        Box::new(att::AttSampleFilesValid::default()),
+        Box::new(sol::SolGraders::default()),
+        Box::new(sol::SolSymlink::default()),
+        Box::new(sol::SolUnique::default()),
+        Box::new(statement::StatementSubtasks::default()),
+        Box::new(statement::StatementValid::default()),
+        Box::new(statement::StatementGit::default()),
+    ];
+    all.into_iter()
+        .filter(|s| !skip.contains(&s.name().into()))
+        .collect()
+}
+
+/// Return a comma separated list of the names of all the sanity checks.
+pub fn get_sanity_check_names() -> String {
+    get_sanity_checks(&[]).iter().map(|s| s.name()).join(", ")
 }
 
 /// Check that all the source file inside `folder` have the corresponding grader, if at least one

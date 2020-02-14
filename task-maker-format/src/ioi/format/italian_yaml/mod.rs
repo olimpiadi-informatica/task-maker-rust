@@ -197,7 +197,7 @@ pub fn parse_task<P: AsRef<Path>>(
         booklets: Vec::new(),
         difficulty: yaml.difficulty,
         syllabus_level: yaml.syllabuslevel,
-        sanity_checks: Arc::new(SanityChecks::default()),
+        sanity_checks: Arc::new(SanityChecks::new(&eval_config.disabled_sanity_checks)),
         input_validator: detect_validator(task_dir.to_path_buf())(0),
         output_generator: official_solution,
     };

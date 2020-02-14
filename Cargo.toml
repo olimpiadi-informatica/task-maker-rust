@@ -42,6 +42,7 @@ serde = "1.0"
 serde_json = "1.0"
 tabox = "0.1"
 ctrlc = "3.1"
+lazy_static = "1.4"
 
 [[bin]]
 name = "task-maker"

@@ -137,6 +137,8 @@ pub struct EvaluationConfig {
     /// Execute only the solution with the specified paths, that can reside anywhere in the
     /// filesystem.
     pub solution_paths: Vec<PathBuf>,
+    /// List of disabled sanity check names.
+    pub disabled_sanity_checks: Vec<String>,
 }
 
 /// The data for an evaluation, including the DAG and the UI channel.

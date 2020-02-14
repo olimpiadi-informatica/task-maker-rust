@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use structopt::StructOpt;
+use task_maker_format::ioi::sanity_checks::get_sanity_check_names;
 use task_maker_format::EvaluationConfig;
 
 #[derive(StructOpt, Debug)]
@@ -102,6 +103,10 @@ pub struct Opt {
     #[structopt(long = "evaluate-on")]
     pub evaluate_on: Option<String>,
 
+    /// List of sanity checks to skip.
+    #[structopt(short = "-W", long_help = skip_sanity_checks_long_help())]
+    pub skip_sanity_checks: Vec<String>,
+
     /// The name to use for the workers or for the client in remote executions
     ///
     /// This option only has no effect with `--server`.
@@ -150,6 +155,16 @@ pub struct WorkerOptions {
     pub server_addr: String,
 }
 
+fn skip_sanity_checks_long_help() -> &'static str {
+    lazy_static! {
+        pub static ref DOC: String = format!(
+            "List of sanity checks to skip.\n\nThe available checks are: {}.",
+            get_sanity_check_names()
+        );
+    }
+    &DOC
+}
+
 impl Opt {
     /// Make an `EvaluationConfig` from this command line options.
     pub fn to_config(&self) -> EvaluationConfig {
@@ -158,6 +173,7 @@ impl Opt {
             booklet_solutions: self.booklet_solutions,
             no_statement: self.no_statement,
             solution_paths: self.solution.clone(),
+            disabled_sanity_checks: self.skip_sanity_checks.clone(),
         }
     }
 
