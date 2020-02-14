@@ -47,9 +47,9 @@ pub enum ExecutorClientMessage {
     /// The client is asking to evaluate a DAG.
     Evaluate {
         /// The DAG to evaluate.
-        dag: ExecutionDAGData,
+        dag: Box<ExecutionDAGData>,
         /// The list of the executions and files to keep track of.
-        callbacks: ExecutionDAGWatchSet,
+        callbacks: Box<ExecutionDAGWatchSet>,
     },
     /// The client is providing a file. After this message there is a protocol switch for the file
     /// transmission.

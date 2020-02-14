@@ -9,8 +9,6 @@ addons:
       - fpc
 rust:
   - stable
-before_script:
-  - rustup component add clippy
 script:
   - cargo build --color=always --all
   - RUST_BACKTRACE=1 cargo test --color=always --all --no-fail-fast

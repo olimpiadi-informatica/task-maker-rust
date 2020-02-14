@@ -37,9 +37,9 @@ pub(crate) enum SchedulerInMessage {
         /// The information about the client issuing the request.
         client: ClientInfo,
         /// The DAG to evaluate.
-        dag: ExecutionDAGData,
+        dag: Box<ExecutionDAGData>,
         /// The set of callbacks the client is interested in.
-        callbacks: ExecutionDAGWatchSet,
+        callbacks: Box<ExecutionDAGWatchSet>,
     },
     /// A client has been disconnected, all the executions of that client should be removed and the
     /// involved workers stopped.
@@ -258,185 +258,33 @@ impl Scheduler {
                     dag,
                     callbacks,
                 } => {
-                    // build the scheduler structures, insert the client in the list of working
-                    // clients and schedule all the already cached executions.
-                    let mut client_data = SchedulerClientData::new(client.name, dag, callbacks);
-                    for exec in client_data.dag.executions.values() {
-                        let missing_dep = client_data.missing_deps.entry(exec.uuid).or_default();
-                        for input in exec.dependencies() {
-                            let entry = client_data.input_of.entry(input).or_default();
-                            entry.insert(exec.uuid);
-                            missing_dep.insert(input);
-                        }
-                    }
-                    self.clients.insert(client.uuid, client_data);
-                    // the client may have sent and empty DAG
-                    self.check_completion(client.uuid)?;
-
-                    self.schedule_cached()?;
-                    self.assign_jobs()?;
+                    self.handle_evaluate_dag(client, *dag, *callbacks)?;
                 }
                 SchedulerInMessage::FileReady {
-                    client: client_uuid,
+                    client,
                     uuid,
                     handle,
                 } => {
-                    if let Some(client) = self.clients.get_mut(&client_uuid) {
-                        client.file_handles.insert(uuid, handle);
-                        self.file_success(client_uuid, uuid)?;
-                        self.check_completion(client_uuid)?;
-                    } else {
-                        warn!("Client is gone");
-                    }
+                    self.handle_file_ready(client, uuid, handle)?;
                 }
                 SchedulerInMessage::WorkerResult {
                     worker,
                     result,
                     outputs,
                 } => {
-                    let worker = match self.connected_workers.remove(&worker) {
-                        Some(worker) => worker,
-                        None => {
-                            warn!("Unknown worker {} completed a job", worker);
-                            continue;
-                        }
-                    };
-                    let (client_uuid, exec_uuid) = match worker.current_job {
-                        Some((client, exec, _)) => (client, exec),
-                        None => {
-                            warn!(
-                                "Worker {} ({}) completed a job that wasn't doing",
-                                worker.name, worker.uuid
-                            );
-                            continue;
-                        }
-                    };
-                    let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
-                        client
-                    } else {
-                        warn!("Worker completed execution but client is gone");
-                        self.assign_jobs()?;
-                        self.check_completion(client_uuid)?;
-                        continue;
-                    };
-                    let execution = client.dag.executions[&exec_uuid].clone();
-                    info!("Worker {:?} completed execution {}", worker, execution.uuid);
-                    client.running_execs.remove(&exec_uuid);
-                    self.exec_completed(client_uuid, &execution, result, outputs)?;
-                    self.assign_jobs()?;
-                    self.check_completion(client_uuid)?;
+                    self.handle_worker_result(worker, result, outputs)?;
                 }
                 SchedulerInMessage::WorkerConnected { uuid, name } => {
-                    info!("Worker {} ({}) connected", name, uuid);
-                    self.connected_workers.insert(
-                        uuid,
-                        ConnectedWorker {
-                            uuid,
-                            name,
-                            current_job: None,
-                        },
-                    );
-                    self.assign_jobs()?;
+                    self.handle_worker_connected(uuid, name)?;
                 }
                 SchedulerInMessage::WorkerDisconnected { uuid } => {
-                    info!("Worker {} disconnected", uuid);
-                    if let Some(worker) = self.connected_workers.remove(&uuid) {
-                        // reschedule the job if the worker failed
-                        if let Some((client_uuid, job, _)) = worker.current_job {
-                            let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
-                                client
-                            } else {
-                                warn!("Worker was doing something for a gone client");
-                                continue;
-                            };
-                            self.ready_execs.push((client_uuid, job));
-                            client.ready_execs.insert(job);
-                            client.running_execs.remove(&job);
-                        }
-                    }
+                    self.handle_worker_disconnected(uuid)?;
                 }
                 SchedulerInMessage::ClientDisconnected { client } => {
-                    info!("Client {} disconnected", client);
-                    if let Some(client) = self.clients.get(&client) {
-                        if !client.is_done() {
-                            warn!("The client's evaluation wasn't completed yet");
-                        }
-                    }
-                    self.clients.remove(&client);
-                    let mut remaining = BinaryHeap::new();
-                    while let Some((client, exec)) = self.ready_execs.pop() {
-                        if self.clients.contains_key(&client) {
-                            remaining.push((client, exec));
-                        }
-                    }
-                    self.ready_execs = remaining;
-                    // stop the jobs that are still running in the workers
-                    for (uuid, worker) in self.connected_workers.iter() {
-                        if let Some((owner, exec, _)) = worker.current_job {
-                            if owner == client {
-                                warn!(
-                                    "Worker {} is doing {} owned by disconnected client, killing",
-                                    uuid, exec
-                                );
-                                self.worker_manager
-                                    .send(WorkerManagerInMessage::StopWorkerJob {
-                                        worker: *uuid,
-                                        job: exec,
-                                    })
-                                    .map_err(|e| {
-                                        format_err!("Failed to send job to worker: {:?}", e)
-                                    })?;
-                            }
-                        }
-                    }
+                    self.handle_client_disconnected(client)?;
                 }
-                SchedulerInMessage::Status {
-                    client: client_uuid,
-                } => {
-                    let mut ready_execs = 0;
-                    let mut waiting_execs = 0;
-                    for client in self.clients.values() {
-                        ready_execs += client.ready_execs.len();
-                        waiting_execs += client.missing_deps.len();
-                    }
-                    let status = ExecutorStatus {
-                        connected_workers: self
-                            .connected_workers
-                            .values()
-                            .map(|worker| ExecutorWorkerStatus {
-                                uuid: worker.uuid,
-                                name: worker.name.clone(),
-                                current_job: worker.current_job.as_ref().and_then(
-                                    |(client_uuid, exec_uuid, start)| {
-                                        let client =
-                                            if let Some(client) = self.clients.get(&client_uuid) {
-                                                client
-                                            } else {
-                                                return None;
-                                            };
-                                        let exec = &client.dag.executions[exec_uuid];
-                                        Some(WorkerCurrentJobStatus {
-                                            job: exec.description.clone(),
-                                            client: ClientInfo {
-                                                uuid: *client_uuid,
-                                                name: client.name.clone(),
-                                            },
-                                            duration: start.elapsed(),
-                                        })
-                                    },
-                                ),
-                            })
-                            .collect(),
-                        ready_execs,
-                        waiting_execs,
-                    };
-
-                    if let Err(e) = self
-                        .executor
-                        .send((client_uuid, SchedulerExecutorMessageData::Status { status }))
-                    {
-                        warn!("Cannot send the status to the client: {:?}", e);
-                    }
+                SchedulerInMessage::Status { client } => {
+                    self.handle_status_request(client)?;
                 }
             }
         }
@@ -444,6 +292,210 @@ impl Scheduler {
         self.worker_manager
             .send(WorkerManagerInMessage::Exit)
             .expect("Cannot tell the worker manager to exit");
+        Ok(())
+    }
+
+    /// Handle the client request to evaluate a DAG.
+    fn handle_evaluate_dag(
+        &mut self,
+        client: ClientInfo,
+        dag: ExecutionDAGData,
+        callbacks: ExecutionDAGWatchSet,
+    ) -> Result<(), Error> {
+        // build the scheduler structures, insert the client in the list of working
+        // clients and schedule all the already cached executions.
+        let mut client_data = SchedulerClientData::new(client.name, dag, callbacks);
+        for exec in client_data.dag.executions.values() {
+            let missing_dep = client_data.missing_deps.entry(exec.uuid).or_default();
+            for input in exec.dependencies() {
+                let entry = client_data.input_of.entry(input).or_default();
+                entry.insert(exec.uuid);
+                missing_dep.insert(input);
+            }
+        }
+        self.clients.insert(client.uuid, client_data);
+        // the client may have sent and empty DAG
+        self.check_completion(client.uuid)?;
+
+        self.schedule_cached()?;
+        self.assign_jobs()?;
+        Ok(())
+    }
+
+    /// Handle the message of a file being ready.
+    fn handle_file_ready(
+        &mut self,
+        client_uuid: ClientUuid,
+        uuid: FileUuid,
+        handle: FileStoreHandle,
+    ) -> Result<(), Error> {
+        if let Some(client) = self.clients.get_mut(&client_uuid) {
+            client.file_handles.insert(uuid, handle);
+            self.file_success(client_uuid, uuid)?;
+            self.check_completion(client_uuid)?;
+        } else {
+            warn!("Client is gone");
+        }
+        Ok(())
+    }
+
+    /// Handle the completion of an execution on a worker.
+    fn handle_worker_result(
+        &mut self,
+        worker: WorkerUuid,
+        result: ExecutionResult,
+        outputs: HashMap<FileUuid, FileStoreHandle>,
+    ) -> Result<(), Error> {
+        let worker = match self.connected_workers.remove(&worker) {
+            Some(worker) => worker,
+            None => {
+                warn!("Unknown worker {} completed a job", worker);
+                return Ok(());
+            }
+        };
+        let (client_uuid, exec_uuid) = match worker.current_job {
+            Some((client, exec, _)) => (client, exec),
+            None => {
+                warn!(
+                    "Worker {} ({}) completed a job that wasn't doing",
+                    worker.name, worker.uuid
+                );
+                return Ok(());
+            }
+        };
+        let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
+            client
+        } else {
+            warn!("Worker completed execution but client is gone");
+            self.assign_jobs()?;
+            self.check_completion(client_uuid)?;
+            return Ok(());
+        };
+        let execution = client.dag.executions[&exec_uuid].clone();
+        info!("Worker {:?} completed execution {}", worker, execution.uuid);
+        client.running_execs.remove(&exec_uuid);
+        self.exec_completed(client_uuid, &execution, result, outputs)?;
+        self.assign_jobs()?;
+        self.check_completion(client_uuid)?;
+        Ok(())
+    }
+
+    /// Handle the connection of a worker.
+    fn handle_worker_connected(&mut self, uuid: WorkerUuid, name: String) -> Result<(), Error> {
+        info!("Worker {} ({}) connected", name, uuid);
+        self.connected_workers.insert(
+            uuid,
+            ConnectedWorker {
+                uuid,
+                name,
+                current_job: None,
+            },
+        );
+        self.assign_jobs()?;
+        Ok(())
+    }
+
+    /// Handle the disconnection of a worker.
+    fn handle_worker_disconnected(&mut self, uuid: WorkerUuid) -> Result<(), Error> {
+        info!("Worker {} disconnected", uuid);
+        if let Some(worker) = self.connected_workers.remove(&uuid) {
+            // reschedule the job if the worker failed
+            if let Some((client_uuid, job, _)) = worker.current_job {
+                let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
+                    client
+                } else {
+                    warn!("Worker was doing something for a gone client");
+                    return Ok(());
+                };
+                self.ready_execs.push((client_uuid, job));
+                client.ready_execs.insert(job);
+                client.running_execs.remove(&job);
+            }
+        }
+        Ok(())
+    }
+
+    /// Handle the disconnection of a client.
+    fn handle_client_disconnected(&mut self, client: ClientUuid) -> Result<(), Error> {
+        info!("Client {} disconnected", client);
+        if let Some(client) = self.clients.get(&client) {
+            if !client.is_done() {
+                warn!("The client's evaluation wasn't completed yet");
+            }
+        }
+        self.clients.remove(&client);
+        let mut remaining = BinaryHeap::new();
+        while let Some((client, exec)) = self.ready_execs.pop() {
+            if self.clients.contains_key(&client) {
+                remaining.push((client, exec));
+            }
+        }
+        self.ready_execs = remaining;
+        // stop the jobs that are still running in the workers
+        for (uuid, worker) in self.connected_workers.iter() {
+            if let Some((owner, exec, _)) = worker.current_job {
+                if owner == client {
+                    warn!(
+                        "Worker {} is doing {} owned by disconnected client, killing",
+                        uuid, exec
+                    );
+                    self.worker_manager
+                        .send(WorkerManagerInMessage::StopWorkerJob {
+                            worker: *uuid,
+                            job: exec,
+                        })
+                        .map_err(|e| format_err!("Failed to send job to worker: {:?}", e))?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Handle the status request of a client.
+    fn handle_status_request(&mut self, client_uuid: ClientUuid) -> Result<(), Error> {
+        let mut ready_execs = 0;
+        let mut waiting_execs = 0;
+        for client in self.clients.values() {
+            ready_execs += client.ready_execs.len();
+            waiting_execs += client.missing_deps.len();
+        }
+        let status = ExecutorStatus {
+            connected_workers: self
+                .connected_workers
+                .values()
+                .map(|worker| ExecutorWorkerStatus {
+                    uuid: worker.uuid,
+                    name: worker.name.clone(),
+                    current_job: worker.current_job.as_ref().and_then(
+                        |(client_uuid, exec_uuid, start)| {
+                            let client = if let Some(client) = self.clients.get(&client_uuid) {
+                                client
+                            } else {
+                                return None;
+                            };
+                            let exec = &client.dag.executions[exec_uuid];
+                            Some(WorkerCurrentJobStatus {
+                                job: exec.description.clone(),
+                                client: ClientInfo {
+                                    uuid: *client_uuid,
+                                    name: client.name.clone(),
+                                },
+                                duration: start.elapsed(),
+                            })
+                        },
+                    ),
+                })
+                .collect(),
+            ready_execs,
+            waiting_execs,
+        };
+
+        if let Err(e) = self
+            .executor
+            .send((client_uuid, SchedulerExecutorMessageData::Status { status }))
+        {
+            warn!("Cannot send the status to the client: {:?}", e);
+        }
         Ok(())
     }
 

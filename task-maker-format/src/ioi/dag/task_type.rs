@@ -10,7 +10,7 @@ use crate::ui::UIMessage;
 use crate::{bind_exec_callbacks, bind_exec_io};
 use crate::{EvaluationData, SourceFile};
 
-/// The type of the task. This changes the behaviour of the solutions.
+/// The type of the task. This changes the behavior of the solutions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TaskType {
     /// The solution is a single file that will be executed once per testcase, feeding in the input
@@ -22,6 +22,7 @@ pub enum TaskType {
 impl TaskType {
     /// Evaluate a solution on a testcase, eventually adding to the `ScoreManager` the result of the
     /// evaluation. This will add both the execution as well as the checking to the DAG.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn evaluate(
         &self,
         task: &Task,

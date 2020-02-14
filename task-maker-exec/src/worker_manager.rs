@@ -16,6 +16,7 @@ use crate::scheduler::SchedulerInMessage;
 use crate::{ChannelSender, WorkerConn};
 
 /// Message coming from the Scheduler or the Executor for the WorkerManager
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum WorkerManagerInMessage {
     /// A new worker has connected. The WorkerManager will take care of it.
     WorkerConnected { worker: WorkerConn },

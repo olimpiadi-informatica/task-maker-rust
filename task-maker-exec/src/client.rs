@@ -97,18 +97,7 @@ impl ExecutorClient {
                     let _lock = file_mode
                         .lock()
                         .map_err(|e| format_err!("Failed to lock: {:?}", e))?;
-                    match &provided_files[&uuid] {
-                        ProvidedFile::LocalFile {
-                            local_path, key, ..
-                        } => {
-                            sender.send(ExecutorClientMessage::ProvideFile(uuid, key.clone()))?;
-                            ChannelFileSender::send(&local_path, &sender)?;
-                        }
-                        ProvidedFile::Content { content, key, .. } => {
-                            sender.send(ExecutorClientMessage::ProvideFile(uuid, key.clone()))?;
-                            ChannelFileSender::send_data(content.clone(), &sender)?;
-                        }
-                    }
+                    handle_server_ask_file(uuid, provided_files, &sender)?;
                 }
                 Ok(ExecutorServerMessage::ProvideFile(uuid, success)) => {
                     info!("Server sent the file {}, success: {}", uuid, success);
@@ -144,26 +133,11 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::Error(error)) => {
                     error!("Error occurred: {}", error);
-                    // TODO abort
                     break;
                 }
                 Ok(ExecutorServerMessage::Status(status)) => {
                     info!("Server status: {:#?}", status);
-                    status_callback(ExecutorStatus {
-                        connected_workers: status
-                            .connected_workers
-                            .into_iter()
-                            .map(|worker| ExecutorWorkerStatus {
-                                uuid: worker.uuid,
-                                name: worker.name,
-                                current_job: worker
-                                    .current_job
-                                    .map(|status| status.into_system_time()),
-                            })
-                            .collect(),
-                        ready_execs: status.ready_execs,
-                        waiting_execs: status.waiting_execs,
-                    })?;
+                    handle_server_status(status, &mut status_callback)?;
                 }
                 Ok(ExecutorServerMessage::Done(result)) => {
                     info!("Execution completed producing {} files!", result.len());
@@ -231,8 +205,8 @@ impl ExecutorClient {
             }
         }
         sender.send(ExecutorClientMessage::Evaluate {
-            dag: dag.data.clone(),
-            callbacks: dag_callbacks,
+            dag: Box::new(dag.data.clone()),
+            callbacks: Box::new(dag_callbacks),
         })
     }
 
@@ -258,6 +232,52 @@ impl ExecutorClient {
             })
             .expect("Failed to start client status poller thread")
     }
+}
+
+/// Server is asking for a file, handle the request sending the local file or the provided content.
+/// Note that this will trigger a protocol change for sending the file, no messages should be sent
+/// meanwhile.
+fn handle_server_ask_file(
+    uuid: FileUuid,
+    provided_files: &HashMap<FileUuid, ProvidedFile>,
+    sender: &ChannelSender<ExecutorClientMessage>,
+) -> Result<(), Error> {
+    match &provided_files[&uuid] {
+        ProvidedFile::LocalFile {
+            local_path, key, ..
+        } => {
+            sender.send(ExecutorClientMessage::ProvideFile(uuid, key.clone()))?;
+            ChannelFileSender::send(&local_path, &sender)?;
+        }
+        ProvidedFile::Content { content, key, .. } => {
+            sender.send(ExecutorClientMessage::ProvideFile(uuid, key.clone()))?;
+            ChannelFileSender::send_data(content.clone(), &sender)?;
+        }
+    }
+    Ok(())
+}
+
+/// Handle the server response to the status request.
+fn handle_server_status<F>(
+    status: ExecutorStatus<Duration>,
+    status_callback: &mut F,
+) -> Result<(), Error>
+where
+    F: FnMut(ExecutorStatus<SystemTime>) -> Result<(), Error>,
+{
+    status_callback(ExecutorStatus {
+        connected_workers: status
+            .connected_workers
+            .into_iter()
+            .map(|worker| ExecutorWorkerStatus {
+                uuid: worker.uuid,
+                name: worker.name,
+                current_job: worker.current_job.map(|status| status.into_system_time()),
+            })
+            .collect(),
+        ready_execs: status.ready_execs,
+        waiting_execs: status.waiting_execs,
+    })
 }
 
 /// Process a file provided either by the client or by the server, calling the callback and writing

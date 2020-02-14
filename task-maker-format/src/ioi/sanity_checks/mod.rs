@@ -13,7 +13,7 @@ mod statement;
 mod task;
 use std::sync::Mutex;
 
-/// Trait that describes the behaviour of a sanity check.
+/// Trait that describes the behavior of a sanity check.
 trait SanityCheck: Send + Sync + std::fmt::Debug {
     /// The name of the sanity check.
     fn name(&self) -> &'static str;

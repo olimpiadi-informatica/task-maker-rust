@@ -82,7 +82,7 @@ pub enum UIMessage {
     /// The information about the task which is being run.
     IOITask {
         /// The task information.
-        task: Task,
+        task: Box<Task>,
     },
 
     /// The generation of a testcase in a IOI task.

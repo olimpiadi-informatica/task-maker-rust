@@ -26,6 +26,7 @@ impl OutputGenerator {
     /// Build the execution for the generation of the output file. Return the handle to the output
     /// file and the `Execution` if any. The execution does not send UI messages yet and it's not
     /// added to the DAG.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn generate(
         &self,
         task: &Task,

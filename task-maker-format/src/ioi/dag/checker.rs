@@ -116,6 +116,7 @@ impl Checker {
 
     /// Add the checking of the output file to the DAG, binding the callbacks for sending to the UI
     /// the messages as well as calling `callback` with the outcome of the checker.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn check_and_bind<S: Into<PathBuf>, F>(
         &self,
         eval: &mut EvaluationData,
