@@ -208,7 +208,7 @@ mod tests {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
         let path = tmpdir.path().join("input.txt");
         std::fs::write(&path, "x").unwrap();
-        let generator = InputGenerator::StaticFile(path.clone());
+        let generator = InputGenerator::StaticFile(path);
         let task = make_task(tmpdir.path());
         let (mut eval, _) = EvaluationData::new(tmpdir.path());
         let out = generator.generate_and_bind(&task, &mut eval, 0, 0).unwrap();
@@ -299,7 +299,7 @@ mod tests {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
         let path = tmpdir.path().join("output.txt");
         std::fs::write(&path, "x").unwrap();
-        let generator = OutputGenerator::StaticFile(path.clone());
+        let generator = OutputGenerator::StaticFile(path);
         let file = File::new("input");
         let task = make_task(tmpdir.path());
         let (mut eval, _) = EvaluationData::new(tmpdir.path());

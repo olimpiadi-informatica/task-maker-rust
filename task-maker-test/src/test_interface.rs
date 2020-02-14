@@ -100,12 +100,12 @@ impl TestInterface {
         let path = task_dir.to_string_lossy().into_owned();
         let path = format!("--task-dir={}", path);
         args.push(&path);
-        args.push("--ui=silent".into());
+        args.push("--ui=silent");
         if !cache {
-            args.push("--no-cache".into());
+            args.push("--no-cache");
         }
-        args.push("--dry-run".into());
-        args.push("-vv".into());
+        args.push("--dry-run");
+        args.push("-vv");
         let store_dir = format!("--store-dir={}", store_dir.path().to_string_lossy());
         args.push(&store_dir);
         for arg in extra_args {
@@ -124,6 +124,7 @@ impl TestInterface {
                 booklet_solutions: false,
                 no_statement: false,
                 solution_paths: vec![],
+                disabled_sanity_checks: vec![],
             },
         )
         .unwrap();
@@ -286,8 +287,7 @@ impl TestInterfaceSuccessful {
         let scores: Vec<_> = scores.into_iter().collect();
         let subtasks = &self.state.task.subtasks;
         assert_eq!(subtasks.len(), scores.len());
-        for i in 0..scores.len() {
-            let expected = scores[i];
+        for (i, expected) in scores.iter().enumerate() {
             let actual = subtasks
                 .get(&(i as SubtaskId))
                 .unwrap_or_else(|| panic!("Missing subtask {}", i));
@@ -326,11 +326,10 @@ impl TestInterfaceSuccessful {
             state.subtasks.len(),
             "Wrong number of subtask"
         );
-        for st in 0..scores.len() {
-            let expected = scores[st];
+        for (st, expected) in scores.iter().enumerate() {
             let actual = state.subtasks[&(st as SubtaskId)].score.unwrap();
             assert!(
-                abs_diff_eq!(expected, actual),
+                abs_diff_eq!(*expected, actual),
                 "Solution subtask score mismatch of solution {:?} at subtask {}",
                 solution,
                 st

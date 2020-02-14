@@ -292,7 +292,7 @@ mod tests {
         std::fs::write(&path, "lol").unwrap();
         std::fs::write(&logo, "lol").unwrap();
         let statement = Statement::new(&path, StatementConfig::default()).unwrap();
-        let logo2 = Some(logo.clone());
+        let logo2 = Some(logo);
 
         let mut eval = EvaluationData::new(tmpdir.path()).0;
         let in_files = vec!["logo.pdf", "test.png", "asset.pdf"];

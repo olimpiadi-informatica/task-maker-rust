@@ -333,7 +333,7 @@ mod tests {
     fn test_provide_file_not_existing() {
         let mut dag = ExecutionDAG::new();
         let file = File::new("file");
-        assert!(dag.provide_file(file.clone(), "/nope").is_err());
+        assert!(dag.provide_file(file, "/nope").is_err());
     }
 
     #[test]
@@ -357,7 +357,7 @@ mod tests {
         let exec = Execution::new("exec", ExecutionCommand::local("foo"));
         dag.add_execution(exec.clone());
         assert_eq!("exec", &dag.data.executions[&exec.uuid].description);
-        assert_eq!(&42.0, &dag.data.executions[&exec.uuid].config.extra_time);
+        assert_abs_diff_eq!(&42.0, &dag.data.executions[&exec.uuid].config.extra_time);
     }
 
     #[test]

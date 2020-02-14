@@ -154,7 +154,7 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         let mut exec = Execution::new("exec", ExecutionCommand::local("foo"));
         let file = File::new("file");
-        exec.stdin(file.clone());
+        exec.stdin(file);
         dag.add_execution(exec);
         assert!(check_dag(&dag.data, &ExecutionDAGWatchSet::default()).is_err());
     }
@@ -210,7 +210,7 @@ mod tests {
         let mut exec2 = Execution::new("exec", ExecutionCommand::local("foo"));
         let file = File::new("file");
         exec1.stdout = Some(file.clone());
-        exec2.stdout = Some(file.clone());
+        exec2.stdout = Some(file);
         dag.add_execution(exec1);
         dag.add_execution(exec2);
         assert!(check_dag(&dag.data, &ExecutionDAGWatchSet::default()).is_err());

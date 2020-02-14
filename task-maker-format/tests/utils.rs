@@ -62,7 +62,7 @@ pub fn new_task_with_context(path: &Path) -> Task {
         id: 2,
         input_generator: InputGenerator::StaticFile(p.clone()),
         input_validator: InputValidator::AssumeValid,
-        output_generator: OutputGenerator::StaticFile(p.clone()),
+        output_generator: OutputGenerator::StaticFile(p),
     });
     task
 }

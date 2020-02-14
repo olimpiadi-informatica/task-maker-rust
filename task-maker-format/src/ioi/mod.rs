@@ -168,8 +168,9 @@ impl TaskFormat for Task {
     }
 
     fn build_dag(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error> {
-        eval.sender
-            .send(UIMessage::IOITask { task: Box::new(self.clone()) })?;
+        eval.sender.send(UIMessage::IOITask {
+            task: Box::new(self.clone()),
+        })?;
         self.sanity_checks.pre_hook(&self, eval)?;
         let graders: HashSet<PathBuf> = self
             .grader_map

@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate approx;
+
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use task_maker_format::ioi::*;
@@ -6,6 +9,7 @@ use task_maker_format::ui::{UIMessage, UIMessageSender};
 mod utils;
 
 #[test]
+#[allow(clippy::cognitive_complexity)]
 fn test_score_manager() {
     let task = utils::new_task();
     let mut manager = ScoreManager::new(&task);
@@ -27,7 +31,7 @@ fn test_score_manager() {
                 assert_eq!(subtask, 0);
                 assert_eq!(testcase, 0);
                 assert_eq!(solution, PathBuf::from("sol"));
-                assert_eq!(score, 1.0);
+                assert_abs_diff_eq!(score, 1.0);
                 assert_eq!(message, "foo");
             }
             _ => panic!("Expecting UIMessage::IOITestcaseScore but was {:?}", mex),
@@ -45,8 +49,8 @@ fn test_score_manager() {
             } => {
                 assert_eq!(subtask, 0);
                 assert_eq!(solution, PathBuf::from("sol"));
-                assert_eq!(score, 10.0);
-                assert_eq!(normalized_score, 1.0);
+                assert_abs_diff_eq!(score, 10.0);
+                assert_abs_diff_eq!(normalized_score, 1.0);
             }
             _ => panic!("Expecting UIMessage::IOISubtaskScore but was {:?}", mex),
         }
@@ -70,7 +74,7 @@ fn test_score_manager() {
                 assert_eq!(subtask, 1);
                 assert_eq!(testcase, 1);
                 assert_eq!(solution, PathBuf::from("sol"));
-                assert_eq!(score, 1.0);
+                assert_abs_diff_eq!(score, 1.0);
                 assert_eq!(message, "foo");
             }
             _ => panic!("Expecting UIMessage::IOITestcaseScore but was {:?}", mex),
@@ -81,7 +85,7 @@ fn test_score_manager() {
     assert!(receiver.try_recv().is_err());
 
     manager
-        .score(1, 2, 0.0, "foo".into(), sender.clone(), "sol".into())
+        .score(1, 2, 0.0, "foo".into(), sender, "sol".into())
         .unwrap();
     if let Ok(mex) = receiver.try_recv() {
         match mex {
@@ -95,7 +99,7 @@ fn test_score_manager() {
                 assert_eq!(subtask, 1);
                 assert_eq!(testcase, 2);
                 assert_eq!(solution, PathBuf::from("sol"));
-                assert_eq!(score, 0.0);
+                assert_abs_diff_eq!(score, 0.0);
                 assert_eq!(message, "foo");
             }
             _ => panic!("Expecting UIMessage::IOITestcaseScore but was {:?}", mex),
@@ -113,8 +117,8 @@ fn test_score_manager() {
             } => {
                 assert_eq!(subtask, 1);
                 assert_eq!(solution, PathBuf::from("sol"));
-                assert_eq!(score, 0.0);
-                assert_eq!(normalized_score, 0.0);
+                assert_abs_diff_eq!(score, 0.0);
+                assert_abs_diff_eq!(normalized_score, 0.0);
             }
             _ => panic!("Expecting UIMessage::IOISubtaskScore but was {:?}", mex),
         }
@@ -125,7 +129,7 @@ fn test_score_manager() {
         match mex {
             UIMessage::IOITaskScore { solution, score } => {
                 assert_eq!(solution, PathBuf::from("sol"));
-                assert_eq!(score, 10.0);
+                assert_abs_diff_eq!(score, 10.0);
             }
             _ => panic!("Expecting UIMessage::IOITaskScore but was {:?}", mex),
         }
