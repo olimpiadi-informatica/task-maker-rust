@@ -174,6 +174,7 @@ impl Cache {
         let entry = CacheEntry {
             result,
             limits: execution.limits.clone(),
+            extra_time: execution.config().extra_time,
             stdout,
             stderr,
             outputs,

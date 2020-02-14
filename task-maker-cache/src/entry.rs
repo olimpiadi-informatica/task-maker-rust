@@ -13,6 +13,8 @@ pub struct CacheEntry {
     pub result: ExecutionResult,
     /// The limits associated with this entry.
     pub limits: ExecutionLimits,
+    /// The extra time for this execution.
+    pub extra_time: f64,
     /// The key (aka the hash) of the stdout, if any.
     pub stdout: Option<FileStoreKey>,
     /// The key (aka the hash) of the stderr, if any.
@@ -78,10 +80,10 @@ impl CacheEntry {
         // makes sure that $left <= $right where None = inf
         // if $left is less restrictive than $right, return false
         macro_rules! check_limit {
-            ($left:expr, $right:expr) => {
+            ($left:expr, $right:expr, $extra_time:expr) => {
                 match ($left, $right) {
                     (Some(left), Some(right)) => {
-                        if left > right {
+                        if left + $extra_time > right {
                             return false;
                         }
                     }
@@ -92,16 +94,16 @@ impl CacheEntry {
         }
         // will return false if $less is less restrictive of $right
         macro_rules! check_limits {
-            ($left:expr, $right:expr) => {
-                check_limit!($left.cpu_time, $right.cpu_time);
-                check_limit!($left.sys_time, $right.sys_time);
-                check_limit!($left.wall_time, $right.wall_time);
-                check_limit!($left.memory, $right.memory);
-                check_limit!($left.nproc, $right.nproc);
-                check_limit!($left.nofile, $right.nofile);
-                check_limit!($left.fsize, $right.fsize);
-                check_limit!($left.memlock, $right.memlock);
-                check_limit!($left.stack, $right.stack);
+            ($left:expr, $right:expr, $extra_time:expr) => {
+                check_limit!($left.cpu_time, $right.cpu_time, $extra_time);
+                check_limit!($left.sys_time, $right.sys_time, $extra_time);
+                check_limit!($left.wall_time, $right.wall_time, $extra_time);
+                check_limit!($left.memory, $right.memory, 0);
+                check_limit!($left.nproc, $right.nproc, 0);
+                check_limit!($left.nofile, $right.nofile, 0);
+                check_limit!($left.fsize, $right.fsize, 0);
+                check_limit!($left.memlock, $right.memlock, 0);
+                check_limit!($left.stack, $right.stack, 0);
                 if $left.read_only < $right.read_only {
                     return false;
                 }
@@ -119,14 +121,15 @@ impl CacheEntry {
                 }
             };
         }
+        let extra_time = execution.config().extra_time;
         match self.result.status {
             ExecutionStatus::Success => {
                 // require that the new limits are less restrictive
-                check_limits!(self.limits, execution.limits);
+                check_limits!(self.limits, execution.limits, self.extra_time - extra_time);
             }
             _ => {
                 // require that the new limits are more restrictive
-                check_limits!(execution.limits, self.limits);
+                check_limits!(execution.limits, self.limits, extra_time - self.extra_time);
             }
         }
         true
@@ -156,6 +159,7 @@ mod tests {
     }
 
     fn empty_entry() -> (CacheEntry, Execution) {
+        let exec = Execution::new("exec", ExecutionCommand::local("foo"));
         (
             CacheEntry {
                 result: ExecutionResult {
@@ -170,11 +174,12 @@ mod tests {
                     },
                 },
                 limits: Default::default(),
+                extra_time: exec.config().extra_time,
                 stdout: None,
                 stderr: None,
                 outputs: Default::default(),
             },
-            Execution::new("exec", ExecutionCommand::local("foo")),
+            exec,
         )
     }
 
