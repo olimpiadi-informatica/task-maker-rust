@@ -414,7 +414,12 @@ where
 
 /// Get the colored score of a solution.
 fn evaluation_score<'a>(state: &'a UIState, solution: &Path, loading: char) -> Text<'a> {
-    if let Some(Some(score)) = state.evaluations.get(solution).map(|s| s.score) {
+    let sol_state = if let Some(state) = state.evaluations.get(solution) {
+        state
+    } else {
+        return Text::raw("  ?  ");
+    };
+    if let Some(score) = sol_state.score {
         if score == 0.0 {
             Text::styled(
                 format!(" {:>3.0} ", score),
@@ -432,7 +437,16 @@ fn evaluation_score<'a>(state: &'a UIState, solution: &Path, loading: char) -> T
             )
         }
     } else {
-        Text::raw(format!("  {}  ", loading))
+        let has_skipped = sol_state.subtasks.values().any(|st| {
+            st.testcases
+                .values()
+                .any(|tc| tc.status == TestcaseEvaluationStatus::Skipped)
+        });
+        if has_skipped {
+            Text::raw("  X  ")
+        } else {
+            Text::raw(format!("  {}  ", loading))
+        }
     }
 }
 
