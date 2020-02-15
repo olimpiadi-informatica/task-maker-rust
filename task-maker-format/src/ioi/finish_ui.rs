@@ -261,7 +261,7 @@ impl FinishUI {
         }
     }
 
-    /// Print the state of the evalution of a single solution.
+    /// Print the state of the evaluation of a single solution.
     fn print_evaluation(
         &mut self,
         path: &Path,
@@ -351,16 +351,15 @@ impl FinishUI {
             for st_num in eval.subtasks.keys().sorted() {
                 let subtask = &eval.subtasks[&st_num];
                 let score = subtask.score.unwrap_or(0.0);
-                let max_score = state.task.subtasks[st_num].max_score;
-                let color = self.score_color(score, max_score);
+                let normalized_score = subtask.normalized_score.unwrap_or(0.0);
+                let color = self.score_color(normalized_score);
                 cwrite!(self, color, " {:^3.0} ", score);
             }
             print!("  ");
             for st_num in eval.subtasks.keys().sorted() {
                 let subtask = &eval.subtasks[&st_num];
-                let score = subtask.score.unwrap_or(0.0);
-                let max_score = state.task.subtasks[st_num].max_score;
-                let color = self.score_color(score, max_score);
+                let normalized_score = subtask.normalized_score.unwrap_or(0.0);
+                let color = self.score_color(normalized_score);
                 cwrite!(self, color, "[");
                 for tc_num in subtask.testcases.keys().sorted() {
                     let testcase = &subtask.testcases[tc_num];
@@ -406,14 +405,18 @@ impl FinishUI {
 
     /// Print the score fraction of a solution using colors.
     fn print_score_frac(&mut self, score: f64, max_score: f64) {
-        let color = self.score_color(score, max_score);
-        cwrite!(self, color, "{:.2} / {:.2}", score, max_score);
+        if max_score == 0.0 {
+            print!("{:.2} / {:.2}", score, max_score);
+        } else {
+            let color = self.score_color(score / max_score);
+            cwrite!(self, color, "{:.2} / {:.2}", score, max_score);
+        }
     }
 
-    fn score_color(&mut self, score: f64, max_score: f64) -> &'static ColorSpec {
-        if abs_diff_eq!(score, max_score) {
+    fn score_color(&mut self, normalized_score: f64) -> &'static ColorSpec {
+        if abs_diff_eq!(normalized_score, 1.0) {
             &GREEN
-        } else if abs_diff_eq!(score, 0.0) {
+        } else if abs_diff_eq!(normalized_score, 0.0) {
             &RED
         } else {
             &YELLOW

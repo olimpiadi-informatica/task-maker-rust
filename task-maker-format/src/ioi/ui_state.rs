@@ -131,6 +131,8 @@ pub struct SolutionTestcaseEvaluationState {
 pub struct SolutionSubtaskEvaluationState {
     /// Score of the subtask.
     pub score: Option<f64>,
+    /// Score of the subtask, normalized from 0.0 to 1.0.
+    pub normalized_score: Option<f64>,
     /// The state of the evaluation of the testcases.
     pub testcases: HashMap<TestcaseId, SolutionTestcaseEvaluationState>,
 }
@@ -157,6 +159,7 @@ impl SolutionEvaluationState {
                         subtask.id,
                         SolutionSubtaskEvaluationState {
                             score: None,
+                            normalized_score: None,
                             testcases: subtask
                                 .testcases
                                 .values()
@@ -620,7 +623,7 @@ impl UIState {
                 subtask,
                 solution,
                 score,
-                ..
+                normalized_score,
             } => {
                 let task = &self.task;
                 let eval = self
@@ -629,6 +632,7 @@ impl UIState {
                     .or_insert_with(|| SolutionEvaluationState::new(task));
                 let mut subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
                 subtask.score = Some(score);
+                subtask.normalized_score = Some(normalized_score);
             }
             UIMessage::IOITaskScore { solution, score } => {
                 let task = &self.task;

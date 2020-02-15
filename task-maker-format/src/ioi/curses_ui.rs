@@ -139,8 +139,7 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
                     .compilations
                     .iter()
                     .filter(|(k, _)| !state.evaluations.contains_key(*k))
-                    .collect::<Vec<_>>()
-                    .len();
+                    .count();
                 let compilations_len = if num_compilations > 0 {
                     num_compilations as u16 + 2
                 } else {
@@ -462,27 +461,13 @@ fn subtask_evaluation_status_text<'a>(
         return vec![Text::raw("[---]")];
     }
     let subtask = &solution.subtasks[&subtask];
-    let mut all_succeded = true;
-    let mut all_completed = true;
-    let mut partial = false;
-    for testcase in subtask.testcases.values() {
-        if !testcase.status.is_success() {
-            all_succeded = false;
-        }
-        if !testcase.status.has_completed() {
-            all_completed = false;
-        }
-        if testcase.status.is_partial() {
-            partial = true;
-        }
-    }
-    let par_style = if all_completed {
-        if all_succeded {
+    let par_style = if let Some(normalized_score) = subtask.normalized_score {
+        if abs_diff_eq!(normalized_score, 1.0) {
             Style::default().fg(Color::Green).modifier(Modifier::BOLD)
-        } else if partial {
-            Style::default().fg(Color::Yellow).modifier(Modifier::BOLD)
-        } else {
+        } else if abs_diff_eq!(normalized_score, 0.0) {
             Style::default().fg(Color::Red).modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Yellow).modifier(Modifier::BOLD)
         }
     } else {
         Style::default()
