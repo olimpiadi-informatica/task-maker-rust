@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use boxfnonce::BoxFnOnce;
-use failure::Error;
+use failure::{bail, Error};
 use serde::{Deserialize, Serialize};
 
 use task_maker_store::*;
@@ -11,7 +11,7 @@ use crate::file::*;
 use crate::*;
 
 /// The setting of the cache level.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 pub enum CacheMode {
     /// Use the cache as much as possible.
     Everything,
@@ -293,13 +293,30 @@ impl Default for ExecutionDAG {
     }
 }
 
-impl From<&Option<Option<String>>> for CacheMode {
-    fn from(conf: &Option<Option<String>>) -> Self {
+impl CacheMode {
+    /// Make a `CacheMode` from the command line arguments:
+    /// * `None`: cache enabled
+    /// * `Some(None)`: cache disabled
+    /// * `Some(Some(comma separated list))`: cache disabled for the specified tags
+    pub fn try_from(
+        conf: &Option<Option<String>>,
+        valid_tags: &[String],
+    ) -> Result<CacheMode, Error> {
         match conf {
-            None => CacheMode::Everything,
-            Some(None) => CacheMode::Nothing,
+            None => Ok(CacheMode::Everything),
+            Some(None) => Ok(CacheMode::Nothing),
             Some(Some(list)) => {
-                CacheMode::Except(list.split(',').map(ExecutionTag::from).collect())
+                let tags: HashSet<_> = list.split(',').map(ExecutionTag::from).collect();
+                for tag in tags.iter() {
+                    if !valid_tags.contains(&tag.name) {
+                        bail!(
+                            "Invalid cache mode: {} (valid are: {})",
+                            tag.name,
+                            valid_tags.join(", ")
+                        );
+                    }
+                }
+                Ok(CacheMode::Except(tags))
             }
         }
     }
@@ -442,5 +459,22 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         dag.config_mut().extra_time(123.0);
         assert_abs_diff_eq!(123.0, dag.data.config.extra_time);
+    }
+
+    #[test]
+    fn test_cache_mode_try_from() {
+        assert_eq!(
+            CacheMode::try_from(&None, &[]).unwrap(),
+            CacheMode::Everything
+        );
+        assert_eq!(
+            CacheMode::try_from(&Some(None), &[]).unwrap(),
+            CacheMode::Nothing
+        );
+        assert_eq!(
+            CacheMode::try_from(&Some(Some("tag1".to_string())), &["tag1".to_string()]).unwrap(),
+            CacheMode::Except(vec![ExecutionTag::from("tag1")].into_iter().collect())
+        );
+        assert!(CacheMode::try_from(&Some(Some("tag1".to_string())), &[]).is_err());
     }
 }

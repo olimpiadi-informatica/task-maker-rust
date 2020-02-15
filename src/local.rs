@@ -9,6 +9,7 @@ use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
 use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage};
 use task_maker_exec::{connect_channel, new_local_channel, ExecutorClient};
+use task_maker_format::ioi::VALID_TAGS;
 use task_maker_format::ui::{UIMessage, UIType, UI};
 use task_maker_format::UISender;
 use task_maker_format::{ioi, EvaluationConfig, EvaluationData, TaskFormat};
@@ -80,7 +81,7 @@ where
     config
         .keep_sandboxes(opt.keep_sandboxes)
         .dry_run(opt.dry_run)
-        .cache_mode(CacheMode::from(&opt.no_cache))
+        .cache_mode(CacheMode::try_from(&opt.no_cache, &VALID_TAGS)?)
         .copy_exe(opt.copy_exe)
         .copy_logs(opt.copy_logs);
     if let Some(extra_time) = opt.extra_time {

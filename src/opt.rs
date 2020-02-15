@@ -1,6 +1,10 @@
 use std::path::PathBuf;
+
 use structopt::StructOpt;
+
+use itertools::Itertools;
 use task_maker_format::ioi::sanity_checks::get_sanity_check_names;
+use task_maker_format::ioi::VALID_TAGS;
 use task_maker_format::EvaluationConfig;
 
 #[derive(StructOpt, Debug)]
@@ -28,10 +32,7 @@ pub struct Opt {
     pub dry_run: bool,
 
     /// Disable the cache for this comma separated list of tags
-    ///
-    /// Providing an empty list will disable all the caches. The supported tags are: compilation,
-    /// generation, evaluation, checking, booklet.
-    #[structopt(long = "no-cache")]
+    #[structopt(long = "no-cache", long_help = no_cache_long_help())]
     #[allow(clippy::option_option)]
     pub no_cache: Option<Option<String>>,
 
@@ -155,11 +156,23 @@ pub struct WorkerOptions {
     pub server_addr: String,
 }
 
+/// Returns the long-help for the "skip sanity checks" option.
 fn skip_sanity_checks_long_help() -> &'static str {
     lazy_static! {
         pub static ref DOC: String = format!(
             "List of sanity checks to skip.\n\nThe available checks are: {}.",
             get_sanity_check_names()
+        );
+    }
+    &DOC
+}
+
+/// Returns the long-help for the --no-cache option.
+fn no_cache_long_help() -> &'static str {
+    lazy_static! {
+        pub static ref DOC: String = format!(
+            "Disable the cache for this comma separated list of tags\n\nProviding an empty list will disable all the caches. The supported tags are: {}.",
+            VALID_TAGS.iter().join(", ")
         );
     }
     &DOC

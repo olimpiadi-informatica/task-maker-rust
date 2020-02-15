@@ -1,5 +1,19 @@
 use task_maker_dag::ExecutionTag;
 
+lazy_static! {
+    /// The list of all the ExecutionTags used for the evaluation.
+    pub static ref VALID_TAGS: Vec<String> = [
+        "compilation",
+        "generation",
+        "evaluation",
+        "checking",
+        "booklet"
+    ]
+    .iter()
+    .map(|s| String::from(*s))
+    .collect();
+}
+
 /// Tags of the various executions inside a IOI task.
 pub enum Tag {
     /// Generation of a testcase.
