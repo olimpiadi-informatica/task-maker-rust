@@ -122,6 +122,12 @@ pub struct Opt {
     #[structopt(long)]
     pub task_info: bool,
 
+    /// Wipe the internal storage of task-maker
+    ///
+    /// Warning: no other instances of task-maker should be running when this flag is provided.
+    #[structopt(long)]
+    pub dont_panic: bool,
+
     /// Run the sandbox instead of the normal task-maker.
     ///
     /// This option is left as undocumented as it's not part of the public API.

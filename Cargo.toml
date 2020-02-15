@@ -44,6 +44,7 @@ tabox = "0.1"
 ctrlc = "3.1"
 lazy_static = "1.4"
 itertools = "0.8"
+walkdir = "2.3"
 
 [[bin]]
 name = "task-maker"
