@@ -298,6 +298,7 @@ impl CacheMode {
     /// * `None`: cache enabled
     /// * `Some(None)`: cache disabled
     /// * `Some(Some(comma separated list))`: cache disabled for the specified tags
+    #[allow(clippy::option_option)]
     pub fn try_from(
         conf: &Option<Option<String>>,
         valid_tags: &[String],
