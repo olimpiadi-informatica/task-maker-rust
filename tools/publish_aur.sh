@@ -16,7 +16,7 @@ fi
 
 WORKDIR=$(mktemp -d)
 function cleanup() {
-    echo rm -rf "${WORKDIR}"
+    rm -rf "${WORKDIR}"
 }
 trap cleanup EXIT
 

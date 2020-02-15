@@ -135,12 +135,23 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
                     .values()
                     .map(|s| s.dependencies.len() + 1)
                     .sum();
+                let num_compilations = state
+                    .compilations
+                    .iter()
+                    .filter(|(k, _)| !state.evaluations.contains_key(*k))
+                    .collect::<Vec<_>>()
+                    .len();
+                let compilations_len = if num_compilations > 0 {
+                    num_compilations as u16 + 2
+                } else {
+                    0
+                };
                 let chunks = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints(
                         [
                             Constraint::Length(2),
-                            Constraint::Length(state.compilations.len() as u16 + 2),
+                            Constraint::Length(compilations_len),
                             Constraint::Length(booklet_len as u16 + 2),
                             Constraint::Length(3),
                             Constraint::Min(0),
@@ -160,12 +171,14 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
                     .block(Block::default().borders(Borders::NONE))
                     .wrap(false)
                     .render(&mut f, chunks[0]);
-                Block::default()
-                    .title(" Compilations ")
-                    .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
-                    .borders(Borders::ALL)
-                    .render(&mut f, chunks[1]);
-                draw_compilations(&mut f, inner_block(chunks[1]), &state, loading);
+                if compilations_len > 0 {
+                    Block::default()
+                        .title(" Compilations ")
+                        .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
+                        .borders(Borders::ALL)
+                        .render(&mut f, chunks[1]);
+                    draw_compilations(&mut f, inner_block(chunks[1]), &state, loading);
+                }
                 Block::default()
                     .title(" Statements ")
                     .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
@@ -220,6 +233,7 @@ where
     let text: Vec<Text> = state
         .compilations
         .iter()
+        .filter(|(k, _)| !state.evaluations.contains_key(*k))
         .sorted_by_key(|(k, _)| *k)
         .flat_map(|(file, status)| {
             vec![
@@ -241,17 +255,17 @@ where
 /// Get the `Text` relative to the compilation status of a file.
 fn compilation_status_text(status: &CompilationStatus, loading: char) -> Text<'static> {
     match status {
-        CompilationStatus::Pending => Text::raw("..."),
-        CompilationStatus::Running => Text::raw(format!("{}", loading)),
+        CompilationStatus::Pending => Text::raw("... "),
+        CompilationStatus::Running => Text::raw(format!("{}   ", loading)),
         CompilationStatus::Done { .. } => Text::styled(
-            "OK",
+            "OK  ",
             Style::default().fg(Color::Green).modifier(Modifier::BOLD),
         ),
         CompilationStatus::Failed { .. } => Text::styled(
             "FAIL",
             Style::default().fg(Color::Red).modifier(Modifier::BOLD),
         ),
-        CompilationStatus::Skipped => Text::styled("skipped", Style::default().fg(Color::Yellow)),
+        CompilationStatus::Skipped => Text::styled("skip", Style::default().fg(Color::Yellow)),
     }
 }
 
@@ -383,6 +397,13 @@ where
                     .to_string_lossy(),
                 max_len = max_len
             )));
+            texts.push(Text::raw(" "));
+            if let Some(comp_status) = state.compilations.get(solution) {
+                texts.push(compilation_status_text(comp_status, loading));
+            } else {
+                texts.push(Text::raw("    "));
+            }
+            texts.push(Text::raw(" "));
             texts.push(evaluation_score(state, solution, loading));
             texts.append(&mut evaluation_line(state, solution, loading));
             texts.push(Text::raw("\n"));
