@@ -377,7 +377,8 @@ mod tests {
         assert_eq!(eval.dag.data.executions.len(), 1);
         let exec = eval.dag.data.executions.values().next().unwrap();
         assert_eq!(exec.tag.as_ref().unwrap(), &Tag::Checking.into());
-        assert!(exec.args.contains(&"--ignore-all-space".into()));
+        assert!(exec.args.contains(&"--ignore-blank-lines".into()));
+        assert!(exec.args.contains(&"--ignore-space-change".into()));
         assert!(exec.dependencies().contains(&output));
         assert!(exec.dependencies().contains(&test));
     }

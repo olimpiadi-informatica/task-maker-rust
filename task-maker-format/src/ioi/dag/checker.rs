@@ -45,10 +45,15 @@ impl Checker {
         match self {
             Checker::WhiteDiff => {
                 let mut exec = Execution::new(description, ExecutionCommand::system("diff"));
-                exec.args(vec!["--ignore-all-space", "correct", "test"])
-                    .input(correct_output, "correct", false)
-                    .input(test_output, "test", false)
-                    .tag(Tag::Checking.into());
+                exec.args(vec![
+                    "--ignore-blank-lines",
+                    "--ignore-space-change",
+                    "correct",
+                    "test",
+                ])
+                .input(correct_output, "correct", false)
+                .input(test_output, "test", false)
+                .tag(Tag::Checking.into());
 
                 eval.dag.on_execution_done(&exec.uuid, move |result| {
                     match result.status {
