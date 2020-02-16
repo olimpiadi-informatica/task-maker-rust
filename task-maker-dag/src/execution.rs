@@ -26,6 +26,9 @@ pub type OnDoneCallback = BoxFnOnce<'static, (ExecutionResult,), Result<(), Erro
 /// Type of the callback called when an [`Execution`](struct.Execution.html) is skipped.
 pub type OnSkipCallback = BoxFnOnce<'static, (), Result<(), Error>>;
 
+/// Type of the priority value of an `Execution`.
+pub type Priority = i64;
+
 /// A tag on an `Execution`. Can be used to classify the executions into groups and refer to them,
 /// for example for splitting the cache scopes.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
@@ -146,6 +149,10 @@ pub struct Execution {
 
     /// The tag associated with this execution.
     pub tag: Option<ExecutionTag>,
+    /// A priority index for this execution. Higher values correspond to higher priorities. The
+    /// priority order is followed only between ready executions, i.e. a lower priority one can be
+    /// executed before if its dependencies are ready earlier.
+    pub priority: Priority,
 }
 
 /// Limits on an [`Execution`](struct.Execution.html). On some worker platforms some of the fields
@@ -394,6 +401,7 @@ impl Execution {
             config: ExecutionDAGConfig::new(),
 
             tag: None,
+            priority: Priority::default(),
         }
     }
 
@@ -598,6 +606,12 @@ impl Execution {
     /// Set the tag of this `Execution`.
     pub fn tag(&mut self, tag: ExecutionTag) -> &mut Self {
         self.tag = Some(tag);
+        self
+    }
+
+    /// Set the priority of this `Execution`.
+    pub fn priority(&mut self, priority: Priority) -> &mut Self {
+        self.priority = priority;
         self
     }
 
