@@ -123,6 +123,8 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
     let stdin = termion::async_stdin();
     let mut events = stdin.events();
     while !stop.load(Ordering::Relaxed) {
+        // FIXME: handling the ^C this way inhibits the real ^C handler. Doing so the workers may
+        //        not be killed properly (locally and remotely).
         if let Some(Ok(event)) = events.next() {
             match event {
                 Event::Key(Key::Ctrl('c')) | Event::Key(Key::Ctrl('\\')) => {
@@ -222,6 +224,11 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
                     .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
                     .borders(Borders::ALL)
                     .render(&mut f, chunks[5]);
+                draw_server_status_summary(
+                    &mut f,
+                    Rect::new(chunks[5].x + 17, chunks[5].y, chunks[5].width - 17, 1),
+                    &state,
+                );
                 draw_server_status(
                     &mut f,
                     inner_block(chunks[5]),
@@ -565,6 +572,28 @@ fn testcase_evaluation_status_text(status: &TestcaseEvaluationStatus, loading: c
         ),
         TestcaseEvaluationStatus::Skipped => Text::raw("X"),
     }
+}
+
+fn draw_server_status_summary<B>(frame: &mut Frame<B>, rect: Rect, state: &UIState)
+where
+    B: Backend,
+{
+    let status = if let Some(status) = &state.executor_status {
+        status
+    } else {
+        return;
+    };
+    Paragraph::new(
+        [
+            Text::styled(" Ready ", Style::default().modifier(Modifier::BOLD)),
+            Text::raw(format!("{} ─", status.ready_execs)),
+            Text::styled(" Waiting ", Style::default().modifier(Modifier::BOLD)),
+            Text::raw(format!("{} ", status.waiting_execs)),
+        ]
+        .iter(),
+    )
+    .wrap(false)
+    .render(frame, rect);
 }
 
 /// Draw the content of the server status box, splitting the workers in 2 groups if they don't fit,
