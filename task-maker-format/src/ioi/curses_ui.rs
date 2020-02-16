@@ -18,12 +18,11 @@ use tui::widgets::{Block, Borders, Paragraph, Text, Widget};
 use tui::{Frame, Terminal};
 
 use task_maker_dag::ExecutionStatus;
+use task_maker_exec::ExecutorWorkerStatus;
 
 use crate::ioi::finish_ui::FinishUI;
-use crate::ioi::ui_state::*;
 use crate::ioi::*;
 use crate::ui::{UIExecutionStatus, UIMessage, UI};
-use task_maker_exec::ExecutorWorkerStatus;
 
 /// The framerate of the UI.
 const FPS: u64 = 30;

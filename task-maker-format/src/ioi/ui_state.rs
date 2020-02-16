@@ -680,6 +680,7 @@ impl UIState {
             UIMessage::Warning { message } => {
                 self.warnings.push(message);
             }
+            UIMessage::TerryTask { .. } => {}
         }
     }
 }

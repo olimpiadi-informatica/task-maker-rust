@@ -9,28 +9,32 @@
 #![deny(missing_docs)]
 
 #[macro_use]
-extern crate log;
-#[macro_use]
-extern crate pest_derive;
+extern crate approx;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
-extern crate approx;
+extern crate log;
+#[macro_use]
+extern crate pest_derive;
+
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+
+use failure::Error;
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+
+pub use source_file::SourceFile;
+use task_maker_dag::ExecutionDAG;
+use task_maker_lang::{GraderMap, LanguageManager};
 
 use crate::ui::UI;
+use std::collections::HashSet;
 
 pub mod ioi;
 mod source_file;
 pub mod terry;
 pub mod ui;
-pub use source_file::SourceFile;
-
-use failure::Error;
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
-use task_maker_dag::ExecutionDAG;
-use task_maker_lang::{GraderMap, LanguageManager};
 
 /// Trait that defines the capabilities of a task format, providing a UI and the parsing and
 /// execution abilities.
@@ -178,6 +182,78 @@ pub trait UISender {
 impl UISender for Mutex<ui::UIMessageSender> {
     fn send(&self, message: ui::UIMessage) -> Result<(), Error> {
         self.lock().unwrap().send(message)
+    }
+}
+
+impl EvaluationConfig {
+    /// Returns the solution filters as a vector of strings with the file names of provided
+    /// patterns.
+    fn solution_filters(&self) -> Vec<String> {
+        self.solution_filter
+            .iter()
+            .map(|filter| {
+                // unfortunate lossy cast to String because currently OsString doesn't
+                // support .starts_with
+                PathBuf::from(filter)
+                    .file_name()
+                    .expect("Invalid filter provided")
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .collect_vec()
+    }
+
+    /// Returns the fixed solutions in the config or, if none is specified, all the ones matching
+    /// the provided pattern in the provided base directory.
+    fn solution_paths(&self, base_dir: &Path, patterns: Vec<&str>) -> Vec<PathBuf> {
+        if self.solution_paths.is_empty() {
+            list_files(base_dir, patterns)
+        } else {
+            self.solution_paths.clone()
+        }
+    }
+
+    /// Search all the solutions matching the provided pattern in the provided base directory,
+    /// excluding all the graders in the grader_map, if provided.
+    ///
+    /// If the configuration is set with a filter, it is applied.
+    ///
+    /// If the configuration is set to evaluate only some solutions, it is applied.
+    pub fn filter_solutions(
+        &self,
+        base_dir: &Path,
+        patterns: Vec<&str>,
+        grader_map: Option<Arc<GraderMap>>,
+    ) -> Vec<SourceFile> {
+        let solutions_paths = self.solution_paths(base_dir, patterns);
+        let filter = self.solution_filters();
+        let graders: HashSet<PathBuf> = if let Some(grader_map) = &grader_map {
+            grader_map.all_paths().map(|p| p.to_path_buf()).collect()
+        } else {
+            HashSet::new()
+        };
+        solutions_paths
+            .into_iter()
+            .filter(|p| !graders.contains(p)) // the graders are not solutions
+            .filter(|p| {
+                if self.solution_filter.is_empty() {
+                    return true;
+                }
+                let name = p.file_name().unwrap().to_string_lossy();
+                filter
+                    .iter()
+                    .any(|filter| name.starts_with(filter.as_str()))
+            })
+            .map(|p| {
+                let write_to = base_dir
+                    .join("bin")
+                    .join("sol")
+                    .join(p.file_name().unwrap());
+                SourceFile::new(p, base_dir, grader_map.clone(), Some(write_to))
+            })
+            .filter(Option::is_some) // ignore the unknown languages
+            .map(Option::unwrap)
+            .collect()
     }
 }
 

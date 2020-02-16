@@ -15,7 +15,7 @@
 //! a `Checker`, a program that computes the score of the testcase given the input file, the output
 //! file and the _correct_ output file (the one produced by the jury).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -23,14 +23,21 @@ use std::sync::{Arc, Mutex};
 use failure::{bail, format_err, Error};
 use serde::{Deserialize, Serialize};
 
+use curses_ui::CursesUI;
+pub use dag::*;
+pub use print::PrintUI;
+pub use statement::*;
+pub use tag::*;
 use task_maker_lang::GraderMap;
+pub use ui_state::*;
 
+use crate::ioi::sanity_checks::SanityChecks;
 use crate::ui::*;
-use crate::{
-    list_files, EvaluationData, SourceFile, TaskFormat, TaskInfo, TaskInfoAttachment,
-    TaskInfoLimits, TaskInfoScoring, TaskInfoStatement, TaskInfoSubtask,
-};
 use crate::{EvaluationConfig, UISender};
+use crate::{
+    EvaluationData, TaskFormat, TaskInfo, TaskInfoAttachment, TaskInfoLimits, TaskInfoScoring,
+    TaskInfoStatement, TaskInfoSubtask,
+};
 
 mod curses_ui;
 mod dag;
@@ -41,16 +48,6 @@ pub mod sanity_checks;
 mod statement;
 mod tag;
 mod ui_state;
-
-use crate::ioi::sanity_checks::SanityChecks;
-use curses_ui::CursesUI;
-pub use dag::*;
-use itertools::Itertools;
-pub use print::PrintUI;
-pub use statement::*;
-use std::ops::Deref;
-pub use tag::*;
-pub use ui_state::*;
 
 /// In IOI tasks the subtask numbers are non-negative 0-based integers.
 pub type SubtaskId = u32;
@@ -93,8 +90,10 @@ pub struct Task {
     /// The list of the subtasks.
     pub subtasks: HashMap<SubtaskId, SubtaskInfo>,
     /// The default input validator for this task, if any.
+    #[serde(skip_serializing)]
     pub input_validator: InputValidator,
     /// The default output generator for this task, if any.
+    #[serde(skip_serializing)]
     pub output_generator: Option<OutputGenerator>,
     /// The checker to use for this task.
     pub checker: Checker,
@@ -177,56 +176,10 @@ impl TaskFormat for Task {
             task: Box::new(self.clone()),
         })?;
         self.sanity_checks.pre_hook(&self, eval)?;
-        let graders: HashSet<PathBuf> = self
-            .grader_map
-            .all_paths()
-            .map(|p| p.to_path_buf())
-            .collect();
         let empty_score_manager = ScoreManager::new(&self);
-        let filter = config
-            .solution_filter
-            .iter()
-            .map(|filter| {
-                // unfortunate lossy cast to String because currently OsString doesn't
-                // support .starts_with
-                PathBuf::from(filter)
-                    .file_name()
-                    .expect("Invalid filter provided")
-                    .to_string_lossy()
-                    .to_string()
-            })
-            .collect_vec();
-
-        let solution_paths = if config.solution_paths.is_empty() {
-            list_files(&self.path, vec!["sol/*"])
-        } else {
-            config.solution_paths.clone()
-        };
-        let solutions: Vec<_> = solution_paths
+        let solutions: Vec<_> = config
+            .filter_solutions(&self.path, vec!["sol/*"], Some(self.grader_map.clone()))
             .into_iter()
-            .filter(|p| !graders.contains(p)) // the graders are not solutions
-            .filter(|p| {
-                if config.solution_filter.is_empty() {
-                    return true;
-                }
-                let name = p.file_name().unwrap().to_string_lossy();
-                filter.iter().any(|filter| name.starts_with(filter.deref()))
-            })
-            .map(|p| {
-                SourceFile::new(
-                    &p,
-                    &self.path,
-                    Some(self.grader_map.clone()),
-                    Some(
-                        self.path
-                            .join("bin")
-                            .join("sol")
-                            .join(p.file_name().unwrap()),
-                    ),
-                )
-            })
-            .filter(Option::is_some) // ignore the unknown languages
-            .map(Option::unwrap)
             .map(|source| (source, Arc::new(Mutex::new(empty_score_manager.clone()))))
             .collect();
 

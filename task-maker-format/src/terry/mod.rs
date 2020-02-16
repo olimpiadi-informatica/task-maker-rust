@@ -2,13 +2,13 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use failure::Error;
+use failure::{bail, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::terry::dag::{Checker, InputGenerator, InputValidator};
 use crate::terry::format::parse_task;
-use crate::ui::{UIMessageSender, UIType, UI};
-use crate::{EvaluationConfig, EvaluationData, SourceFile, TaskFormat, TaskInfo};
+use crate::ui::{JsonUI, RawUI, SilentUI, UIMessage, UIMessageSender, UIType, UI};
+use crate::{EvaluationConfig, EvaluationData, SourceFile, TaskFormat, TaskInfo, UISender};
 
 mod dag;
 mod format;
@@ -29,13 +29,17 @@ pub struct Task {
     pub max_score: f64,
 
     /// The generator of input files of this task.
+    #[serde(skip_serializing)]
     pub generator: InputGenerator,
     /// The validator of input files of this task.
+    #[serde(skip_serializing)]
     pub validator: Option<InputValidator>,
     /// The checker of input/output files of this task.
+    #[serde(skip_serializing)]
     pub checker: Checker,
     /// The official solution of this task, if any. Will be compiled and placed in the sandbox of
     /// the generation/validation/checking.
+    #[serde(skip_serializing)]
     pub official_solution: Option<Arc<SourceFile>>,
 }
 
@@ -58,22 +62,40 @@ impl TaskFormat for Task {
     }
 
     fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
-        unimplemented!()
+        match ui_type {
+            UIType::Raw => Ok(Box::new(RawUI::new())),
+            UIType::Json => Ok(Box::new(JsonUI::new())),
+            UIType::Silent => Ok(Box::new(SilentUI::new())),
+            _ => bail!("Not yet supported UI: {:?}", ui_type),
+        }
     }
 
     fn build_dag(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error> {
-        unimplemented!()
+        eval.sender.send(UIMessage::TerryTask {
+            task: Box::new(self.clone()),
+        })?;
+        // TODO: call pre hook
+        let solutions = config.filter_solutions(&self.path, vec!["solutions/*"], None);
+        for solution in solutions {
+            // TODO evaluate the solution:
+            //      - generate an input file
+            //      - validate the input file, if validator is present
+            //      - execute the solution and generate the output file
+            //      - run the checker and send the results to the UI
+        }
+        Ok(())
     }
 
     fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
-        unimplemented!()
+        // TODO implement the sanity checks post hook
+        Ok(())
     }
 
     fn clean(&self) -> Result<(), Error> {
-        unimplemented!()
+        bail!("Cleaning a terry task is not supported yet");
     }
 
     fn task_info(&self) -> Result<TaskInfo, Error> {
-        unimplemented!()
+        bail!("Terry task info is not supported yet");
     }
 }

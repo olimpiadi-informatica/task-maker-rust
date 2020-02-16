@@ -1,22 +1,24 @@
 //! The UI functionality for the task formats.
 
-use crate::ioi::*;
-use task_maker_dag::{ExecutionResult, WorkerUuid};
+use std::path::PathBuf;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::time::SystemTime;
 
 use failure::Error;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver, Sender};
-
-mod json;
-mod raw;
-mod silent;
 
 pub use json::JsonUI;
 pub use raw::RawUI;
 pub use silent::SilentUI;
-use std::time::SystemTime;
+use task_maker_dag::{ExecutionResult, WorkerUuid};
 use task_maker_exec::ExecutorStatus;
+
+use crate::ioi::{SubtaskId, TestcaseId};
+use crate::{ioi, terry};
+
+mod json;
+mod raw;
+mod silent;
 
 /// Channel type for sending `UIMessage`s.
 pub type UIChannelSender = Sender<UIMessage>;
@@ -82,7 +84,7 @@ pub enum UIMessage {
     /// The information about the task which is being run.
     IOITask {
         /// The task information.
-        task: Box<Task>,
+        task: Box<ioi::Task>,
     },
 
     /// The generation of a testcase in a IOI task.
@@ -215,6 +217,12 @@ pub enum UIMessage {
         num_steps: usize,
         /// The status of this step.
         status: UIExecutionStatus,
+    },
+
+    /// The information about the task which is being run.
+    TerryTask {
+        /// The task information.
+        task: Box<terry::Task>,
     },
 
     /// A warning has been emitted.
