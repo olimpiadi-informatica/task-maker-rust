@@ -1,15 +1,12 @@
-use crate::ioi::finish_ui::FinishUI;
-use crate::ioi::ui_state::*;
-use crate::ioi::*;
-use crate::ui::{UIExecutionStatus, UIMessage, UI};
-use failure::Error;
-use itertools::Itertools;
 use std::io;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::{Builder, JoinHandle};
-use task_maker_dag::ExecutionStatus;
+use std::time::SystemTime;
+
+use failure::Error;
+use itertools::Itertools;
 use termion::event::{Event, Key};
 use termion::input::{MouseTerminal, TermRead};
 use termion::raw::{IntoRawMode, RawTerminal};
@@ -20,8 +17,18 @@ use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, Paragraph, Text, Widget};
 use tui::{Frame, Terminal};
 
+use task_maker_dag::ExecutionStatus;
+
+use crate::ioi::finish_ui::FinishUI;
+use crate::ioi::ui_state::*;
+use crate::ioi::*;
+use crate::ui::{UIExecutionStatus, UIMessage, UI};
+use task_maker_exec::ExecutorWorkerStatus;
+
 /// The framerate of the UI.
 const FPS: u64 = 30;
+/// After how many seconds rotate the list of workers if they don't fit on the screen.
+const ROTATION_DELAY: u64 = 1;
 
 /// The type of the terminal with its backend.
 type TerminalType =
@@ -130,11 +137,7 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
         terminal
             .draw(|mut f| {
                 let state = state.read().expect("UI state lock is poisoned");
-                let booklet_len: usize = state
-                    .booklets
-                    .values()
-                    .map(|s| s.dependencies.len() + 1)
-                    .sum();
+                let header_len = 2;
                 let num_compilations = state
                     .compilations
                     .iter()
@@ -145,23 +148,41 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
                 } else {
                     0
                 };
+                let booklet_len = state
+                    .booklets
+                    .values()
+                    .map(|s| s.dependencies.len() as u16 + 1)
+                    .sum::<u16>()
+                    + 2;
+                let generations_len = 3;
+                let evaluations_len = state.evaluations.len() as u16 + 2;
+                let mut workers_len = state
+                    .executor_status
+                    .as_ref()
+                    .map(|s| s.connected_workers.len())
+                    .unwrap_or(0) as u16
+                    + 2;
+                let total_height = f.size().height;
+                // fixed size section heights
+                let top_height = header_len + compilations_len + booklet_len + generations_len;
+                // if the sections don't just fit, reduce the size of the workers until they fit but
+                // without shortening it more than 3 lines (aka box + 1 worker).
+                if top_height + evaluations_len + workers_len > total_height {
+                    workers_len = std::cmp::max(
+                        3,
+                        total_height as i16 - top_height as i16 - evaluations_len as i16,
+                    ) as u16;
+                }
                 let chunks = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints(
                         [
-                            Constraint::Length(2),
+                            Constraint::Length(header_len),
                             Constraint::Length(compilations_len),
-                            Constraint::Length(booklet_len as u16 + 2),
-                            Constraint::Length(3),
+                            Constraint::Length(booklet_len),
+                            Constraint::Length(generations_len),
                             Constraint::Min(0),
-                            Constraint::Length(
-                                state
-                                    .executor_status
-                                    .as_ref()
-                                    .map(|s| s.connected_workers.len())
-                                    .unwrap_or(0) as u16
-                                    + 2,
-                            ),
+                            Constraint::Length(workers_len),
                         ]
                         .as_ref(),
                     )
@@ -201,7 +222,13 @@ fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<At
                     .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
                     .borders(Borders::ALL)
                     .render(&mut f, chunks[5]);
-                draw_server_status(&mut f, inner_block(chunks[5]), &state, loading);
+                draw_server_status(
+                    &mut f,
+                    inner_block(chunks[5]),
+                    &state,
+                    loading,
+                    loading_index / FPS as usize / ROTATION_DELAY as usize,
+                );
             })
             .expect("Failed to draw to the screen");
         // reduce the framerate to at most `FPS`
@@ -540,9 +567,15 @@ fn testcase_evaluation_status_text(status: &TestcaseEvaluationStatus, loading: c
     }
 }
 
-/// Draw the content of the server status box.
-fn draw_server_status<B>(frame: &mut Frame<B>, rect: Rect, state: &UIState, loading: char)
-where
+/// Draw the content of the server status box, splitting the workers in 2 groups if they don't fit,
+/// and rotating them if they still don't fit.
+fn draw_server_status<B>(
+    frame: &mut Frame<B>,
+    rect: Rect,
+    state: &UIState,
+    loading: char,
+    mut rotation_index: usize,
+) where
     B: Backend,
 {
     let status = if let Some(status) = &state.executor_status {
@@ -550,31 +583,71 @@ where
     } else {
         return;
     };
-    let max_len = status
+    let rects = if status.connected_workers.len() as u16 > rect.height {
+        vec![
+            Rect::new(rect.x, rect.y, rect.width / 2, rect.height),
+            Rect::new(
+                rect.x + rect.width / 2,
+                rect.y,
+                rect.width - rect.width / 2,
+                rect.height,
+            ),
+        ]
+    } else {
+        vec![rect]
+    };
+    let workers: Vec<_> = status
         .connected_workers
+        .iter()
+        .sorted_by_key(|worker| &worker.name)
+        .collect();
+    // if the workers fit in the screen there is no need to rotate them
+    if rect.height as usize * rects.len() >= workers.len() {
+        rotation_index = 0;
+    }
+    let chunks = workers
+        .into_iter()
+        .cycle()
+        .skip(rotation_index)
+        .chunks(rect.height as usize);
+    for (rect, chunk) in rects.into_iter().zip(&chunks) {
+        draw_workers_chunk(frame, rect, &chunk.collect_vec(), loading);
+    }
+}
+
+/// Draw a chunk of workers in the specified rectangle.
+fn draw_workers_chunk<B>(
+    frame: &mut Frame<B>,
+    rect: Rect,
+    workers: &[&ExecutorWorkerStatus<SystemTime>],
+    loading: char,
+) where
+    B: Backend,
+{
+    let max_len = workers
         .iter()
         .map(|worker| worker.name.len())
         .max()
         .unwrap_or(0);
-    let text: Vec<Text> = status
-        .connected_workers
+    let text: Vec<Text> = workers
         .iter()
-        .sorted_by_key(|worker| &worker.name)
         .flat_map(|worker| {
             let mut texts = vec![];
             texts.push(Text::raw(format!(
-                "- {:<max_len$} ({}) ",
+                "- {:<max_len$} ",
                 worker.name,
-                worker.uuid,
                 max_len = max_len
             )));
             if let Some(job) = &worker.current_job {
-                texts.push(Text::raw(format!(
-                    "{} {} ({:.2}s)",
-                    loading,
-                    job.job,
-                    (job.duration.elapsed().map(|d| d.as_millis()).unwrap_or(0) as f64) / 1000.0
-                )));
+                let duration =
+                    (job.duration.elapsed().map(|d| d.as_millis()).unwrap_or(0) as f64) / 1000.0;
+                let mut line = format!("{} {} ({:.2}s)", loading, job.job, duration);
+                if 2 + max_len + 1 + line.len() > rect.width as usize {
+                    let extra_len = 2 + max_len + 1 + line.len() - rect.width as usize;
+                    let job_name = &job.job[0..job.job.len() - extra_len - 3];
+                    line = format!("{} {}... ({:.2}s)", loading, job_name, duration);
+                }
+                texts.push(Text::raw(line));
             }
             texts.push(Text::raw("\n"));
             texts

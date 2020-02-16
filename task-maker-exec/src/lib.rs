@@ -87,7 +87,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 pub use client::ExecutorClient;
-pub use executor::ExecutorStatus;
+pub use executor::{ExecutorStatus, ExecutorWorkerStatus};
 pub use sandbox::RawSandboxResult;
 pub use sandbox_runner::{
     ErrorSandboxRunner, FakeSandboxRunner, SandboxRunner, SuccessSandboxRunner,
