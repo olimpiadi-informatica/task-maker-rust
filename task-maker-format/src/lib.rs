@@ -21,6 +21,7 @@ use crate::ui::UI;
 
 pub mod ioi;
 mod source_file;
+pub mod terry;
 pub mod ui;
 pub use source_file::SourceFile;
 

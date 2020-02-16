@@ -150,6 +150,11 @@ impl Task {
     pub fn new<P: AsRef<Path>>(path: P, eval_config: &EvaluationConfig) -> Result<Task, Error> {
         format::italian_yaml::parse_task(path, eval_config)
     }
+
+    /// Check if in the provided path there could be a IOI-like task.
+    pub fn is_valid<P: AsRef<Path>>(path: P) -> bool {
+        return path.as_ref().join("task.yaml").exists() && path.as_ref().join("gen/GEN").exists();
+    }
 }
 
 impl TaskFormat for Task {
