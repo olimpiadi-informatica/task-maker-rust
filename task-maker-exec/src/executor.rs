@@ -78,8 +78,7 @@ pub struct ExecutorWorkerStatus<T> {
     pub uuid: WorkerUuid,
     /// Name of the worker.
     pub name: String,
-    /// What the worker is currently working on: the description of the execution and the duration
-    /// of that.
+    /// What the worker is currently working on.
     pub current_job: Option<WorkerCurrentJobStatus<T>>,
 }
 

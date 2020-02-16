@@ -87,11 +87,12 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 pub use client::ExecutorClient;
-pub use executor::{ExecutorStatus, ExecutorWorkerStatus};
+pub use executor::{ExecutorStatus, ExecutorWorkerStatus, WorkerCurrentJobStatus};
 pub use sandbox::RawSandboxResult;
 pub use sandbox_runner::{
     ErrorSandboxRunner, FakeSandboxRunner, SandboxRunner, SuccessSandboxRunner,
 };
+pub use scheduler::ClientInfo;
 use task_maker_cache::Cache;
 use task_maker_dag::ExecutionDAG;
 use task_maker_store::FileStore;
