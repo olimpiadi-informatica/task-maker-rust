@@ -32,6 +32,10 @@ pub struct ExecutionDAGWatchSet {
     pub executions: HashSet<ExecutionUuid>,
     /// Set of the handles of the files that have at least a callback bound.
     pub files: HashSet<FileUuid>,
+    /// Set of the handles of the files that should be sent to the client as soon as possible. The
+    /// others will be sent at the end of the evaluation. Note that sending big files during the
+    /// evaluation can cause performance degradations.
+    pub urgent_files: HashSet<FileUuid>,
 }
 
 /// A job that is sent to a worker, this should include all the information the worker needs to
@@ -271,12 +275,24 @@ impl Executor {
                     file,
                     handle,
                     successful,
+                    urgent,
                 } => {
-                    ready_files
-                        .entry(client_uuid)
-                        .or_default()
-                        .push((file, handle, successful));
-                    continue;
+                    if urgent {
+                        if let Err(e) =
+                            client.send(ExecutorServerMessage::ProvideFile(file, successful))
+                        {
+                            warn!("Failed to send urgent file: {:?}", e);
+                        } else if let Err(e) = ChannelFileSender::send(handle.path(), &client) {
+                            warn!("Failed to send urgent file content: {:?}", e);
+                        }
+                        continue;
+                    } else {
+                        ready_files
+                            .entry(client_uuid)
+                            .or_default()
+                            .push((file, handle, successful));
+                        continue;
+                    }
                 }
                 SchedulerExecutorMessageData::Status { status } => {
                     ExecutorServerMessage::Status(status)

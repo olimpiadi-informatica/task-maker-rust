@@ -85,6 +85,8 @@ impl Checker {
                     .priority(EVALUATION_PRIORITY - testcase_id as Priority);
                 let stdout = exec.stdout();
                 let stderr = exec.stderr();
+                eval.dag.urgent_file(&stdout);
+                eval.dag.urgent_file(&stderr);
                 // wait for both the stdout and the stderr
                 let state_stdout: Arc<Mutex<(Option<f64>, Option<String>)>> =
                     Arc::new(Mutex::new((None, None)));

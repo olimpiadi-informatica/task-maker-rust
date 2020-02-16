@@ -187,6 +187,7 @@ impl ExecutorClient {
         let dag_callbacks = ExecutionDAGWatchSet {
             executions: dag.execution_callbacks.keys().cloned().collect(),
             files: dag.file_callbacks.keys().cloned().collect(),
+            urgent_files: dag.urgent_files.clone(),
         };
         for (uuid, file) in dag.data.provided_files.iter() {
             match file {

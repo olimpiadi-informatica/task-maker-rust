@@ -166,6 +166,7 @@ mod tests {
         let watch = ExecutionDAGWatchSet {
             executions: Default::default(),
             files: [file.uuid].iter().cloned().collect(),
+            urgent_files: Default::default(),
         };
         assert!(check_dag(&dag.data, &watch).is_err());
     }
@@ -177,6 +178,7 @@ mod tests {
         let watch = ExecutionDAGWatchSet {
             executions: [exec.uuid].iter().cloned().collect(),
             files: Default::default(),
+            urgent_files: Default::default(),
         };
         assert!(check_dag(&dag.data, &watch).is_err());
     }

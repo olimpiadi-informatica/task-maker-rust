@@ -114,6 +114,8 @@ pub(crate) enum SchedulerExecutorMessageData {
         handle: FileStoreHandle,
         /// Whether this file has been produced successfully or its execution failed doing so.
         successful: bool,
+        /// This file is urgent, it should be sent to the client ASAP.
+        urgent: bool,
     },
     /// The evaluation has been completed.
     EvaluationDone,
@@ -609,6 +611,7 @@ impl Scheduler {
                 file,
                 handle: client.file_handles[&file].clone(),
                 successful: status,
+                urgent: client.callbacks.urgent_files.contains(&file),
             },
         )) {
             warn!("Cannot send the file to the client: {:?}", e);

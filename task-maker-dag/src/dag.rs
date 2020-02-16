@@ -86,6 +86,10 @@ pub struct ExecutionDAG {
     pub execution_callbacks: HashMap<ExecutionUuid, ExecutionCallbacks>,
     /// Actual callbacks of the files.
     pub file_callbacks: HashMap<FileUuid, FileCallbacks>,
+    /// Set of the handles of the files that should be sent to the client as soon as possible. The
+    /// others will be sent at the end of the evaluation. Note that sending big files during the
+    /// evaluation can cause performance degradations.
+    pub urgent_files: HashSet<FileUuid>,
 }
 
 impl ExecutionDAG {
@@ -99,6 +103,7 @@ impl ExecutionDAG {
             },
             execution_callbacks: HashMap::new(),
             file_callbacks: HashMap::new(),
+            urgent_files: HashSet::new(),
         }
     }
 
@@ -227,6 +232,11 @@ impl ExecutionDAG {
     /// Makes sure that a callback item exists for that execution and returns a &mut to it.
     fn execution_callback(&mut self, execution: &ExecutionUuid) -> &mut ExecutionCallbacks {
         self.execution_callbacks.entry(*execution).or_default()
+    }
+
+    /// Mark a file as urgent. The server will try to send it as soon as possible.
+    pub fn urgent_file<F: Into<FileUuid>>(&mut self, file: F) {
+        self.urgent_files.insert(file.into());
     }
 }
 
@@ -460,6 +470,14 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         dag.config_mut().extra_time(123.0);
         assert_abs_diff_eq!(123.0, dag.data.config.extra_time);
+    }
+
+    #[test]
+    fn test_urgent_files() {
+        let mut dag = ExecutionDAG::new();
+        let file = File::new("file".to_string());
+        dag.urgent_file(&file);
+        assert!(dag.urgent_files.contains(&file.uuid));
     }
 
     #[test]
