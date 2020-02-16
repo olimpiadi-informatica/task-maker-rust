@@ -3,10 +3,10 @@ use std::sync::Arc;
 use failure::Error;
 use serde::{Deserialize, Serialize};
 
-use task_maker_dag::{Execution, FileUuid};
+use task_maker_dag::{Execution, FileUuid, Priority};
 
 use crate::bind_exec_callbacks;
-use crate::ioi::{SubtaskId, Tag, TestcaseId, STDERR_CONTENT_LENGTH};
+use crate::ioi::{SubtaskId, Tag, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
 use crate::ui::UIMessage;
 use crate::{EvaluationData, SourceFile, UISender};
 
@@ -39,6 +39,7 @@ impl InputValidator {
                 let mut exec = source_file.execute(eval, description, args.clone())?;
                 exec.input(input, "tm_validation_file", false)
                     .tag(Tag::Generation.into())
+                    .priority(GENERATION_PRIORITY - testcase_id as Priority)
                     .env("TM_SUBTASK", subtask_id.to_string())
                     .env("TM_TESTCASE", testcase_id.to_string());
                 let stdout = exec.stdout();

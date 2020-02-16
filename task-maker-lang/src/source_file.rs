@@ -9,6 +9,8 @@ use task_maker_dag::*;
 use crate::languages::*;
 use crate::{GraderMap, LanguageManager};
 
+const COMPILATION_PRIORITY: Priority = 1_000_000_000;
+
 /// A source file that will be able to be executed (with an optional compilation step).
 ///
 /// After creating a `SourceFile` using `new` you can add start using it via the `execute` method.
@@ -217,6 +219,7 @@ impl SourceFile {
                 self.language.compilation_command(&self.path),
             );
             comp.tag(ExecutionTag::from("compilation"));
+            comp.priority(COMPILATION_PRIORITY);
             comp.args = self.language.compilation_args(&self.path);
             let source = File::new(&format!("Source file of {:?}", self.path));
             comp.input(

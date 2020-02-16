@@ -4,9 +4,9 @@ use std::sync::Arc;
 use failure::{bail, Error};
 use serde::{Deserialize, Serialize};
 
-use task_maker_dag::{Execution, File, FileUuid};
+use task_maker_dag::{Execution, File, FileUuid, Priority};
 
-use crate::ioi::{SubtaskId, Tag, Task, TestcaseId};
+use crate::ioi::{SubtaskId, Tag, Task, TestcaseId, GENERATION_PRIORITY};
 use crate::ui::UIMessage;
 use crate::{bind_exec_callbacks, bind_exec_io};
 use crate::{EvaluationData, SourceFile};
@@ -53,6 +53,7 @@ impl OutputGenerator {
             OutputGenerator::Custom(source_file, args) => {
                 let mut exec = source_file.execute(eval, description, args.clone())?;
                 exec.tag(Tag::Generation.into());
+                exec.priority(GENERATION_PRIORITY - testcase_id as Priority);
                 let output = bind_exec_io!(exec, task, input, validation_handle);
                 Ok((output.uuid, Some(exec)))
             }

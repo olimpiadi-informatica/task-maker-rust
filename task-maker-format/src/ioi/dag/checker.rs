@@ -4,10 +4,10 @@ use std::sync::{Arc, Mutex};
 use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
 
-use task_maker_dag::{Execution, ExecutionCommand, ExecutionStatus, FileUuid};
+use task_maker_dag::{Execution, ExecutionCommand, ExecutionStatus, FileUuid, Priority};
 
 use crate::bind_exec_callbacks;
-use crate::ioi::{SubtaskId, Tag, TestcaseId};
+use crate::ioi::{SubtaskId, Tag, TestcaseId, EVALUATION_PRIORITY};
 use crate::ui::UIMessage;
 use crate::{EvaluationData, SourceFile};
 
@@ -30,9 +30,11 @@ impl Checker {
     /// Build the execution of the checker for the specified files, the callback will be called when
     /// the result is ready. The execution does not send UI messages yet and it's not added to the
     /// DAG.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn check<F>(
         &self,
         eval: &mut EvaluationData,
+        testcase_id: TestcaseId,
         description: String,
         input: FileUuid,
         correct_output: FileUuid,
@@ -53,7 +55,8 @@ impl Checker {
                 ])
                 .input(correct_output, "correct", false)
                 .input(test_output, "test", false)
-                .tag(Tag::Checking.into());
+                .tag(Tag::Checking.into())
+                .priority(EVALUATION_PRIORITY - testcase_id as Priority);
 
                 eval.dag.on_execution_done(&exec.uuid, move |result| {
                     match result.status {
@@ -78,7 +81,8 @@ impl Checker {
                 exec.input(input, "input", false)
                     .input(correct_output, "correct_output", false)
                     .input(test_output, "test_output", false)
-                    .tag(Tag::Checking.into());
+                    .tag(Tag::Checking.into())
+                    .priority(EVALUATION_PRIORITY - testcase_id as Priority);
                 let stdout = exec.stdout();
                 let stderr = exec.stderr();
                 // wait for both the stdout and the stderr
@@ -139,6 +143,7 @@ impl Checker {
         let solution = solution.into();
         let exec = self.check(
             eval,
+            testcase_id,
             format!(
                 "Checking output of {:?} of testcase {}, subtask {}",
                 solution.file_name().unwrap(),

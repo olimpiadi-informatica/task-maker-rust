@@ -4,10 +4,10 @@ use std::sync::Arc;
 use failure::{bail, Error};
 use serde::{Deserialize, Serialize};
 
-use task_maker_dag::{Execution, File, FileUuid};
+use task_maker_dag::{Execution, File, FileUuid, Priority};
 
 use crate::bind_exec_callbacks;
-use crate::ioi::{SubtaskId, Tag, Task, TestcaseId, STDERR_CONTENT_LENGTH};
+use crate::ioi::{SubtaskId, Tag, Task, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
 use crate::ui::UIMessage;
 use crate::{EvaluationData, SourceFile, UISender};
 
@@ -48,6 +48,7 @@ impl InputGenerator {
             InputGenerator::Custom(source_file, args) => {
                 let mut exec = source_file.execute(eval, description, args.clone())?;
                 exec.tag(Tag::Generation.into());
+                exec.priority(GENERATION_PRIORITY - testcase_id as Priority);
                 let stdout = exec.stdout();
                 Ok((stdout.uuid, Some(exec)))
             }

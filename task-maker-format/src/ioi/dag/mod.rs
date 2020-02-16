@@ -4,6 +4,7 @@ pub use checker::Checker;
 pub use input_generator::InputGenerator;
 pub use input_validator::InputValidator;
 pub use output_generator::OutputGenerator;
+use task_maker_dag::Priority;
 pub use task_type::TaskType;
 
 mod checker;
@@ -11,6 +12,11 @@ mod input_generator;
 mod input_validator;
 mod output_generator;
 mod task_type;
+
+/// Base priority for the generation executions.
+pub(crate) const GENERATION_PRIORITY: Priority = 1_000_000;
+/// Base priority for the evaluation executions.
+pub(crate) const EVALUATION_PRIORITY: Priority = 1_000;
 
 /// Maximum number of bytes of the captured standard error.
 pub const STDERR_CONTENT_LENGTH: usize = 10 * 1024;
@@ -141,16 +147,17 @@ impl TestcaseScoreAggregator {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
 
     use task_maker_dag::{ExecutionResourcesUsage, ExecutionResult, ExecutionStatus, File};
     use task_maker_lang::GraderMap;
 
-    use super::*;
     use crate::ioi::{Tag, Task};
     use crate::{EvaluationData, SourceFile};
-    use std::path::PathBuf;
-    use std::sync::Arc;
+
+    use super::*;
 
     fn make_task<P: Into<PathBuf>>(path: P) -> Task {
         Task {

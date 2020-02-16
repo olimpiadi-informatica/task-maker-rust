@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex};
 use failure::Error;
 use serde::{Deserialize, Serialize};
 
-use task_maker_dag::{ExecutionStatus, FileUuid};
+use task_maker_dag::{ExecutionStatus, FileUuid, Priority};
 
-use crate::ioi::{ScoreManager, SubtaskId, Tag, Task, TestcaseId};
+use crate::ioi::{ScoreManager, SubtaskId, Tag, Task, TestcaseId, EVALUATION_PRIORITY};
 use crate::ui::UIMessage;
 use crate::{bind_exec_callbacks, bind_exec_io};
 use crate::{EvaluationData, SourceFile};
@@ -48,6 +48,7 @@ impl TaskType {
                     Vec::<String>::new(),
                 )?;
                 exec.tag(Tag::Evaluation.into());
+                exec.priority(EVALUATION_PRIORITY - testcase_id as Priority);
                 let output = bind_exec_io!(exec, task, input, validation_handle);
                 let path = source_file.path.clone();
                 let limits = exec.limits_mut();

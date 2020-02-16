@@ -177,6 +177,7 @@ impl SanityCheck for AttSampleFilesValid {
                 let sender = eval.sender.clone();
                 let chk = task.checker.check(
                     eval,
+                    0,
                     format!("Checking sample output {}", output_name.display()),
                     input_uuid,
                     correct_output,
