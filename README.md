@@ -4,6 +4,8 @@
 
 The new cmsMake!
 
+[![asciicast](https://asciinema.org/a/301849.svg)](https://asciinema.org/a/301849)
+
 ## Installation
 The official way for installing `task-maker-rust` is not defined yet.
 
