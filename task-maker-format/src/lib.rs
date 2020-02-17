@@ -30,6 +30,7 @@ pub use tag::{Tag, VALID_TAGS};
 use task_maker_dag::ExecutionDAG;
 use task_maker_lang::{GraderMap, LanguageManager};
 
+use crate::terry::Seed;
 use crate::ui::UI;
 
 pub mod ioi;
@@ -146,6 +147,8 @@ pub struct EvaluationConfig {
     pub solution_paths: Vec<PathBuf>,
     /// List of disabled sanity check names.
     pub disabled_sanity_checks: Vec<String>,
+    /// Force this seed in terry evaluations.
+    pub seed: Option<Seed>,
 }
 
 /// The data for an evaluation, including the DAG and the UI channel.

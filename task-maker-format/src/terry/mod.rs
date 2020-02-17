@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use failure::{bail, Error};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use crate::terry::dag::{Checker, InputGenerator, InputValidator, Solution};
@@ -144,8 +145,13 @@ impl TaskFormat for Task {
         })?;
         // TODO: call pre hook
         let solutions = config.filter_solutions(&self.path, vec!["solutions/*"], None);
+        let mut rng = rand::thread_rng();
         for solution in solutions {
-            let seed = 42; // TODO generate seed
+            let seed = if let Some(seed) = config.seed {
+                seed
+            } else {
+                rng.gen_range(0, 1 << 31)
+            };
             let input_file = self.generator.generate_and_bind(
                 eval,
                 &solution,
@@ -183,7 +189,7 @@ impl TaskFormat for Task {
         Ok(())
     }
 
-    fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
+    fn sanity_check_post_hook(&self, _ui: &mut UIMessageSender) -> Result<(), Error> {
         // TODO implement the sanity checks post hook
         Ok(())
     }

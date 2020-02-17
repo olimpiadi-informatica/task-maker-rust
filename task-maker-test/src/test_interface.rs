@@ -125,6 +125,7 @@ impl TestInterface {
                 no_statement: false,
                 solution_paths: vec![],
                 disabled_sanity_checks: vec![],
+                seed: None,
             },
         )
         .unwrap();
