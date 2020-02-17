@@ -51,7 +51,7 @@ impl InputGenerator {
         let mut exec =
             self.source
                 .execute(eval, description, vec![seed.to_string(), "0".to_string()])?;
-        include_official_solution(&mut exec, official_solution)?;
+        include_official_solution(eval, &mut exec, official_solution)?;
         exec.limits_mut().nproc = None;
         exec.tag(Tag::Generation.into());
         let input_file = exec.stdout();
@@ -104,7 +104,7 @@ impl InputValidator {
         official_solution: Option<Arc<SourceFile>>,
     ) -> Result<(FileUuid, Execution), Error> {
         let mut exec = self.source.execute(eval, description, Vec::<&str>::new())?;
-        include_official_solution(&mut exec, official_solution)?;
+        include_official_solution(eval, &mut exec, official_solution)?;
         exec.limits_mut().nproc = None;
         exec.stdin(input).tag(Tag::Generation.into());
         let stdout = exec.stdout();
@@ -197,7 +197,7 @@ impl Checker {
         let mut exec = self
             .source
             .execute(eval, description, vec!["input.txt", "output.txt"])?;
-        include_official_solution(&mut exec, official_solution)?;
+        include_official_solution(eval, &mut exec, official_solution)?;
         exec.limits_mut().nproc = None;
         exec.input(input, "input.txt", false)
             .input(output, "output.txt", false);
@@ -234,12 +234,13 @@ impl Checker {
 
 /// Include the compiled official solution to the sandbox of the provided execution.
 fn include_official_solution(
+    eval: &mut EvaluationData,
     exec: &mut Execution,
     official_solution: Option<Arc<SourceFile>>,
 ) -> Result<(), Error> {
     if let Some(solution) = official_solution {
         exec.input(
-            solution.executable()?,
+            solution.executable(eval)?,
             solution
                 .write_bin_to()
                 .expect("managers should always be copied")

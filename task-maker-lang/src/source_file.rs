@@ -188,8 +188,13 @@ impl SourceFile {
 
     /// Prepare the source file if needed and return the executable file. If the compilation step
     /// was not executed yet the handle to the compilation execution is also returned.
-    pub fn executable(&self) -> Result<(FileUuid, Option<ExecutionUuid>), Error> {
-        unimplemented!()
+    pub fn executable(
+        &self,
+        dag: &mut ExecutionDAG,
+    ) -> Result<(FileUuid, Option<ExecutionUuid>), Error> {
+        let comp = self.prepare(dag)?;
+        let exe = self.executable.lock().unwrap().as_ref().unwrap().uuid;
+        Ok((exe, comp))
     }
 
     /// The file name of the source file.

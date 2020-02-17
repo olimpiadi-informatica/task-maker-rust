@@ -51,6 +51,23 @@ impl SourceFile {
             description,
             args.into_iter().map(|s| s.into()).collect(),
         )?;
+        self.bind_compilation_exe(eval, comp)?;
+        Ok(exec)
+    }
+
+    /// Prepare the source file if needed and return the executable file.
+    pub fn executable(&self, eval: &mut EvaluationData) -> Result<FileUuid, Error> {
+        let (exe, comp) = self.base.executable(&mut eval.dag)?;
+        self.bind_compilation_exe(eval, comp)?;
+        Ok(exe)
+    }
+
+    /// Bind the callbacks for the compilation callbacks.
+    fn bind_compilation_exe(
+        &self,
+        eval: &mut EvaluationData,
+        comp: Option<ExecutionUuid>,
+    ) -> Result<(), Error> {
         // if there is the compilation, send to the UI the messages
         if let Some(comp_uuid) = comp {
             let path = &self.path;
@@ -85,12 +102,7 @@ impl SourceFile {
                     });
             }
         }
-        Ok(exec)
-    }
-
-    /// Prepare the source file if needed and return the executable file.
-    pub fn executable(&self) -> Result<FileUuid, Error> {
-        unimplemented!()
+        Ok(())
     }
 }
 
