@@ -45,22 +45,32 @@ impl Language for LanguagePython {
         false
     }
 
-    fn runtime_command(&self, path: &Path) -> ExecutionCommand {
+    fn runtime_command(&self, path: &Path, write_to: Option<&Path>) -> ExecutionCommand {
         match self.version {
             LanguagePythonVersion::Autodetect => {
-                ExecutionCommand::local(self.executable_name(path))
+                ExecutionCommand::local(self.executable_name(path, write_to))
             }
             LanguagePythonVersion::Python2 => ExecutionCommand::system("python2"),
             LanguagePythonVersion::Python3 => ExecutionCommand::system("python3"),
         }
     }
 
-    fn runtime_args(&self, path: &Path, mut args: Vec<String>) -> Vec<String> {
+    fn runtime_args(
+        &self,
+        path: &Path,
+        write_to: Option<&Path>,
+        mut args: Vec<String>,
+    ) -> Vec<String> {
         match self.version {
             LanguagePythonVersion::Autodetect => args,
             _ => {
                 // will run for example: python3 program.py args...
-                args.insert(0, self.executable_name(path).to_string_lossy().to_string());
+                args.insert(
+                    0,
+                    self.executable_name(path, write_to)
+                        .to_string_lossy()
+                        .to_string(),
+                );
                 args
             }
         }

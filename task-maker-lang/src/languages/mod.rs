@@ -51,17 +51,17 @@ pub trait Language: std::fmt::Debug + Send + Sync {
     /// compiled languages.
     ///
     /// Will panic if this language does not support compilation.
-    fn compilation_command(&self, _path: &Path) -> ExecutionCommand {
+    fn compilation_command(&self, _path: &Path, _write_to: Option<&Path>) -> ExecutionCommand {
         panic!("Language {} cannot be compiled!", self.name())
     }
 
     /// Arguments to pass to the compiler to compile to source file. The source file is located at
     /// `path.file_name()` inside the sandbox and the result of the compilation should placed at
-    /// `self.executable_name(path)`. The blanked implementation is intended for not compiled
+    /// `self.compiled_file_name(path)`. The blanked implementation is intended for not compiled
     /// languages.
     ///
     /// Will panic if this language does not support compilation.
-    fn compilation_args(&self, _path: &Path) -> Vec<String> {
+    fn compilation_args(&self, _path: &Path, _write_to: Option<&Path>) -> Vec<String> {
         panic!("Language {} cannot be compiled!", self.name())
     }
 
@@ -81,15 +81,25 @@ pub trait Language: std::fmt::Debug + Send + Sync {
         vec![]
     }
 
+    /// The name that the compiled file will have inside the compilation sandbox.
+    fn compiled_file_name(&self, _path: &Path, _write_to: Option<&Path>) -> PathBuf {
+        "compiled".into()
+    }
+
     /// Command to use to run the program. It defaults to the executable name of the program.
     /// Languages that need to run a separate program (e.g. a system-wise interpreter) may change
     /// the return value of this method.
-    fn runtime_command(&self, path: &Path) -> ExecutionCommand {
-        ExecutionCommand::local(self.executable_name(path))
+    fn runtime_command(&self, path: &Path, write_to: Option<&Path>) -> ExecutionCommand {
+        ExecutionCommand::local(self.executable_name(path, write_to))
     }
 
     /// Arguments to pass to the executable to start the evaluation.
-    fn runtime_args(&self, _path: &Path, args: Vec<String>) -> Vec<String> {
+    fn runtime_args(
+        &self,
+        _path: &Path,
+        _write_to: Option<&Path>,
+        args: Vec<String>,
+    ) -> Vec<String> {
         args
     }
 
@@ -110,10 +120,15 @@ pub trait Language: std::fmt::Debug + Send + Sync {
     /// need to fork (hence use more processes).
     fn custom_limits(&self, _limits: &mut ExecutionLimits) {}
 
-    /// The name of the executable to call inside the sandbox. It defaults to the file name of
-    /// program.
-    fn executable_name(&self, path: &Path) -> PathBuf {
-        PathBuf::from(path.file_name().expect("Invalid file name"))
+    /// The name of the executable inside the sandbox. If this binary will be written elsewhere in
+    /// the system, use the same name. Otherwise fallback to the original file name, without
+    /// extension.
+    fn executable_name(&self, path: &Path, write_to: Option<&Path>) -> PathBuf {
+        if let Some(write_to) = write_to {
+            PathBuf::from(write_to.file_name().expect("Invalid file name"))
+        } else {
+            PathBuf::from(path.file_stem().expect("Invalid file name"))
+        }
     }
 }
 

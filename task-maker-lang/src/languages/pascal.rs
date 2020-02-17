@@ -27,12 +27,12 @@ impl Language for LanguagePascal {
         true
     }
 
-    fn compilation_command(&self, _path: &Path) -> ExecutionCommand {
+    fn compilation_command(&self, _path: &Path, _write_to: Option<&Path>) -> ExecutionCommand {
         ExecutionCommand::system("fpc")
     }
 
-    fn compilation_args(&self, path: &Path) -> Vec<String> {
-        let exe_name = self.executable_name(path);
+    fn compilation_args(&self, path: &Path, write_to: Option<&Path>) -> Vec<String> {
+        let exe_name = self.compiled_file_name(path, write_to);
         let exe_name = exe_name.to_string_lossy();
         let args = vec!["-dEVAL", "-Fe/dev/stderr", "-O2", "-XS"];
         let mut args: Vec<_> = args.into_iter().map(|s| s.to_string()).collect();
@@ -58,12 +58,6 @@ impl Language for LanguagePascal {
             sandbox_path: PathBuf::from("fpc.cfg"),
             executable: false,
         }];
-    }
-
-    /// The executable name is the source file's one without the extension.
-    fn executable_name(&self, path: &Path) -> PathBuf {
-        let name = PathBuf::from(path.file_name().expect("Invalid source file name"));
-        PathBuf::from(name.file_stem().expect("Invalid source file name"))
     }
 }
 

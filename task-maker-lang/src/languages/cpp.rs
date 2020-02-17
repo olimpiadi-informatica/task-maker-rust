@@ -46,7 +46,7 @@ impl Language for LanguageCpp {
         true
     }
 
-    fn compilation_command(&self, _path: &Path) -> ExecutionCommand {
+    fn compilation_command(&self, _path: &Path, _write_to: Option<&Path>) -> ExecutionCommand {
         match self.version {
             LanguageCppVersion::GccCpp11 | LanguageCppVersion::GccCpp14 => {
                 ExecutionCommand::system("g++")
@@ -55,8 +55,8 @@ impl Language for LanguageCpp {
         }
     }
 
-    fn compilation_args(&self, path: &Path) -> Vec<String> {
-        let exe_name = self.executable_name(path);
+    fn compilation_args(&self, path: &Path, write_to: Option<&Path>) -> Vec<String> {
+        let exe_name = self.compiled_file_name(path, write_to);
         let exe_name = exe_name.to_string_lossy();
         let mut args = vec!["-O2", "-Wall", "-ggdb3", "-DEVAL", "-o", exe_name.as_ref()];
         match self.version {
@@ -82,12 +82,6 @@ impl Language for LanguageCpp {
 
     fn compilation_dependencies(&self, path: &Path) -> Vec<Dependency> {
         find_cpp_deps(path)
-    }
-
-    /// The executable name is the source file's one without the extension.
-    fn executable_name(&self, path: &Path) -> PathBuf {
-        let name = PathBuf::from(path.file_name().expect("Invalid source file name"));
-        PathBuf::from(name.file_stem().expect("Invalid source file name"))
     }
 }
 
