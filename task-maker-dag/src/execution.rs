@@ -238,7 +238,7 @@ pub struct ExecutionResult {
 impl ExecutionLimits {
     /// Make an empty limits where all the limits are disabled. You may want to
     /// use `default()` instead of this
-    pub fn new() -> ExecutionLimits {
+    pub fn unrestricted() -> ExecutionLimits {
         ExecutionLimits {
             cpu_time: None,
             sys_time: None,

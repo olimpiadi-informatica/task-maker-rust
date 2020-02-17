@@ -680,7 +680,12 @@ impl UIState {
             UIMessage::Warning { message } => {
                 self.warnings.push(message);
             }
-            UIMessage::TerryTask { .. } => {}
+            UIMessage::TerryTask { .. }
+            | UIMessage::TerryGeneration { .. }
+            | UIMessage::TerryValidation { .. }
+            | UIMessage::TerrySolution { .. }
+            | UIMessage::TerryChecker { .. }
+            | UIMessage::TerrySolutionOutcome { .. } => {}
         }
     }
 }

@@ -34,68 +34,6 @@ pub enum TestcaseScoreAggregator {
     Sum,
 }
 
-/// Bind the start/done/skip callbacks of an execution to a ui message sender which sends to the UI
-/// messages with the correct status field.
-///
-/// It's also sent to the UI the message with status `UIExecutionStatus::Pending`.
-///
-/// It works by first cloning the `extra` arguments for each callback. This is required because each
-/// callback has to move inside the needed data. For the same reason also the `UIMessageSender` is
-/// cloned and then moved inside the callback. The callbacks then simply send to the UI the value
-/// returned by the `enum` lambda.
-///
-/// # Parameters
-/// - `eval: EvaluationData`
-/// - `exec_uuid: ExecutionUuid`
-/// - `enum` is a lambda that takes one or more arguments:
-///   - the first is a `UIExecutionStatus`
-///   - the followings are clones of the `extra` parameter
-/// - `extra` is a series of identifiers of `Clone`able variables.
-#[macro_export]
-macro_rules! bind_exec_callbacks {
-    ($eval:expr, $exec_uuid:expr, $enum:expr $(,$extra:ident)*) => {
-        {
-            #[allow(clippy::redundant_closure_call)]
-            {
-                use crate::UISender;
-                use crate::ui::UIExecutionStatus;
-                {
-                    $(let $extra = $extra.clone();)*
-                    let status = UIExecutionStatus::Pending;
-                    $eval
-                        .sender
-                        .send(($enum)(status, $($extra,)*))?;
-                }
-                {
-                    $(let $extra = $extra.clone();)*
-                    let sender = $eval.sender.clone();
-                    $eval.dag.on_execution_start(&$exec_uuid, move |worker| {
-                        let status = UIExecutionStatus::Started { worker };
-                        sender.send(($enum)(status, $($extra,)*))
-                    });
-                }
-                {
-                    $(let $extra = $extra.clone();)*
-                    let sender = $eval.sender.clone();
-                    $eval.dag.on_execution_done(&$exec_uuid, move |result| {
-                        let status = UIExecutionStatus::Done { result };
-                        sender.send(($enum)(status, $($extra,)*))
-                    });
-                }
-                {
-                    $(let $extra = $extra.clone();)*
-                    let sender = $eval.sender.clone();
-                    $eval.dag.on_execution_skip(&$exec_uuid, move || {
-                        let status = UIExecutionStatus::Skipped;
-                        sender.send(($enum)(status, $($extra,)*))
-                    });
-                }
-            }
-            Result::<(), Error>::Ok(())
-        }
-    };
-}
-
 /// Bind the input/output of an execution to the input and output file of a testcase. It correctly
 /// chooses if using stdin/stdout or using normal files by looking at the value set in the `Task`.
 ///

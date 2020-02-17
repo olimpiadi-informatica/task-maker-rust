@@ -277,7 +277,12 @@ impl UI for PrintUI {
                 cwrite!(self, WARNING, "[WARNING] ");
                 print!("{}", message);
             }
-            UIMessage::TerryTask { .. } => {}
+            UIMessage::TerryTask { .. }
+            | UIMessage::TerryGeneration { .. }
+            | UIMessage::TerryValidation { .. }
+            | UIMessage::TerrySolution { .. }
+            | UIMessage::TerryChecker { .. }
+            | UIMessage::TerrySolutionOutcome { .. } => {}
         };
         println!();
     }

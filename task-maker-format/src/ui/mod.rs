@@ -14,6 +14,7 @@ use task_maker_dag::{ExecutionResult, WorkerUuid};
 use task_maker_exec::ExecutorStatus;
 
 use crate::ioi::{SubtaskId, TestcaseId};
+use crate::terry::{Seed, SolutionOutcome};
 use crate::{ioi, terry};
 
 mod json;
@@ -223,6 +224,48 @@ pub enum UIMessage {
     TerryTask {
         /// The task information.
         task: Box<terry::Task>,
+    },
+
+    /// The generation of a testcase in a Terry task.
+    TerryGeneration {
+        /// The path of the solution.
+        solution: PathBuf,
+        /// The seed used to generate the input file.
+        seed: Seed,
+        /// The status of the generation.
+        status: UIExecutionStatus,
+    },
+
+    /// The validation of a testcase in a Terry task.
+    TerryValidation {
+        /// The path of the solution.
+        solution: PathBuf,
+        /// The status of the validation.
+        status: UIExecutionStatus,
+    },
+
+    /// The solution of a testcase in a Terry task.
+    TerrySolution {
+        /// The path of the solution.
+        solution: PathBuf,
+        /// The status of the solution.
+        status: UIExecutionStatus,
+    },
+
+    /// The checking of a solution in a Terry task.
+    TerryChecker {
+        /// The path of the solution.
+        solution: PathBuf,
+        /// The status of the checker.
+        status: UIExecutionStatus,
+    },
+
+    /// The outcome of a solution in a Terry task.
+    TerrySolutionOutcome {
+        /// The path of the solution.
+        solution: PathBuf,
+        /// The outcome of the solution. `Err` is caused by an invalid response from the checker.
+        outcome: Result<SolutionOutcome, String>,
     },
 
     /// A warning has been emitted.

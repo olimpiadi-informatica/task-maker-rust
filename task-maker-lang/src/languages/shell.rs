@@ -38,7 +38,7 @@ mod tests {
     #[test]
     fn test_allow_fork() {
         let lang = LanguageShell::new();
-        let mut limits = ExecutionLimits::new();
+        let mut limits = ExecutionLimits::unrestricted();
         limits.nproc(1);
         lang.custom_limits(&mut limits);
         assert_that!(limits.nproc).is_none();

@@ -43,6 +43,74 @@ pub struct Task {
     pub official_solution: Option<Arc<SourceFile>>,
 }
 
+/// The output of the checker for a solution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SolutionOutcome {
+    /// The score normalized from 0.0 to 1.0.
+    pub score: f64,
+    /// The validation outcome of the solution.
+    pub validation: SolutionValidation,
+    /// The feedback outcome of the solution.
+    pub feedback: SolutionFeedback,
+}
+
+/// The validation part of the outcome of a solution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SolutionValidation {
+    /// The validation of the test cases, in the same order as the input.
+    pub cases: Vec<SolutionValidationCase>,
+    /// The alerts sent by the checker regarding the validation.
+    pub alerts: Vec<SolutionAlert>,
+}
+
+/// The validation outcome of a test case.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SolutionValidationCase {
+    /// The status of the testcase.
+    pub status: CaseStatus,
+    /// An optional message associated to the test case.
+    pub message: Option<String>,
+}
+
+/// The possible statuses of the validation of a test case.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CaseStatus {
+    /// The testcase is not present in the output file.
+    Missing,
+    /// The testcase is present and correctly parsed.
+    Parsed,
+    /// The testcase is present but its format is invalid.
+    Invalid,
+}
+
+/// The feedback part of the outcome.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SolutionFeedback {
+    /// The feedback of each testcase, in the same order as the input.
+    pub cases: Vec<SolutionFeedbackCase>,
+    /// The alerts sent by the checker regarding the feedback.
+    pub alerts: Vec<SolutionAlert>,
+}
+
+/// The feedback of a test case.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SolutionFeedbackCase {
+    /// Whether this testcase is correct.
+    pub correct: bool,
+    /// An optional message associated to the test case.
+    pub message: Option<String>,
+}
+
+/// A message with an associated severity.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SolutionAlert {
+    /// The severity of the alert message.
+    pub severity: String,
+    /// The content of the alert.
+    pub message: String,
+}
+
 impl Task {
     /// Try to make a `Task` from the specified path. Will return `Err` if the format of the task
     /// is not Terry or if the task is corrupted and cannot be parsed.
@@ -80,14 +148,14 @@ impl TaskFormat for Task {
             let seed = 42; // TODO generate seed
             let input_file = self.generator.generate_and_bind(
                 eval,
-                solution.name(),
+                &solution,
                 seed,
                 self.official_solution.clone(),
             )?;
             let validation_file = if let Some(validator) = self.validator.as_ref() {
                 Some(validator.validate_and_bind(
                     eval,
-                    solution.name(),
+                    &solution,
                     input_file,
                     self.official_solution.clone(),
                 )?)
@@ -96,12 +164,20 @@ impl TaskFormat for Task {
             };
             let output_file =
                 Solution::solve_and_bind(eval, &solution, input_file, validation_file)?;
+            let sender = eval.sender.clone();
+            let solution_path = solution.path.clone();
             self.checker.check_and_bind(
                 eval,
-                solution.name(),
+                &solution,
                 input_file,
                 output_file,
                 self.official_solution.clone(),
+                move |outcome| {
+                    sender.send(UIMessage::TerrySolutionOutcome {
+                        solution: solution_path,
+                        outcome: outcome.map_err(|e| format!("Invalid checker outcome: {}", e)),
+                    })
+                },
             )?;
         }
         Ok(())
