@@ -221,7 +221,7 @@ impl SourceFile {
     /// ```
     /// use task_maker_lang::SourceFile;
     ///
-    /// let source = SourceFile::new("path/to/sourcefile.cpp", "", None, Some("exec".into())).unwrap();
+    /// let source = SourceFile::new("path/to/sourcefile.cpp", "", None, Some("exec")).unwrap();
     ///
     /// assert_eq!(source.write_bin_to(), Some("exec".into()));
     /// ```

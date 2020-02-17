@@ -80,6 +80,8 @@ impl Language for LanguageC {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use spectral::prelude::*;
 
     use super::*;
@@ -87,17 +89,17 @@ mod tests {
     #[test]
     fn test_compilation_args() {
         let lang = LanguageC::new(LanguageCVersion::GccC11);
-        let args = lang.compilation_args(Path::new("foo.c"));
+        let args = lang.compilation_args(Path::new("foo.c"), None);
         assert_that!(args).contains("foo.c".to_string());
         assert_that!(args).contains("-std=c11".to_string());
         assert_that!(args).contains("-o".to_string());
-        assert_that!(args).contains("foo".to_string());
+        assert_that!(args).contains("compiled".to_string());
     }
 
     #[test]
     fn test_compilation_add_file() {
         let lang = LanguageC::new(LanguageCVersion::GccC11);
-        let args = lang.compilation_args(Path::new("foo.c"));
+        let args = lang.compilation_args(Path::new("foo.c"), None);
         let new_args = lang.compilation_add_file(args.clone(), Path::new("bar.c"));
         assert_that!(new_args.iter()).contains_all_of(&args.iter());
         assert_that!(new_args.iter()).contains("bar.c".to_string());
@@ -106,6 +108,7 @@ mod tests {
     #[test]
     fn test_executable_name() {
         let lang = LanguageC::new(LanguageCVersion::GccC11);
-        assert_that!(lang.executable_name(Path::new("foo.c"))).is_equal_to(PathBuf::from("foo"));
+        assert_that!(lang.executable_name(Path::new("foo.c"), None))
+            .is_equal_to(PathBuf::from("foo"));
     }
 }

@@ -150,7 +150,9 @@ impl Task {
 
     /// Check if in the provided path there could be a IOI-like task.
     pub fn is_valid<P: AsRef<Path>>(path: P) -> bool {
-        path.as_ref().join("task.yaml").exists() && path.as_ref().join("gen/GEN").exists()
+        let path = path.as_ref();
+        path.join("task.yaml").exists()
+            && (path.join("gen/GEN").exists() || path.join("input").is_dir())
     }
 }
 

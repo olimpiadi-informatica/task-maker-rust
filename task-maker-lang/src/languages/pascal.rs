@@ -69,15 +69,15 @@ mod tests {
     #[test]
     fn test_compilation_args() {
         let lang = LanguagePascal::new();
-        let args = lang.compilation_args(Path::new("foo.pas"));
+        let args = lang.compilation_args(Path::new("foo.pas"), None);
         assert_that!(args).contains("foo.pas".to_string());
-        assert_that!(args).contains("-ofoo".to_string());
+        assert_that!(args).contains("-ocompiled".to_string());
     }
 
     #[test]
     fn test_compilation_add_file() {
         let lang = LanguagePascal::new();
-        let args = lang.compilation_args(Path::new("foo.pas"));
+        let args = lang.compilation_args(Path::new("foo.pas"), None);
         let new_args = lang.compilation_add_file(args.clone(), Path::new("bar.pas"));
         assert_that!(new_args.iter()).contains_all_of(&args.iter());
         assert_that!(new_args.iter()).contains("bar.pas".to_string());
@@ -86,6 +86,7 @@ mod tests {
     #[test]
     fn test_executable_name() {
         let lang = LanguagePascal::new();
-        assert_that!(lang.executable_name(Path::new("foo.pas"))).is_equal_to(PathBuf::from("foo"));
+        assert_that!(lang.executable_name(Path::new("foo.pas"), None))
+            .is_equal_to(PathBuf::from("foo"));
     }
 }

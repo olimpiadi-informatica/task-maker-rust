@@ -79,6 +79,11 @@ impl Language for LanguagePython {
     fn runtime_dependencies(&self, path: &Path) -> Vec<Dependency> {
         find_python_deps(path)
     }
+
+    fn executable_name(&self, path: &Path, _write_to: Option<&Path>) -> PathBuf {
+        // force the original extension for the file name
+        PathBuf::from(path.file_name().expect("Invalid file name"))
+    }
 }
 
 /// Extract all the dependencies of a python file recursively.
@@ -129,8 +134,8 @@ mod tests {
     fn test_runtime_args_autodetect() {
         let lang = LanguagePython::new(LanguagePythonVersion::Autodetect);
         let path = Path::new("script.py");
-        assert_that!(lang.runtime_command(path)).is_equal_to(ExecutionCommand::local(path));
-        let args = lang.runtime_args(path, vec!["arg".to_string()]);
+        assert_that!(lang.runtime_command(path, None)).is_equal_to(ExecutionCommand::local(path));
+        let args = lang.runtime_args(path, None, vec!["arg".to_string()]);
         assert_that!(&args).is_equal_to(vec!["arg".to_string()]);
     }
 
@@ -138,8 +143,9 @@ mod tests {
     fn test_runtime_args_py3() {
         let lang = LanguagePython::new(LanguagePythonVersion::Python3);
         let path = Path::new("script.py");
-        assert_that!(lang.runtime_command(path)).is_equal_to(ExecutionCommand::system("python3"));
-        let args = lang.runtime_args(path, vec!["arg".to_string()]);
+        assert_that!(lang.runtime_command(path, None))
+            .is_equal_to(ExecutionCommand::system("python3"));
+        let args = lang.runtime_args(path, None, vec!["arg".to_string()]);
         assert_that!(&args).is_equal_to(vec!["script.py".to_string(), "arg".to_string()]);
     }
 

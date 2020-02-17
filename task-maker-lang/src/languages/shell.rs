@@ -1,4 +1,5 @@
 use crate::languages::*;
+use std::path::{Path, PathBuf};
 use task_maker_dag::ExecutionLimits;
 
 /// The Shell language
@@ -27,6 +28,11 @@ impl Language for LanguageShell {
 
     fn custom_limits(&self, limits: &mut ExecutionLimits) {
         limits.nproc = None;
+    }
+
+    fn executable_name(&self, path: &Path, _write_to: Option<&Path>) -> PathBuf {
+        // force the original extension for the file name
+        PathBuf::from(path.file_name().expect("Invalid file name"))
     }
 }
 

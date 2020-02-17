@@ -132,17 +132,17 @@ mod tests {
     #[test]
     fn test_compilation_args() {
         let lang = LanguageCpp::new(LanguageCppVersion::GccCpp14);
-        let args = lang.compilation_args(Path::new("foo.cpp"));
+        let args = lang.compilation_args(Path::new("foo.cpp"), None);
         assert_that!(args).contains("foo.cpp".to_string());
         assert_that!(args).contains("-std=c++14".to_string());
         assert_that!(args).contains("-o".to_string());
-        assert_that!(args).contains("foo".to_string());
+        assert_that!(args).contains("compiled".to_string());
     }
 
     #[test]
     fn test_compilation_add_file() {
         let lang = LanguageCpp::new(LanguageCppVersion::GccCpp14);
-        let args = lang.compilation_args(Path::new("foo.cpp"));
+        let args = lang.compilation_args(Path::new("foo.cpp"), None);
         let new_args = lang.compilation_add_file(args.clone(), Path::new("bar.cpp"));
         assert_that!(new_args.iter()).contains_all_of(&args.iter());
         assert_that!(new_args.iter()).contains("bar.cpp".to_string());
@@ -151,7 +151,8 @@ mod tests {
     #[test]
     fn test_executable_name() {
         let lang = LanguageCpp::new(LanguageCppVersion::GccCpp14);
-        assert_that!(lang.executable_name(Path::new("foo.cpp"))).is_equal_to(PathBuf::from("foo"));
+        assert_that!(lang.executable_name(Path::new("foo.cpp"), None))
+            .is_equal_to(PathBuf::from("foo"));
     }
 
     #[test]

@@ -92,8 +92,8 @@ mod tests {
     use task_maker_dag::{ExecutionResourcesUsage, ExecutionResult, ExecutionStatus, File};
     use task_maker_lang::GraderMap;
 
-    use crate::ioi::{Tag, Task};
-    use crate::{EvaluationData, SourceFile};
+    use crate::ioi::Task;
+    use crate::{EvaluationData, SourceFile, Tag};
 
     use super::*;
 
@@ -154,9 +154,8 @@ mod tests {
         let path = tmpdir.path().join("input.txt");
         std::fs::write(&path, "x").unwrap();
         let generator = InputGenerator::StaticFile(path);
-        let task = make_task(tmpdir.path());
         let (mut eval, _) = EvaluationData::new(tmpdir.path());
-        let out = generator.generate_and_bind(&task, &mut eval, 0, 0).unwrap();
+        let out = generator.generate_and_bind(&mut eval, 0, 0).unwrap();
         assert!(eval.dag.data.provided_files.contains_key(&out));
         assert!(eval
             .dag
@@ -172,9 +171,8 @@ mod tests {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
         let path = tmpdir.path().join("input.txt");
         let generator = InputGenerator::StaticFile(path.clone());
-        let task = make_task(tmpdir.path());
         let (mut eval, _) = EvaluationData::new(tmpdir.path());
-        let gen = generator.generate_and_bind(&task, &mut eval, 0, 0);
+        let gen = generator.generate_and_bind(&mut eval, 0, 0);
         assert!(gen.is_err());
         let err = gen.unwrap_err().to_string();
         assert!(err.contains("COPY"));
@@ -188,9 +186,8 @@ mod tests {
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
         let generator = InputGenerator::Custom(Arc::new(source), vec![]);
-        let task = make_task(tmpdir.path());
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
-        let out = generator.generate_and_bind(&task, &mut eval, 0, 0).unwrap();
+        let out = generator.generate_and_bind(&mut eval, 0, 0).unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.executions.len(), 1);
         let exec = eval.dag.data.executions.values().next().unwrap();
