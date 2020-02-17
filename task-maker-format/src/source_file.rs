@@ -87,6 +87,11 @@ impl SourceFile {
         }
         Ok(exec)
     }
+
+    /// Prepare the source file if needed and return the executable file.
+    pub fn executable(&self) -> Result<FileUuid, Error> {
+        unimplemented!()
+    }
 }
 
 impl Deref for SourceFile {

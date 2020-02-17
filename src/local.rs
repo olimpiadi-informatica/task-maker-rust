@@ -8,10 +8,8 @@ use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
 use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage};
 use task_maker_exec::{connect_channel, new_local_channel, ExecutorClient};
-use task_maker_format::ioi::VALID_TAGS;
 use task_maker_format::ui::{UIMessage, UIType, UI};
-use task_maker_format::UISender;
-use task_maker_format::{EvaluationData, TaskFormat};
+use task_maker_format::{EvaluationData, TaskFormat, UISender, VALID_TAGS};
 use task_maker_store::FileStore;
 
 use crate::detect_format::find_task;

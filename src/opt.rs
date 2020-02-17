@@ -4,8 +4,7 @@ use structopt::StructOpt;
 
 use itertools::Itertools;
 use task_maker_format::ioi::sanity_checks::get_sanity_check_names;
-use task_maker_format::ioi::VALID_TAGS;
-use task_maker_format::EvaluationConfig;
+use task_maker_format::{EvaluationConfig, VALID_TAGS};
 
 #[derive(StructOpt, Debug)]
 #[structopt(

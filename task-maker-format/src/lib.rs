@@ -17,6 +17,7 @@ extern crate log;
 #[macro_use]
 extern crate pest_derive;
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -25,14 +26,15 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 pub use source_file::SourceFile;
+pub use tag::{Tag, VALID_TAGS};
 use task_maker_dag::ExecutionDAG;
 use task_maker_lang::{GraderMap, LanguageManager};
 
 use crate::ui::UI;
-use std::collections::HashSet;
 
 pub mod ioi;
 mod source_file;
+mod tag;
 pub mod terry;
 pub mod ui;
 

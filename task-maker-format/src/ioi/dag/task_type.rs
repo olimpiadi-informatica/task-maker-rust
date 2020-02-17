@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 
 use task_maker_dag::{ExecutionStatus, FileUuid, Priority};
 
-use crate::ioi::{ScoreManager, SubtaskId, Tag, Task, TestcaseId, EVALUATION_PRIORITY};
+use crate::ioi::{ScoreManager, SubtaskId, Task, TestcaseId, EVALUATION_PRIORITY};
 use crate::ui::UIMessage;
 use crate::{bind_exec_callbacks, bind_exec_io};
-use crate::{EvaluationData, SourceFile};
+use crate::{EvaluationData, SourceFile, Tag};
 
 /// The type of the task. This changes the behavior of the solutions.
 #[derive(Debug, Clone, Serialize, Deserialize)]

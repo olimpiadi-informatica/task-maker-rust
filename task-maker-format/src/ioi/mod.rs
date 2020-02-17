@@ -27,7 +27,6 @@ use curses_ui::CursesUI;
 pub use dag::*;
 pub use print::PrintUI;
 pub use statement::*;
-pub use tag::*;
 use task_maker_lang::GraderMap;
 pub use ui_state::*;
 
@@ -46,7 +45,6 @@ mod format;
 mod print;
 pub mod sanity_checks;
 mod statement;
-mod tag;
 mod ui_state;
 
 /// In IOI tasks the subtask numbers are non-negative 0-based integers.
@@ -193,12 +191,10 @@ impl TaskFormat for Task {
                     subtask.id
                 );
 
-                let input = testcase.input_generator.generate_and_bind(
-                    &self,
-                    eval,
-                    subtask.id,
-                    testcase.id,
-                )?;
+                let input =
+                    testcase
+                        .input_generator
+                        .generate_and_bind(eval, subtask.id, testcase.id)?;
                 let val_handle = testcase.input_validator.validate_and_bind(
                     eval,
                     subtask.id,

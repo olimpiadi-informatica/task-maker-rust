@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use task_maker_dag::{Execution, File, FileUuid, Priority};
 
 use crate::bind_exec_callbacks;
-use crate::ioi::{SubtaskId, Tag, Task, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
+use crate::ioi::{SubtaskId, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
 use crate::ui::UIMessage;
-use crate::{EvaluationData, SourceFile, UISender};
+use crate::{EvaluationData, SourceFile, Tag, UISender};
 
 /// The source of the input files. It can either be a statically provided input file or a custom
 /// command that will generate an input file.
@@ -59,7 +59,6 @@ impl InputGenerator {
     /// handle to the input file.
     pub(crate) fn generate_and_bind(
         &self,
-        task: &Task,
         eval: &mut EvaluationData,
         subtask_id: SubtaskId,
         testcase_id: TestcaseId,
@@ -75,7 +74,7 @@ impl InputGenerator {
         )?;
         eval.dag.write_file_to(
             input,
-            task.path
+            eval.task_root
                 .join("input")
                 .join(format!("input{}.txt", testcase_id)),
             false,

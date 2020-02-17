@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use task_maker_dag::{Execution, ExecutionCommand, ExecutionStatus, FileUuid, Priority};
 
 use crate::bind_exec_callbacks;
-use crate::ioi::{SubtaskId, Tag, TestcaseId, EVALUATION_PRIORITY};
+use crate::ioi::{SubtaskId, TestcaseId, EVALUATION_PRIORITY};
 use crate::ui::UIMessage;
-use crate::{EvaluationData, SourceFile};
+use crate::{EvaluationData, SourceFile, Tag};
 
 /// Which tool to use to compute the score on a testcase given the input file, the _correct_ output
 /// file and the output file to evaluate.

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use failure::{bail, Error};
 use serde::{Deserialize, Serialize};
 
-use crate::terry::dag::{Checker, InputGenerator, InputValidator};
+use crate::terry::dag::{Checker, InputGenerator, InputValidator, Solution};
 use crate::terry::format::parse_task;
 use crate::ui::{JsonUI, RawUI, SilentUI, UIMessage, UIMessageSender, UIType, UI};
 use crate::{EvaluationConfig, EvaluationData, SourceFile, TaskFormat, TaskInfo, UISender};
@@ -77,11 +77,32 @@ impl TaskFormat for Task {
         // TODO: call pre hook
         let solutions = config.filter_solutions(&self.path, vec!["solutions/*"], None);
         for solution in solutions {
-            // TODO evaluate the solution:
-            //      - generate an input file
-            //      - validate the input file, if validator is present
-            //      - execute the solution and generate the output file
-            //      - run the checker and send the results to the UI
+            let seed = 42; // TODO generate seed
+            let input_file = self.generator.generate_and_bind(
+                eval,
+                solution.name(),
+                seed,
+                self.official_solution.clone(),
+            )?;
+            let validation_file = if let Some(validator) = self.validator.as_ref() {
+                Some(validator.validate_and_bind(
+                    eval,
+                    solution.name(),
+                    input_file,
+                    self.official_solution.clone(),
+                )?)
+            } else {
+                None
+            };
+            let output_file =
+                Solution::solve_and_bind(eval, &solution, input_file, validation_file)?;
+            self.checker.check_and_bind(
+                eval,
+                solution.name(),
+                input_file,
+                output_file,
+                self.official_solution.clone(),
+            )?;
         }
         Ok(())
     }

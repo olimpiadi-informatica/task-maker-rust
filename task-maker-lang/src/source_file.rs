@@ -30,6 +30,8 @@ pub struct SourceFile {
     executable: Arc<Mutex<Option<File>>>,
     /// An optional handler to the map of the graders.
     grader_map: Option<Arc<GraderMap>>,
+    /// Whether to force the copy-exe option of the DAG for this source file.
+    copy_exe: bool,
     /// Where to write the compiled executable.
     write_bin_to: Option<PathBuf>,
     /// The stdout of the compilation, set if `prepare` has been called, and the language supports
@@ -68,6 +70,7 @@ impl SourceFile {
             write_bin_to: write_bin_to.map(|p| p.into()),
             compilation_stdout: Arc::new(Mutex::new(None)),
             compilation_stderr: Arc::new(Mutex::new(None)),
+            copy_exe: false,
         })
     }
 
@@ -178,6 +181,17 @@ impl SourceFile {
         Ok((comp, exec))
     }
 
+    /// Force the executable to be copied to `write_bin_to` regardless of the option of the DAG.
+    pub fn copy_exe(&mut self) {
+        self.copy_exe = true;
+    }
+
+    /// Prepare the source file if needed and return the executable file. If the compilation step
+    /// was not executed yet the handle to the compilation execution is also returned.
+    pub fn executable(&self) -> Result<(FileUuid, Option<ExecutionUuid>), Error> {
+        unimplemented!()
+    }
+
     /// The file name of the source file.
     ///
     /// ```
@@ -194,6 +208,19 @@ impl SourceFile {
             .expect("Invalid file name")
             .to_string_lossy()
             .to_string()
+    }
+
+    /// The optional destination of where to copy the executable if copy-exe option is set.
+    ///
+    /// ```
+    /// use task_maker_lang::SourceFile;
+    ///
+    /// let source = SourceFile::new("path/to/sourcefile.cpp", "", None, Some("exec".into())).unwrap();
+    ///
+    /// assert_eq!(source.write_bin_to(), Some("exec".into()));
+    /// ```
+    pub fn write_bin_to(&self) -> Option<PathBuf> {
+        self.write_bin_to.clone()
     }
 
     /// The standard output of the compilation, if the source file is compiled and `execute` has
@@ -248,7 +275,7 @@ impl SourceFile {
             let comp_uuid = comp.uuid;
             dag.add_execution(comp);
             dag.provide_file(source, &self.path)?;
-            if dag.config_mut().copy_exe {
+            if dag.config_mut().copy_exe || self.copy_exe {
                 if let Some(write_bin_to) = &self.write_bin_to {
                     dag.write_file_to(&exec, write_bin_to, true);
                 }
@@ -257,7 +284,7 @@ impl SourceFile {
             Ok(Some(comp_uuid))
         } else {
             let executable = File::new(&format!("Source file of {:?}", self.path));
-            if dag.config_mut().copy_exe {
+            if dag.config_mut().copy_exe || self.copy_exe {
                 if let Some(write_bin_to) = &self.write_bin_to {
                     dag.write_file_to(&executable, write_bin_to, true);
                 }

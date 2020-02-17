@@ -1,10 +1,12 @@
-use crate::ioi::Tag;
-use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, UISender};
-use failure::{format_err, Error};
-use regex::Regex;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+
+use failure::{format_err, Error};
+use regex::Regex;
+
 use task_maker_dag::{Execution, ExecutionCommand, File};
+
+use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, Tag, UISender};
 
 pub struct AsyFile;
 
@@ -158,9 +160,11 @@ impl AsyFile {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use spectral::prelude::*;
     use std::fs::write;
+
+    use spectral::prelude::*;
+
+    use super::*;
 
     #[test]
     fn test_find_asy_deps() {

@@ -29,7 +29,7 @@ struct TaskYAML {
 /// Given a path to a task in the Terry format, try to parse the task inside of it.
 pub fn parse_task<P: AsRef<Path>>(
     task_dir: P,
-    eval_config: &EvaluationConfig,
+    _eval_config: &EvaluationConfig,
 ) -> Result<Task, Error> {
     let task_dir = task_dir.as_ref();
     let yaml: TaskYAML = serde_yaml::from_reader(fs::File::open(&task_dir.join("task.yaml"))?)?;
@@ -63,7 +63,11 @@ fn get_manager(task_dir: &Path, manager: &str) -> Option<Arc<SourceFile>> {
         vec![&format!("managers/{}.*", manager)],
         task_dir,
         None,
-        Some(task_dir.join(format!("{}.{}", manager, *EXE_EXTENSION))),
+        Some(task_dir.join(format!("managers/{}.{}", manager, *EXE_EXTENSION))),
     )
+    .map(|mut s| {
+        s.copy_exe(); // the managers are always copied
+        s
+    })
     .map(Arc::new)
 }

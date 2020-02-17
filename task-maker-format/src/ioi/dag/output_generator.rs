@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 
 use task_maker_dag::{Execution, File, FileUuid, Priority};
 
-use crate::ioi::{SubtaskId, Tag, Task, TestcaseId, GENERATION_PRIORITY};
+use crate::ioi::{SubtaskId, Task, TestcaseId, GENERATION_PRIORITY};
 use crate::ui::UIMessage;
 use crate::{bind_exec_callbacks, bind_exec_io};
-use crate::{EvaluationData, SourceFile};
+use crate::{EvaluationData, SourceFile, Tag};
 
 /// The source of the output files. It can either be a statically provided output file or a custom
 /// command that will generate an output file.
