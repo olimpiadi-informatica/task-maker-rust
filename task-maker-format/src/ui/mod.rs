@@ -17,6 +17,7 @@ pub use ui_message::UIMessage;
 
 use crate::{cwrite, cwriteln};
 
+pub(crate) mod curses;
 mod json;
 mod print;
 mod raw;
@@ -167,6 +168,20 @@ impl CompilationStatus {
             _ => {}
         }
     }
+}
+
+/// The state of a task, all the information for the UI are stored here.
+///
+/// The `T` at the end is to disambiguate from `UIState` due to a strange behaviour of the compiler.
+pub trait UIStateT {
+    /// Apply a `UIMessage` to this state.
+    fn apply(&mut self, message: UIMessage);
+}
+
+/// UI that prints to `stdout` the ending result of the evaluation of a task.
+pub trait FinishUI<State> {
+    /// Print the final state of the UI.
+    fn print(state: &State);
 }
 
 /// Collection of utilities for drawing the finish UI.

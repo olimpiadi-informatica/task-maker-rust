@@ -1,245 +1,142 @@
-use std::io;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock};
-use std::thread::{Builder, JoinHandle};
 use std::time::SystemTime;
 
-use failure::Error;
 use itertools::Itertools;
-use termion::event::{Event, Key};
-use termion::input::{MouseTerminal, TermRead};
-use termion::raw::{IntoRawMode, RawTerminal};
-use termion::screen::AlternateScreen;
-use tui::backend::{Backend, TermionBackend};
 use tui::layout::{Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, Paragraph, Text, Widget};
-use tui::{Frame, Terminal};
 
 use task_maker_dag::ExecutionStatus;
 use task_maker_exec::ExecutorWorkerStatus;
 
 use crate::ioi::finish_ui::FinishUI;
-use crate::ioi::*;
-use crate::ui::{UIExecutionStatus, UIMessage, UI};
+use crate::ioi::{SubtaskId, TestcaseEvaluationStatus, TestcaseGenerationStatus, UIState};
+use crate::ui::curses::{CursesDrawer, CursesUI as GenericCursesUI, FrameType, FPS};
+use crate::ui::{CompilationStatus, UIExecutionStatus};
 
-/// The framerate of the UI.
-const FPS: u64 = 30;
 /// After how many seconds rotate the list of workers if they don't fit on the screen.
 const ROTATION_DELAY: u64 = 1;
 
-/// The type of the terminal with its backend.
-type TerminalType =
-    Terminal<TermionBackend<AlternateScreen<MouseTerminal<RawTerminal<io::Stdout>>>>>;
-
 /// An animated UI for IOI tasks, dynamically refreshing using curses as a backend.
-pub struct CursesUI {
-    /// The thread where the UI lives.
-    ui_thread: Option<JoinHandle<()>>,
-    /// The state of the task for the UI.
-    state: Arc<RwLock<UIState>>,
-    /// When it becomes true the UI will stop.
-    stop: Arc<AtomicBool>,
-}
+pub(crate) type CursesUI = GenericCursesUI<UIState, Drawer, FinishUI>;
 
-impl CursesUI {
-    /// Try to make a new CursesUI setting up the terminal. May fail on unsupported terminals.
-    pub fn new(task: &Task) -> Result<CursesUI, Error> {
-        let stdout = io::stdout().into_raw_mode()?;
-        let stdout = MouseTerminal::from(stdout);
-        let stdout = AlternateScreen::from(stdout);
-        let backend = TermionBackend::new(stdout);
-        let mut terminal = Terminal::new(backend)?;
-        terminal.hide_cursor()?;
+/// The drawer of the IOI CursesUI.
+pub(crate) struct Drawer;
 
-        let state = Arc::new(RwLock::new(UIState::new(task)));
-        let state2 = state.clone();
-        let stop = Arc::new(AtomicBool::new(false));
-        let stop2 = stop.clone();
-        let handle = Builder::new()
-            .name("CursesUI thread".to_owned())
-            .spawn(move || {
-                ui_body(terminal, state2, stop2);
-            })?;
-        Ok(CursesUI {
-            ui_thread: Some(handle),
-            state,
-            stop,
-        })
+impl CursesDrawer<UIState> for Drawer {
+    fn draw(state: &UIState, frame: FrameType, loading: char, frame_index: usize) {
+        draw_frame(state, frame, loading, frame_index);
     }
 }
 
-impl UI for CursesUI {
-    fn on_message(&mut self, message: UIMessage) {
-        self.state
-            .write()
-            .expect("UI state lock is poisoned")
-            .apply(message);
-    }
-
-    fn finish(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
-        self.ui_thread
-            .take()
-            .expect("UI finished more than once")
-            .join()
-            .expect("UI thread failed");
-        // at this point the terminal should be restored
-        let state = self.state.read().expect("State lock is poisoned");
-        FinishUI::print(&state);
-    }
-}
-
-impl Drop for CursesUI {
-    fn drop(&mut self) {
-        // tell the ui to stop and wait for it, the terminal will be released.
-        self.stop.store(true, Ordering::Relaxed);
-        if self.ui_thread.is_some() {
-            // try not to panic during unwind
-            let _ = self.ui_thread.take().unwrap().join();
-        }
-    }
-}
-
-/// The main function of the UI thread. This will keep looping until the stop command is issued via
-/// the `stop` `AtomicBool`.
-fn ui_body(mut terminal: TerminalType, state: Arc<RwLock<UIState>>, stop: Arc<AtomicBool>) {
-    let header = {
-        let state = state.read().expect("UI state lock is poisoned");
-        [
-            Text::styled(
-                state.task.title.clone(),
-                Style::default().modifier(Modifier::BOLD),
-            ),
-            Text::raw(" ("),
-            Text::raw(state.task.name.clone()),
-            Text::raw(")\n"),
-        ]
+/// Draw a frame of interface to the provided `Frame`.
+fn draw_frame(state: &UIState, mut f: FrameType, loading: char, frame_index: usize) {
+    let header = [
+        Text::styled(
+            state.task.title.clone(),
+            Style::default().modifier(Modifier::BOLD),
+        ),
+        Text::raw(" ("),
+        Text::raw(state.task.name.clone()),
+        Text::raw(")\n"),
+    ];
+    let header_len = 2;
+    let num_compilations = state
+        .compilations
+        .iter()
+        .filter(|(k, _)| !state.evaluations.contains_key(*k))
+        .count();
+    let compilations_len = if num_compilations > 0 {
+        num_compilations as u16 + 2
+    } else {
+        0
     };
-    let loading = vec!['◐', '◓', '◑', '◒'];
-    let mut loading_index = 0;
-    let stdin = termion::async_stdin();
-    let mut events = stdin.events();
-    while !stop.load(Ordering::Relaxed) {
-        // FIXME: handling the ^C this way inhibits the real ^C handler. Doing so the workers may
-        //        not be killed properly (locally and remotely).
-        if let Some(Ok(event)) = events.next() {
-            match event {
-                Event::Key(Key::Ctrl('c')) | Event::Key(Key::Ctrl('\\')) => {
-                    drop(terminal);
-                    std::process::exit(1)
-                }
-                _ => {}
-            }
-        }
-        let loading = loading[loading_index % loading.len()];
-        loading_index += 1;
-        terminal
-            .draw(|mut f| {
-                let state = state.read().expect("UI state lock is poisoned");
-                let header_len = 2;
-                let num_compilations = state
-                    .compilations
-                    .iter()
-                    .filter(|(k, _)| !state.evaluations.contains_key(*k))
-                    .count();
-                let compilations_len = if num_compilations > 0 {
-                    num_compilations as u16 + 2
-                } else {
-                    0
-                };
-                let booklet_len = state
-                    .booklets
-                    .values()
-                    .map(|s| s.dependencies.len() as u16 + 1)
-                    .sum::<u16>()
-                    + 2;
-                let generations_len = 3;
-                let evaluations_len = state.evaluations.len() as u16 + 2;
-                let mut workers_len = state
-                    .executor_status
-                    .as_ref()
-                    .map(|s| s.connected_workers.len())
-                    .unwrap_or(0) as u16
-                    + 2;
-                let total_height = f.size().height;
-                // fixed size section heights
-                let top_height = header_len + compilations_len + booklet_len + generations_len;
-                // if the sections don't just fit, reduce the size of the workers until they fit but
-                // without shortening it more than 3 lines (aka box + 1 worker).
-                if top_height + evaluations_len + workers_len > total_height {
-                    workers_len = std::cmp::max(
-                        3,
-                        total_height as i16 - top_height as i16 - evaluations_len as i16,
-                    ) as u16;
-                }
-                let chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints(
-                        [
-                            Constraint::Length(header_len),
-                            Constraint::Length(compilations_len),
-                            Constraint::Length(booklet_len),
-                            Constraint::Length(generations_len),
-                            Constraint::Min(0),
-                            Constraint::Length(workers_len),
-                        ]
-                        .as_ref(),
-                    )
-                    .split(f.size());
-                Paragraph::new(header.iter())
-                    .block(Block::default().borders(Borders::NONE))
-                    .wrap(false)
-                    .render(&mut f, chunks[0]);
-                if compilations_len > 0 {
-                    Block::default()
-                        .title(" Compilations ")
-                        .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
-                        .borders(Borders::ALL)
-                        .render(&mut f, chunks[1]);
-                    draw_compilations(&mut f, inner_block(chunks[1]), &state, loading);
-                }
-                Block::default()
-                    .title(" Statements ")
-                    .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
-                    .borders(Borders::ALL)
-                    .render(&mut f, chunks[2]);
-                draw_booklets(&mut f, inner_block(chunks[2]), &state, loading);
-                Block::default()
-                    .title(" Generation ")
-                    .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
-                    .borders(Borders::ALL)
-                    .render(&mut f, chunks[3]);
-                draw_generations(&mut f, inner_block(chunks[3]), &state, loading);
-                Block::default()
-                    .title(" Evaluations ")
-                    .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
-                    .borders(Borders::ALL)
-                    .render(&mut f, chunks[4]);
-                draw_evaluations(&mut f, inner_block(chunks[4]), &state, loading);
-                Block::default()
-                    .title(" Server status ")
-                    .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
-                    .borders(Borders::ALL)
-                    .render(&mut f, chunks[5]);
-                draw_server_status_summary(
-                    &mut f,
-                    Rect::new(chunks[5].x + 17, chunks[5].y, chunks[5].width - 17, 1),
-                    &state,
-                );
-                draw_server_status(
-                    &mut f,
-                    inner_block(chunks[5]),
-                    &state,
-                    loading,
-                    loading_index / FPS as usize / ROTATION_DELAY as usize,
-                );
-            })
-            .expect("Failed to draw to the screen");
-        // reduce the framerate to at most `FPS`
-        std::thread::sleep(std::time::Duration::from_micros(1_000_000 / FPS));
+    let booklet_len = state
+        .booklets
+        .values()
+        .map(|s| s.dependencies.len() as u16 + 1)
+        .sum::<u16>()
+        + 2;
+    let generations_len = 3;
+    let evaluations_len = state.evaluations.len() as u16 + 2;
+    let mut workers_len = state
+        .executor_status
+        .as_ref()
+        .map(|s| s.connected_workers.len())
+        .unwrap_or(0) as u16
+        + 2;
+    let total_height = f.size().height;
+    // fixed size section heights
+    let top_height = header_len + compilations_len + booklet_len + generations_len;
+    // if the sections don't just fit, reduce the size of the workers until they fit but
+    // without shortening it more than 3 lines (aka box + 1 worker).
+    if top_height + evaluations_len + workers_len > total_height {
+        workers_len = std::cmp::max(
+            3,
+            total_height as i16 - top_height as i16 - evaluations_len as i16,
+        ) as u16;
     }
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Length(header_len),
+                Constraint::Length(compilations_len),
+                Constraint::Length(booklet_len),
+                Constraint::Length(generations_len),
+                Constraint::Min(0),
+                Constraint::Length(workers_len),
+            ]
+            .as_ref(),
+        )
+        .split(f.size());
+    Paragraph::new(header.iter())
+        .block(Block::default().borders(Borders::NONE))
+        .wrap(false)
+        .render(&mut f, chunks[0]);
+    if compilations_len > 0 {
+        Block::default()
+            .title(" Compilations ")
+            .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
+            .borders(Borders::ALL)
+            .render(&mut f, chunks[1]);
+        draw_compilations(&mut f, inner_block(chunks[1]), &state, loading);
+    }
+    Block::default()
+        .title(" Statements ")
+        .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
+        .borders(Borders::ALL)
+        .render(&mut f, chunks[2]);
+    draw_booklets(&mut f, inner_block(chunks[2]), &state, loading);
+    Block::default()
+        .title(" Generation ")
+        .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
+        .borders(Borders::ALL)
+        .render(&mut f, chunks[3]);
+    draw_generations(&mut f, inner_block(chunks[3]), &state, loading);
+    Block::default()
+        .title(" Evaluations ")
+        .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
+        .borders(Borders::ALL)
+        .render(&mut f, chunks[4]);
+    draw_evaluations(&mut f, inner_block(chunks[4]), &state, loading);
+    Block::default()
+        .title(" Server status ")
+        .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
+        .borders(Borders::ALL)
+        .render(&mut f, chunks[5]);
+    draw_server_status_summary(
+        &mut f,
+        Rect::new(chunks[5].x + 17, chunks[5].y, chunks[5].width - 17, 1),
+        &state,
+    );
+    draw_server_status(
+        &mut f,
+        inner_block(chunks[5]),
+        &state,
+        loading,
+        frame_index / FPS as usize / ROTATION_DELAY as usize,
+    );
 }
 
 /// Get the rect of the inner rect of a block with the borders.
@@ -251,10 +148,7 @@ fn inner_block(rect: Rect) -> Rect {
 }
 
 /// Draw the content of the compilation box inside the frame.
-fn draw_compilations<B>(frame: &mut Frame<B>, rect: Rect, state: &UIState, loading: char)
-where
-    B: Backend,
-{
+fn draw_compilations(frame: &mut FrameType, rect: Rect, state: &UIState, loading: char) {
     let max_len = state
         .compilations
         .keys()
@@ -302,10 +196,7 @@ fn compilation_status_text(status: &CompilationStatus, loading: char) -> Text<'s
 }
 
 /// Draw the content of the booklet box.
-fn draw_booklets<B>(frame: &mut Frame<B>, rect: Rect, state: &UIState, loading: char)
-where
-    B: Backend,
-{
+fn draw_booklets(frame: &mut FrameType, rect: Rect, state: &UIState, loading: char) {
     let text: Vec<Text> = state
         .booklets
         .keys()
@@ -352,10 +243,7 @@ fn ui_execution_status_text(status: &UIExecutionStatus, loading: char) -> Text {
 }
 
 /// Draw the content of the generation box.
-fn draw_generations<B>(frame: &mut Frame<B>, rect: Rect, state: &UIState, loading: char)
-where
-    B: Backend,
-{
+fn draw_generations(frame: &mut FrameType, rect: Rect, state: &UIState, loading: char) {
     let text: Vec<Text> = state
         .generations
         .iter()
@@ -404,10 +292,7 @@ fn generation_status_text(status: &TestcaseGenerationStatus, loading: char) -> T
 }
 
 /// Draw the content of the evaluation box.
-fn draw_evaluations<B>(frame: &mut Frame<B>, rect: Rect, state: &UIState, loading: char)
-where
-    B: Backend,
-{
+fn draw_evaluations(frame: &mut FrameType, rect: Rect, state: &UIState, loading: char) {
     let max_len = state
         .evaluations
         .keys()
@@ -573,10 +458,7 @@ fn testcase_evaluation_status_text(status: &TestcaseEvaluationStatus, loading: c
     }
 }
 
-fn draw_server_status_summary<B>(frame: &mut Frame<B>, rect: Rect, state: &UIState)
-where
-    B: Backend,
-{
+fn draw_server_status_summary(frame: &mut FrameType, rect: Rect, state: &UIState) {
     let status = if let Some(status) = &state.executor_status {
         status
     } else {
@@ -597,15 +479,13 @@ where
 
 /// Draw the content of the server status box, splitting the workers in 2 groups if they don't fit,
 /// and rotating them if they still don't fit.
-fn draw_server_status<B>(
-    frame: &mut Frame<B>,
+fn draw_server_status(
+    frame: &mut FrameType,
     rect: Rect,
     state: &UIState,
     loading: char,
     mut rotation_index: usize,
-) where
-    B: Backend,
-{
+) {
     let status = if let Some(status) = &state.executor_status {
         status
     } else {
@@ -644,14 +524,12 @@ fn draw_server_status<B>(
 }
 
 /// Draw a chunk of workers in the specified rectangle.
-fn draw_workers_chunk<B>(
-    frame: &mut Frame<B>,
+fn draw_workers_chunk(
+    frame: &mut FrameType,
     rect: Rect,
     workers: &[&ExecutorWorkerStatus<SystemTime>],
     loading: char,
-) where
-    B: Backend,
-{
+) {
     let max_len = workers
         .iter()
         .map(|worker| worker.name.len())

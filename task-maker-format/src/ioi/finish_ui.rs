@@ -6,7 +6,9 @@ use termcolor::{ColorChoice, ColorSpec, StandardStream};
 use task_maker_dag::ExecutionStatus;
 
 use crate::ioi::ui_state::{SolutionEvaluationState, TestcaseEvaluationStatus, UIState};
-use crate::ui::{FinishUIUtils, UIExecutionStatus, BLUE, BOLD, GREEN, RED, YELLOW};
+use crate::ui::{
+    FinishUI as FinishUITrait, FinishUIUtils, UIExecutionStatus, BLUE, BOLD, GREEN, RED, YELLOW,
+};
 use crate::{cwrite, cwriteln};
 
 /// UI that prints to `stdout` the ending result of the evaluation of a IOI task.
@@ -15,9 +17,8 @@ pub struct FinishUI {
     stream: StandardStream,
 }
 
-impl FinishUI {
-    /// Print the final state of the UI.
-    pub fn print(state: &UIState) {
+impl FinishUITrait<UIState> for FinishUI {
+    fn print(state: &UIState) {
         let mut ui = FinishUI {
             stream: StandardStream::stdout(ColorChoice::Auto),
         };
@@ -33,7 +34,9 @@ impl FinishUI {
         ui.print_summary(state);
         ui.print_messages(state);
     }
+}
 
+impl FinishUI {
     /// Print the basic task info.
     fn print_task_info(&mut self, state: &UIState) {
         cwrite!(self, BOLD, "Task:         ");

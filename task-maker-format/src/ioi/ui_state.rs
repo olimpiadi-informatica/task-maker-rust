@@ -6,7 +6,7 @@ use task_maker_dag::*;
 use task_maker_exec::ExecutorStatus;
 
 use crate::ioi::*;
-use crate::ui::{CompilationStatus, UIExecutionStatus, UIMessage};
+use crate::ui::{CompilationStatus, UIExecutionStatus, UIMessage, UIStateT};
 
 /// Status of the generation of a testcase input and output.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -302,9 +302,11 @@ impl UIState {
             warnings: Vec::new(),
         }
     }
+}
 
+impl UIStateT for UIState {
     /// Apply a `UIMessage` to this state.
-    pub fn apply(&mut self, message: UIMessage) {
+    fn apply(&mut self, message: UIMessage) {
         match message {
             UIMessage::StopUI => {}
             UIMessage::ServerStatus { status } => self.executor_status = Some(status),

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use task_maker_dag::ExecutionStatus;
 use task_maker_exec::ExecutorStatus;
 use task_maker_format::ioi::{TestcaseEvaluationStatus, TestcaseGenerationStatus, UIState};
+use task_maker_format::ui::UIStateT;
 use task_maker_format::ui::{CompilationStatus, UIExecutionStatus, UIMessage};
 
 mod utils;

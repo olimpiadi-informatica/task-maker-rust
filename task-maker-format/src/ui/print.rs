@@ -136,7 +136,7 @@ impl UI for PrintUI {
                 print!("{}", content.trim());
             }
             UIMessage::IOITask { task } => {
-                self.ioi_state = Some(ioi::UIState::new(task.as_ref()));
+                self.ioi_state = Some(ioi::ui_state::UIState::new(task.as_ref()));
 
                 cwrite!(self, BOLD, "Task {} ({})\n", task.title, task.name);
                 println!("Path: {:?}", task.path);

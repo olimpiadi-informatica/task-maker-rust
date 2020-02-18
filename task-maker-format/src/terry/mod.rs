@@ -6,11 +6,14 @@ use failure::{bail, Error};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
+use crate::terry::curses_ui::CursesUI;
 use crate::terry::dag::{Checker, InputGenerator, InputValidator, Solution};
 use crate::terry::format::parse_task;
+use crate::terry::ui_state::UIState;
 use crate::ui::{JsonUI, PrintUI, RawUI, SilentUI, UIMessage, UIMessageSender, UIType, UI};
 use crate::{EvaluationConfig, EvaluationData, SourceFile, TaskFormat, TaskInfo, UISender};
 
+mod curses_ui;
 mod dag;
 pub(crate) mod finish_ui;
 mod format;
@@ -138,7 +141,7 @@ impl TaskFormat for Task {
             UIType::Json => Ok(Box::new(JsonUI::new())),
             UIType::Silent => Ok(Box::new(SilentUI::new())),
             UIType::Print => Ok(Box::new(PrintUI::new())),
-            _ => bail!("Not yet supported UI: {:?}", ui_type),
+            UIType::Curses => Ok(Box::new(CursesUI::new(UIState::new(self))?)),
         }
     }
 

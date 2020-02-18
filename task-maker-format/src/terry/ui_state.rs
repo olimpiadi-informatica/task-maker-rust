@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-
-use crate::terry::{Seed, SolutionOutcome, Task};
-use crate::ui::{CompilationStatus, UIExecutionStatus, UIMessage};
 use std::time::SystemTime;
+
 use task_maker_dag::{ExecutionResult, ExecutionStatus};
 use task_maker_exec::ExecutorStatus;
+
+use crate::terry::{Seed, SolutionOutcome, Task};
+use crate::ui::{CompilationStatus, UIExecutionStatus, UIMessage, UIStateT};
 
 /// The state of a Terry task, all the information for the UI are stored here.
 #[derive(Debug, Clone)]
@@ -85,9 +86,11 @@ impl UIState {
             warnings: Vec::new(),
         }
     }
+}
 
+impl UIStateT for UIState {
     /// Apply a `UIMessage` to this state.
-    pub fn apply(&mut self, message: UIMessage) {
+    fn apply(&mut self, message: UIMessage) {
         macro_rules! process_step {
             ($self:expr, $solution:expr, $status:expr, $step_result:tt, $start_status:tt, $ok_status:tt, $name:literal) => {{
                 let sol = $self.solutions.entry($solution).or_default();

@@ -3,11 +3,12 @@ use std::path::Path;
 use itertools::Itertools;
 use termcolor::{ColorChoice, StandardStream};
 
+use task_maker_dag::{ExecutionResult, ExecutionStatus};
+
 use crate::terry::ui_state::{SolutionStatus, UIState};
 use crate::terry::CaseStatus;
-use crate::ui::{FinishUIUtils, BLUE, BOLD, GREEN, RED, YELLOW};
+use crate::ui::{FinishUI as FinishUITrait, FinishUIUtils, BLUE, BOLD, GREEN, RED, YELLOW};
 use crate::{cwrite, cwriteln};
-use task_maker_dag::{ExecutionResult, ExecutionStatus};
 
 /// UI that prints to `stdout` the ending result of the evaluation of a IOI task.
 pub struct FinishUI {
@@ -15,9 +16,8 @@ pub struct FinishUI {
     stream: StandardStream,
 }
 
-impl FinishUI {
-    /// Print the final state of the UI.
-    pub fn print(state: &UIState) {
+impl FinishUITrait<UIState> for FinishUI {
+    fn print(state: &UIState) {
         let mut ui = FinishUI {
             stream: StandardStream::stdout(ColorChoice::Auto),
         };
@@ -29,7 +29,9 @@ impl FinishUI {
         ui.print_evaluations(state);
         ui.print_summary(state);
     }
+}
 
+impl FinishUI {
     fn print_task_info(&mut self, state: &UIState) {
         cwrite!(self, BOLD, "Task:      ");
         println!("{} ({})", state.task.description, state.task.name);
