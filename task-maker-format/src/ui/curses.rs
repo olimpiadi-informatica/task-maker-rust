@@ -1,21 +1,30 @@
 use std::io;
+use std::marker::PhantomData;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
 
 use failure::Error;
+use itertools::Itertools;
 use termion::event::{Event, Key};
 use termion::input::{MouseTerminal, TermRead};
 use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
 use tui::backend::TermionBackend;
+use tui::layout::Rect;
+use tui::style::{Color, Modifier, Style};
+use tui::widgets::{Block, Borders, Paragraph, Text, Widget};
 use tui::{Frame, Terminal};
 
-use crate::ui::{FinishUI, UIMessage, UIStateT, UI};
-use std::marker::PhantomData;
+use crate::ui::{CompilationStatus, FinishUI, UIMessage, UIStateT, UI};
+use std::time::SystemTime;
+use task_maker_exec::{ExecutorStatus, ExecutorWorkerStatus};
 
 /// The framerate of the UI.
 pub(crate) const FPS: u64 = 30;
+/// After how many seconds rotate the list of workers if they don't fit on the screen.
+pub(crate) const ROTATION_DELAY: u64 = 1;
 
 /// The type of the terminal with its backend.
 pub(crate) type FrameType<'a> =
@@ -158,4 +167,206 @@ where
             let _ = self.ui_thread.take().unwrap().join();
         }
     }
+}
+
+/// Get the rect of the inner rect of a block with the borders.
+pub(crate) fn inner_block(rect: Rect) -> Rect {
+    if rect.width < 2 || rect.height < 2 {
+        return Rect::new(rect.x + 1, rect.y + 1, 0, 0);
+    }
+    Rect::new(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2)
+}
+
+/// Draw the compilation block.
+pub(crate) fn draw_compilations<'a, I>(
+    frame: &mut FrameType,
+    rect: Rect,
+    compilations: I,
+    loading: char,
+) where
+    I: Iterator<Item = (&'a PathBuf, &'a CompilationStatus)>,
+{
+    let compilations: Vec<_> = compilations.collect();
+    let max_len = compilations
+        .iter()
+        .map(|(k, _)| k.file_name().expect("Invalid file name").len())
+        .max()
+        .unwrap_or(0)
+        + 4;
+    let text: Vec<Text> = compilations
+        .iter()
+        .sorted_by_key(|(k, _)| *k)
+        .flat_map(|(file, status)| {
+            vec![
+                Text::raw(format!(
+                    "{:<max_len$}",
+                    file.file_name()
+                        .expect("Invalid file name")
+                        .to_string_lossy(),
+                    max_len = max_len
+                )),
+                compilation_status_text(status, loading),
+                Text::raw("\n"),
+            ]
+        })
+        .collect();
+    Paragraph::new(text.iter()).wrap(false).render(frame, rect);
+}
+
+/// Get the `Text` relative to the compilation status of a file.
+pub(crate) fn compilation_status_text(status: &CompilationStatus, loading: char) -> Text<'static> {
+    match status {
+        CompilationStatus::Pending => Text::raw("... "),
+        CompilationStatus::Running => Text::raw(format!("{}   ", loading)),
+        CompilationStatus::Done { .. } => Text::styled(
+            "OK  ",
+            Style::default().fg(Color::Green).modifier(Modifier::BOLD),
+        ),
+        CompilationStatus::Failed { .. } => Text::styled(
+            "FAIL",
+            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
+        ),
+        CompilationStatus::Skipped => Text::styled("skip", Style::default().fg(Color::Yellow)),
+    }
+}
+
+/// Render a block with the specified title.
+pub(crate) fn render_block<S: AsRef<str>>(frame: &mut FrameType, rect: Rect, title: S) {
+    Block::default()
+        .title(title.as_ref())
+        .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
+        .borders(Borders::ALL)
+        .render(frame, rect);
+}
+
+/// Draw the server status block.
+pub(crate) fn render_server_status(
+    frame: &mut FrameType,
+    rect: Rect,
+    status: Option<&ExecutorStatus<SystemTime>>,
+    loading: char,
+    frame_index: usize,
+) {
+    render_block(frame, rect, " Server status ");
+    draw_server_status_summary(
+        frame,
+        Rect::new(rect.x + 17, rect.y, rect.width - 17, 1),
+        status,
+    );
+    draw_server_status(
+        frame,
+        inner_block(rect),
+        status,
+        loading,
+        frame_index / FPS as usize / ROTATION_DELAY as usize,
+    );
+}
+
+/// Draw the summary of the server status on the border of the block.
+fn draw_server_status_summary(
+    frame: &mut FrameType,
+    rect: Rect,
+    status: Option<&ExecutorStatus<SystemTime>>,
+) {
+    let status = if let Some(status) = status {
+        status
+    } else {
+        return;
+    };
+    Paragraph::new(
+        [
+            Text::styled(" Ready ", Style::default().modifier(Modifier::BOLD)),
+            Text::raw(format!("{} ─", status.ready_execs)),
+            Text::styled(" Waiting ", Style::default().modifier(Modifier::BOLD)),
+            Text::raw(format!("{} ", status.waiting_execs)),
+        ]
+        .iter(),
+    )
+    .wrap(false)
+    .render(frame, rect);
+}
+
+/// Draw the content of the server status box, splitting the workers in 2 groups if they don't fit,
+/// and rotating them if they still don't fit.
+fn draw_server_status(
+    frame: &mut FrameType,
+    rect: Rect,
+    status: Option<&ExecutorStatus<SystemTime>>,
+    loading: char,
+    mut rotation_index: usize,
+) {
+    let status = if let Some(status) = status {
+        status
+    } else {
+        return;
+    };
+    let rects = if status.connected_workers.len() as u16 > rect.height {
+        vec![
+            Rect::new(rect.x, rect.y, rect.width / 2, rect.height),
+            Rect::new(
+                rect.x + rect.width / 2,
+                rect.y,
+                rect.width - rect.width / 2,
+                rect.height,
+            ),
+        ]
+    } else {
+        vec![rect]
+    };
+    let workers: Vec<_> = status
+        .connected_workers
+        .iter()
+        .sorted_by_key(|worker| &worker.name)
+        .collect();
+    // if the workers fit in the screen there is no need to rotate them
+    if rect.height as usize * rects.len() >= workers.len() {
+        rotation_index = 0;
+    }
+    let chunks = workers
+        .into_iter()
+        .cycle()
+        .skip(rotation_index)
+        .chunks(rect.height as usize);
+    for (rect, chunk) in rects.into_iter().zip(&chunks) {
+        draw_workers_chunk(frame, rect, &chunk.collect_vec(), loading);
+    }
+}
+
+/// Draw a chunk of workers in the specified rectangle.
+fn draw_workers_chunk(
+    frame: &mut FrameType,
+    rect: Rect,
+    workers: &[&ExecutorWorkerStatus<SystemTime>],
+    loading: char,
+) {
+    let max_len = workers
+        .iter()
+        .map(|worker| worker.name.len())
+        .max()
+        .unwrap_or(0);
+    let text: Vec<Text> = workers
+        .iter()
+        .flat_map(|worker| {
+            let mut texts = vec![];
+            texts.push(Text::raw(format!(
+                "- {:<max_len$} ",
+                worker.name,
+                max_len = max_len
+            )));
+            if let Some(job) = &worker.current_job {
+                let duration =
+                    (job.duration.elapsed().map(|d| d.as_millis()).unwrap_or(0) as f64) / 1000.0;
+                let mut line = format!("{} {} ({:.2}s)", loading, job.job, duration);
+                if 2 + max_len + 1 + line.len() > rect.width as usize {
+                    let extra_len = 2 + max_len + 1 + line.len() - rect.width as usize;
+                    let job_name = &job.job[0..job.job.len() - extra_len - 3];
+                    line = format!("{} {}... ({:.2}s)", loading, job_name, duration);
+                }
+                texts.push(Text::raw(line));
+            }
+            texts.push(Text::raw("\n"));
+            texts
+        })
+        .collect();
+    Paragraph::new(text.iter()).wrap(false).render(frame, rect);
 }
