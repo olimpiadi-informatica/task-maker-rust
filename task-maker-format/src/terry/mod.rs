@@ -8,11 +8,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::terry::dag::{Checker, InputGenerator, InputValidator, Solution};
 use crate::terry::format::parse_task;
-use crate::ui::{JsonUI, RawUI, SilentUI, UIMessage, UIMessageSender, UIType, UI};
+use crate::ui::{JsonUI, PrintUI, RawUI, SilentUI, UIMessage, UIMessageSender, UIType, UI};
 use crate::{EvaluationConfig, EvaluationData, SourceFile, TaskFormat, TaskInfo, UISender};
 
 mod dag;
 mod format;
+pub(crate) mod ui_state;
 
 /// The type of the seed of a generator for an input file.
 pub type Seed = u64;
@@ -135,6 +136,7 @@ impl TaskFormat for Task {
             UIType::Raw => Ok(Box::new(RawUI::new())),
             UIType::Json => Ok(Box::new(JsonUI::new())),
             UIType::Silent => Ok(Box::new(SilentUI::new())),
+            UIType::Print => Ok(Box::new(PrintUI::new())),
             _ => bail!("Not yet supported UI: {:?}", ui_type),
         }
     }

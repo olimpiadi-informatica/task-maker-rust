@@ -25,7 +25,6 @@ use serde::{Deserialize, Serialize};
 
 use curses_ui::CursesUI;
 pub use dag::*;
-pub use print::PrintUI;
 pub use statement::*;
 use task_maker_lang::GraderMap;
 pub use ui_state::*;
@@ -40,12 +39,11 @@ use crate::{
 
 mod curses_ui;
 mod dag;
-mod finish_ui;
+pub(crate) mod finish_ui;
 mod format;
-mod print;
 pub mod sanity_checks;
 mod statement;
-mod ui_state;
+pub(crate) mod ui_state;
 
 /// In IOI tasks the subtask numbers are non-negative 0-based integers.
 pub type SubtaskId = u32;
@@ -164,7 +162,7 @@ impl TaskFormat for Task {
     fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),
-            UIType::Print => Ok(Box::new(PrintUI::new(self))),
+            UIType::Print => Ok(Box::new(PrintUI::new())),
             UIType::Curses => Ok(Box::new(CursesUI::new(self)?)),
             UIType::Json => Ok(Box::new(JsonUI::new())),
             UIType::Silent => Ok(Box::new(SilentUI::new())),

@@ -5,10 +5,8 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 
 use task_maker_dag::{ExecutionResourcesUsage, ExecutionStatus};
 
-use crate::ioi::ui_state::{
-    CompilationStatus, SolutionEvaluationState, TestcaseEvaluationStatus, UIState,
-};
-use crate::ui::UIExecutionStatus;
+use crate::ioi::ui_state::{SolutionEvaluationState, TestcaseEvaluationStatus, UIState};
+use crate::ui::{CompilationStatus, UIExecutionStatus};
 use crate::{cwrite, cwriteln};
 
 lazy_static! {

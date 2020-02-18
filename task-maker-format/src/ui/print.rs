@@ -1,11 +1,12 @@
-use crate::cwrite;
-use crate::ioi::finish_ui::FinishUI;
-use crate::ioi::ui_state::UIState;
-use crate::ioi::Task;
-use crate::ui::*;
 use itertools::Itertools;
-use task_maker_dag::ExecutionStatus;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
+
+use task_maker_dag::ExecutionStatus;
+
+use crate::ioi::finish_ui::FinishUI;
+use crate::terry::CaseStatus;
+use crate::ui::*;
+use crate::{cwrite, ioi, terry};
 
 lazy_static! {
     static ref ERROR: ColorSpec = {
@@ -43,15 +44,17 @@ lazy_static! {
 /// for debugging or for when curses is not available.
 pub struct PrintUI {
     stream: StandardStream,
-    state: UIState,
+    ioi_state: Option<ioi::ui_state::UIState>,
+    terry_state: Option<terry::ui_state::UIState>,
 }
 
 impl PrintUI {
     /// Make a new PrintUI.
-    pub fn new(task: &Task) -> PrintUI {
+    pub fn new() -> PrintUI {
         PrintUI {
             stream: StandardStream::stdout(ColorChoice::Auto),
-            state: UIState::new(task),
+            ioi_state: None,
+            terry_state: None,
         }
     }
 
@@ -99,7 +102,12 @@ impl PrintUI {
 
 impl UI for PrintUI {
     fn on_message(&mut self, message: UIMessage) {
-        self.state.apply(message.clone());
+        if let Some(state) = self.ioi_state.as_mut() {
+            state.apply(message.clone())
+        }
+        if let Some(state) = self.terry_state.as_mut() {
+            state.apply(message.clone())
+        }
         match message {
             UIMessage::StopUI => {}
             UIMessage::ServerStatus { status } => {
@@ -129,6 +137,8 @@ impl UI for PrintUI {
                 print!("{}", content.trim());
             }
             UIMessage::IOITask { task } => {
+                self.ioi_state = Some(ioi::UIState::new(task.as_ref()));
+
                 cwrite!(self, BOLD, "Task {} ({})\n", task.title, task.name);
                 println!("Path: {:?}", task.path);
                 println!("Subtasks");
@@ -277,12 +287,81 @@ impl UI for PrintUI {
                 cwrite!(self, WARNING, "[WARNING] ");
                 print!("{}", message);
             }
-            UIMessage::TerryTask { .. }
-            | UIMessage::TerryGeneration { .. }
-            | UIMessage::TerryValidation { .. }
-            | UIMessage::TerrySolution { .. }
-            | UIMessage::TerryChecker { .. }
-            | UIMessage::TerrySolutionOutcome { .. } => {}
+            UIMessage::TerryTask { task } => {
+                self.terry_state = Some(terry::ui_state::UIState::new(task.as_ref()));
+            }
+            UIMessage::TerryGeneration {
+                solution,
+                seed,
+                status,
+            } => {
+                self.write_status(&status);
+                self.write_message(format!(
+                    "Generation of input for {} with seed {} ",
+                    solution.display(),
+                    seed
+                ));
+                self.write_status_details(&status);
+            }
+            UIMessage::TerryValidation { solution, status } => {
+                self.write_status(&status);
+                self.write_message(format!("Validation of input for {} ", solution.display()));
+                self.write_status_details(&status);
+            }
+            UIMessage::TerrySolution { solution, status } => {
+                self.write_status(&status);
+                self.write_message(format!("Solving input for {} ", solution.display()));
+                self.write_status_details(&status);
+            }
+            UIMessage::TerryChecker { solution, status } => {
+                self.write_status(&status);
+                self.write_message(format!("Checking output of {} ", solution.display()));
+                self.write_status_details(&status);
+            }
+            UIMessage::TerrySolutionOutcome { solution, outcome } => match outcome {
+                Ok(outcome) => {
+                    cwrite!(self, SUCCESS, "[OUTCOME] ");
+                    println!("Solution {} scored {}", solution.display(), outcome.score);
+                    print!("Validation: ");
+                    for case in outcome.validation.cases.iter() {
+                        match case.status {
+                            CaseStatus::Missing => cwrite!(self, WARNING, "m "),
+                            CaseStatus::Parsed => cwrite!(self, SUCCESS, "p "),
+                            CaseStatus::Invalid => cwrite!(self, ERROR, "i "),
+                        }
+                    }
+                    println!();
+                    for (i, case) in outcome.validation.cases.iter().enumerate() {
+                        if let Some(message) = &case.message {
+                            println!("    Case {}: {}", i + 1, message);
+                        }
+                    }
+                    for alert in outcome.validation.alerts.iter() {
+                        println!("    [{}] {}", alert.severity, alert.message);
+                    }
+                    print!("Feedback:   ");
+                    for case in outcome.feedback.cases.iter() {
+                        if case.correct {
+                            cwrite!(self, SUCCESS, "c ");
+                        } else {
+                            cwrite!(self, ERROR, "w ");
+                        }
+                    }
+                    println!();
+                    for (i, case) in outcome.feedback.cases.iter().enumerate() {
+                        if let Some(message) = &case.message {
+                            println!("    Case {}: {}", i + 1, message);
+                        }
+                    }
+                    for alert in outcome.feedback.alerts.iter() {
+                        println!("    [{}] {}", alert.severity, alert.message);
+                    }
+                }
+                Err(e) => {
+                    cwrite!(self, ERROR, "[OUTCOME] ");
+                    print!("Checker of {} failed: {}", solution.display(), e);
+                }
+            },
         };
         println!();
     }
@@ -290,6 +369,18 @@ impl UI for PrintUI {
     fn finish(&mut self) {
         println!();
         println!();
-        FinishUI::print(&self.state);
+        if let Some(state) = self.ioi_state.as_ref() {
+            FinishUI::print(state);
+        }
+        if let Some(state) = self.terry_state.as_ref() {
+            // TODO terry finish ui
+            println!("{:#?}", state);
+        }
+    }
+}
+
+impl Default for PrintUI {
+    fn default() -> Self {
+        Self::new()
     }
 }

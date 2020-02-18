@@ -8,9 +8,10 @@ use failure::Error;
 use serde::{Deserialize, Serialize};
 
 pub use json::JsonUI;
+pub use print::PrintUI;
 pub use raw::RawUI;
 pub use silent::SilentUI;
-use task_maker_dag::{ExecutionResult, WorkerUuid};
+use task_maker_dag::{ExecutionResult, ExecutionStatus, WorkerUuid};
 use task_maker_exec::ExecutorStatus;
 
 use crate::ioi::{SubtaskId, TestcaseId};
@@ -18,6 +19,7 @@ use crate::terry::{Seed, SolutionOutcome};
 use crate::{ioi, terry};
 
 mod json;
+mod print;
 mod raw;
 mod silent;
 
@@ -273,6 +275,82 @@ pub enum UIMessage {
         /// The message of the warning.
         message: String,
     },
+}
+
+/// The status of the compilation of a file.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CompilationStatus {
+    /// The compilation is known but it has not started yet.
+    Pending,
+    /// The compilation is running on a worker.
+    Running,
+    /// The compilation has completed.
+    Done {
+        /// The result of the compilation.
+        result: ExecutionResult,
+        /// The standard output of the compilation.
+        stdout: Option<String>,
+        /// The standard error of the compilation.
+        stderr: Option<String>,
+    },
+    /// The compilation has failed.
+    Failed {
+        /// The result of the compilation.
+        result: ExecutionResult,
+        /// The standard output of the compilation.
+        stdout: Option<String>,
+        /// The standard error of the compilation.
+        stderr: Option<String>,
+    },
+    /// The compilation has been skipped.
+    Skipped,
+}
+
+impl CompilationStatus {
+    /// Apply to this `CompilationStatus` a new `UIExecutionStatus`.
+    pub fn apply_status(&mut self, status: UIExecutionStatus) {
+        match status {
+            UIExecutionStatus::Pending => *self = CompilationStatus::Pending,
+            UIExecutionStatus::Started { .. } => *self = CompilationStatus::Running,
+            UIExecutionStatus::Done { result } => {
+                if let ExecutionStatus::Success = result.status {
+                    *self = CompilationStatus::Done {
+                        result,
+                        stdout: None,
+                        stderr: None,
+                    };
+                } else {
+                    *self = CompilationStatus::Failed {
+                        result,
+                        stdout: None,
+                        stderr: None,
+                    };
+                }
+            }
+            UIExecutionStatus::Skipped => *self = CompilationStatus::Skipped,
+        }
+    }
+
+    /// Set the standard output of the compilation.
+    pub fn apply_stdout(&mut self, content: String) {
+        // FIXME: if the stdout is sent before the status of the execution this breaks
+        match self {
+            CompilationStatus::Done { stdout, .. } | CompilationStatus::Failed { stdout, .. } => {
+                stdout.replace(content);
+            }
+            _ => {}
+        }
+    }
+
+    /// Set the standard error of the compilation.
+    pub fn apply_stderr(&mut self, content: String) {
+        match self {
+            CompilationStatus::Done { stderr, .. } | CompilationStatus::Failed { stderr, .. } => {
+                stderr.replace(content);
+            }
+            _ => {}
+        }
+    }
 }
 
 /// The sender of the UIMessage

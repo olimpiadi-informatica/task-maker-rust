@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -7,11 +8,11 @@ use itertools::Itertools;
 use structopt::StructOpt;
 use tempdir::TempDir;
 
-use std::collections::HashMap;
 use task_maker_dag::ExecutionStatus;
 use task_maker_format::ioi::{
-    CompilationStatus, SubtaskId, Task, TestcaseEvaluationStatus, TestcaseGenerationStatus, UIState,
+    SubtaskId, Task, TestcaseEvaluationStatus, TestcaseGenerationStatus, UIState,
 };
+use task_maker_format::ui::CompilationStatus;
 use task_maker_format::EvaluationConfig;
 use task_maker_rust::{main_server, main_worker, run_evaluation, Evaluation, Opt, Remote};
 
