@@ -3,7 +3,6 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 
 use task_maker_dag::ExecutionStatus;
 
-use crate::ioi::finish_ui::FinishUI;
 use crate::terry::CaseStatus;
 use crate::ui::*;
 use crate::{cwrite, ioi, terry};
@@ -370,11 +369,10 @@ impl UI for PrintUI {
         println!();
         println!();
         if let Some(state) = self.ioi_state.as_ref() {
-            FinishUI::print(state);
+            ioi::finish_ui::FinishUI::print(state);
         }
         if let Some(state) = self.terry_state.as_ref() {
-            // TODO terry finish ui
-            println!("{:#?}", state);
+            terry::finish_ui::FinishUI::print(state);
         }
     }
 }

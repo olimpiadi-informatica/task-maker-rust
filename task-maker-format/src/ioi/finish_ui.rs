@@ -1,53 +1,13 @@
 use std::path::Path;
 
 use itertools::Itertools;
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
+use termcolor::{ColorChoice, ColorSpec, StandardStream};
 
-use task_maker_dag::{ExecutionResourcesUsage, ExecutionStatus};
+use task_maker_dag::ExecutionStatus;
 
 use crate::ioi::ui_state::{SolutionEvaluationState, TestcaseEvaluationStatus, UIState};
-use crate::ui::{CompilationStatus, UIExecutionStatus};
+use crate::ui::{FinishUIUtils, UIExecutionStatus, BLUE, BOLD, GREEN, RED, YELLOW};
 use crate::{cwrite, cwriteln};
-
-lazy_static! {
-    static ref RED: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(Color::Red))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
-    static ref GREEN: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(Color::Green))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
-    static ref YELLOW: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(Color::Yellow))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
-    static ref BLUE: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(Color::Blue))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
-    static ref BOLD: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color.set_bold(true);
-        color
-    };
-}
 
 /// UI that prints to `stdout` the ending result of the evaluation of a IOI task.
 pub struct FinishUI {
@@ -63,7 +23,7 @@ impl FinishUI {
         };
         ui.print_task_info(state);
         println!();
-        ui.print_compilations(state);
+        FinishUIUtils::new(&mut ui.stream).print_compilations(&state.compilations);
         println!();
         ui.print_booklets(state);
         println!();
@@ -100,58 +60,6 @@ impl FinishUI {
                 .map(|t| format!("{}MiB", t))
                 .unwrap_or_else(|| "unlimited".to_string())
         );
-    }
-
-    /// Print all the compilation states.
-    fn print_compilations(&mut self, state: &UIState) {
-        cwriteln!(self, BLUE, "Compilations");
-        let max_len = state
-            .compilations
-            .keys()
-            .map(|p| p.file_name().expect("Invalid file name").len())
-            .max()
-            .unwrap_or(0);
-        for (path, status) in &state.compilations {
-            print!(
-                "{:width$}  ",
-                path.file_name()
-                    .expect("Invalid file name")
-                    .to_string_lossy(),
-                width = max_len
-            );
-            match status {
-                CompilationStatus::Done { result, .. } => {
-                    cwrite!(self, GREEN, " OK  ");
-                    self.print_time_memory(&result.resources);
-                }
-                CompilationStatus::Failed {
-                    result,
-                    stdout,
-                    stderr,
-                } => {
-                    cwrite!(self, RED, "FAIL ");
-                    self.print_time_memory(&result.resources);
-                    if let Some(stdout) = stdout {
-                        if !stdout.trim().is_empty() {
-                            println!();
-                            cwriteln!(self, BOLD, "stdout:");
-                            println!("{}", stdout.trim());
-                        }
-                    }
-                    if let Some(stderr) = stderr {
-                        if !stderr.trim().is_empty() {
-                            println!();
-                            cwriteln!(self, BOLD, "stderr:");
-                            println!("{}", stderr.trim());
-                        }
-                    }
-                }
-                _ => {
-                    cwrite!(self, YELLOW, "{:?}", status);
-                }
-            }
-            println!();
-        }
     }
 
     /// Print all the booklet states.
@@ -295,7 +203,7 @@ impl FinishUI {
                 }
                 if let Some(result) = &testcase.result {
                     print!(" [");
-                    self.print_time_memory(&result.resources);
+                    FinishUIUtils::print_time_memory(&result.resources);
                     print!("]");
                 }
                 print!(" {}", testcase.status.message());
@@ -323,12 +231,7 @@ impl FinishUI {
 
     fn print_summary(&mut self, state: &UIState) {
         cwriteln!(self, BLUE, "Summary");
-        let max_len = state
-            .evaluations
-            .keys()
-            .map(|p| p.file_name().expect("Invalid file name").len())
-            .max()
-            .unwrap_or(0);
+        let max_len = FinishUIUtils::get_max_len(&state.evaluations);
         print!("{:width$} ", "", width = max_len);
         cwrite!(self, BOLD, "{:^5}| ", state.max_score);
         for st_num in state.task.subtasks.keys().sorted() {
@@ -390,15 +293,6 @@ impl FinishUI {
                 println!(" - {}", warning);
             }
         }
-    }
-
-    /// Print the time and memory usage of an execution.
-    fn print_time_memory(&self, resources: &ExecutionResourcesUsage) {
-        print!(
-            "{:2.3}s | {:3.1}MiB",
-            resources.cpu_time,
-            (resources.memory as f64) / 1024.0
-        );
     }
 
     /// Print the score fraction of a solution using colors.

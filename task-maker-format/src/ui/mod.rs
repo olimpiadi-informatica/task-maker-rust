@@ -1,22 +1,24 @@
 //! The UI functionality for the task formats.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::SystemTime;
 
 use failure::Error;
 use serde::{Deserialize, Serialize};
+use termcolor::{Color, ColorSpec, StandardStream};
 
 pub use json::JsonUI;
 pub use print::PrintUI;
 pub use raw::RawUI;
 pub use silent::SilentUI;
-use task_maker_dag::{ExecutionResult, ExecutionStatus, WorkerUuid};
+use task_maker_dag::{ExecutionResourcesUsage, ExecutionResult, ExecutionStatus, WorkerUuid};
 use task_maker_exec::ExecutorStatus;
 
 use crate::ioi::{SubtaskId, TestcaseId};
 use crate::terry::{Seed, SolutionOutcome};
-use crate::{ioi, terry};
+use crate::{cwrite, cwriteln, ioi, terry};
 
 mod json;
 mod print;
@@ -27,6 +29,51 @@ mod silent;
 pub type UIChannelSender = Sender<UIMessage>;
 /// Channel type for receiving `UIMessage`s.
 pub type UIChannelReceiver = Receiver<UIMessage>;
+
+lazy_static! {
+    /// The RED color to use with `cwrite!` and `cwriteln!`
+    pub static ref RED: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color
+            .set_fg(Some(Color::Red))
+            .set_intense(true)
+            .set_bold(true);
+        color
+    };
+    /// The GREEN color to use with `cwrite!` and `cwriteln!`
+    pub static ref GREEN: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color
+            .set_fg(Some(Color::Green))
+            .set_intense(true)
+            .set_bold(true);
+        color
+    };
+    /// The YELLOW color to use with `cwrite!` and `cwriteln!`
+    pub static ref YELLOW: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color
+            .set_fg(Some(Color::Yellow))
+            .set_intense(true)
+            .set_bold(true);
+        color
+    };
+    /// The BLUE color to use with `cwrite!` and `cwriteln!`
+    pub static ref BLUE: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color
+            .set_fg(Some(Color::Blue))
+            .set_intense(true)
+            .set_bold(true);
+        color
+    };
+    /// The bold style to use with `cwrite!` and `cwriteln!`
+    pub static ref BOLD: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color.set_bold(true);
+        color
+    };
+}
 
 /// The status of an execution.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -350,6 +397,102 @@ impl CompilationStatus {
             }
             _ => {}
         }
+    }
+}
+
+/// Collection of utilities for drawing the finish UI.
+pub struct FinishUIUtils<'a> {
+    /// Stream where to print to.
+    stream: &'a mut StandardStream,
+}
+
+impl<'a> FinishUIUtils<'a> {
+    /// Make a new `FinishUIUtils` borrowing a `StandardStream`.
+    pub fn new(stream: &'a mut StandardStream) -> FinishUIUtils<'a> {
+        FinishUIUtils { stream }
+    }
+
+    /// Print all the compilation statuses.
+    pub fn print_compilations(&mut self, compilations: &HashMap<PathBuf, CompilationStatus>) {
+        cwriteln!(self, BLUE, "Compilations");
+        let max_len = compilations
+            .keys()
+            .map(|p| p.file_name().expect("Invalid file name").len())
+            .max()
+            .unwrap_or(0);
+        for (path, status) in compilations {
+            print!(
+                "{:width$}  ",
+                path.file_name()
+                    .expect("Invalid file name")
+                    .to_string_lossy(),
+                width = max_len
+            );
+            match status {
+                CompilationStatus::Done { result, .. } => {
+                    cwrite!(self, GREEN, " OK  ");
+                    FinishUIUtils::print_time_memory(&result.resources);
+                }
+                CompilationStatus::Failed {
+                    result,
+                    stdout,
+                    stderr,
+                } => {
+                    cwrite!(self, RED, "FAIL ");
+                    FinishUIUtils::print_time_memory(&result.resources);
+                    if let Some(stdout) = stdout {
+                        if !stdout.trim().is_empty() {
+                            println!();
+                            cwriteln!(self, BOLD, "stdout:");
+                            println!("{}", stdout.trim());
+                        }
+                    }
+                    if let Some(stderr) = stderr {
+                        if !stderr.trim().is_empty() {
+                            println!();
+                            cwriteln!(self, BOLD, "stderr:");
+                            println!("{}", stderr.trim());
+                        }
+                    }
+                }
+                _ => {
+                    cwrite!(self, YELLOW, "{:?}", status);
+                }
+            }
+            println!();
+        }
+    }
+
+    /// Print the time and memory usage of an execution.
+    pub fn print_time_memory(resources: &ExecutionResourcesUsage) {
+        print!(
+            "{:2.3}s | {:3.1}MiB",
+            resources.cpu_time,
+            (resources.memory as f64) / 1024.0
+        );
+    }
+
+    /// Print a message for the non-successful variants of the provided status.
+    pub fn print_fail_execution_status(status: &ExecutionStatus) {
+        match status {
+            ExecutionStatus::Success => {}
+            ExecutionStatus::ReturnCode(code) => print!("Exited with {}", code),
+            ExecutionStatus::Signal(sig, name) => print!("Signal {} ({})", sig, name),
+            ExecutionStatus::TimeLimitExceeded => print!("Time limit exceeded"),
+            ExecutionStatus::SysTimeLimitExceeded => print!("Kernel time limit exceeded"),
+            ExecutionStatus::WallTimeLimitExceeded => print!("Wall time limit exceeded"),
+            ExecutionStatus::MemoryLimitExceeded => print!("Memory limit exceeded"),
+            ExecutionStatus::InternalError(err) => print!("Internal error: {}", err),
+        }
+    }
+
+    /// Find the maximum length of the solutions name from the keys of the given structure.
+    pub fn get_max_len<T>(solutions: &HashMap<PathBuf, T>) -> usize {
+        solutions
+            .keys()
+            .map(|p| p.file_name().expect("Invalid file name").len())
+            .max()
+            .unwrap_or(0)
     }
 }
 

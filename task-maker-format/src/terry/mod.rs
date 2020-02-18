@@ -12,6 +12,7 @@ use crate::ui::{JsonUI, PrintUI, RawUI, SilentUI, UIMessage, UIMessageSender, UI
 use crate::{EvaluationConfig, EvaluationData, SourceFile, TaskFormat, TaskInfo, UISender};
 
 mod dag;
+pub(crate) mod finish_ui;
 mod format;
 pub(crate) mod ui_state;
 
