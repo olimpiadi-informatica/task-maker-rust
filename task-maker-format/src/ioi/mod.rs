@@ -31,11 +31,7 @@ pub use ui_state::*;
 
 use crate::sanity_checks::SanityChecks;
 use crate::ui::*;
-use crate::{EvaluationConfig, UISender};
-use crate::{
-    EvaluationData, TaskFormat, TaskInfo, TaskInfoAttachment, TaskInfoLimits, TaskInfoScoring,
-    TaskInfoStatement, TaskInfoSubtask,
-};
+use crate::{EvaluationConfig, EvaluationData, TaskFormat, TaskInfo, UISender};
 
 mod curses_ui;
 mod dag;
@@ -43,6 +39,7 @@ pub(crate) mod finish_ui;
 mod format;
 pub mod sanity_checks;
 mod statement;
+pub(crate) mod task_info;
 pub(crate) mod ui_state;
 
 /// In IOI tasks the subtask numbers are non-negative 0-based integers.
@@ -301,58 +298,7 @@ impl TaskFormat for Task {
     }
 
     fn task_info(&self) -> Result<TaskInfo, Error> {
-        Ok(TaskInfo {
-            version: 1.0,
-            task_type: "ioi-task".to_string(),
-            name: self.name.clone(),
-            title: self.title.clone(),
-            scoring: TaskInfoScoring {
-                max_score: self
-                    .subtasks
-                    .iter()
-                    .fold(0.0, |sum, (_, subtask)| sum + subtask.max_score),
-                subtasks: self
-                    .subtasks
-                    .iter()
-                    .map(|(_, subtask)| TaskInfoSubtask {
-                        max_score: subtask.max_score,
-                        testcases: subtask.testcases.len() as u64,
-                    })
-                    .collect(),
-            },
-            limits: TaskInfoLimits {
-                time: self.time_limit,
-                memory: self.memory_limit,
-            },
-            statements: self
-                .booklets
-                .iter()
-                .map(|booklet| TaskInfoStatement {
-                    language: booklet.config.language.clone(),
-                    content_type: mime_guess::from_path(&booklet.dest)
-                        .first()
-                        .map_or("UNKNOWN".into(), |t| t.to_string()),
-                    path: booklet.dest.strip_prefix(&self.path).unwrap().into(),
-                })
-                .collect(),
-            attachments: self
-                .path
-                .join("att")
-                .read_dir()?
-                .filter(|entry| entry.as_ref().unwrap().file_type().unwrap().is_file())
-                .map(|entry| {
-                    let entry = entry.unwrap();
-                    let path = entry.path();
-                    TaskInfoAttachment {
-                        name: entry.file_name().to_str().unwrap().into(),
-                        content_type: mime_guess::from_path(path)
-                            .first()
-                            .map_or("UNKNOWN".into(), |t| t.to_string()),
-                        path: entry.path().strip_prefix(&self.path).unwrap().into(),
-                    }
-                })
-                .collect(),
-        })
+        Ok(TaskInfo::IOI(task_info::TaskInfo::new(self)?))
     }
 }
 

@@ -1,8 +1,9 @@
 //! The Terry task format.
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use failure::{bail, Error};
+use failure::Error;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
@@ -15,13 +16,13 @@ use crate::ui::{JsonUI, PrintUI, RawUI, SilentUI, UIMessage, UIMessageSender, UI
 use crate::{
     list_files, EvaluationConfig, EvaluationData, SourceFile, TaskFormat, TaskInfo, UISender,
 };
-use std::collections::HashSet;
 
 mod curses_ui;
 mod dag;
 pub(crate) mod finish_ui;
 mod format;
 pub(crate) mod sanity_checks;
+pub(crate) mod task_info;
 pub(crate) mod ui_state;
 
 /// The type of the seed of a generator for an input file.
@@ -236,6 +237,6 @@ impl TaskFormat for Task {
     }
 
     fn task_info(&self) -> Result<TaskInfo, Error> {
-        bail!("Terry task info is not supported yet");
+        Ok(TaskInfo::Terry(task_info::TaskInfo::new(self)?))
     }
 }
