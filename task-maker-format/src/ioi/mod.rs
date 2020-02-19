@@ -41,7 +41,7 @@ mod curses_ui;
 mod dag;
 pub(crate) mod finish_ui;
 mod format;
-pub(crate) mod sanity_checks;
+pub mod sanity_checks;
 mod statement;
 pub(crate) mod ui_state;
 

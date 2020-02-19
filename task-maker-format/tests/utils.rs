@@ -3,7 +3,9 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
 use task_maker_dag::{ExecutionResourcesUsage, ExecutionResult, ExecutionStatus};
+use task_maker_format::ioi::sanity_checks::get_sanity_checks;
 use task_maker_format::ioi::*;
 use task_maker_lang::GraderMap;
 
@@ -34,7 +36,7 @@ pub fn new_task_with_context(path: &Path) -> Task {
         booklets: vec![],
         difficulty: None,
         syllabus_level: None,
-        sanity_checks: Default::default(),
+        sanity_checks: Arc::new(get_sanity_checks(&[])),
     };
     let st0 = task.subtasks.entry(0).or_insert(SubtaskInfo {
         id: 0,
