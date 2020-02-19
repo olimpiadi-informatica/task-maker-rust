@@ -97,7 +97,7 @@ fn find_fpc_cfg() -> Option<PathBuf> {
             }
         }
     }
-    if Path::new("/etc/fpc.fpc").exists() {
+    if Path::new("/etc/fpc.cfg").exists() {
         return Some(PathBuf::from("/etc/fpc.cfg"));
     }
     None
