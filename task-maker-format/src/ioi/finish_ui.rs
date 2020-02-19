@@ -32,7 +32,7 @@ impl FinishUITrait<UIState> for FinishUI {
         println!();
         ui.print_evaluations(state);
         ui.print_summary(state);
-        ui.print_messages(state);
+        FinishUIUtils::new(&mut ui.stream).print_messages(&state.warnings);
     }
 }
 
@@ -286,16 +286,6 @@ impl FinishUI {
             println!();
         }
         println!();
-    }
-
-    /// Print the warnings.
-    fn print_messages(&mut self, state: &UIState) {
-        if !state.warnings.is_empty() {
-            cwriteln!(self, YELLOW, "Warnings:");
-            for warning in state.warnings.iter() {
-                println!(" - {}", warning);
-            }
-        }
     }
 
     /// Print the score fraction of a solution using colors.

@@ -93,5 +93,6 @@ impl<Task> Default for SanityChecks<Task> {
 pub fn get_sanity_check_names() -> String {
     crate::ioi::sanity_checks::get_sanity_check_names()
         .iter()
+        .chain(crate::terry::sanity_checks::get_sanity_check_names().iter())
         .join(", ")
 }

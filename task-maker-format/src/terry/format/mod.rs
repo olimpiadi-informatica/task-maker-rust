@@ -5,6 +5,7 @@ use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::terry::dag::{Checker, InputGenerator, InputValidator};
+use crate::terry::sanity_checks::get_sanity_checks;
 use crate::terry::Task;
 use crate::{find_source_file, EvaluationConfig, SourceFile};
 use std::sync::Arc;
@@ -29,7 +30,7 @@ struct TaskYAML {
 /// Given a path to a task in the Terry format, try to parse the task inside of it.
 pub fn parse_task<P: AsRef<Path>>(
     task_dir: P,
-    _eval_config: &EvaluationConfig,
+    eval_config: &EvaluationConfig,
 ) -> Result<Task, Error> {
     let task_dir = task_dir.as_ref();
     let yaml: TaskYAML = serde_yaml::from_reader(fs::File::open(&task_dir.join("task.yaml"))?)?;
@@ -52,6 +53,7 @@ pub fn parse_task<P: AsRef<Path>>(
         validator,
         checker,
         official_solution,
+        sanity_checks: Arc::new(get_sanity_checks(&eval_config.disabled_sanity_checks)),
     })
 }
 

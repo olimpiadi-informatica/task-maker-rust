@@ -1,0 +1,7 @@
+Case #ciaone: 42
+Case ##: 666
+Case#1: 42
+Case #4.2: 42
+Case #: 42
+Case #0: 42
+Case #-1: 20

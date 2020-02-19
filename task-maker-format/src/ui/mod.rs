@@ -278,6 +278,16 @@ impl<'a> FinishUIUtils<'a> {
             .max()
             .unwrap_or(0)
     }
+
+    /// Print the warnings.
+    pub fn print_messages(&mut self, warnings: &[String]) {
+        if !warnings.is_empty() {
+            cwriteln!(self, YELLOW, "Warnings:");
+            for warning in warnings.iter() {
+                println!(" - {}", warning);
+            }
+        }
+    }
 }
 
 /// The sender of the UIMessage

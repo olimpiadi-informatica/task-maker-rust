@@ -41,6 +41,21 @@ mod tag;
 pub mod terry;
 pub mod ui;
 
+lazy_static! {
+    /// Directory where the data files are stored. It is taken from the `TM_DATA_DIR` environment
+    /// variable if present, otherwise it will be defaulted to the path of the source tree.
+    pub static ref DATA_DIR: PathBuf = {
+        if let Some(dir) = option_env!("TM_DATA_DIR") {
+            dir.into()
+        } else {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .expect("Invalid CARGO_MANIFEST_DIR")
+                .join("data")
+        }
+    };
+}
+
 /// Trait that defines the capabilities of a task format, providing a UI and the parsing and
 /// execution abilities.
 pub trait TaskFormat {

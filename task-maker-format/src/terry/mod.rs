@@ -6,6 +6,7 @@ use failure::{bail, Error};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
+use crate::sanity_checks::SanityChecks;
 use crate::terry::curses_ui::CursesUI;
 use crate::terry::dag::{Checker, InputGenerator, InputValidator, Solution};
 use crate::terry::format::parse_task;
@@ -17,6 +18,7 @@ mod curses_ui;
 mod dag;
 pub(crate) mod finish_ui;
 mod format;
+pub(crate) mod sanity_checks;
 pub(crate) mod ui_state;
 
 /// The type of the seed of a generator for an input file.
@@ -47,6 +49,11 @@ pub struct Task {
     /// the generation/validation/checking.
     #[serde(skip_serializing)]
     pub official_solution: Option<Arc<SourceFile>>,
+    /// The sanity checks attached to this task. Wrapped in Arc since `SanityChecks` is not Clone.
+    /// It's also not `Serialize` nor `Deserialize`, all the sanity checks will be lost on
+    /// serialization.
+    #[serde(skip_serializing, skip_deserializing)]
+    pub sanity_checks: Arc<SanityChecks<Task>>,
 }
 
 /// The output of the checker for a solution.
@@ -149,7 +156,7 @@ impl TaskFormat for Task {
         eval.sender.send(UIMessage::TerryTask {
             task: Box::new(self.clone()),
         })?;
-        // TODO: call pre hook
+        self.sanity_checks.pre_hook(self, eval)?;
         let solutions = config.filter_solutions(&self.path, vec!["solutions/*"], None);
         let mut rng = rand::thread_rng();
         for solution in solutions {
@@ -195,9 +202,8 @@ impl TaskFormat for Task {
         Ok(())
     }
 
-    fn sanity_check_post_hook(&self, _ui: &mut UIMessageSender) -> Result<(), Error> {
-        // TODO implement the sanity checks post hook
-        Ok(())
+    fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
+        self.sanity_checks.post_hook(self, ui)
     }
 
     fn clean(&self) -> Result<(), Error> {

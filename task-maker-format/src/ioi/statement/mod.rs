@@ -1,30 +1,15 @@
+use failure::{format_err, Error};
+
+pub use booklet::*;
+pub use statement::*;
+
+use crate::ioi::Task;
+use crate::{list_files, EvaluationConfig};
+
 mod asy;
 mod booklet;
 #[allow(clippy::module_inception)]
 mod statement;
-
-use crate::ioi::Task;
-use crate::{list_files, EvaluationConfig};
-pub use booklet::*;
-use failure::{format_err, Error};
-pub use statement::*;
-use std::path::PathBuf;
-
-/// Directory where the data files are stored. It is taken from the `TM_DATA_DIR` environment
-/// variable if present, otherwise it will be defaulted to the path of the source tree.
-const DATA_DIR: Option<&str> = option_env!("TM_DATA_DIR");
-
-/// Returns the path to the data directory where the files are stored.
-fn data_dir_path() -> PathBuf {
-    if let Some(dir) = DATA_DIR {
-        dir.into()
-    } else {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .expect("Invalid CARGO_MANIFEST_DIR")
-            .join("data")
-    }
-}
 
 /// Find all the `Booklet` it makes sense to build.
 pub fn make_booklets(task: &Task, eval_config: &EvaluationConfig) -> Result<Vec<Booklet>, Error> {

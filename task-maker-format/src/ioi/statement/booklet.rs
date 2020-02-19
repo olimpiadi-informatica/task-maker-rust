@@ -8,9 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use task_maker_dag::{Execution, ExecutionCommand, File};
 
-use crate::ioi::statement::data_dir_path;
 use crate::ioi::statement::statement::Statement;
-use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, Tag};
+use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, Tag, DATA_DIR};
 
 /// Configuration of a `Booklet`, including the setting from the contest configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -139,7 +138,7 @@ impl Booklet {
         }
 
         // copy all the files from the data/statements directory
-        let data_dir = data_dir_path().join("statements");
+        let data_dir = DATA_DIR.join("statements");
         let glob_pattern = data_dir.to_string_lossy().to_string() + "/**/*";
         for path in glob::glob(&glob_pattern)? {
             let path = path?;
