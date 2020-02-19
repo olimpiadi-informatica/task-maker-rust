@@ -12,7 +12,10 @@ use crate::terry::dag::{Checker, InputGenerator, InputValidator, Solution};
 use crate::terry::format::parse_task;
 use crate::terry::ui_state::UIState;
 use crate::ui::{JsonUI, PrintUI, RawUI, SilentUI, UIMessage, UIMessageSender, UIType, UI};
-use crate::{EvaluationConfig, EvaluationData, SourceFile, TaskFormat, TaskInfo, UISender};
+use crate::{
+    list_files, EvaluationConfig, EvaluationData, SourceFile, TaskFormat, TaskInfo, UISender,
+};
+use std::collections::HashSet;
 
 mod curses_ui;
 mod dag;
@@ -207,7 +210,29 @@ impl TaskFormat for Task {
     }
 
     fn clean(&self) -> Result<(), Error> {
-        bail!("Cleaning a terry task is not supported yet");
+        let all_managers: HashSet<PathBuf> = list_files(&self.path, vec!["managers/*.*"])
+            .iter()
+            .map(|f| f.file_stem().unwrap().into())
+            .collect();
+        for maybe_generated in list_files(&self.path, vec!["managers/*.*.*"]) {
+            let name = Path::new(maybe_generated.file_stem().unwrap());
+            let name = Path::new(name.file_stem().unwrap());
+            // if there is a file.X associated to file.Y.Z, remove file.Y.Z, e.g.:
+            // in managers/ there is validator.py => all_managers includes validator
+            // maybe_generated = validator.linux.x86_64
+            // name = validator
+            if all_managers.contains(name) {
+                info!("Removing {}", maybe_generated.display());
+                std::fs::remove_file(maybe_generated)?;
+            }
+        }
+        // remove the bin/ folder
+        let bin_path = self.path.join("bin");
+        if bin_path.exists() {
+            info!("Removing {}", bin_path.display());
+            std::fs::remove_dir_all(bin_path)?;
+        }
+        Ok(())
     }
 
     fn task_info(&self) -> Result<TaskInfo, Error> {
