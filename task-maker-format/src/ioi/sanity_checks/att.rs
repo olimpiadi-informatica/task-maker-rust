@@ -1,19 +1,22 @@
-use failure::{format_err, Error};
-
-use crate::ioi::sanity_checks::{check_missing_graders, SanityCheck};
-use crate::ioi::{Task, TestcaseId};
-use crate::ui::UIMessage;
-use crate::{list_files, EvaluationData, UISender};
-use regex::Regex;
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+use failure::{format_err, Error};
+use regex::Regex;
+
 use task_maker_dag::File;
+
+use crate::ioi::sanity_checks::check_missing_graders;
+use crate::ioi::{Task, TestcaseId};
+use crate::sanity_checks::SanityCheck;
+use crate::ui::UIMessage;
+use crate::{list_files, EvaluationData, UISender};
 
 /// Check that all the graders are present inside att.
 #[derive(Debug, Default)]
 pub struct AttGraders;
 
-impl SanityCheck for AttGraders {
+impl SanityCheck<Task> for AttGraders {
     fn name(&self) -> &'static str {
         "AttGraders"
     }
@@ -27,7 +30,7 @@ impl SanityCheck for AttGraders {
 #[derive(Debug, Default)]
 pub struct AttTemplates;
 
-impl SanityCheck for AttTemplates {
+impl SanityCheck<Task> for AttTemplates {
     fn name(&self) -> &'static str {
         "AttTemplates"
     }
@@ -53,7 +56,7 @@ impl SanityCheck for AttTemplates {
 #[derive(Debug, Default)]
 pub struct AttSampleFiles;
 
-impl SanityCheck for AttSampleFiles {
+impl SanityCheck<Task> for AttSampleFiles {
     fn name(&self) -> &'static str {
         "AttSampleFiles"
     }
@@ -96,7 +99,7 @@ impl SanityCheck for AttSampleFiles {
 #[derive(Debug, Default)]
 pub struct AttSampleFilesValid;
 
-impl SanityCheck for AttSampleFilesValid {
+impl SanityCheck<Task> for AttSampleFilesValid {
     fn name(&self) -> &'static str {
         "AttSampleFilesValid"
     }

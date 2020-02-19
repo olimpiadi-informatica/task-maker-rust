@@ -1,7 +1,7 @@
 use failure::Error;
 
-use crate::ioi::sanity_checks::SanityCheck;
 use crate::ioi::Task;
+use crate::sanity_checks::SanityCheck;
 use crate::ui::{UIMessage, UIMessageSender};
 use crate::{list_files, EvaluationData, UISender};
 
@@ -12,7 +12,7 @@ const DEFAULT_TASK_MAX_SCORE: f64 = 100.0;
 #[derive(Debug, Default)]
 pub struct TaskMaxScore;
 
-impl SanityCheck for TaskMaxScore {
+impl SanityCheck<Task> for TaskMaxScore {
     fn name(&self) -> &'static str {
         "TaskMaxScore"
     }
@@ -35,7 +35,7 @@ impl SanityCheck for TaskMaxScore {
 #[derive(Debug, Default)]
 pub struct BrokenSymlinks;
 
-impl SanityCheck for BrokenSymlinks {
+impl SanityCheck<Task> for BrokenSymlinks {
     fn name(&self) -> &'static str {
         "BrokenSymlinks"
     }

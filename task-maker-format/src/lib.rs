@@ -25,6 +25,7 @@ use failure::Error;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
+pub use sanity_checks::get_sanity_check_names;
 pub use source_file::SourceFile;
 pub use tag::{Tag, VALID_TAGS};
 use task_maker_dag::ExecutionDAG;
@@ -34,6 +35,7 @@ use crate::terry::Seed;
 use crate::ui::UI;
 
 pub mod ioi;
+mod sanity_checks;
 mod source_file;
 mod tag;
 pub mod terry;

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 use itertools::Itertools;
-use task_maker_format::ioi::sanity_checks::get_sanity_check_names;
+use task_maker_format::get_sanity_check_names;
 use task_maker_format::terry::Seed;
 use task_maker_format::{EvaluationConfig, VALID_TAGS};
 

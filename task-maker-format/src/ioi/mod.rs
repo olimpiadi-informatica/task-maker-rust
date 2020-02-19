@@ -29,7 +29,7 @@ pub use statement::*;
 use task_maker_lang::GraderMap;
 pub use ui_state::*;
 
-use crate::ioi::sanity_checks::SanityChecks;
+use crate::sanity_checks::SanityChecks;
 use crate::ui::*;
 use crate::{EvaluationConfig, UISender};
 use crate::{
@@ -109,7 +109,7 @@ pub struct Task {
     /// It's also not `Serialize` nor `Deserialize`, all the sanity checks will be lost on
     /// serialization.
     #[serde(skip_serializing, skip_deserializing)]
-    pub sanity_checks: Arc<SanityChecks>,
+    pub sanity_checks: Arc<SanityChecks<Task>>,
 }
 
 /// A subtask of a IOI task.

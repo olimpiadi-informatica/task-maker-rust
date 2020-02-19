@@ -1,7 +1,8 @@
 use failure::Error;
 
-use crate::ioi::sanity_checks::{check_missing_graders, SanityCheck};
+use crate::ioi::sanity_checks::check_missing_graders;
 use crate::ioi::Task;
+use crate::sanity_checks::SanityCheck;
 use crate::ui::UIMessage;
 use crate::{list_files, EvaluationData, UISender};
 
@@ -9,7 +10,7 @@ use crate::{list_files, EvaluationData, UISender};
 #[derive(Debug, Default)]
 pub struct SolGraders;
 
-impl SanityCheck for SolGraders {
+impl SanityCheck<Task> for SolGraders {
     fn name(&self) -> &'static str {
         "SolGraders"
     }
@@ -23,7 +24,7 @@ impl SanityCheck for SolGraders {
 #[derive(Debug, Default)]
 pub struct SolSymlink;
 
-impl SanityCheck for SolSymlink {
+impl SanityCheck<Task> for SolSymlink {
     fn name(&self) -> &'static str {
         "SolSymlink"
     }
@@ -47,7 +48,7 @@ impl SanityCheck for SolSymlink {
 #[derive(Debug, Default)]
 pub struct SolUnique;
 
-impl SanityCheck for SolUnique {
+impl SanityCheck<Task> for SolUnique {
     fn name(&self) -> &'static str {
         "SolUnique"
     }
