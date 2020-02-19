@@ -52,12 +52,16 @@ impl Language for LanguagePascal {
     }
 
     fn compilation_dependencies(&self, _path: &Path) -> Vec<Dependency> {
-        return vec![Dependency {
-            file: File::new("fpc configuration"),
-            local_path: PathBuf::from("/etc/fpc.cfg"),
-            sandbox_path: PathBuf::from("fpc.cfg"),
-            executable: false,
-        }];
+        if let Some(fpc_cfg) = find_fpc_cfg() {
+            vec![Dependency {
+                file: File::new("fpc configuration"),
+                local_path: fpc_cfg,
+                sandbox_path: PathBuf::from("fpc.cfg"),
+                executable: false,
+            }]
+        } else {
+            vec![]
+        }
     }
 
     /// The executable name is the source file's one without the extension.
@@ -65,6 +69,38 @@ impl Language for LanguagePascal {
         let name = PathBuf::from(path.file_name().expect("Invalid source file name"));
         PathBuf::from(name.file_stem().expect("Invalid source file name"))
     }
+}
+
+/// Search `fpc.cfg` in the local system, following the search rules of
+/// https://www.freepascal.org/docs-html/user/usersu10.html
+///
+/// Returns `None` if `fpc.cfg` cannot be found in the system.
+fn find_fpc_cfg() -> Option<PathBuf> {
+    if let Ok(home) = std::env::var("HOME") {
+        let path = Path::new(&home).join(".fpc.cfg");
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    if let Ok(config_path) = std::env::var("PPC_CONFIG_PATH") {
+        let path = Path::new(&config_path).join("fpc.cfg");
+        if path.exists() {
+            return Some(path);
+        }
+    }
+    if let Ok(fpc) = which::which("fpc") {
+        let fpc_parent = fpc.parent().and_then(|p| p.parent());
+        if let Some(fpc_parent) = fpc_parent {
+            let path = fpc_parent.join("etc/fpc.cfg");
+            if path.exists() {
+                return Some(path);
+            }
+        }
+    }
+    if Path::new("/etc/fpc.fpc").exists() {
+        return Some(PathBuf::from("/etc/fpc.cfg"));
+    }
+    None
 }
 
 #[cfg(test)]

@@ -1522,6 +1522,7 @@ dependencies = [
  "task-maker-dag 0.3.3",
  "task-maker-exec 0.3.3",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "which 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
