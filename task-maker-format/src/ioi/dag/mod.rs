@@ -34,68 +34,6 @@ pub enum TestcaseScoreAggregator {
     Sum,
 }
 
-/// Bind the start/done/skip callbacks of an execution to a ui message sender which sends to the UI
-/// messages with the correct status field.
-///
-/// It's also sent to the UI the message with status `UIExecutionStatus::Pending`.
-///
-/// It works by first cloning the `extra` arguments for each callback. This is required because each
-/// callback has to move inside the needed data. For the same reason also the `UIMessageSender` is
-/// cloned and then moved inside the callback. The callbacks then simply send to the UI the value
-/// returned by the `enum` lambda.
-///
-/// # Parameters
-/// - `eval: EvaluationData`
-/// - `exec_uuid: ExecutionUuid`
-/// - `enum` is a lambda that takes one or more arguments:
-///   - the first is a `UIExecutionStatus`
-///   - the followings are clones of the `extra` parameter
-/// - `extra` is a series of identifiers of `Clone`able variables.
-#[macro_export]
-macro_rules! bind_exec_callbacks {
-    ($eval:expr, $exec_uuid:expr, $enum:expr $(,$extra:ident)*) => {
-        {
-            #[allow(clippy::redundant_closure_call)]
-            {
-                use crate::UISender;
-                use crate::ui::UIExecutionStatus;
-                {
-                    $(let $extra = $extra.clone();)*
-                    let status = UIExecutionStatus::Pending;
-                    $eval
-                        .sender
-                        .send(($enum)(status, $($extra,)*))?;
-                }
-                {
-                    $(let $extra = $extra.clone();)*
-                    let sender = $eval.sender.clone();
-                    $eval.dag.on_execution_start(&$exec_uuid, move |worker| {
-                        let status = UIExecutionStatus::Started { worker };
-                        sender.send(($enum)(status, $($extra,)*))
-                    });
-                }
-                {
-                    $(let $extra = $extra.clone();)*
-                    let sender = $eval.sender.clone();
-                    $eval.dag.on_execution_done(&$exec_uuid, move |result| {
-                        let status = UIExecutionStatus::Done { result };
-                        sender.send(($enum)(status, $($extra,)*))
-                    });
-                }
-                {
-                    $(let $extra = $extra.clone();)*
-                    let sender = $eval.sender.clone();
-                    $eval.dag.on_execution_skip(&$exec_uuid, move || {
-                        let status = UIExecutionStatus::Skipped;
-                        sender.send(($enum)(status, $($extra,)*))
-                    });
-                }
-            }
-            Result::<(), Error>::Ok(())
-        }
-    };
-}
-
 /// Bind the input/output of an execution to the input and output file of a testcase. It correctly
 /// chooses if using stdin/stdout or using normal files by looking at the value set in the `Task`.
 ///
@@ -154,8 +92,8 @@ mod tests {
     use task_maker_dag::{ExecutionResourcesUsage, ExecutionResult, ExecutionStatus, File};
     use task_maker_lang::GraderMap;
 
-    use crate::ioi::{Tag, Task};
-    use crate::{EvaluationData, SourceFile};
+    use crate::ioi::Task;
+    use crate::{EvaluationData, SourceFile, Tag};
 
     use super::*;
 
@@ -216,9 +154,8 @@ mod tests {
         let path = tmpdir.path().join("input.txt");
         std::fs::write(&path, "x").unwrap();
         let generator = InputGenerator::StaticFile(path);
-        let task = make_task(tmpdir.path());
         let (mut eval, _) = EvaluationData::new(tmpdir.path());
-        let out = generator.generate_and_bind(&task, &mut eval, 0, 0).unwrap();
+        let out = generator.generate_and_bind(&mut eval, 0, 0).unwrap();
         assert!(eval.dag.data.provided_files.contains_key(&out));
         assert!(eval
             .dag
@@ -234,9 +171,8 @@ mod tests {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
         let path = tmpdir.path().join("input.txt");
         let generator = InputGenerator::StaticFile(path.clone());
-        let task = make_task(tmpdir.path());
         let (mut eval, _) = EvaluationData::new(tmpdir.path());
-        let gen = generator.generate_and_bind(&task, &mut eval, 0, 0);
+        let gen = generator.generate_and_bind(&mut eval, 0, 0);
         assert!(gen.is_err());
         let err = gen.unwrap_err().to_string();
         assert!(err.contains("COPY"));
@@ -250,9 +186,8 @@ mod tests {
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
         let generator = InputGenerator::Custom(Arc::new(source), vec![]);
-        let task = make_task(tmpdir.path());
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
-        let out = generator.generate_and_bind(&task, &mut eval, 0, 0).unwrap();
+        let out = generator.generate_and_bind(&mut eval, 0, 0).unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.executions.len(), 1);
         let exec = eval.dag.data.executions.values().next().unwrap();

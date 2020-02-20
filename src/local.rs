@@ -1,5 +1,4 @@
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
@@ -9,12 +8,11 @@ use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
 use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage};
 use task_maker_exec::{connect_channel, new_local_channel, ExecutorClient};
-use task_maker_format::ioi::VALID_TAGS;
 use task_maker_format::ui::{UIMessage, UIType, UI};
-use task_maker_format::UISender;
-use task_maker_format::{ioi, EvaluationConfig, EvaluationData, TaskFormat};
+use task_maker_format::{EvaluationData, TaskFormat, UISender, VALID_TAGS};
 use task_maker_store::FileStore;
 
+use crate::detect_format::find_task;
 use crate::error::NiceError;
 use crate::opt::Opt;
 use crate::sandbox::SelfExecSandboxRunner;
@@ -216,44 +214,4 @@ where
 pub fn main_local(opt: Opt) {
     run_evaluation(opt, |ui, mex| ui.on_message(mex))
         .nice_expect_with(|e| format!("Error: {}", e.to_string()));
-}
-
-/// Search for a valid task directory, starting from base and going _at most_ `max_depth` times up.
-fn find_task<P: Into<PathBuf>>(
-    base: P,
-    max_depth: u32,
-    eval_config: &EvaluationConfig,
-) -> Result<Box<dyn TaskFormat>, Error> {
-    let mut base = base.into();
-    if !base.is_absolute() {
-        base = getcwd().join(base);
-    }
-    for _ in 0..max_depth {
-        if base.join("task.yaml").exists() {
-            break;
-        }
-        base = match base.parent() {
-            Some(parent) => parent.into(),
-            _ => break,
-        };
-    }
-    match ioi::Task::new(&base, eval_config) {
-        Ok(task) => {
-            trace!("The task is IOI: {:#?}", task);
-            Ok(Box::new(task))
-        }
-        Err(e) => {
-            warn!("Invalid task: {:?}", e);
-            Err(e)
-        }
-    }
-}
-
-/// Return the current working directory.
-///
-/// `std::env::current_dir()` resolves the symlinks of the cwd's hierarchy, `$PWD` is used instead.
-fn getcwd() -> PathBuf {
-    std::env::var("PWD")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::current_dir().unwrap())
 }

@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 use itertools::Itertools;
-use task_maker_format::ioi::sanity_checks::get_sanity_check_names;
-use task_maker_format::ioi::VALID_TAGS;
-use task_maker_format::EvaluationConfig;
+use task_maker_format::get_sanity_check_names;
+use task_maker_format::terry::Seed;
+use task_maker_format::{EvaluationConfig, VALID_TAGS};
 
 #[derive(StructOpt, Debug)]
 #[structopt(
@@ -63,6 +63,10 @@ pub struct Opt {
     /// The solution can reside anywhere in the filesystem.
     #[structopt(long = "solution", short = "-s")]
     pub solution: Vec<PathBuf>,
+
+    /// Force this seed instead of a random one in Terry.
+    #[structopt(long)]
+    pub seed: Option<Seed>,
 
     /// Look at most for this number of parents for searching the task
     #[structopt(long = "max-depth", default_value = "3")]
@@ -193,6 +197,7 @@ impl Opt {
             no_statement: self.no_statement,
             solution_paths: self.solution.clone(),
             disabled_sanity_checks: self.skip_sanity_checks.clone(),
+            seed: self.seed,
         }
     }
 

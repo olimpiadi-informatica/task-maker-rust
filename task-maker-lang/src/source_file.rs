@@ -30,6 +30,8 @@ pub struct SourceFile {
     executable: Arc<Mutex<Option<File>>>,
     /// An optional handler to the map of the graders.
     grader_map: Option<Arc<GraderMap>>,
+    /// Whether to force the copy-exe option of the DAG for this source file.
+    copy_exe: bool,
     /// Where to write the compiled executable.
     write_bin_to: Option<PathBuf>,
     /// The stdout of the compilation, set if `prepare` has been called, and the language supports
@@ -68,6 +70,7 @@ impl SourceFile {
             write_bin_to: write_bin_to.map(|p| p.into()),
             compilation_stdout: Arc::new(Mutex::new(None)),
             compilation_stderr: Arc::new(Mutex::new(None)),
+            copy_exe: false,
         })
     }
 
@@ -142,9 +145,10 @@ impl SourceFile {
         args: Vec<String>,
     ) -> Result<(Option<ExecutionUuid>, Execution), Error> {
         let comp = self.prepare(dag)?;
+        let write_to = self.write_bin_to.as_ref().map(|p| p.as_path());
         let mut exec = Execution::new(
             description.as_ref(),
-            self.language.runtime_command(&self.path),
+            self.language.runtime_command(&self.path, write_to),
         );
         for arg in &args {
             let path = self.base_path.join(arg);
@@ -157,10 +161,10 @@ impl SourceFile {
                 dag.provide_file(file, path)?;
             }
         }
-        exec.args(self.language.runtime_args(&self.path, args));
+        exec.args(self.language.runtime_args(&self.path, write_to, args));
         exec.input(
             self.executable.lock().unwrap().as_ref().unwrap(),
-            &self.language.executable_name(&self.path),
+            &self.language.executable_name(&self.path, write_to),
             true,
         );
         for dep in self.language.runtime_dependencies(&self.path) {
@@ -176,6 +180,22 @@ impl SourceFile {
         }
         self.language.custom_limits(exec.limits_mut());
         Ok((comp, exec))
+    }
+
+    /// Force the executable to be copied to `write_bin_to` regardless of the option of the DAG.
+    pub fn copy_exe(&mut self) {
+        self.copy_exe = true;
+    }
+
+    /// Prepare the source file if needed and return the executable file. If the compilation step
+    /// was not executed yet the handle to the compilation execution is also returned.
+    pub fn executable(
+        &self,
+        dag: &mut ExecutionDAG,
+    ) -> Result<(FileUuid, Option<ExecutionUuid>), Error> {
+        let comp = self.prepare(dag)?;
+        let exe = self.executable.lock().unwrap().as_ref().unwrap().uuid;
+        Ok((exe, comp))
     }
 
     /// The file name of the source file.
@@ -196,6 +216,19 @@ impl SourceFile {
             .to_string()
     }
 
+    /// The optional destination of where to copy the executable if copy-exe option is set.
+    ///
+    /// ```
+    /// use task_maker_lang::SourceFile;
+    ///
+    /// let source = SourceFile::new("path/to/sourcefile.cpp", "", None, Some("exec")).unwrap();
+    ///
+    /// assert_eq!(source.write_bin_to(), Some("exec".into()));
+    /// ```
+    pub fn write_bin_to(&self) -> Option<PathBuf> {
+        self.write_bin_to.clone()
+    }
+
     /// The standard output of the compilation, if the source file is compiled and `execute` has
     /// been called at least once.
     pub fn compilation_stdout(&self) -> Option<File> {
@@ -213,14 +246,15 @@ impl SourceFile {
         if self.executable.lock().unwrap().is_some() {
             return Ok(None);
         }
+        let write_to = self.write_bin_to.as_ref().map(|p| p.as_path());
         if self.language.need_compilation() {
             let mut comp = Execution::new(
                 &format!("Compilation of {:?}", self.name()),
-                self.language.compilation_command(&self.path),
+                self.language.compilation_command(&self.path, write_to),
             );
             comp.tag(ExecutionTag::from("compilation"));
             comp.priority(COMPILATION_PRIORITY);
-            comp.args = self.language.compilation_args(&self.path);
+            comp.args = self.language.compilation_args(&self.path, write_to);
             let source = File::new(&format!("Source file of {:?}", self.path));
             comp.input(
                 &source,
@@ -244,11 +278,11 @@ impl SourceFile {
             }
             *self.compilation_stdout.lock().unwrap() = Some(comp.stdout());
             *self.compilation_stderr.lock().unwrap() = Some(comp.stderr());
-            let exec = comp.output(&self.language.executable_name(&self.path));
+            let exec = comp.output(&self.language.compiled_file_name(&self.path, write_to));
             let comp_uuid = comp.uuid;
             dag.add_execution(comp);
             dag.provide_file(source, &self.path)?;
-            if dag.config_mut().copy_exe {
+            if dag.config_mut().copy_exe || self.copy_exe {
                 if let Some(write_bin_to) = &self.write_bin_to {
                     dag.write_file_to(&exec, write_bin_to, true);
                 }
@@ -257,7 +291,7 @@ impl SourceFile {
             Ok(Some(comp_uuid))
         } else {
             let executable = File::new(&format!("Source file of {:?}", self.path));
-            if dag.config_mut().copy_exe {
+            if dag.config_mut().copy_exe || self.copy_exe {
                 if let Some(write_bin_to) = &self.write_bin_to {
                     dag.write_file_to(&executable, write_bin_to, true);
                 }

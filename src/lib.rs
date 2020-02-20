@@ -14,6 +14,7 @@ pub use opt::*;
 pub use server::*;
 pub use worker::*;
 
+mod detect_format;
 mod error;
 pub mod local;
 pub mod opt;

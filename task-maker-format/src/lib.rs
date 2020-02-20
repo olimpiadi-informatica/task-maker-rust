@@ -9,27 +9,52 @@
 #![deny(missing_docs)]
 
 #[macro_use]
-extern crate log;
-#[macro_use]
-extern crate pest_derive;
+extern crate approx;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
-extern crate approx;
+extern crate log;
+#[macro_use]
+extern crate pest_derive;
 
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+
+use failure::Error;
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+
+pub use sanity_checks::get_sanity_check_names;
+pub use source_file::SourceFile;
+pub use tag::{Tag, VALID_TAGS};
+use task_maker_dag::ExecutionDAG;
+use task_maker_lang::{GraderMap, LanguageManager};
+
+use crate::terry::Seed;
 use crate::ui::UI;
 
 pub mod ioi;
+mod sanity_checks;
 mod source_file;
+mod tag;
+pub mod terry;
 pub mod ui;
-pub use source_file::SourceFile;
 
-use failure::Error;
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
-use task_maker_dag::ExecutionDAG;
-use task_maker_lang::{GraderMap, LanguageManager};
+lazy_static! {
+    /// Directory where the data files are stored. It is taken from the `TM_DATA_DIR` environment
+    /// variable if present, otherwise it will be defaulted to the path of the source tree.
+    pub static ref DATA_DIR: PathBuf = {
+        if let Some(dir) = option_env!("TM_DATA_DIR") {
+            dir.into()
+        } else {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .parent()
+                .expect("Invalid CARGO_MANIFEST_DIR")
+                .join("data")
+        }
+    };
+}
 
 /// Trait that defines the capabilities of a task format, providing a UI and the parsing and
 /// execution abilities.
@@ -54,74 +79,13 @@ pub trait TaskFormat {
     fn task_info(&self) -> Result<TaskInfo, Error>;
 }
 
-/// Limits of the task.
+/// Information about a parsed task, returned with the `--task-info` option.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TaskInfoLimits {
-    /// Time limit in seconds.
-    time: Option<f64>,
-    /// Memory limit in megabytes.
-    memory: Option<u64>,
-}
-
-/// Attachment of the task.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TaskInfoAttachment {
-    /// Name of this attachment.
-    name: String,
-    /// MIME type of this attachment.
-    content_type: String,
-    /// Path of this attachment relative to task directory.
-    path: PathBuf,
-}
-
-/// Info of the subtasks.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TaskInfoSubtask {
-    /// Maximum score for this subtask.
-    max_score: f64,
-    /// Number of testcases for this subtask.
-    testcases: u64,
-}
-
-/// Scoring for the task.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TaskInfoScoring {
-    /// Maximum score for the task.
-    max_score: f64,
-    /// Subtasks of this task.
-    subtasks: Vec<TaskInfoSubtask>,
-}
-
-/// Statement of the task.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TaskInfoStatement {
-    /// Language of the statement.
-    language: String,
-    /// Content type of the statement, as MIME type.
-    content_type: String,
-    /// Path of the task, relative to the task directory.
-    path: PathBuf,
-}
-
-/// Task information structure.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TaskInfo {
-    /// Version of this task-info structure.
-    version: f32,
-    /// Type of the task.
-    task_type: String,
-    /// Short name of the task.
-    name: String,
-    /// Title of the task.
-    title: String,
-    /// Scoring info.
-    scoring: TaskInfoScoring,
-    /// Limits of the task.
-    limits: TaskInfoLimits,
-    /// Statements of the task.
-    statements: Vec<TaskInfoStatement>,
-    /// Attachments of the task.
-    attachments: Vec<TaskInfoAttachment>,
+pub enum TaskInfo {
+    /// The task is IOI-like.
+    IOI(ioi::task_info::TaskInfo),
+    /// The task is Terry-like.
+    Terry(terry::task_info::TaskInfo),
 }
 
 /// Configuration of the evaluation of a task.
@@ -139,6 +103,8 @@ pub struct EvaluationConfig {
     pub solution_paths: Vec<PathBuf>,
     /// List of disabled sanity check names.
     pub disabled_sanity_checks: Vec<String>,
+    /// Force this seed in terry evaluations.
+    pub seed: Option<Seed>,
 }
 
 /// The data for an evaluation, including the DAG and the UI channel.
@@ -180,6 +146,78 @@ impl UISender for Mutex<ui::UIMessageSender> {
     }
 }
 
+impl EvaluationConfig {
+    /// Returns the solution filters as a vector of strings with the file names of provided
+    /// patterns.
+    fn solution_filters(&self) -> Vec<String> {
+        self.solution_filter
+            .iter()
+            .map(|filter| {
+                // unfortunate lossy cast to String because currently OsString doesn't
+                // support .starts_with
+                PathBuf::from(filter)
+                    .file_name()
+                    .expect("Invalid filter provided")
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .collect_vec()
+    }
+
+    /// Returns the fixed solutions in the config or, if none is specified, all the ones matching
+    /// the provided pattern in the provided base directory.
+    fn solution_paths(&self, base_dir: &Path, patterns: Vec<&str>) -> Vec<PathBuf> {
+        if self.solution_paths.is_empty() {
+            list_files(base_dir, patterns)
+        } else {
+            self.solution_paths.clone()
+        }
+    }
+
+    /// Search all the solutions matching the provided pattern in the provided base directory,
+    /// excluding all the graders in the grader_map, if provided.
+    ///
+    /// If the configuration is set with a filter, it is applied.
+    ///
+    /// If the configuration is set to evaluate only some solutions, it is applied.
+    pub fn filter_solutions(
+        &self,
+        base_dir: &Path,
+        patterns: Vec<&str>,
+        grader_map: Option<Arc<GraderMap>>,
+    ) -> Vec<SourceFile> {
+        let solutions_paths = self.solution_paths(base_dir, patterns);
+        let filter = self.solution_filters();
+        let graders: HashSet<PathBuf> = if let Some(grader_map) = &grader_map {
+            grader_map.all_paths().map(|p| p.to_path_buf()).collect()
+        } else {
+            HashSet::new()
+        };
+        solutions_paths
+            .into_iter()
+            .filter(|p| !graders.contains(p)) // the graders are not solutions
+            .filter(|p| {
+                if self.solution_filter.is_empty() {
+                    return true;
+                }
+                let name = p.file_name().unwrap().to_string_lossy();
+                filter
+                    .iter()
+                    .any(|filter| name.starts_with(filter.as_str()))
+            })
+            .map(|p| {
+                let write_to = base_dir
+                    .join("bin")
+                    .join("sol")
+                    .join(p.file_name().unwrap());
+                SourceFile::new(p, base_dir, grader_map.clone(), Some(write_to))
+            })
+            .filter(Option::is_some) // ignore the unknown languages
+            .map(Option::unwrap)
+            .collect()
+    }
+}
+
 /// List all the files inside `cwd` that matches a list of glob patterns. The results are in the
 /// same order of the patterns.
 pub(crate) fn list_files<P: AsRef<Path>, S: AsRef<str>>(cwd: P, patterns: Vec<S>) -> Vec<PathBuf> {
@@ -217,6 +255,68 @@ pub(crate) fn find_source_file<
         }
     }
     None
+}
+
+/// Bind the start/done/skip callbacks of an execution to a ui message sender which sends to the UI
+/// messages with the correct status field.
+///
+/// It's also sent to the UI the message with status `UIExecutionStatus::Pending`.
+///
+/// It works by first cloning the `extra` arguments for each callback. This is required because each
+/// callback has to move inside the needed data. For the same reason also the `UIMessageSender` is
+/// cloned and then moved inside the callback. The callbacks then simply send to the UI the value
+/// returned by the `enum` lambda.
+///
+/// # Parameters
+/// - `eval: EvaluationData`
+/// - `exec_uuid: ExecutionUuid`
+/// - `enum` is a lambda that takes one or more arguments:
+///   - the first is a `UIExecutionStatus`
+///   - the followings are clones of the `extra` parameter
+/// - `extra` is a series of identifiers of `Clone`able variables.
+#[macro_export]
+macro_rules! bind_exec_callbacks {
+    ($eval:expr, $exec_uuid:expr, $enum:expr $(,$extra:ident)*) => {
+        {
+            #[allow(clippy::redundant_closure_call)]
+            {
+                use crate::UISender;
+                use crate::ui::UIExecutionStatus;
+                {
+                    $(let $extra = $extra.clone();)*
+                    let status = UIExecutionStatus::Pending;
+                    $eval
+                        .sender
+                        .send(($enum)(status, $($extra,)*))?;
+                }
+                {
+                    $(let $extra = $extra.clone();)*
+                    let sender = $eval.sender.clone();
+                    $eval.dag.on_execution_start(&$exec_uuid, move |worker| {
+                        let status = UIExecutionStatus::Started { worker };
+                        sender.send(($enum)(status, $($extra,)*))
+                    });
+                }
+                {
+                    $(let $extra = $extra.clone();)*
+                    let sender = $eval.sender.clone();
+                    $eval.dag.on_execution_done(&$exec_uuid, move |result| {
+                        let status = UIExecutionStatus::Done { result };
+                        sender.send(($enum)(status, $($extra,)*))
+                    });
+                }
+                {
+                    $(let $extra = $extra.clone();)*
+                    let sender = $eval.sender.clone();
+                    $eval.dag.on_execution_skip(&$exec_uuid, move || {
+                        let status = UIExecutionStatus::Skipped;
+                        sender.send(($enum)(status, $($extra,)*))
+                    });
+                }
+            }
+            Result::<(), Error>::Ok(())
+        }
+    };
 }
 
 #[cfg(test)]

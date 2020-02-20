@@ -1,39 +1,12 @@
-use crate::ioi::*;
-use crate::ui::{UIExecutionStatus, UIMessage};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::SystemTime;
+
 use task_maker_dag::*;
 use task_maker_exec::ExecutorStatus;
 
-/// The status of the compilation of a file.
-#[derive(Debug, Clone, PartialEq)]
-pub enum CompilationStatus {
-    /// The compilation is known but it has not started yet.
-    Pending,
-    /// The compilation is running on a worker.
-    Running,
-    /// The compilation has completed.
-    Done {
-        /// The result of the compilation.
-        result: ExecutionResult,
-        /// The standard output of the compilation.
-        stdout: Option<String>,
-        /// The standard error of the compilation.
-        stderr: Option<String>,
-    },
-    /// The compilation has failed.
-    Failed {
-        /// The result of the compilation.
-        result: ExecutionResult,
-        /// The standard output of the compilation.
-        stdout: Option<String>,
-        /// The standard error of the compilation.
-        stderr: Option<String>,
-    },
-    /// The compilation has been skipped.
-    Skipped,
-}
+use crate::ioi::*;
+use crate::ui::{CompilationStatus, UIExecutionStatus, UIMessage, UIStateT};
 
 /// Status of the generation of a testcase input and output.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -329,64 +302,29 @@ impl UIState {
             warnings: Vec::new(),
         }
     }
+}
 
+impl UIStateT for UIState {
     /// Apply a `UIMessage` to this state.
-    pub fn apply(&mut self, message: UIMessage) {
+    fn apply(&mut self, message: UIMessage) {
         match message {
             UIMessage::StopUI => {}
             UIMessage::ServerStatus { status } => self.executor_status = Some(status),
-            UIMessage::Compilation { file, status } => {
-                let comp = self
-                    .compilations
-                    .entry(file)
-                    .or_insert(CompilationStatus::Pending);
-                match status {
-                    UIExecutionStatus::Pending => *comp = CompilationStatus::Pending,
-                    UIExecutionStatus::Started { .. } => *comp = CompilationStatus::Running,
-                    UIExecutionStatus::Done { result } => {
-                        if let ExecutionStatus::Success = result.status {
-                            *comp = CompilationStatus::Done {
-                                result,
-                                stdout: None,
-                                stderr: None,
-                            };
-                        } else {
-                            *comp = CompilationStatus::Failed {
-                                result,
-                                stdout: None,
-                                stderr: None,
-                            };
-                        }
-                    }
-                    UIExecutionStatus::Skipped => *comp = CompilationStatus::Skipped,
-                }
-            }
-            UIMessage::CompilationStdout { file, content } => {
-                let comp = self
-                    .compilations
-                    .entry(file)
-                    .or_insert(CompilationStatus::Pending);
-                match comp {
-                    CompilationStatus::Done { stdout, .. }
-                    | CompilationStatus::Failed { stdout, .. } => {
-                        stdout.replace(content);
-                    }
-                    _ => {}
-                }
-            }
-            UIMessage::CompilationStderr { file, content } => {
-                let comp = self
-                    .compilations
-                    .entry(file)
-                    .or_insert(CompilationStatus::Pending);
-                match comp {
-                    CompilationStatus::Done { stderr, .. }
-                    | CompilationStatus::Failed { stderr, .. } => {
-                        stderr.replace(content);
-                    }
-                    _ => {}
-                }
-            }
+            UIMessage::Compilation { file, status } => self
+                .compilations
+                .entry(file)
+                .or_insert(CompilationStatus::Pending)
+                .apply_status(status),
+            UIMessage::CompilationStdout { file, content } => self
+                .compilations
+                .entry(file)
+                .or_insert(CompilationStatus::Pending)
+                .apply_stdout(content),
+            UIMessage::CompilationStderr { file, content } => self
+                .compilations
+                .entry(file)
+                .or_insert(CompilationStatus::Pending)
+                .apply_stderr(content),
             UIMessage::IOITask { .. } => {}
             UIMessage::IOIGeneration {
                 subtask,
@@ -680,6 +618,12 @@ impl UIState {
             UIMessage::Warning { message } => {
                 self.warnings.push(message);
             }
+            UIMessage::TerryTask { .. }
+            | UIMessage::TerryGeneration { .. }
+            | UIMessage::TerryValidation { .. }
+            | UIMessage::TerrySolution { .. }
+            | UIMessage::TerryChecker { .. }
+            | UIMessage::TerrySolutionOutcome { .. } => unreachable!("Terry message on IOI UI"),
         }
     }
 }

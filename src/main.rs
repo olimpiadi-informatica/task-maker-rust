@@ -101,6 +101,7 @@ pub use local::{run_evaluation, Evaluation};
 pub use server::main_server;
 pub use worker::main_worker;
 
+mod detect_format;
 mod error;
 mod local;
 mod opt;

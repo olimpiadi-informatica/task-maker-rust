@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 use task_maker_dag::{Execution, FileUuid, Priority};
 
 use crate::bind_exec_callbacks;
-use crate::ioi::{SubtaskId, Tag, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
+use crate::ioi::{SubtaskId, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
 use crate::ui::UIMessage;
-use crate::{EvaluationData, SourceFile, UISender};
+use crate::{EvaluationData, SourceFile, Tag, UISender};
 
 /// An input file validator is responsible for checking that the input file follows the format and
 /// constraints defined by the task.

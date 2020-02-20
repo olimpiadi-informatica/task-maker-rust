@@ -15,7 +15,7 @@
 //! a `Checker`, a program that computes the score of the testcase given the input file, the output
 //! file and the _correct_ output file (the one produced by the jury).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -23,34 +23,24 @@ use std::sync::{Arc, Mutex};
 use failure::{bail, format_err, Error};
 use serde::{Deserialize, Serialize};
 
+use curses_ui::CursesUI;
+pub use dag::*;
+pub use statement::*;
 use task_maker_lang::GraderMap;
+pub use ui_state::*;
 
+use crate::sanity_checks::SanityChecks;
 use crate::ui::*;
-use crate::{
-    list_files, EvaluationData, SourceFile, TaskFormat, TaskInfo, TaskInfoAttachment,
-    TaskInfoLimits, TaskInfoScoring, TaskInfoStatement, TaskInfoSubtask,
-};
-use crate::{EvaluationConfig, UISender};
+use crate::{EvaluationConfig, EvaluationData, TaskFormat, TaskInfo, UISender};
 
 mod curses_ui;
 mod dag;
-mod finish_ui;
+pub(crate) mod finish_ui;
 mod format;
-mod print;
 pub mod sanity_checks;
 mod statement;
-mod tag;
-mod ui_state;
-
-use crate::ioi::sanity_checks::SanityChecks;
-use curses_ui::CursesUI;
-pub use dag::*;
-use itertools::Itertools;
-pub use print::PrintUI;
-pub use statement::*;
-use std::ops::Deref;
-pub use tag::*;
-pub use ui_state::*;
+pub(crate) mod task_info;
+pub(crate) mod ui_state;
 
 /// In IOI tasks the subtask numbers are non-negative 0-based integers.
 pub type SubtaskId = u32;
@@ -93,8 +83,10 @@ pub struct Task {
     /// The list of the subtasks.
     pub subtasks: HashMap<SubtaskId, SubtaskInfo>,
     /// The default input validator for this task, if any.
+    #[serde(skip_serializing)]
     pub input_validator: InputValidator,
     /// The default output generator for this task, if any.
+    #[serde(skip_serializing)]
     pub output_generator: Option<OutputGenerator>,
     /// The checker to use for this task.
     pub checker: Checker,
@@ -114,7 +106,7 @@ pub struct Task {
     /// It's also not `Serialize` nor `Deserialize`, all the sanity checks will be lost on
     /// serialization.
     #[serde(skip_serializing, skip_deserializing)]
-    pub sanity_checks: Arc<SanityChecks>,
+    pub sanity_checks: Arc<SanityChecks<Task>>,
 }
 
 /// A subtask of a IOI task.
@@ -150,6 +142,13 @@ impl Task {
     pub fn new<P: AsRef<Path>>(path: P, eval_config: &EvaluationConfig) -> Result<Task, Error> {
         format::italian_yaml::parse_task(path, eval_config)
     }
+
+    /// Check if in the provided path there could be a IOI-like task.
+    pub fn is_valid<P: AsRef<Path>>(path: P) -> bool {
+        let path = path.as_ref();
+        path.join("task.yaml").exists()
+            && (path.join("gen/GEN").exists() || path.join("input").is_dir())
+    }
 }
 
 impl TaskFormat for Task {
@@ -160,8 +159,8 @@ impl TaskFormat for Task {
     fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),
-            UIType::Print => Ok(Box::new(PrintUI::new(self))),
-            UIType::Curses => Ok(Box::new(CursesUI::new(self)?)),
+            UIType::Print => Ok(Box::new(PrintUI::new())),
+            UIType::Curses => Ok(Box::new(CursesUI::new(UIState::new(self))?)),
             UIType::Json => Ok(Box::new(JsonUI::new())),
             UIType::Silent => Ok(Box::new(SilentUI::new())),
         }
@@ -172,56 +171,10 @@ impl TaskFormat for Task {
             task: Box::new(self.clone()),
         })?;
         self.sanity_checks.pre_hook(&self, eval)?;
-        let graders: HashSet<PathBuf> = self
-            .grader_map
-            .all_paths()
-            .map(|p| p.to_path_buf())
-            .collect();
         let empty_score_manager = ScoreManager::new(&self);
-        let filter = config
-            .solution_filter
-            .iter()
-            .map(|filter| {
-                // unfortunate lossy cast to String because currently OsString doesn't
-                // support .starts_with
-                PathBuf::from(filter)
-                    .file_name()
-                    .expect("Invalid filter provided")
-                    .to_string_lossy()
-                    .to_string()
-            })
-            .collect_vec();
-
-        let solution_paths = if config.solution_paths.is_empty() {
-            list_files(&self.path, vec!["sol/*"])
-        } else {
-            config.solution_paths.clone()
-        };
-        let solutions: Vec<_> = solution_paths
+        let solutions: Vec<_> = config
+            .filter_solutions(&self.path, vec!["sol/*"], Some(self.grader_map.clone()))
             .into_iter()
-            .filter(|p| !graders.contains(p)) // the graders are not solutions
-            .filter(|p| {
-                if config.solution_filter.is_empty() {
-                    return true;
-                }
-                let name = p.file_name().unwrap().to_string_lossy();
-                filter.iter().any(|filter| name.starts_with(filter.deref()))
-            })
-            .map(|p| {
-                SourceFile::new(
-                    &p,
-                    &self.path,
-                    Some(self.grader_map.clone()),
-                    Some(
-                        self.path
-                            .join("bin")
-                            .join("sol")
-                            .join(p.file_name().unwrap()),
-                    ),
-                )
-            })
-            .filter(Option::is_some) // ignore the unknown languages
-            .map(Option::unwrap)
             .map(|source| (source, Arc::new(Mutex::new(empty_score_manager.clone()))))
             .collect();
 
@@ -235,12 +188,10 @@ impl TaskFormat for Task {
                     subtask.id
                 );
 
-                let input = testcase.input_generator.generate_and_bind(
-                    &self,
-                    eval,
-                    subtask.id,
-                    testcase.id,
-                )?;
+                let input =
+                    testcase
+                        .input_generator
+                        .generate_and_bind(eval, subtask.id, testcase.id)?;
                 let val_handle = testcase.input_validator.validate_and_bind(
                     eval,
                     subtask.id,
@@ -347,58 +298,7 @@ impl TaskFormat for Task {
     }
 
     fn task_info(&self) -> Result<TaskInfo, Error> {
-        Ok(TaskInfo {
-            version: 1.0,
-            task_type: "ioi-task".to_string(),
-            name: self.name.clone(),
-            title: self.title.clone(),
-            scoring: TaskInfoScoring {
-                max_score: self
-                    .subtasks
-                    .iter()
-                    .fold(0.0, |sum, (_, subtask)| sum + subtask.max_score),
-                subtasks: self
-                    .subtasks
-                    .iter()
-                    .map(|(_, subtask)| TaskInfoSubtask {
-                        max_score: subtask.max_score,
-                        testcases: subtask.testcases.len() as u64,
-                    })
-                    .collect(),
-            },
-            limits: TaskInfoLimits {
-                time: self.time_limit,
-                memory: self.memory_limit,
-            },
-            statements: self
-                .booklets
-                .iter()
-                .map(|booklet| TaskInfoStatement {
-                    language: booklet.config.language.clone(),
-                    content_type: mime_guess::from_path(&booklet.dest)
-                        .first()
-                        .map_or("UNKNOWN".into(), |t| t.to_string()),
-                    path: booklet.dest.strip_prefix(&self.path).unwrap().into(),
-                })
-                .collect(),
-            attachments: self
-                .path
-                .join("att")
-                .read_dir()?
-                .filter(|entry| entry.as_ref().unwrap().file_type().unwrap().is_file())
-                .map(|entry| {
-                    let entry = entry.unwrap();
-                    let path = entry.path();
-                    TaskInfoAttachment {
-                        name: entry.file_name().to_str().unwrap().into(),
-                        content_type: mime_guess::from_path(path)
-                            .first()
-                            .map_or("UNKNOWN".into(), |t| t.to_string()),
-                        path: entry.path().strip_prefix(&self.path).unwrap().into(),
-                    }
-                })
-                .collect(),
-        })
+        Ok(TaskInfo::IOI(task_info::TaskInfo::new(self)?))
     }
 }
 

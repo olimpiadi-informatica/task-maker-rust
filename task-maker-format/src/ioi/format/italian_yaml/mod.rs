@@ -12,7 +12,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use task_maker_lang::GraderMap;
 
-use crate::ioi::sanity_checks::SanityChecks;
+use crate::ioi::sanity_checks::get_sanity_checks;
 use crate::ioi::{
     make_booklets, Checker, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo, Task,
     TaskType, TestcaseId, TestcaseInfo, TestcaseScoreAggregator,
@@ -197,7 +197,7 @@ pub fn parse_task<P: AsRef<Path>>(
         booklets: Vec::new(),
         difficulty: yaml.difficulty,
         syllabus_level: yaml.syllabuslevel,
-        sanity_checks: Arc::new(SanityChecks::new(&eval_config.disabled_sanity_checks)),
+        sanity_checks: Arc::new(get_sanity_checks(&eval_config.disabled_sanity_checks)),
         input_validator: detect_validator(task_dir.to_path_buf())(0),
         output_generator: official_solution,
     };

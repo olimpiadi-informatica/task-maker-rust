@@ -1,0 +1,8 @@
+Case #1: fuffarbacco
+Case #2: hola hola!
+Case #3: !!
+Case #4: 43.1.2
+Case #5: \0
+Case #6: %d
+Case #7: $0
+Case #8: @@@

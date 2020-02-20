@@ -1,27 +1,78 @@
 //! The UI functionality for the task formats.
 
-use crate::ioi::*;
-use task_maker_dag::{ExecutionResult, WorkerUuid};
-
-use failure::Error;
-use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
-mod json;
-mod raw;
-mod silent;
+use failure::Error;
+use serde::{Deserialize, Serialize};
+use termcolor::{Color, ColorSpec, StandardStream};
 
 pub use json::JsonUI;
+pub use print::PrintUI;
 pub use raw::RawUI;
 pub use silent::SilentUI;
-use std::time::SystemTime;
-use task_maker_exec::ExecutorStatus;
+use task_maker_dag::{ExecutionResourcesUsage, ExecutionResult, ExecutionStatus, WorkerUuid};
+pub use ui_message::UIMessage;
+
+use crate::{cwrite, cwriteln};
+
+pub(crate) mod curses;
+mod json;
+mod print;
+mod raw;
+mod silent;
+mod ui_message;
 
 /// Channel type for sending `UIMessage`s.
 pub type UIChannelSender = Sender<UIMessage>;
 /// Channel type for receiving `UIMessage`s.
 pub type UIChannelReceiver = Receiver<UIMessage>;
+
+lazy_static! {
+    /// The RED color to use with `cwrite!` and `cwriteln!`
+    pub static ref RED: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color
+            .set_fg(Some(Color::Red))
+            .set_intense(true)
+            .set_bold(true);
+        color
+    };
+    /// The GREEN color to use with `cwrite!` and `cwriteln!`
+    pub static ref GREEN: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color
+            .set_fg(Some(Color::Green))
+            .set_intense(true)
+            .set_bold(true);
+        color
+    };
+    /// The YELLOW color to use with `cwrite!` and `cwriteln!`
+    pub static ref YELLOW: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color
+            .set_fg(Some(Color::Yellow))
+            .set_intense(true)
+            .set_bold(true);
+        color
+    };
+    /// The BLUE color to use with `cwrite!` and `cwriteln!`
+    pub static ref BLUE: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color
+            .set_fg(Some(Color::Blue))
+            .set_intense(true)
+            .set_bold(true);
+        color
+    };
+    /// The bold style to use with `cwrite!` and `cwriteln!`
+    pub static ref BOLD: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color.set_bold(true);
+        color
+    };
+}
 
 /// The status of an execution.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -43,185 +94,200 @@ pub enum UIExecutionStatus {
     Skipped,
 }
 
-/// A message sent to the UI.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum UIMessage {
-    /// A message asking the UI to exit.
-    StopUI,
-
-    /// An update on the status of the executor.
-    ServerStatus {
-        /// The status of the executor.
-        status: ExecutorStatus<SystemTime>,
+/// The status of the compilation of a file.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CompilationStatus {
+    /// The compilation is known but it has not started yet.
+    Pending,
+    /// The compilation is running on a worker.
+    Running,
+    /// The compilation has completed.
+    Done {
+        /// The result of the compilation.
+        result: ExecutionResult,
+        /// The standard output of the compilation.
+        stdout: Option<String>,
+        /// The standard error of the compilation.
+        stderr: Option<String>,
     },
-
-    /// An update on the compilation status.
-    Compilation {
-        /// The compilation of this file.
-        file: PathBuf,
-        /// The status of the compilation.
-        status: UIExecutionStatus,
+    /// The compilation has failed.
+    Failed {
+        /// The result of the compilation.
+        result: ExecutionResult,
+        /// The standard output of the compilation.
+        stdout: Option<String>,
+        /// The standard error of the compilation.
+        stderr: Option<String>,
     },
+    /// The compilation has been skipped.
+    Skipped,
+}
 
-    /// An update on the stdout of a compilation.
-    CompilationStdout {
-        /// The compilation of this file.
-        file: PathBuf,
-        /// The prefix of the stdout of the compilation.
-        content: String,
-    },
+impl CompilationStatus {
+    /// Apply to this `CompilationStatus` a new `UIExecutionStatus`.
+    pub fn apply_status(&mut self, status: UIExecutionStatus) {
+        match status {
+            UIExecutionStatus::Pending => *self = CompilationStatus::Pending,
+            UIExecutionStatus::Started { .. } => *self = CompilationStatus::Running,
+            UIExecutionStatus::Done { result } => {
+                if let ExecutionStatus::Success = result.status {
+                    *self = CompilationStatus::Done {
+                        result,
+                        stdout: None,
+                        stderr: None,
+                    };
+                } else {
+                    *self = CompilationStatus::Failed {
+                        result,
+                        stdout: None,
+                        stderr: None,
+                    };
+                }
+            }
+            UIExecutionStatus::Skipped => *self = CompilationStatus::Skipped,
+        }
+    }
 
-    /// An update on the stderr of a compilation.
-    CompilationStderr {
-        /// The compilation of this file.
-        file: PathBuf,
-        /// The prefix of the stderr of the compilation.
-        content: String,
-    },
+    /// Set the standard output of the compilation.
+    pub fn apply_stdout(&mut self, content: String) {
+        // FIXME: if the stdout is sent before the status of the execution this breaks
+        match self {
+            CompilationStatus::Done { stdout, .. } | CompilationStatus::Failed { stdout, .. } => {
+                stdout.replace(content);
+            }
+            _ => {}
+        }
+    }
 
-    /// The information about the task which is being run.
-    IOITask {
-        /// The task information.
-        task: Box<Task>,
-    },
+    /// Set the standard error of the compilation.
+    pub fn apply_stderr(&mut self, content: String) {
+        match self {
+            CompilationStatus::Done { stderr, .. } | CompilationStatus::Failed { stderr, .. } => {
+                stderr.replace(content);
+            }
+            _ => {}
+        }
+    }
+}
 
-    /// The generation of a testcase in a IOI task.
-    IOIGeneration {
-        /// The id of the subtask.
-        subtask: SubtaskId,
-        /// The id of the testcase.
-        testcase: TestcaseId,
-        /// The status of the generation.
-        status: UIExecutionStatus,
-    },
+/// The state of a task, all the information for the UI are stored here.
+///
+/// The `T` at the end is to disambiguate from `UIState` due to a strange behaviour of the compiler.
+pub trait UIStateT {
+    /// Apply a `UIMessage` to this state.
+    fn apply(&mut self, message: UIMessage);
+}
 
-    /// An update on the stderr of the generation of a testcase.
-    IOIGenerationStderr {
-        /// The id of the subtask.
-        subtask: SubtaskId,
-        /// The id of the testcase.
-        testcase: TestcaseId,
-        /// The prefix of the stderr of the generation.
-        content: String,
-    },
+/// UI that prints to `stdout` the ending result of the evaluation of a task.
+pub trait FinishUI<State> {
+    /// Print the final state of the UI.
+    fn print(state: &State);
+}
 
-    /// The validation of a testcase in a IOI task.
-    IOIValidation {
-        /// The id of the subtask.
-        subtask: SubtaskId,
-        /// The id of the testcase.
-        testcase: TestcaseId,
-        /// The status of the validation.
-        status: UIExecutionStatus,
-    },
+/// Collection of utilities for drawing the finish UI.
+pub struct FinishUIUtils<'a> {
+    /// Stream where to print to.
+    stream: &'a mut StandardStream,
+}
 
-    /// An update on the stderr of the validation of a testcase.
-    IOIValidationStderr {
-        /// The id of the subtask.
-        subtask: SubtaskId,
-        /// The id of the testcase.
-        testcase: TestcaseId,
-        /// The prefix of the stderr of the validator.
-        content: String,
-    },
+impl<'a> FinishUIUtils<'a> {
+    /// Make a new `FinishUIUtils` borrowing a `StandardStream`.
+    pub fn new(stream: &'a mut StandardStream) -> FinishUIUtils<'a> {
+        FinishUIUtils { stream }
+    }
 
-    /// The solution of a testcase in a IOI task.
-    IOISolution {
-        /// The id of the subtask.
-        subtask: SubtaskId,
-        /// The id of the testcase.
-        testcase: TestcaseId,
-        /// The status of the solution.
-        status: UIExecutionStatus,
-    },
+    /// Print all the compilation statuses.
+    pub fn print_compilations(&mut self, compilations: &HashMap<PathBuf, CompilationStatus>) {
+        cwriteln!(self, BLUE, "Compilations");
+        let max_len = compilations
+            .keys()
+            .map(|p| p.file_name().expect("Invalid file name").len())
+            .max()
+            .unwrap_or(0);
+        for (path, status) in compilations {
+            print!(
+                "{:width$}  ",
+                path.file_name()
+                    .expect("Invalid file name")
+                    .to_string_lossy(),
+                width = max_len
+            );
+            match status {
+                CompilationStatus::Done { result, .. } => {
+                    cwrite!(self, GREEN, " OK  ");
+                    FinishUIUtils::print_time_memory(&result.resources);
+                }
+                CompilationStatus::Failed {
+                    result,
+                    stdout,
+                    stderr,
+                } => {
+                    cwrite!(self, RED, "FAIL ");
+                    FinishUIUtils::print_time_memory(&result.resources);
+                    if let Some(stdout) = stdout {
+                        if !stdout.trim().is_empty() {
+                            println!();
+                            cwriteln!(self, BOLD, "stdout:");
+                            println!("{}", stdout.trim());
+                        }
+                    }
+                    if let Some(stderr) = stderr {
+                        if !stderr.trim().is_empty() {
+                            println!();
+                            cwriteln!(self, BOLD, "stderr:");
+                            println!("{}", stderr.trim());
+                        }
+                    }
+                }
+                _ => {
+                    cwrite!(self, YELLOW, "{:?}", status);
+                }
+            }
+            println!();
+        }
+    }
 
-    /// The evaluation of a solution in a IOI task.
-    IOIEvaluation {
-        /// The id of the subtask.
-        subtask: SubtaskId,
-        /// The id of the testcase.
-        testcase: TestcaseId,
-        /// The path of the solution.
-        solution: PathBuf,
-        /// The status of the solution.
-        status: UIExecutionStatus,
-    },
+    /// Print the time and memory usage of an execution.
+    pub fn print_time_memory(resources: &ExecutionResourcesUsage) {
+        print!(
+            "{:2.3}s | {:3.1}MiB",
+            resources.cpu_time,
+            (resources.memory as f64) / 1024.0
+        );
+    }
 
-    /// The checking of a solution in a IOI task.
-    IOIChecker {
-        /// The id of the subtask.
-        subtask: SubtaskId,
-        /// The id of the testcase.
-        testcase: TestcaseId,
-        /// The path of the solution.
-        solution: PathBuf,
-        /// The status of the solution. Note that a failure of this execution
-        /// may not mean that the checker failed.
-        status: UIExecutionStatus,
-    },
+    /// Print a message for the non-successful variants of the provided status.
+    pub fn print_fail_execution_status(status: &ExecutionStatus) {
+        match status {
+            ExecutionStatus::Success => {}
+            ExecutionStatus::ReturnCode(code) => print!("Exited with {}", code),
+            ExecutionStatus::Signal(sig, name) => print!("Signal {} ({})", sig, name),
+            ExecutionStatus::TimeLimitExceeded => print!("Time limit exceeded"),
+            ExecutionStatus::SysTimeLimitExceeded => print!("Kernel time limit exceeded"),
+            ExecutionStatus::WallTimeLimitExceeded => print!("Wall time limit exceeded"),
+            ExecutionStatus::MemoryLimitExceeded => print!("Memory limit exceeded"),
+            ExecutionStatus::InternalError(err) => print!("Internal error: {}", err),
+        }
+    }
 
-    /// The score of a testcase is ready.
-    IOITestcaseScore {
-        /// The id of the subtask.
-        subtask: SubtaskId,
-        /// The id of the testcase.
-        testcase: TestcaseId,
-        /// The path of the solution.
-        solution: PathBuf,
-        /// The score of the testcase.
-        score: f64,
-        /// The message associated with the score.
-        message: String,
-    },
+    /// Find the maximum length of the solutions name from the keys of the given structure.
+    pub fn get_max_len<T>(solutions: &HashMap<PathBuf, T>) -> usize {
+        solutions
+            .keys()
+            .map(|p| p.file_name().expect("Invalid file name").len())
+            .max()
+            .unwrap_or(0)
+    }
 
-    /// The score of a subtask is ready.
-    IOISubtaskScore {
-        /// The id of the subtask.
-        subtask: SubtaskId,
-        /// The path of the solution.
-        solution: PathBuf,
-        /// The normalized score, a value between 0 and 1
-        normalized_score: f64,
-        /// The score of the subtask.
-        score: f64,
-    },
-
-    /// The score of a task is ready.
-    IOITaskScore {
-        /// The path of the solution.
-        solution: PathBuf,
-        /// The score of the task.
-        score: f64,
-    },
-
-    /// The compilation of a booklet.
-    IOIBooklet {
-        /// The name of the booklet.
-        name: String,
-        /// The status of the compilation.
-        status: UIExecutionStatus,
-    },
-
-    /// The compilation of a dependency of a booklet. It can be processed many times, for example an
-    /// asy file is compiled first, and then cropped.
-    IOIBookletDependency {
-        /// The name of the booklet.
-        booklet: String,
-        /// The name of the dependency.
-        name: String,
-        /// The index (0-based) of the step of this compilation.
-        step: usize,
-        /// The number of steps of the compilation of this dependency.
-        num_steps: usize,
-        /// The status of this step.
-        status: UIExecutionStatus,
-    },
-
-    /// A warning has been emitted.
-    Warning {
-        /// The message of the warning.
-        message: String,
-    },
+    /// Print the warnings.
+    pub fn print_messages(&mut self, warnings: &[String]) {
+        if !warnings.is_empty() {
+            cwriteln!(self, YELLOW, "Warnings:");
+            for warning in warnings.iter() {
+                println!(" - {}", warning);
+            }
+        }
+    }
 }
 
 /// The sender of the UIMessage

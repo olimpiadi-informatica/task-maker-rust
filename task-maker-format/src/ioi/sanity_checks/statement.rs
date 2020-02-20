@@ -6,8 +6,8 @@ use failure::Error;
 use itertools::Itertools;
 use regex::Regex;
 
-use crate::ioi::sanity_checks::SanityCheck;
 use crate::ioi::{SubtaskId, Task};
+use crate::sanity_checks::SanityCheck;
 use crate::ui::{UIMessage, UIMessageSender};
 use crate::{EvaluationData, UISender};
 
@@ -15,7 +15,7 @@ use crate::{EvaluationData, UISender};
 #[derive(Debug, Default)]
 pub struct StatementSubtasks;
 
-impl SanityCheck for StatementSubtasks {
+impl SanityCheck<Task> for StatementSubtasks {
     fn name(&self) -> &'static str {
         "StatementSubtasks"
     }
@@ -76,7 +76,7 @@ impl SanityCheck for StatementSubtasks {
 #[derive(Debug, Default)]
 pub struct StatementValid;
 
-impl SanityCheck for StatementValid {
+impl SanityCheck<Task> for StatementValid {
     fn name(&self) -> &'static str {
         "StatementValid"
     }
@@ -131,7 +131,7 @@ impl SanityCheck for StatementValid {
 #[derive(Debug, Default)]
 pub struct StatementGit;
 
-impl SanityCheck for StatementGit {
+impl SanityCheck<Task> for StatementGit {
     fn name(&self) -> &'static str {
         "StatementGit"
     }

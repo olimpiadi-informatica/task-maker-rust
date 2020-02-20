@@ -45,22 +45,32 @@ impl Language for LanguagePython {
         false
     }
 
-    fn runtime_command(&self, path: &Path) -> ExecutionCommand {
+    fn runtime_command(&self, path: &Path, write_to: Option<&Path>) -> ExecutionCommand {
         match self.version {
             LanguagePythonVersion::Autodetect => {
-                ExecutionCommand::local(self.executable_name(path))
+                ExecutionCommand::local(self.executable_name(path, write_to))
             }
             LanguagePythonVersion::Python2 => ExecutionCommand::system("python2"),
             LanguagePythonVersion::Python3 => ExecutionCommand::system("python3"),
         }
     }
 
-    fn runtime_args(&self, path: &Path, mut args: Vec<String>) -> Vec<String> {
+    fn runtime_args(
+        &self,
+        path: &Path,
+        write_to: Option<&Path>,
+        mut args: Vec<String>,
+    ) -> Vec<String> {
         match self.version {
             LanguagePythonVersion::Autodetect => args,
             _ => {
                 // will run for example: python3 program.py args...
-                args.insert(0, self.executable_name(path).to_string_lossy().to_string());
+                args.insert(
+                    0,
+                    self.executable_name(path, write_to)
+                        .to_string_lossy()
+                        .to_string(),
+                );
                 args
             }
         }
@@ -119,8 +129,10 @@ mod tests {
     fn test_runtime_args_autodetect() {
         let lang = LanguagePython::new(LanguagePythonVersion::Autodetect);
         let path = Path::new("script.py");
-        assert_that!(lang.runtime_command(path)).is_equal_to(ExecutionCommand::local(path));
-        let args = lang.runtime_args(path, vec!["arg".to_string()]);
+        let write_to = Path::new("script.boh");
+        assert_that!(lang.runtime_command(path, Some(write_to)))
+            .is_equal_to(ExecutionCommand::local(write_to));
+        let args = lang.runtime_args(path, None, vec!["arg".to_string()]);
         assert_that!(&args).is_equal_to(vec!["arg".to_string()]);
     }
 
@@ -128,9 +140,11 @@ mod tests {
     fn test_runtime_args_py3() {
         let lang = LanguagePython::new(LanguagePythonVersion::Python3);
         let path = Path::new("script.py");
-        assert_that!(lang.runtime_command(path)).is_equal_to(ExecutionCommand::system("python3"));
-        let args = lang.runtime_args(path, vec!["arg".to_string()]);
-        assert_that!(&args).is_equal_to(vec!["script.py".to_string(), "arg".to_string()]);
+        let write_to = Path::new("script.boh");
+        assert_that!(lang.runtime_command(path, Some(write_to)))
+            .is_equal_to(ExecutionCommand::system("python3"));
+        let args = lang.runtime_args(path, Some(write_to), vec!["arg".to_string()]);
+        assert_that!(&args).is_equal_to(vec!["script.boh".to_string(), "arg".to_string()]);
     }
 
     #[test]
