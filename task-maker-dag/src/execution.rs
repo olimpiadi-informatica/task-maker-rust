@@ -132,6 +132,10 @@ pub struct Execution {
     pub stdout: Option<File>,
     /// Optional standard error to capture.
     pub stderr: Option<File>,
+    /// When not `None`, ask the sandbox to capture that many bytes from the standard output.
+    pub capture_stdout: Option<usize>,
+    /// When not `None`, ask the sandbox to capture that many bytes from the standard error.
+    pub capture_stderr: Option<usize>,
     /// List of input files that should be put inside the sandbox.
     pub inputs: HashMap<PathBuf, ExecutionInput>,
     /// List of the output files that should be capture from the sandbox.
@@ -233,6 +237,10 @@ pub struct ExecutionResult {
     pub was_cached: bool,
     /// Resources used by the execution.
     pub resources: ExecutionResourcesUsage,
+    /// Captured standard output of the execution, if the capture was requested.
+    pub stdout: Option<Vec<u8>>,
+    /// Captured standard error of the execution, if the capture was requested.
+    pub stderr: Option<Vec<u8>>,
 }
 
 impl ExecutionLimits {
@@ -391,6 +399,8 @@ impl Execution {
             stdin: None,
             stdout: None,
             stderr: None,
+            capture_stdout: None,
+            capture_stderr: None,
             inputs: HashMap::new(),
             outputs: HashMap::new(),
 
@@ -519,6 +529,36 @@ impl Execution {
             self.stderr = Some(file);
         }
         self.stderr.as_ref().unwrap().clone()
+    }
+
+    /// Tell the executor to include the first `count` bytes of the standard output in the result.
+    ///
+    /// ```
+    /// use task_maker_dag::{Execution, ExecutionCommand};
+    ///
+    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
+    /// exec.capture_stdout(1234);
+    /// assert_eq!(exec.capture_stdout, Some(1234));
+    /// ```
+    pub fn capture_stdout(&mut self, count: usize) -> &mut Self {
+        self.stdout(); // make sure stdout is captured
+        self.capture_stdout = Some(count);
+        self
+    }
+
+    /// Tell the executor to include the first `count` bytes of the standard error in the result.
+    ///
+    /// ```
+    /// use task_maker_dag::{Execution, ExecutionCommand};
+    ///
+    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
+    /// exec.capture_stderr(1234);
+    /// assert_eq!(exec.capture_stderr, Some(1234));
+    /// ```
+    pub fn capture_stderr(&mut self, count: usize) -> &mut Self {
+        self.stderr(); // make sure stderr is captured
+        self.capture_stderr = Some(count);
+        self
     }
 
     /// Bind a file inside the sandbox to the specified file. Calling again this method will

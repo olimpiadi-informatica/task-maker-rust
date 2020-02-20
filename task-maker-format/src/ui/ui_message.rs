@@ -30,22 +30,6 @@ pub enum UIMessage {
         status: UIExecutionStatus,
     },
 
-    /// An update on the stdout of a compilation.
-    CompilationStdout {
-        /// The compilation of this file.
-        file: PathBuf,
-        /// The prefix of the stdout of the compilation.
-        content: String,
-    },
-
-    /// An update on the stderr of a compilation.
-    CompilationStderr {
-        /// The compilation of this file.
-        file: PathBuf,
-        /// The prefix of the stderr of the compilation.
-        content: String,
-    },
-
     /// The information about the task which is being run.
     IOITask {
         /// The task information.
@@ -62,16 +46,6 @@ pub enum UIMessage {
         status: UIExecutionStatus,
     },
 
-    /// An update on the stderr of the generation of a testcase.
-    IOIGenerationStderr {
-        /// The id of the subtask.
-        subtask: SubtaskId,
-        /// The id of the testcase.
-        testcase: TestcaseId,
-        /// The prefix of the stderr of the generation.
-        content: String,
-    },
-
     /// The validation of a testcase in a IOI task.
     IOIValidation {
         /// The id of the subtask.
@@ -80,16 +54,6 @@ pub enum UIMessage {
         testcase: TestcaseId,
         /// The status of the validation.
         status: UIExecutionStatus,
-    },
-
-    /// An update on the stderr of the validation of a testcase.
-    IOIValidationStderr {
-        /// The id of the subtask.
-        subtask: SubtaskId,
-        /// The id of the testcase.
-        testcase: TestcaseId,
-        /// The prefix of the stderr of the validator.
-        content: String,
     },
 
     /// The solution of a testcase in a IOI task.

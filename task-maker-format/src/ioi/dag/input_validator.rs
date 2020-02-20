@@ -8,7 +8,7 @@ use task_maker_dag::{Execution, FileUuid, Priority};
 use crate::bind_exec_callbacks;
 use crate::ioi::{SubtaskId, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
 use crate::ui::UIMessage;
-use crate::{EvaluationData, SourceFile, Tag, UISender};
+use crate::{EvaluationData, SourceFile, Tag};
 
 /// An input file validator is responsible for checking that the input file follows the format and
 /// constraints defined by the task.
@@ -70,21 +70,12 @@ impl InputValidator {
             input,
         )?;
         if let Some(mut val) = val {
+            val.capture_stderr(STDERR_CONTENT_LENGTH);
             bind_exec_callbacks!(eval, val.uuid, |status| UIMessage::IOIValidation {
                 subtask: subtask_id,
                 testcase: testcase_id,
                 status
             })?;
-            let sender = eval.sender.clone();
-            eval.dag
-                .get_file_content(val.stderr(), STDERR_CONTENT_LENGTH, move |content| {
-                    let content = String::from_utf8_lossy(&content);
-                    sender.send(UIMessage::IOIValidationStderr {
-                        testcase: testcase_id,
-                        subtask: subtask_id,
-                        content: content.into(),
-                    })
-                });
             eval.dag.add_execution(val);
         }
         Ok(handle)

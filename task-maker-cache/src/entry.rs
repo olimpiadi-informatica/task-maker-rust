@@ -172,6 +172,8 @@ mod tests {
                         wall_time: 0.0,
                         memory: 0,
                     },
+                    stdout: None,
+                    stderr: None,
                 },
                 limits: Default::default(),
                 extra_time: exec.config().extra_time,

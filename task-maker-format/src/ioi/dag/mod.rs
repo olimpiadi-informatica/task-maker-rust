@@ -355,6 +355,8 @@ mod tests {
                     wall_time: 0.0,
                     memory: 0,
                 },
+                stdout: None,
+                stderr: None,
             })
             .unwrap();
         });
@@ -391,6 +393,8 @@ mod tests {
                     wall_time: 0.0,
                     memory: 0,
                 },
+                stdout: None,
+                stderr: None,
             })
             .unwrap();
         });
@@ -446,12 +450,19 @@ mod tests {
             .unwrap();
         let exec = eval.dag.data.executions.values().next().unwrap();
 
-        let stdout = exec.stdout.as_ref().unwrap().uuid;
-        let stdout = eval.dag.file_callbacks.remove(&stdout).unwrap();
-        stdout.get_content.unwrap().1.call(b"1.0".to_vec()).unwrap();
-        let stderr = exec.stderr.as_ref().unwrap().uuid;
-        let stderr = eval.dag.file_callbacks.remove(&stderr).unwrap();
-        stderr.get_content.unwrap().1.call(b"Ok!".to_vec()).unwrap();
+        let on_done = eval.dag.execution_callbacks.get_mut(&exec.uuid).unwrap();
+        on_done
+            .on_done
+            .remove(0)
+            .call(ExecutionResult {
+                status: ExecutionStatus::Success,
+                was_killed: false,
+                was_cached: false,
+                resources: Default::default(),
+                stdout: Some("1.0\n\n".into()),
+                stderr: Some("Ok!\n\n".into()),
+            })
+            .unwrap();
 
         assert!(cb_called.load(Ordering::Relaxed));
     }
@@ -480,12 +491,19 @@ mod tests {
             .unwrap();
         let exec = eval.dag.data.executions.values().next().unwrap();
 
-        let stdout = exec.stdout.as_ref().unwrap().uuid;
-        let stdout = eval.dag.file_callbacks.remove(&stdout).unwrap();
-        stdout.get_content.unwrap().1.call(b"0.0".to_vec()).unwrap();
-        let stderr = exec.stderr.as_ref().unwrap().uuid;
-        let stderr = eval.dag.file_callbacks.remove(&stderr).unwrap();
-        stderr.get_content.unwrap().1.call(b"Ko!".to_vec()).unwrap();
+        let on_done = eval.dag.execution_callbacks.get_mut(&exec.uuid).unwrap();
+        on_done
+            .on_done
+            .remove(0)
+            .call(ExecutionResult {
+                status: ExecutionStatus::Success,
+                was_killed: false,
+                was_cached: false,
+                resources: Default::default(),
+                stdout: Some("0.0\n\n".into()),
+                stderr: Some("Ko!\n\n".into()),
+            })
+            .unwrap();
 
         assert!(cb_called.load(Ordering::Relaxed));
     }
@@ -507,18 +525,21 @@ mod tests {
             .unwrap();
         let exec = eval.dag.data.executions.values().next().unwrap();
 
-        let stdout = exec.stdout.as_ref().unwrap().uuid;
-        let stdout = eval.dag.file_callbacks.remove(&stdout).unwrap();
-        let err = stdout
-            .get_content
-            .unwrap()
-            .1
-            .call(b":<".to_vec())
+        let on_done = eval.dag.execution_callbacks.get_mut(&exec.uuid).unwrap();
+        let err = on_done
+            .on_done
+            .remove(0)
+            .call(ExecutionResult {
+                status: ExecutionStatus::Success,
+                was_killed: false,
+                was_cached: false,
+                resources: Default::default(),
+                stdout: Some(":<\n\n".into()),
+                stderr: Some("Ko!\n\n".into()),
+            })
             .unwrap_err()
             .to_string();
+
         assert!(err.contains("Invalid score from checker"));
-        let stderr = exec.stderr.as_ref().unwrap().uuid;
-        let stderr = eval.dag.file_callbacks.remove(&stderr).unwrap();
-        stderr.get_content.unwrap().1.call(b"Ko!".to_vec()).unwrap();
     }
 }

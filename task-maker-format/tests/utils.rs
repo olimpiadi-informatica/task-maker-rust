@@ -80,6 +80,8 @@ pub fn good_result() -> ExecutionResult {
             wall_time: 0.0,
             memory: 0,
         },
+        stdout: None,
+        stderr: None,
     }
 }
 
@@ -94,5 +96,7 @@ pub fn bad_result() -> ExecutionResult {
             wall_time: 0.0,
             memory: 0,
         },
+        stdout: None,
+        stderr: None,
     }
 }

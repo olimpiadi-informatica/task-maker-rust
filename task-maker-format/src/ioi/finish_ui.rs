@@ -135,7 +135,9 @@ impl FinishUI {
                 }
                 println!();
                 if gen_failed {
-                    if let Some(stderr) = &testcase.generation_stderr {
+                    let stderr = testcase.generation.as_ref().and_then(|g| g.stderr.as_ref());
+                    if let Some(stderr) = stderr {
+                        let stderr = String::from_utf8_lossy(&stderr);
                         if !stderr.trim().is_empty() {
                             cwriteln!(self, BOLD, "Generation stderr:");
                             println!("{}", stderr.trim());
@@ -143,7 +145,9 @@ impl FinishUI {
                     }
                 }
                 if val_failed {
-                    if let Some(stderr) = &testcase.validation_stderr {
+                    let stderr = testcase.validation.as_ref().and_then(|g| g.stderr.as_ref());
+                    if let Some(stderr) = stderr {
+                        let stderr = String::from_utf8_lossy(&stderr);
                         if !stderr.trim().is_empty() {
                             cwriteln!(self, BOLD, "Validation stderr:");
                             println!("{}", stderr.trim());

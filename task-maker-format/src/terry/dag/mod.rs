@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use failure::Error;
+use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
 
 use task_maker_dag::{Execution, ExecutionLimits, FileUuid};
@@ -234,15 +234,14 @@ impl Checker {
         include_official_solution(eval, &mut exec, official_solution)?;
         *exec.limits_mut() = ExecutionLimits::unrestricted();
         exec.input(input, "input.txt", false)
-            .input(output, "output.txt", false);
-        let stdout = exec.stdout();
-        let stderr = exec.stderr();
-        eval.dag.urgent_file(&stdout);
-        eval.dag.urgent_file(&stderr);
-        eval.dag
-            .get_file_content(stdout, OUTCOME_SIZE_LIMIT, |stdout| {
-                callback(serde_json::from_slice(&stdout).map_err(|e| e.into()))
-            });
+            .input(output, "output.txt", false)
+            .capture_stdout(OUTCOME_SIZE_LIMIT);
+        eval.dag.on_execution_done(&exec.uuid, move |res| {
+            let stdout = res
+                .stdout
+                .ok_or_else(|| format_err!("Checker stdout not captured"))?;
+            callback(serde_json::from_slice(&stdout).map_err(|e| e.into()))
+        });
         Ok(exec)
     }
 

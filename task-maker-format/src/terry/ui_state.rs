@@ -124,16 +124,6 @@ impl UIStateT for UIState {
                 .entry(file)
                 .or_insert(CompilationStatus::Pending)
                 .apply_status(status),
-            UIMessage::CompilationStdout { file, content } => self
-                .compilations
-                .entry(file)
-                .or_insert(CompilationStatus::Pending)
-                .apply_stdout(content),
-            UIMessage::CompilationStderr { file, content } => self
-                .compilations
-                .entry(file)
-                .or_insert(CompilationStatus::Pending)
-                .apply_stderr(content),
             UIMessage::TerryTask { .. } => {}
             UIMessage::TerryGeneration {
                 solution,
@@ -193,9 +183,7 @@ impl UIStateT for UIState {
             }
             UIMessage::IOITask { .. }
             | UIMessage::IOIGeneration { .. }
-            | UIMessage::IOIGenerationStderr { .. }
             | UIMessage::IOIValidation { .. }
-            | UIMessage::IOIValidationStderr { .. }
             | UIMessage::IOISolution { .. }
             | UIMessage::IOIEvaluation { .. }
             | UIMessage::IOIChecker { .. }

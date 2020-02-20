@@ -419,15 +419,18 @@ impl TestInterfaceSuccessful {
                             st,
                             tc
                         );
+                        let stderr = testcase
+                            .generation
+                            .as_ref()
+                            .unwrap()
+                            .stderr
+                            .as_ref()
+                            .unwrap();
+                        let stderr = String::from_utf8_lossy(&stderr);
                         assert!(
-                            testcase
-                                .generation_stderr
-                                .as_ref()
-                                .map(|s| s.as_str())
-                                .unwrap_or("")
-                                .contains(expected),
+                            stderr.contains(expected),
                             "Generation stderr of subtask {}, testcase {} does not contain '{}'. It is '{:?}'",
-                            st, tc, expected, testcase.generation_stderr
+                            st, tc, expected, stderr
                         );
                     }
                     Some(None) => {
@@ -474,14 +477,18 @@ impl TestInterfaceSuccessful {
                             st,
                             tc
                         );
+                        let stderr = testcase
+                            .validation
+                            .as_ref()
+                            .unwrap()
+                            .stderr
+                            .as_ref()
+                            .unwrap();
+                        let stderr = String::from_utf8_lossy(&stderr);
                         assert!(
-                            testcase
-                                .validation_stderr
-                                .as_ref().map(|s| s.as_str())
-                                .unwrap_or("")
-                                .contains(expected),
+                            stderr.contains(expected),
                             "Validation stderr of subtask {}, testcase {} does not contain '{}'. It is '{:?}'",
-                            st, tc, expected, testcase.validation_stderr
+                            st, tc, expected, stderr
                         );
                     }
                     Some(None) => {

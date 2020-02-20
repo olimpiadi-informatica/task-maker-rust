@@ -15,6 +15,19 @@ pub enum DAGError {
         /// The description of the missing file.
         description: String,
     },
+    /// Stdout/Stderr capture is requested, but a UUID for them is missing.
+    #[fail(
+        display = "missing UUID for captured {} on execution {} ({})",
+        stream, uuid, description
+    )]
+    InvalidCapture {
+        /// Either "stdout" or "stderr".
+        stream: String,
+        /// The UUID of the missing file.
+        uuid: ExecutionUuid,
+        /// The description of the missing file.
+        description: String,
+    },
     /// A callback is registered on an execution but it's missing.
     #[fail(display = "missing execution {}", uuid)]
     MissingExecution {
@@ -62,6 +75,20 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
         let count = deps.len();
         for dep in deps.into_iter() {
             add_dependency(dep, *exec_uuid);
+        }
+        if exec.capture_stdout.is_some() && exec.stdout.is_none() {
+            return Err(DAGError::InvalidCapture {
+                stream: "stdout".to_string(),
+                uuid: *exec_uuid,
+                description: exec.description.clone(),
+            });
+        }
+        if exec.capture_stderr.is_some() && exec.stderr.is_none() {
+            return Err(DAGError::InvalidCapture {
+                stream: "stderr".to_string(),
+                uuid: *exec_uuid,
+                description: exec.description.clone(),
+            });
         }
         for out in exec.outputs().into_iter() {
             if !known_files.insert(out) {

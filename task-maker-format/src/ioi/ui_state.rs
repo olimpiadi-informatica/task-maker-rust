@@ -69,12 +69,8 @@ pub struct TestcaseGenerationState {
     pub status: TestcaseGenerationStatus,
     /// Result of the generation.
     pub generation: Option<ExecutionResult>,
-    /// Stderr of the generator.
-    pub generation_stderr: Option<String>,
     /// Result of the validation.
     pub validation: Option<ExecutionResult>,
-    /// Stderr of the validator.
-    pub validation_stderr: Option<String>,
     /// Result of the solution.
     pub solution: Option<ExecutionResult>,
 }
@@ -279,9 +275,7 @@ impl UIState {
                                     TestcaseGenerationState {
                                         status: TestcaseGenerationStatus::Pending,
                                         generation: None,
-                                        generation_stderr: None,
                                         validation: None,
-                                        validation_stderr: None,
                                         solution: None,
                                     },
                                 )
@@ -315,16 +309,6 @@ impl UIStateT for UIState {
                 .entry(file)
                 .or_insert(CompilationStatus::Pending)
                 .apply_status(status),
-            UIMessage::CompilationStdout { file, content } => self
-                .compilations
-                .entry(file)
-                .or_insert(CompilationStatus::Pending)
-                .apply_stdout(content),
-            UIMessage::CompilationStderr { file, content } => self
-                .compilations
-                .entry(file)
-                .or_insert(CompilationStatus::Pending)
-                .apply_stderr(content),
             UIMessage::IOITask { .. } => {}
             UIMessage::IOIGeneration {
                 subtask,
@@ -353,20 +337,6 @@ impl UIStateT for UIState {
                     }
                     UIExecutionStatus::Skipped => gen.status = TestcaseGenerationStatus::Skipped,
                 }
-            }
-            UIMessage::IOIGenerationStderr {
-                subtask,
-                testcase,
-                content,
-            } => {
-                let gen = self
-                    .generations
-                    .get_mut(&subtask)
-                    .expect("Subtask is gone")
-                    .testcases
-                    .get_mut(&testcase)
-                    .expect("Testcase is gone");
-                gen.generation_stderr = Some(content);
             }
             UIMessage::IOIValidation {
                 subtask,
@@ -400,20 +370,6 @@ impl UIStateT for UIState {
                         }
                     }
                 }
-            }
-            UIMessage::IOIValidationStderr {
-                subtask,
-                testcase,
-                content,
-            } => {
-                let gen = self
-                    .generations
-                    .get_mut(&subtask)
-                    .expect("Subtask is gone")
-                    .testcases
-                    .get_mut(&testcase)
-                    .expect("Testcase is gone");
-                gen.validation_stderr = Some(content);
             }
             UIMessage::IOISolution {
                 subtask,

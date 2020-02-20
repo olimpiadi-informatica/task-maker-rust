@@ -9,7 +9,7 @@ use task_maker_dag::{Execution, File, FileUuid, Priority};
 use crate::bind_exec_callbacks;
 use crate::ioi::{SubtaskId, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
 use crate::ui::UIMessage;
-use crate::{EvaluationData, SourceFile, Tag, UISender};
+use crate::{EvaluationData, SourceFile, Tag};
 
 /// The source of the input files. It can either be a statically provided input file or a custom
 /// command that will generate an input file.
@@ -81,21 +81,12 @@ impl InputGenerator {
         );
         // if there is an execution, bind its callbacks and store the input file
         if let Some(mut gen) = gen {
+            gen.capture_stderr(STDERR_CONTENT_LENGTH);
             bind_exec_callbacks!(eval, gen.uuid, |status| UIMessage::IOIGeneration {
                 subtask: subtask_id,
                 testcase: testcase_id,
                 status
             })?;
-            let sender = eval.sender.clone();
-            eval.dag
-                .get_file_content(gen.stderr(), STDERR_CONTENT_LENGTH, move |content| {
-                    let content = String::from_utf8_lossy(&content);
-                    sender.send(UIMessage::IOIGenerationStderr {
-                        testcase: testcase_id,
-                        subtask: subtask_id,
-                        content: content.into(),
-                    })
-                });
             eval.dag.add_execution(gen);
         }
         Ok(input)

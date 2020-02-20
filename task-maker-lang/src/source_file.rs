@@ -9,6 +9,8 @@ use task_maker_dag::*;
 use crate::languages::*;
 use crate::{GraderMap, LanguageManager};
 
+/// Length of the stdout/stderr of the compilers to capture.
+const COMPILATION_CONTENT_LENGTH: usize = 10 * 1024;
 const COMPILATION_PRIORITY: Priority = 1_000_000_000;
 
 /// A source file that will be able to be executed (with an optional compilation step).
@@ -34,12 +36,6 @@ pub struct SourceFile {
     copy_exe: bool,
     /// Where to write the compiled executable.
     write_bin_to: Option<PathBuf>,
-    /// The stdout of the compilation, set if `prepare` has been called, and the language supports
-    /// compilation.
-    compilation_stdout: Arc<Mutex<Option<File>>>,
-    /// The stderr of the compilation, set if `prepare` has been called, and the language supports
-    /// compilation.
-    compilation_stderr: Arc<Mutex<Option<File>>>,
 }
 
 impl SourceFile {
@@ -68,8 +64,6 @@ impl SourceFile {
             executable: Arc::new(Mutex::new(None)),
             grader_map,
             write_bin_to: write_bin_to.map(|p| p.into()),
-            compilation_stdout: Arc::new(Mutex::new(None)),
-            compilation_stderr: Arc::new(Mutex::new(None)),
             copy_exe: false,
         })
     }
@@ -229,18 +223,6 @@ impl SourceFile {
         self.write_bin_to.clone()
     }
 
-    /// The standard output of the compilation, if the source file is compiled and `execute` has
-    /// been called at least once.
-    pub fn compilation_stdout(&self) -> Option<File> {
-        self.compilation_stdout.lock().unwrap().clone()
-    }
-
-    /// The standard error of the compilation, if the source file is compiled and `execute` has
-    /// been called at least once.
-    pub fn compilation_stderr(&self) -> Option<File> {
-        self.compilation_stderr.lock().unwrap().clone()
-    }
-
     /// Prepare the source file setting the `executable` and eventually compiling the source file.
     fn prepare(&self, dag: &mut ExecutionDAG) -> Result<Option<ExecutionUuid>, Error> {
         if self.executable.lock().unwrap().is_some() {
@@ -252,8 +234,10 @@ impl SourceFile {
                 &format!("Compilation of {:?}", self.name()),
                 self.language.compilation_command(&self.path, write_to),
             );
-            comp.tag(ExecutionTag::from("compilation"));
-            comp.priority(COMPILATION_PRIORITY);
+            comp.tag(ExecutionTag::from("compilation"))
+                .priority(COMPILATION_PRIORITY)
+                .capture_stdout(COMPILATION_CONTENT_LENGTH)
+                .capture_stderr(COMPILATION_CONTENT_LENGTH);
             comp.args = self.language.compilation_args(&self.path, write_to);
             let source = File::new(&format!("Source file of {:?}", self.path));
             comp.input(
@@ -276,8 +260,6 @@ impl SourceFile {
                     dag.provide_file(dep.file, &dep.local_path)?;
                 }
             }
-            *self.compilation_stdout.lock().unwrap() = Some(comp.stdout());
-            *self.compilation_stderr.lock().unwrap() = Some(comp.stderr());
             let exec = comp.output(&self.language.compiled_file_name(&self.path, write_to));
             let comp_uuid = comp.uuid;
             dag.add_execution(comp);

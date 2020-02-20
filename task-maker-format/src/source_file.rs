@@ -1,16 +1,16 @@
-use crate::bind_exec_callbacks;
-use crate::ui::*;
-use crate::EvaluationData;
-use crate::UISender;
+use std::path::PathBuf;
+use std::sync::Arc;
+
 use failure::Error;
 use failure::_core::ops::{Deref, DerefMut};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use std::sync::Arc;
+
 use task_maker_dag::*;
 use task_maker_lang::GraderMap;
 
-const COMPILATION_CONTENT_LENGTH: usize = 10 * 1024;
+use crate::bind_exec_callbacks;
+use crate::ui::*;
+use crate::EvaluationData;
 
 /// Wrapper around [`task_maker_lang::SourceFile`](../task_maker_lang/struct.SourceFile.html) that
 /// also sends to the UI the messages about the compilation, making the compilation completely
@@ -77,30 +77,6 @@ impl SourceFile {
                 |status, file| UIMessage::Compilation { file, status },
                 path
             )?;
-            if let Some(stdout) = self.base.compilation_stdout() {
-                let path = path.clone();
-                let sender = eval.sender.clone();
-                eval.dag
-                    .get_file_content(stdout, COMPILATION_CONTENT_LENGTH, move |content| {
-                        let content = String::from_utf8_lossy(&content);
-                        sender.send(UIMessage::CompilationStdout {
-                            file: path,
-                            content: content.into(),
-                        })
-                    });
-            }
-            if let Some(stderr) = self.base.compilation_stderr() {
-                let path = path.clone();
-                let sender = eval.sender.clone();
-                eval.dag
-                    .get_file_content(stderr, COMPILATION_CONTENT_LENGTH, move |content| {
-                        let content = String::from_utf8_lossy(&content);
-                        sender.send(UIMessage::CompilationStderr {
-                            file: path,
-                            content: content.into(),
-                        })
-                    });
-            }
         }
         Ok(())
     }

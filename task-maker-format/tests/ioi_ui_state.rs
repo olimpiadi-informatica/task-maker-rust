@@ -86,16 +86,13 @@ fn test_ui_state_compilation_stdout() {
     let mut ui = UIState::new(&task);
     let file = PathBuf::from("file");
     let content = "ciao".to_string();
-    let result = utils::bad_result();
+    let mut result = utils::bad_result();
+    result.stdout = Some(content.clone().into_bytes());
     ui.apply(UIMessage::Compilation {
         file: file.clone(),
         status: UIExecutionStatus::Done {
             result: result.clone(),
         },
-    });
-    ui.apply(UIMessage::CompilationStdout {
-        file: file.clone(),
-        content: content.clone(),
     });
     assert_eq!(
         ui.compilations[&file],
@@ -113,16 +110,13 @@ fn test_ui_state_compilation_stderr() {
     let mut ui = UIState::new(&task);
     let file = PathBuf::from("file");
     let content = "ciao".to_string();
-    let result = utils::good_result();
+    let mut result = utils::good_result();
+    result.stderr = Some(content.clone().into_bytes());
     ui.apply(UIMessage::Compilation {
         file: file.clone(),
         status: UIExecutionStatus::Done {
             result: result.clone(),
         },
-    });
-    ui.apply(UIMessage::CompilationStderr {
-        file: file.clone(),
-        content: content.clone(),
     });
     assert_eq!(
         ui.compilations[&file],
@@ -201,22 +195,6 @@ fn test_ui_state_generation_failed() {
 }
 
 #[test]
-fn test_ui_state_generation_stderr() {
-    let task = utils::new_task();
-    let mut ui = UIState::new(&task);
-    let content = "ciao".to_string();
-    ui.apply(UIMessage::IOIGenerationStderr {
-        subtask: 0,
-        testcase: 0,
-        content: content.clone(),
-    });
-    assert_eq!(
-        ui.generations[&0].testcases[&0].generation_stderr,
-        Some(content)
-    );
-}
-
-#[test]
 fn test_ui_state_validation_skipped() {
     let task = utils::new_task();
     let mut ui = UIState::new(&task);
@@ -279,22 +257,6 @@ fn test_ui_state_validation_failed() {
     assert_eq!(
         ui.generations[&0].testcases[&0].status,
         TestcaseGenerationStatus::Failed
-    );
-}
-
-#[test]
-fn test_ui_state_validation_stderr() {
-    let task = utils::new_task();
-    let mut ui = UIState::new(&task);
-    let content = "ciao".to_string();
-    ui.apply(UIMessage::IOIValidationStderr {
-        subtask: 0,
-        testcase: 0,
-        content: content.clone(),
-    });
-    assert_eq!(
-        ui.generations[&0].testcases[&0].validation_stderr,
-        Some(content)
     );
 }
 

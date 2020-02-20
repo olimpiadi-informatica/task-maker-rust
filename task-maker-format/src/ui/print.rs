@@ -100,6 +100,7 @@ impl PrintUI {
 }
 
 impl UI for PrintUI {
+    #[allow(clippy::cognitive_complexity)]
     fn on_message(&mut self, message: UIMessage) {
         if let Some(state) = self.ioi_state.as_mut() {
             state.apply(message.clone())
@@ -126,14 +127,18 @@ impl UI for PrintUI {
                 self.write_status(&status);
                 self.write_message(format!("Compilation of {:?} ", file));
                 self.write_status_details(&status);
-            }
-            UIMessage::CompilationStdout { file, content } => {
-                println!("[STDOUT]  Compilation stdout of {:?}", file);
-                print!("{}", content.trim());
-            }
-            UIMessage::CompilationStderr { file, content } => {
-                println!("[STDERR]  Compilation stderr of {:?}", file);
-                print!("{}", content.trim());
+                if let UIExecutionStatus::Done { result } = status {
+                    if let Some(stderr) = result.stderr {
+                        let stderr = String::from_utf8_lossy(&stderr);
+                        println!("\n[STDERR]  Compilation stderr of {:?}", file);
+                        print!("{}", stderr.trim());
+                    }
+                    if let Some(stdout) = result.stdout {
+                        let stdout = String::from_utf8_lossy(&stdout);
+                        println!("\n[STDOUT]  Compilation stdout of {:?}", file);
+                        print!("{}", stdout.trim());
+                    }
+                }
             }
             UIMessage::IOITask { task } => {
                 self.ioi_state = Some(ioi::ui_state::UIState::new(task.as_ref()));
@@ -161,17 +166,16 @@ impl UI for PrintUI {
                     testcase, subtask
                 ));
                 self.write_status_details(&status);
-            }
-            UIMessage::IOIGenerationStderr {
-                subtask,
-                testcase,
-                content,
-            } => {
-                println!(
-                    "[STDERR]  Generation stderr of testcase {} of subtask {}",
-                    testcase, subtask
-                );
-                print!("{}", content.trim());
+                if let UIExecutionStatus::Done { result } = status {
+                    if let Some(stderr) = result.stderr {
+                        let stderr = String::from_utf8_lossy(&stderr);
+                        println!(
+                            "\n[STDERR]  Generation stderr of testcase {} of subtask {}",
+                            testcase, subtask
+                        );
+                        print!("{}", stderr.trim());
+                    }
+                }
             }
             UIMessage::IOIValidation {
                 subtask,
@@ -184,17 +188,16 @@ impl UI for PrintUI {
                     testcase, subtask
                 ));
                 self.write_status_details(&status);
-            }
-            UIMessage::IOIValidationStderr {
-                subtask,
-                testcase,
-                content,
-            } => {
-                println!(
-                    "[STDERR]  Validation stderr of testcase {} of subtask {}",
-                    testcase, subtask
-                );
-                print!("{}", content.trim());
+                if let UIExecutionStatus::Done { result } = status {
+                    if let Some(stderr) = result.stderr {
+                        let stderr = String::from_utf8_lossy(&stderr);
+                        println!(
+                            "\n[STDERR]  Validation stderr of testcase {} of subtask {}",
+                            testcase, subtask
+                        );
+                        print!("{}", stderr.trim());
+                    }
+                }
             }
             UIMessage::IOISolution {
                 subtask,

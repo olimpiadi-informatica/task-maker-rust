@@ -51,6 +51,8 @@
 //!     },
 //!     was_killed: false,
 //!     was_cached: false,
+//!     stderr: None,
+//!     stdout: None,
 //! };
 //!
 //! // make the FileUuid -> FileStoreHandle map
@@ -225,6 +227,8 @@ impl Cache {
                                 was_killed: entry.result.was_killed,
                                 was_cached: true,
                                 resources: entry.result.resources.clone(),
+                                stdout: entry.result.stdout.clone(),
+                                stderr: entry.result.stderr.clone(),
                             },
                             outputs,
                         };

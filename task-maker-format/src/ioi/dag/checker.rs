@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
@@ -82,43 +82,23 @@ impl Checker {
                     .input(correct_output, "correct_output", false)
                     .input(test_output, "test_output", false)
                     .tag(Tag::Checking.into())
+                    .capture_stdout(128)
+                    .capture_stderr(1024)
                     .priority(EVALUATION_PRIORITY - testcase_id as Priority);
-                let stdout = exec.stdout();
-                let stderr = exec.stderr();
-                eval.dag.urgent_file(&stdout);
-                eval.dag.urgent_file(&stderr);
-                // wait for both the stdout and the stderr
-                let state_stdout: Arc<Mutex<(Option<f64>, Option<String>)>> =
-                    Arc::new(Mutex::new((None, None)));
-                let state_stderr = state_stdout.clone();
-                let callback_stdout = Arc::new(Mutex::new(Some(callback)));
-                let callback_stderr = callback_stdout.clone();
-                macro_rules! send_state {
-                    ($callback:expr, $state:expr) => {{
-                        // if both the score and the message are present
-                        if let (Some(ref score), Some(ref message)) = *$state {
-                            if let Some(f) = $callback.lock().unwrap().take() {
-                                f(*score, message.clone())?;
-                            }
-                        }
-                    }};
-                }
-                eval.dag.get_file_content(stdout, 128, move |content| {
-                    let score = String::from_utf8_lossy(&content);
+                eval.dag.on_execution_done(&exec.uuid, move |res| {
+                    let stdout = res
+                        .stdout
+                        .ok_or_else(|| format_err!("Checker stdout not captured"))?;
+                    let stderr = res
+                        .stderr
+                        .ok_or_else(|| format_err!("Checker stderr not captured"))?;
+                    let score = String::from_utf8_lossy(&stdout);
                     let score: f64 = score
                         .trim()
                         .parse()
                         .map_err(|e| format_err!("Invalid score from checker: {:?}", e))?;
-                    let mut state = state_stdout.lock().unwrap();
-                    state.0 = Some(score);
-                    send_state!(callback_stdout, state);
-                    Ok(())
-                });
-                eval.dag.get_file_content(stderr, 1024, move |content| {
-                    let mut state = state_stderr.lock().unwrap();
-                    state.1 = Some(String::from_utf8_lossy(&content).trim().to_string());
-                    send_state!(callback_stderr, state);
-                    Ok(())
+                    let message = String::from_utf8_lossy(&stderr).trim().to_string();
+                    callback(score, message)
                 });
                 Ok(exec)
             }

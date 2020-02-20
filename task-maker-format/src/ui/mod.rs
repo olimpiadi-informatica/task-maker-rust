@@ -130,42 +130,29 @@ impl CompilationStatus {
             UIExecutionStatus::Pending => *self = CompilationStatus::Pending,
             UIExecutionStatus::Started { .. } => *self = CompilationStatus::Running,
             UIExecutionStatus::Done { result } => {
+                let stdout = result
+                    .stdout
+                    .as_ref()
+                    .map(|s| String::from_utf8_lossy(&s).into());
+                let stderr = result
+                    .stderr
+                    .as_ref()
+                    .map(|s| String::from_utf8_lossy(&s).into());
                 if let ExecutionStatus::Success = result.status {
                     *self = CompilationStatus::Done {
                         result,
-                        stdout: None,
-                        stderr: None,
+                        stdout,
+                        stderr,
                     };
                 } else {
                     *self = CompilationStatus::Failed {
                         result,
-                        stdout: None,
-                        stderr: None,
+                        stdout,
+                        stderr,
                     };
                 }
             }
             UIExecutionStatus::Skipped => *self = CompilationStatus::Skipped,
-        }
-    }
-
-    /// Set the standard output of the compilation.
-    pub fn apply_stdout(&mut self, content: String) {
-        // FIXME: if the stdout is sent before the status of the execution this breaks
-        match self {
-            CompilationStatus::Done { stdout, .. } | CompilationStatus::Failed { stdout, .. } => {
-                stdout.replace(content);
-            }
-            _ => {}
-        }
-    }
-
-    /// Set the standard error of the compilation.
-    pub fn apply_stderr(&mut self, content: String) {
-        match self {
-            CompilationStatus::Done { stderr, .. } | CompilationStatus::Failed { stderr, .. } => {
-                stderr.replace(content);
-            }
-            _ => {}
         }
     }
 }

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -300,6 +301,8 @@ fn execute_job(
                         was_killed: false,
                         was_cached: false,
                         resources: ExecutionResourcesUsage::default(),
+                        stdout: None,
+                        stderr: None,
                     };
                     sender
                         .send(WorkerClientMessage::WorkerDone(result, Default::default()))
@@ -307,7 +310,8 @@ fn execute_job(
                     return;
                 }
             };
-            let result = compute_execution_result(&job.execution, result);
+            let result = compute_execution_result(&job.execution, result, &sandbox)
+                .expect("Cannot compute execution result");
 
             let mut outputs = HashMap::new();
             let mut output_paths = HashMap::new();
@@ -350,25 +354,57 @@ fn execute_job(
 
 /// Compute the [`ExecutionResult`](../task_maker_dag/struct.ExecutionResult.html) based on the
 /// result of the sandbox.
-fn compute_execution_result(execution: &Execution, result: SandboxResult) -> ExecutionResult {
+fn compute_execution_result(
+    execution: &Execution,
+    result: SandboxResult,
+    sandbox: &Sandbox,
+) -> Result<ExecutionResult, Error> {
     match result {
         SandboxResult::Success {
             exit_status,
             signal,
             resources,
             was_killed,
-        } => ExecutionResult {
+        } => Ok(ExecutionResult {
             status: execution.status(exit_status, signal, &resources),
             resources,
+            stdout: capture_stream(&sandbox.stdout_path(), execution.capture_stdout)?,
             was_killed,
             was_cached: false,
-        },
-        SandboxResult::Failed { error } => ExecutionResult {
+            stderr: capture_stream(&sandbox.stderr_path(), execution.capture_stderr)?,
+        }),
+        SandboxResult::Failed { error } => Ok(ExecutionResult {
             status: ExecutionStatus::InternalError(error),
             resources: ExecutionResourcesUsage::default(),
+            stdout: None,
             was_killed: false,
             was_cached: false,
-        },
+            stderr: None,
+        }),
+    }
+}
+
+/// If `count` is `None` do not read anything, otherwise read at most that number of bytes from the
+/// `path`.
+fn capture_stream(path: &Path, count: Option<usize>) -> Result<Option<Vec<u8>>, Error> {
+    if let Some(count) = count {
+        let mut file = std::fs::File::open(path)?;
+        let mut result = Vec::new();
+        let mut buffer = vec![0; 1024];
+        let mut read = 0;
+        while read < count {
+            let n = file.read(&mut buffer)?;
+            // EOF
+            if n == 0 {
+                break;
+            } else {
+                result.extend_from_slice(&buffer[0..n]);
+                read += n;
+            }
+        }
+        Ok(Some(result))
+    } else {
+        Ok(None)
     }
 }
 
