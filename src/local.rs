@@ -89,6 +89,22 @@ where
         config.extra_time(extra_time);
     }
 
+    // setup the file store
+    let store_path = opt.store_dir();
+    let file_store = Arc::new(
+        FileStore::new(
+            store_path.join("store"),
+            opt.max_cache * 1024 * 1024,
+            opt.min_cache * 1024 * 1024,
+        )
+        .map_err(|e| {
+            format_err!(
+                "Cannot create the file store: {}\nYou can try wiping it with --dont-panic",
+                e.to_string()
+            )
+        })?,
+    );
+
     // setup the ui thread
     let mut ui = task
         .ui(&opt.ui)
@@ -107,15 +123,6 @@ where
         .map_err(|e| format_err!("Failed to spawn UI thread: {}", e.to_string()))?;
 
     // setup the executor
-    let store_path = opt.store_dir();
-    let file_store = Arc::new(
-        FileStore::new(
-            store_path.join("store"),
-            opt.max_cache * 1024 * 1024,
-            opt.min_cache * 1024 * 1024,
-        )
-        .map_err(|e| format_err!("Cannot create the file store: {}", e.to_string()))?,
-    );
     let cache = Cache::new(store_path.join("cache"))
         .map_err(|e| format_err!("Cannot create the cache: {}", e.to_string()))?;
     let num_cores = opt.num_cores.unwrap_or_else(num_cpus::get);

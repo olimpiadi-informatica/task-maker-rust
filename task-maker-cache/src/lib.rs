@@ -134,6 +134,7 @@ impl Cache {
                     cache_file: path,
                 })
             } else {
+                error!("Cache store is broken, resetting");
                 Ok(Cache {
                     entries: HashMap::new(),
                     cache_file: path,
