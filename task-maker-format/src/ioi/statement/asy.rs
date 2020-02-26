@@ -8,6 +8,14 @@ use task_maker_dag::{Execution, ExecutionCommand, File};
 
 use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, Tag, UISender};
 
+lazy_static! {
+    static ref ASY_INCLUDE: Regex =
+        Regex::new(r#"(?:include|import)\s*['"]?([^'"\s]+)['"]?(?:\s+as\s+.+)?;"#)
+            .expect("Invalid regex");
+    static ref ASY_GRAPHIC: Regex =
+        Regex::new(r#"(?:graphic|input)\s*\(\s*['"]([^'"]+)['"]"#).expect("Invalid regex");
+}
+
 pub struct AsyFile;
 
 impl AsyFile {
@@ -114,12 +122,6 @@ impl AsyFile {
     /// Recursively search for the asy dependencies of the specified file, where the sandbox
     /// directory is at the specified prefix.
     fn find_asy_deps(path: &Path, prefix: &Path) -> Result<HashMap<PathBuf, PathBuf>, Error> {
-        lazy_static! {
-            static ref ASY_INCLUDE: Regex =
-                Regex::new(r"(?:include|import) *(.+)(?: +as +.+)?;").expect("Invalid regex");
-            static ref ASY_GRAPHIC: Regex =
-                Regex::new(r#"graphic\(['"]([^'"]+)['"]"#).expect("Invalid regex");
-        }
         let dir = path
             .parent()
             .ok_or_else(|| format_err!("File {:?} does not have a parent", path))?;
@@ -177,5 +179,64 @@ mod tests {
         assert_that!(deps).has_length(2);
         assert_that(&deps[Path::new("foo.asy")]).is_equal_to(&foo_path);
         assert_that(&deps[Path::new("img.png")]).is_equal_to(tmpdir.path().join("img.png"));
+    }
+
+    #[test]
+    fn test_asy_include_regex() {
+        let tests = vec![
+            (r#"import "file.asy" as foo;"#, "file.asy"),
+            (r#"import 'file.asy' as foo;"#, "file.asy"),
+            (r#"import file.asy as foo;"#, "file.asy"),
+            (r#"import file as foo;"#, "file"),
+            (r#"import "file";"#, "file"),
+            (r#"import 'file';"#, "file"),
+            (r#"import file;"#, "file"),
+            ("import\tfile;", "file"),
+            (r#"include "file.asy" as foo;"#, "file.asy"),
+            (r#"include 'file.asy' as foo;"#, "file.asy"),
+            (r#"include file.asy as foo;"#, "file.asy"),
+            (r#"include file as foo;"#, "file"),
+            (r#"include "file";"#, "file"),
+            (r#"include 'file';"#, "file"),
+            (r#"include file;"#, "file"),
+            ("include\tfile;", "file"),
+        ];
+        for (line, path) in tests {
+            let cap = ASY_INCLUDE.captures(line);
+            if let Some(cap) = cap {
+                if &cap[1] != path {
+                    panic!("Expecting '{}' in '{}' but was '{}'", path, line, &cap[1]);
+                }
+            } else {
+                panic!("Expecting '{}' in '{}' but nothing", path, line);
+            }
+        }
+    }
+
+    #[test]
+    fn test_asy_graphics_regex() {
+        let tests = vec![
+            (r#"foo = graphic("file.png");"#, "file.png"),
+            (r#"foo = graphic (   "file.png" );"#, "file.png"),
+            (r#"foo = graphic('file.png');"#, "file.png"),
+            (r#"foo = graphic (  'file.png' );"#, "file.png"),
+            (r#"foo=graphic("file.png", 42);"#, "file.png"),
+            (r#"foo=graphic('file.png', 42);"#, "file.png"),
+            (r#"foo=input('file.txt');"#, "file.txt"),
+            (r#"foo=input  (   'file.txt' );"#, "file.txt"),
+            (r#"foo=input("file.txt");"#, "file.txt"),
+            (r#"foo=input  (  "file.txt" );"#, "file.txt"),
+            (r#"foo=input('file.txt', 42);"#, "file.txt"),
+        ];
+        for (line, path) in tests {
+            let cap = ASY_GRAPHIC.captures(line);
+            if let Some(cap) = cap {
+                if &cap[1] != path {
+                    panic!("Expecting '{}' in '{}' but was '{}'", path, line, &cap[1]);
+                }
+            } else {
+                panic!("Expecting '{}' in '{}' but nothing", path, line);
+            }
+        }
     }
 }
