@@ -164,6 +164,11 @@ pub fn parse_task<P: AsRef<Path>>(
         None,
         Some(task_dir.join("check").join("checker")),
     )
+    .map(|mut c| {
+        // always copy the custom checker
+        c.copy_exe();
+        c
+    })
     .map(Arc::new)
     .map(Checker::Custom);
     let official_solution =
