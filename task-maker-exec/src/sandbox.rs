@@ -328,6 +328,12 @@ impl Sandbox {
             execution.description
         );
         std::fs::create_dir_all(box_dir.as_ref().join("box"))?;
+        // put /etc/passwd inside the sandbox
+        std::fs::create_dir_all(box_dir.as_ref().join("box").join("etc"))?;
+        std::fs::write(
+            box_dir.as_ref().join("box").join("etc").join("passwd"),
+            "root::0:0::/:/bin/sh\n",
+        )?;
         if let Some(stdin) = execution.stdin {
             Sandbox::write_sandbox_file(
                 &box_dir.as_ref().join("stdin"),
