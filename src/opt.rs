@@ -14,7 +14,7 @@ use task_maker_format::{EvaluationConfig, VALID_TAGS};
 )]
 pub struct Opt {
     /// Directory of the task to evaluate
-    #[structopt(short = "t", long = "task-dir", default_value = ".")]
+    #[structopt(short = "t", long = "task-dir", default_value = "")]
     pub task_dir: PathBuf,
 
     /// Which UI to use, available UIS are: print, raw, curses, json.
