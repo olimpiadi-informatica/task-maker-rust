@@ -1428,34 +1428,34 @@ dependencies = [
 
 [[package]]
 name = "task-maker-cache"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bincode 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
- "task-maker-dag 0.3.3",
- "task-maker-store 0.3.3",
+ "task-maker-dag 0.3.4",
+ "task-maker-store 0.3.4",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "task-maker-dag"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "approx 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "boxfnonce 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
- "task-maker-store 0.3.3",
+ "task-maker-store 0.3.4",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "uuid 0.7.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "task-maker-exec"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "bincode 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "chashmap 2.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1471,9 +1471,9 @@ dependencies = [
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.48 (registry+https://github.com/rust-lang/crates.io-index)",
  "tabox 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
- "task-maker-cache 0.3.3",
- "task-maker-dag 0.3.3",
- "task-maker-store 0.3.3",
+ "task-maker-cache 0.3.4",
+ "task-maker-dag 0.3.4",
+ "task-maker-store 0.3.4",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "uuid 0.7.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "which 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1481,7 +1481,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-format"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "approx 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "askama 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1501,9 +1501,9 @@ dependencies = [
  "serde_json 1.0.48 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_yaml 0.8.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "spectral 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "task-maker-dag 0.3.3",
- "task-maker-exec 0.3.3",
- "task-maker-lang 0.3.3",
+ "task-maker-dag 0.3.4",
+ "task-maker-exec 0.3.4",
+ "task-maker-lang 0.3.4",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "termcolor 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "termion 1.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1512,7 +1512,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-lang"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1520,15 +1520,15 @@ dependencies = [
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "spectral 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tabox 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
- "task-maker-dag 0.3.3",
- "task-maker-exec 0.3.3",
+ "task-maker-dag 0.3.4",
+ "task-maker-exec 0.3.4",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "which 2.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "task-maker-rust"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "better-panic 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "ctrlc 3.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1544,11 +1544,11 @@ dependencies = [
  "serde_json 1.0.48 (registry+https://github.com/rust-lang/crates.io-index)",
  "structopt 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "tabox 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
- "task-maker-cache 0.3.3",
- "task-maker-dag 0.3.3",
- "task-maker-exec 0.3.3",
- "task-maker-format 0.3.3",
- "task-maker-store 0.3.3",
+ "task-maker-cache 0.3.4",
+ "task-maker-dag 0.3.4",
+ "task-maker-exec 0.3.4",
+ "task-maker-format 0.3.4",
+ "task-maker-store 0.3.4",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "walkdir 2.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "whoami 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1556,7 +1556,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-store"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "blake2 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1572,7 +1572,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-test"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "approx 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "better-panic 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1584,9 +1584,9 @@ dependencies = [
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.48 (registry+https://github.com/rust-lang/crates.io-index)",
  "structopt 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
- "task-maker-dag 0.3.3",
- "task-maker-format 0.3.3",
- "task-maker-rust 0.3.3",
+ "task-maker-dag 0.3.4",
+ "task-maker-format 0.3.4",
+ "task-maker-rust 0.3.4",
  "tempdir 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
