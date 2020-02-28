@@ -21,6 +21,7 @@ use task_maker_rust::{main_server, main_worker, run_evaluation, Evaluation, Opt,
 #[derive(Debug)]
 pub struct TestInterface {
     state: Result<UIState, Error>,
+    tempdir: TempDir,
 }
 
 /// Interface for testing a task.
@@ -31,17 +32,24 @@ pub struct TestInterfaceSuccessful {
 
 impl TestInterface {
     pub fn run_local<P: Into<PathBuf>>(path: P) -> Self {
+        let _ = env_logger::Builder::from_default_env()
+            .default_format_timestamp_nanos(true)
+            .try_init();
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tasks")
             .join(path.into());
-        let tempdir = TempDir::new("tmtest").expect("Cannot crete tempdir");
+        let tempdir = TempDir::new("tm-test-local-client").expect("Cannot crete tempdir");
         TestInterface {
-            state: TestInterface::run_task_maker(path, false, &tempdir, &[]),
+            state: TestInterface::run_task_maker(path, false, tempdir.path(), &[]),
+            tempdir,
         }
     }
 
     /// Evaluate the task using a "remote" setup (spawning a local server and local workers).
     pub fn run_remote<P: Into<PathBuf>>(path: P) -> Self {
+        let _ = env_logger::Builder::from_default_env()
+            .default_format_timestamp_nanos(true)
+            .try_init();
         if !port_scanner::scan_port(27182) {
             eprintln!("Server not spawned, spawning");
             TestInterface::spawn_server();
@@ -51,14 +59,15 @@ impl TestInterface {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tasks")
             .join(path.into());
-        let tempdir = TempDir::new("tmtest").expect("Cannot crete tempdir");
+        let tempdir = TempDir::new("tm-test-remote-client").expect("Cannot crete tempdir");
         TestInterface {
             state: TestInterface::run_task_maker(
                 path,
                 false,
-                &tempdir,
+                &tempdir.path(),
                 &["--evaluate-on", "127.0.0.1:27182"],
             ),
+            tempdir,
         }
     }
 
@@ -95,7 +104,7 @@ impl TestInterface {
     fn run_task_maker(
         task_dir: PathBuf,
         cache: bool,
-        store_dir: &TempDir,
+        store_dir: &Path,
         extra_args: &[&str],
     ) -> Result<UIState, Error> {
         let mut args: Vec<&str> = vec!["task-maker"];
@@ -108,7 +117,7 @@ impl TestInterface {
         }
         args.push("--dry-run");
         args.push("-vv");
-        let store_dir = format!("--store-dir={}", store_dir.path().to_string_lossy());
+        let store_dir = format!("--store-dir={}", store_dir.to_string_lossy());
         args.push(&store_dir);
         for arg in extra_args {
             args.push(arg);
@@ -163,8 +172,8 @@ impl TestInterface {
         std::thread::Builder::new()
             .name("Test server".to_string())
             .spawn(|| {
-                let store = tempdir::TempDir::new("tm-test").unwrap();
-                let store = store.path().to_string_lossy().to_string();
+                let tmpdir = tempdir::TempDir::new("tm-test-remote-server").unwrap();
+                let store = tmpdir.path().to_string_lossy().to_string();
                 let opt = Opt::from_iter(&[
                     "task-maker",
                     "--store-dir",
@@ -183,8 +192,8 @@ impl TestInterface {
             .name("Test worker".to_string())
             .spawn(|| {
                 TestInterface::wait_port(27183);
-                let store = tempdir::TempDir::new("tm-test").unwrap();
-                let store = store.path().to_string_lossy().to_string();
+                let tmpdir = tempdir::TempDir::new("tm-test-remote-worker").unwrap();
+                let store = tmpdir.path().to_string_lossy().to_string();
                 let opt = Opt::from_iter(&[
                     "task-maker",
                     "--store-dir",

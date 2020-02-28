@@ -16,6 +16,7 @@ use crate::detect_format::find_task;
 use crate::error::NiceError;
 use crate::opt::Opt;
 use crate::sandbox::SelfExecSandboxRunner;
+use task_maker_exec::proto::ExecutorClientMessage;
 
 /// The result of an evaluation.
 pub enum Evaluation {
@@ -179,8 +180,6 @@ where
     // function multiple times, so in the tests ^C handler is disabled.
     #[cfg(not(test))]
     {
-        use task_maker_exec::proto::ExecutorClientMessage;
-
         let client_sender_ctrlc = client_sender.clone();
         if let Err(e) = ctrlc::set_handler(move || {
             let sender = client_sender_ctrlc.lock().unwrap();
@@ -197,7 +196,12 @@ where
     ExecutorClient::evaluate(eval.dag, tx, &rx, file_store, move |status| {
         ui_sender.send(UIMessage::ServerStatus { status })
     })
-    .map_err(|e| format_err!("Client failed: {}", e.to_string()))?;
+    .map_err(|e| {
+        client_sender.lock().unwrap().as_ref().map(|tx| {
+            let _ = tx.send(ExecutorClientMessage::Stop);
+        });
+        format_err!("Client failed: {}", e.to_string())
+    })?;
     // disable the ctrl-c handler dropping the owned clone of the sender, letting the client exit
     client_sender.lock().unwrap().take();
 

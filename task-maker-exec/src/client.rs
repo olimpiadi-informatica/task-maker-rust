@@ -88,6 +88,14 @@ impl ExecutorClient {
         let status_poller =
             ExecutorClient::spawn_status_poller(done.clone(), file_mode.clone(), sender.clone());
 
+        defer! {{
+            info!("Client has done, exiting");
+            done.store(true, Ordering::Relaxed);
+            status_poller
+                .join()
+                .map_err(|e| format_err!("Failed to join status poller: {:?}", e)).unwrap();
+        }}
+
         let mut missing_files = None;
         while missing_files.unwrap_or(1) > 0 {
             match receiver.recv() {
@@ -111,7 +119,10 @@ impl ExecutorClient {
                     info!("Execution {} started on {}", uuid, worker);
                     if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
                         for callback in callbacks.on_start.drain(..) {
-                            callback.call(worker)?;
+                            if let Err(e) = callback.call(worker) {
+                                error!("Start callback for {} failed: {:?}", uuid, e);
+                                return Err(e);
+                            }
                         }
                     }
                 }
@@ -119,7 +130,10 @@ impl ExecutorClient {
                     info!("Execution {} completed with {:?}", uuid, result);
                     if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
                         for callback in callbacks.on_done.drain(..) {
-                            callback.call(result.clone())?;
+                            if let Err(e) = callback.call(result.clone()) {
+                                error!("Done callback for {} failed: {:?}", uuid, e);
+                                return Err(e);
+                            }
                         }
                     }
                 }
@@ -127,12 +141,16 @@ impl ExecutorClient {
                     info!("Execution {} skipped", uuid);
                     if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
                         for callback in callbacks.on_skip.drain(..) {
-                            callback.call()?;
+                            if let Err(e) = callback.call() {
+                                error!("Skip callback for {} failed: {:?}", uuid, e);
+                                return Err(e);
+                            }
                         }
                     }
                 }
                 Ok(ExecutorServerMessage::Error(error)) => {
                     error!("Error occurred: {}", error);
+                    sender.send(ExecutorClientMessage::Stop)?;
                     break;
                 }
                 Ok(ExecutorServerMessage::Status(status)) => {
@@ -169,11 +187,6 @@ impl ExecutorClient {
                 }
             }
         }
-        info!("Client has done, exiting");
-        done.store(true, Ordering::Relaxed);
-        status_poller
-            .join()
-            .map_err(|e| format_err!("Failed to join status poller: {:?}", e))?;
         Ok(())
     }
 
@@ -226,7 +239,9 @@ impl ExecutorClient {
                         // make sure to not interfere with the file sending protocol.
                         let _lock = file_mode.lock().unwrap();
                         // this may fail if the server is gone
-                        let _ = sender.send(ExecutorClientMessage::Status);
+                        if sender.send(ExecutorClientMessage::Status).is_err() {
+                            break;
+                        }
                     }
                     thread::sleep(Duration::from_millis(STATUS_POLL_INTERVAL_MS));
                 }

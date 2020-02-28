@@ -8,7 +8,9 @@ fn main() {
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let profile = env::var_os("PROFILE").unwrap();
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=task-maker-test-sandbox");
+    println!("cargo:rerun-if-changed=task-maker-test-sandbox/Cargo.toml");
+    println!("cargo:rerun-if-changed=task-maker-test-sandbox/Cargo.lock");
+    println!("cargo:rerun-if-changed=task-maker-test-sandbox/src/main.rs");
 
     let mut cmd = Command::new(env::var_os("CARGO").unwrap());
     cmd.arg("build")

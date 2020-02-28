@@ -3,8 +3,9 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::thread::JoinHandle;
 
-use failure::{Error, Fail};
+use failure::{format_err, Error, Fail};
 use uuid::Uuid;
 
 use task_maker_dag::*;
@@ -146,22 +147,36 @@ impl Worker {
         trace!("Worker {} ready, asking for work", self);
         self.sender.send(WorkerClientMessage::GetWork)?;
 
-        let start_job = || -> Result<(), Error> {
-            let sandbox = execute_job(
-                self.current_job.clone(),
-                &self.sender,
-                &self.sandbox_path,
-                self.sandbox_runner.clone(),
-            )?;
-            self.current_job.lock().unwrap().current_sandbox = Some(sandbox);
-            Ok(())
-        };
+        // the join handle of the currently running sandbox, if any.
+        let mut current_sandbox_thread: Option<JoinHandle<()>> = None;
+        macro_rules! start_job {
+            ($self:expr, $current_sandbox_thread:expr) => {{
+                let (sandbox, thread) = execute_job(
+                    $self.current_job.clone(),
+                    &$self.sender,
+                    &$self.sandbox_path,
+                    $self.sandbox_runner.clone(),
+                )?;
+                $self.current_job.lock().unwrap().current_sandbox = Some(sandbox);
+                $current_sandbox_thread = Some(thread);
+            }};
+        }
+        macro_rules! wait_sandbox {
+            ($current_sandbox_thread:expr) => {
+                if let Some(join_handle) = $current_sandbox_thread.take() {
+                    join_handle
+                        .join()
+                        .map_err(|e| format_err!("Sandbox thread failed: {:?}", e))?;
+                }
+            };
+        }
 
         loop {
             match self.receiver.recv() {
                 Ok(WorkerServerMessage::Work(job)) => {
                     trace!("Worker {} got job: {:?}", self, job);
                     assert!(self.current_job.lock().unwrap().current_job.is_none());
+                    wait_sandbox!(current_sandbox_thread);
                     let mut missing_deps: HashMap<FileStoreKey, Vec<FileUuid>> = HashMap::new();
                     let mut handles = HashMap::new();
                     for input in job.execution.dependencies().iter() {
@@ -190,7 +205,7 @@ impl Worker {
                         current_job.current_job = Some((job, handles));
                     }
                     if job_ready {
-                        start_job()?;
+                        start_job!(self, current_sandbox_thread);
                     }
                 }
                 Ok(WorkerServerMessage::ProvideFile(key)) => {
@@ -213,11 +228,12 @@ impl Worker {
                         job.missing_deps.is_empty()
                     };
                     if should_start {
-                        start_job()?;
+                        start_job!(self, current_sandbox_thread);
                     }
                 }
                 Ok(WorkerServerMessage::Exit) => {
                     info!("Worker {} ({}) is asked to exit", self.name, self.uuid);
+                    wait_sandbox!(current_sandbox_thread);
                     break;
                 }
                 Ok(WorkerServerMessage::KillJob(job)) => {
@@ -228,6 +244,8 @@ impl Worker {
                             if let Some(sandbox) = current_job.current_sandbox.as_ref() {
                                 // ask the sandbox to kill the process
                                 sandbox.kill();
+                                drop(current_job);
+                                wait_sandbox!(current_sandbox_thread);
                             }
                         }
                     }
@@ -247,6 +265,7 @@ impl Worker {
                 }
             }
         }
+        wait_sandbox!(current_sandbox_thread);
         Ok(())
     }
 }
@@ -257,7 +276,7 @@ fn execute_job(
     sender: &ChannelSender<WorkerClientMessage>,
     sandbox_path: &Path,
     runner: Arc<dyn SandboxRunner>,
-) -> Result<Sandbox, Error> {
+) -> Result<(Sandbox, JoinHandle<()>), Error> {
     let (job, mut sandbox) = {
         let current_job = current_job.lock().unwrap();
         let job = current_job
@@ -275,8 +294,7 @@ fn execute_job(
     let thread_sender = sender.clone();
     let thread_sandbox = sandbox.clone();
     let thread_job = job.clone();
-    // FIXME: if the sandbox fails badly this may deadlock
-    thread::Builder::new()
+    let join_handle = thread::Builder::new()
         .name(format!("Sandbox of {}", job.execution.description))
         .spawn(move || {
             let sender = thread_sender;
@@ -349,7 +367,7 @@ fn execute_job(
                 ChannelFileSender::send(&output_paths[&uuid], &sender).unwrap();
             }
         })?;
-    Ok(sandbox)
+    Ok((sandbox, join_handle))
 }
 
 /// Compute the [`ExecutionResult`](../task_maker_dag/struct.ExecutionResult.html) based on the
