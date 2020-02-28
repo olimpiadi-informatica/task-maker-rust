@@ -293,6 +293,8 @@ impl Sandbox {
             multiproc,
             !self.execution.limits.read_only,
         ));
+        // has to be writable for mounting stuff in it
+        config.mount(boxdir.join("etc"), "/etc", true);
         for dir in READABLE_DIRS {
             if Path::new(dir).is_dir() {
                 config.mount(dir, dir, false);
@@ -303,7 +305,6 @@ impl Sandbox {
                 config.mount(dir, dir, false);
             }
         }
-        config.mount(boxdir.join("etc"), "/etc", false);
         if self.execution.limits.mount_tmpfs {
             config.mount_tmpfs(true);
         }
