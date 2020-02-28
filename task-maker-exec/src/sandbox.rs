@@ -112,9 +112,13 @@ impl Sandbox {
 
     /// Starts the sandbox and blocks the thread until the sandbox exits.
     pub fn run(&self, runner: &dyn SandboxRunner) -> Result<SandboxResult, Error> {
-        let (boxdir, pid) = {
+        let (boxdir, pid, keep) = {
             let data = self.data.lock().unwrap();
-            (data.path().to_owned(), data.box_pid.clone())
+            (
+                data.path().to_owned(),
+                data.box_pid.clone(),
+                data.keep_sandbox,
+            )
         };
         trace!("Running sandbox at {:?}", boxdir);
 
@@ -125,6 +129,10 @@ impl Sandbox {
         trace!("Sandbox configuration: {:#?}", config);
 
         let raw_result = runner.run(config.build(), pid);
+        if keep {
+            std::fs::write(boxdir.join("result.txt"), format!("{:#?}", raw_result))?;
+        }
+
         let res = match raw_result {
             RawSandboxResult::Success(res) => res,
             RawSandboxResult::Error(e) => bail!("Sandbox failed: {}", e),
@@ -237,9 +245,9 @@ impl Sandbox {
         boxdir: &Path,
         config: &mut SandboxConfiguration,
     ) -> Result<(), String> {
-        config.working_directory(boxdir.join("box"));
+        config.working_directory("/box");
         // the box directory must be writable otherwise the output files cannot be written
-        config.mount(boxdir.join("box"), boxdir.join("box"), true);
+        config.mount(boxdir.join("box"), "/box", true);
         config.env("PATH", std::env::var("PATH").unwrap_or_default());
         if self.execution.stdin.is_some() {
             config.stdin(boxdir.join("stdin"));
@@ -295,6 +303,7 @@ impl Sandbox {
                 config.mount(dir, dir, false);
             }
         }
+        config.mount(boxdir.join("etc"), "/etc", false);
         if self.execution.limits.mount_tmpfs {
             config.mount_tmpfs(true);
         }
@@ -307,7 +316,7 @@ impl Sandbox {
                 }
             }
             ExecutionCommand::Local(cmd) => {
-                config.executable(boxdir.join("box").join(cmd));
+                config.executable(Path::new("/box").join(cmd));
             }
         };
         for arg in self.execution.args.iter() {
@@ -329,9 +338,9 @@ impl Sandbox {
         );
         std::fs::create_dir_all(box_dir.as_ref().join("box"))?;
         // put /etc/passwd inside the sandbox
-        std::fs::create_dir_all(box_dir.as_ref().join("box").join("etc"))?;
+        std::fs::create_dir_all(box_dir.as_ref().join("etc"))?;
         std::fs::write(
-            box_dir.as_ref().join("box").join("etc").join("passwd"),
+            box_dir.as_ref().join("etc").join("passwd"),
             "root::0:0::/:/bin/sh\n",
         )?;
         if let Some(stdin) = execution.stdin {
@@ -472,8 +481,7 @@ mod tests {
         let extra_time = exec.config().extra_time;
         let total_time = (1.0 + 2.6 + extra_time).ceil() as u64;
         let wall_time = (10.0 + extra_time).ceil() as u64;
-        let boxdir = tmpdir.path().join("box");
-        assert_eq!(config.working_directory, boxdir);
+        assert_eq!(config.working_directory, Path::new("/box"));
         assert_eq!(config.time_limit, Some(total_time));
         assert_eq!(config.wall_time_limit, Some(wall_time));
         assert_eq!(config.memory_limit, Some(1234 * 1024));
@@ -492,7 +500,7 @@ mod tests {
         assert_eq!(config.stdin, Some("/dev/null".into()));
         assert_eq!(config.stdout, Some("/dev/null".into()));
         assert_eq!(config.stderr, Some("/dev/null".into()));
-        assert_eq!(config.executable, boxdir.join("foo"));
+        assert_eq!(config.executable, Path::new("/box/foo"));
         assert_eq!(config.args, vec!["bar", "baz"]);
     }
 }
