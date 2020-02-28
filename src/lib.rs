@@ -8,6 +8,8 @@
 extern crate log;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate scopeguard;
 
 pub use local::*;
 pub use opt::*;

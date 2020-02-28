@@ -192,32 +192,38 @@ where
             warn!("Cannot bind control-C handler: {:?}", e);
         }
     }
+
+    let EvaluationData { sender, dag, .. } = eval;
+    defer! {
+        // wait for the server and the ui to exit
+        if let Some(server) = server {
+            server
+                .join()
+                .map_err(|e| format_err!("Executor panicked: {:?}", e))
+                .unwrap();
+        }
+        let _ = sender.send(UIMessage::StopUI);
+        ui_thread
+            .join()
+            .map_err(|e| format_err!("UI panicked: {:?}", e))
+            .unwrap();
+    }
+
     // run the actual computation and block until it ends
-    ExecutorClient::evaluate(eval.dag, tx, &rx, file_store, move |status| {
+    ExecutorClient::evaluate(dag, tx, &rx, file_store, move |status| {
         ui_sender.send(UIMessage::ServerStatus { status })
     })
     .map_err(|e| {
-        client_sender.lock().unwrap().as_ref().map(|tx| {
+        if let Some(tx) = client_sender.lock().unwrap().as_ref() {
             let _ = tx.send(ExecutorClientMessage::Stop);
-        });
+        }
         format_err!("Client failed: {}", e.to_string())
     })?;
     // disable the ctrl-c handler dropping the owned clone of the sender, letting the client exit
     client_sender.lock().unwrap().take();
 
-    task.sanity_check_post_hook(&mut eval.sender.lock().unwrap())
+    task.sanity_check_post_hook(&mut sender.lock().unwrap())
         .map_err(|e| format_err!("Sanity checks failed: {}", e.to_string()))?;
-
-    // wait for the server and the ui to exit
-    if let Some(server) = server {
-        server
-            .join()
-            .map_err(|e| format_err!("Executor panicked: {:?}", e))?;
-    }
-    drop(eval.sender); // make the UI exit
-    ui_thread
-        .join()
-        .map_err(|e| format_err!("UI panicked: {:?}", e))?;
     Ok(Evaluation::Done)
 }
 

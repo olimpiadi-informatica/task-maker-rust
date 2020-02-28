@@ -66,6 +66,7 @@ impl ExecutorClient {
     ///
     /// server.join().expect("Server paniced");
     /// ```
+    #[allow(clippy::cognitive_complexity)]
     pub fn evaluate<F>(
         mut dag: ExecutionDAG,
         sender: ChannelSender<ExecutorClientMessage>,
@@ -120,7 +121,7 @@ impl ExecutorClient {
                     if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
                         for callback in callbacks.on_start.drain(..) {
                             if let Err(e) = callback.call(worker) {
-                                error!("Start callback for {} failed: {:?}", uuid, e);
+                                warn!("Start callback for {} failed: {:?}", uuid, e);
                                 return Err(e);
                             }
                         }
@@ -131,7 +132,7 @@ impl ExecutorClient {
                     if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
                         for callback in callbacks.on_done.drain(..) {
                             if let Err(e) = callback.call(result.clone()) {
-                                error!("Done callback for {} failed: {:?}", uuid, e);
+                                warn!("Done callback for {} failed: {:?}", uuid, e);
                                 return Err(e);
                             }
                         }
@@ -142,7 +143,7 @@ impl ExecutorClient {
                     if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
                         for callback in callbacks.on_skip.drain(..) {
                             if let Err(e) = callback.call() {
-                                error!("Skip callback for {} failed: {:?}", uuid, e);
+                                warn!("Skip callback for {} failed: {:?}", uuid, e);
                                 return Err(e);
                             }
                         }

@@ -90,6 +90,8 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate scopeguard;
 
 use std::io::Write;
 use std::path::PathBuf;

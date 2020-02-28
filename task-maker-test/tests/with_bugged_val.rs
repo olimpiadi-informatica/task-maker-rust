@@ -14,7 +14,7 @@ fn with_bugged_val(test: TestInterface) {
 }
 
 #[test]
-fn _local() {
+fn with_bugged_val_local() {
     better_panic::install();
 
     with_bugged_val(TestInterface::run_local("with_bugged_val"));
