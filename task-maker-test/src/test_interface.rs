@@ -34,6 +34,7 @@ impl TestInterface {
     pub fn run_local<P: Into<PathBuf>>(path: P) -> Self {
         let _ = env_logger::Builder::from_default_env()
             .default_format_timestamp_nanos(true)
+            .is_test(true)
             .try_init();
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tasks")
@@ -49,6 +50,7 @@ impl TestInterface {
     pub fn run_remote<P: Into<PathBuf>>(path: P) -> Self {
         let _ = env_logger::Builder::from_default_env()
             .default_format_timestamp_nanos(true)
+            .is_test(true)
             .try_init();
         if !port_scanner::scan_port(27182) {
             eprintln!("Server not spawned, spawning");
@@ -217,22 +219,15 @@ impl TestInterface {
 impl TestInterfaceSuccessful {
     /// Check that the time limit is the one specified.
     pub fn time_limit(self, time_limit: f64) -> Self {
-        assert!(
-            abs_diff_eq!(
-                self.state.task.time_limit.expect("No time limit in task"),
-                time_limit
-            ),
-            "Wrong time limit"
-        );
+        let actual = self.state.task.time_limit.expect("No time limit in task");
+        assert!(abs_diff_eq!(actual, time_limit), "Wrong time limit");
         self
     }
 
     /// Check that the memory limit is the one specified.
     pub fn memory_limit(self, memory_limit: u64) -> Self {
-        assert_eq!(
-            self.state.task.memory_limit.expect("No memory limit"),
-            memory_limit
-        );
+        let actual = self.state.task.memory_limit.expect("No memory limit");
+        assert_eq!(actual, memory_limit);
         self
     }
 
@@ -330,8 +325,9 @@ impl TestInterfaceSuccessful {
             .unwrap_or_else(|| panic!("Missing score of {:?}", solution));
         assert!(
             abs_diff_eq!(score, state_score),
-            "Solution score mismatch for solution {:?}",
-            solution
+            "Solution score mismatch for solution {:?}: {:#?}",
+            solution,
+            state
         );
         assert_eq!(
             scores.len(),
@@ -342,9 +338,10 @@ impl TestInterfaceSuccessful {
             let actual = state.subtasks[&(st as SubtaskId)].score.unwrap();
             assert!(
                 abs_diff_eq!(*expected, actual),
-                "Solution subtask score mismatch of solution {:?} at subtask {}",
+                "Solution subtask score mismatch of solution {:?} at subtask {}: {:#?}",
                 solution,
-                st
+                st,
+                state
             );
         }
         self

@@ -305,7 +305,7 @@ fn execute_job(
                 let mut job = current_job.lock().unwrap();
                 job.current_job = None;
                 job.current_sandbox = None;
-                sender.send(WorkerClientMessage::GetWork).unwrap();
+                let _ = sender.send(WorkerClientMessage::GetWork);
             }}
 
             let result = match sandbox.run(runner.as_ref()) {
