@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use itertools::Itertools;
-use termcolor::{ColorChoice, ColorSpec, StandardStream};
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 
 use task_maker_dag::ExecutionStatus;
 
@@ -10,6 +10,15 @@ use crate::ui::{
     FinishUI as FinishUITrait, FinishUIUtils, UIExecutionStatus, BLUE, BOLD, GREEN, RED, YELLOW,
 };
 use crate::{cwrite, cwriteln};
+
+/// Percentage threshold for showing a resource usage in bold for a solution. If the maximum
+/// cpu_time used by the solution among the testcases is X, all the cpu_time of that solution that
+/// are >= X*BOLD_RESOURCE_THRESHOLD will be shown in bold. Same for the memory usage.
+const BOLD_RESOURCE_THRESHOLD: f64 = 0.9;
+/// Percentage threshold for showing a resource usage in yellow for a solution. If the cpu_time of
+/// a solution is >= time limit of the task * YELLOW_RESOURCE_THRESHOLD, it is shown in yellow. Same
+/// for the memory usage.
+const YELLOW_RESOURCE_THRESHOLD: f64 = 0.6;
 
 /// UI that prints to `stdout` the ending result of the evaluation of a IOI task.
 pub struct FinishUI {
@@ -191,6 +200,16 @@ impl FinishUI {
         print!(": ");
         self.print_score_frac(score, max_score);
         println!();
+
+        let results = eval
+            .subtasks
+            .values()
+            .flat_map(|st| st.testcases.values().filter_map(|tc| tc.result.as_ref()))
+            .map(|r| &r.resources);
+        let (max_time, max_memory) = results.fold((0.0, 0), |(time, mem), r| {
+            (f64::max(time, r.cpu_time), u64::max(mem, r.memory))
+        });
+
         for (st_num, subtask) in eval.subtasks.iter().sorted_by_key(|(n, _)| *n) {
             cwrite!(self, BOLD, "Subtask #{}", st_num);
             print!(": ");
@@ -210,7 +229,26 @@ impl FinishUI {
                 }
                 if let Some(result) = &testcase.result {
                     print!(" [");
-                    FinishUIUtils::print_time_memory(&result.resources);
+                    let time_color = FinishUI::resource_color(
+                        result.resources.cpu_time,
+                        max_time * BOLD_RESOURCE_THRESHOLD,
+                        state.task.time_limit.unwrap_or(1.0 / 0.0) * YELLOW_RESOURCE_THRESHOLD,
+                    );
+                    let memory_color = FinishUI::resource_color(
+                        result.resources.memory as f64,
+                        max_memory as f64 * BOLD_RESOURCE_THRESHOLD,
+                        state.task.memory_limit.unwrap_or(u64::max_value()) as f64
+                            * 1024.0
+                            * YELLOW_RESOURCE_THRESHOLD,
+                    );
+                    cwrite!(self, time_color, "{:2.3}s", result.resources.cpu_time);
+                    print!(" | ");
+                    cwrite!(
+                        self,
+                        memory_color,
+                        "{:3.1}MiB",
+                        (result.resources.memory as f64) / 1024.0
+                    );
                     print!("]");
                 }
                 print!(" {}", testcase.status.message());
@@ -302,6 +340,7 @@ impl FinishUI {
         }
     }
 
+    /// Color to use for displaying a score.
     fn score_color(&mut self, normalized_score: f64) -> &'static ColorSpec {
         if abs_diff_eq!(normalized_score, 1.0) {
             &GREEN
@@ -310,6 +349,18 @@ impl FinishUI {
         } else {
             &YELLOW
         }
+    }
+
+    /// Color to use for displaying a resource usage.
+    fn resource_color(value: f64, bold_threshold: f64, yellow_threshold: f64) -> ColorSpec {
+        let mut color = ColorSpec::new();
+        if value >= bold_threshold {
+            color.set_bold(true);
+        }
+        if value >= yellow_threshold {
+            color.set_fg(Some(Color::Yellow));
+        }
+        color
     }
 
     /// Print some text to the right of the screen. Note that this will print some ANSI escape
