@@ -17,6 +17,9 @@ license = "MPL-2.0"
 extended-description = "Tool for building tasks for informatics competitions, with support for cache, distributed computations and more"
 assets = [
     ["target/release/task-maker", "usr/bin/task-maker-rust", "755"],
+    ["target/autocompletion/task-maker-rust.bash", "etc/bash_completion.d/task-maker-rust", "755"],
+    ["target/autocompletion/_task-maker-rust", "usr/share/zsh/vendor-completions/_task-maker-rust", "755"],
+    ["target/autocompletion/task-maker-rust.fish", "usr/share/fish/completions/task-maker-rust.fish", "755"],
     ["data/**/*", "usr/share/task-maker-rust/", "755"]
 ]
 
@@ -50,3 +53,7 @@ scopeguard = "1.0"
 [[bin]]
 name = "task-maker"
 path = "src/main.rs"
+
+[[bin]]
+name = "task-maker-gen-autocompletion"
+path = "src/gen_autocompletion.rs"
