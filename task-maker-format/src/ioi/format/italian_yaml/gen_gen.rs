@@ -274,6 +274,28 @@ mod tests {
     }
 
     #[test]
+    fn test_parser_line_with_comment() {
+        let task = make_task("1234 # normal comment\n5678 #risky comment");
+        let entries = get_entries(task.path());
+        if let [Subtask(subtask), Testcase(testcase1), Testcase(testcase2)] = entries.as_slice() {
+            assert_eq!(subtask.id, 0);
+            assert_eq!(subtask.max_score as u32, 100);
+            assert_eq!(testcase1.id, 0);
+            assert_eq!(testcase2.id, 1);
+            match &testcase1.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["1234".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
+            }
+            match &testcase2.input_generator {
+                InputGenerator::Custom(_, args) => assert_eq!(args, &vec!["5678".to_string()]),
+                InputGenerator::StaticFile(_) => panic!("Invalid generator"),
+            }
+        } else {
+            panic!("Wrong entries returned: {:?}", entries);
+        }
+    }
+
+    #[test]
     fn test_parser_multiple_lines() {
         let task = make_task("1234\n5678\n");
         let entries = get_entries(task.path());

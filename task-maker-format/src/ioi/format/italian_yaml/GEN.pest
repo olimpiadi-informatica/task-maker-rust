@@ -13,12 +13,13 @@ word = { (!(whitespace | "#") ~ non_newline)+ }
 spaces = _{ whitespace+ }
 
 comment = { "#" ~ spaces ~ non_newline* | "#" }
+risky_comment = { "#" ~ non_newline* | "#" }
 subtask = { "#ST:" ~ whitespace* ~ number ~ whitespace* }
 copy = { "#COPY:" ~ whitespace* ~ word ~ whitespace* }
 command = { !"#" ~ whitespace* ~ word ~ (spaces ~ word)* ~ whitespace* }
 empty = { whitespace* }
 
-line = { (subtask | copy | comment | command | empty) ~ comment? }
+line = { (subtask | copy | comment | command | empty) ~ risky_comment? }
 
 // allow the last line to be without the NEWLINE
 file = { SOI ~ (line ~ NEWLINE)* ~ line ~ NEWLINE? ~ EOI }
