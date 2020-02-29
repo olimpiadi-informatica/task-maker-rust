@@ -23,6 +23,7 @@ jobs:
 
           export TM_DATA_DIR=/usr/share/task-maker-rust
           cargo build --bin task-maker --release
+          cargo run --release --bin task-maker-gen-autocompletion
           cargo deb --no-build
       - name: Upload the artifacts
         uses: skx/github-action-publish-binaries@master
