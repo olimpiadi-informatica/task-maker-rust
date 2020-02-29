@@ -8,7 +8,7 @@ use task_maker_dag::*;
 pub struct LanguagePascal;
 
 impl LanguagePascal {
-    /// Make a new LanguageC using the specified version.
+    /// Make a new LanguagePascal using the specified version.
     pub fn new() -> LanguagePascal {
         LanguagePascal {}
     }

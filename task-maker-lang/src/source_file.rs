@@ -246,7 +246,9 @@ impl SourceFile {
                 false,
             );
             comp.limits.nproc = None;
-            comp.limits.read_only(false); // the compilers may need to store some temp files
+            // the compilers may need to store some temp files
+            comp.limits.read_only(false);
+            comp.limits.mount_tmpfs(true);
             for dep in self.language.compilation_dependencies(&self.path) {
                 comp.input(&dep.file, &dep.sandbox_path, dep.executable);
                 dag.provide_file(dep.file, &dep.local_path)?;

@@ -1,41 +1,54 @@
-use crate::languages::{find_dependencies, Language};
-use crate::Dependency;
-use regex::Regex;
 use std::path::{Path, PathBuf};
+
+use regex::Regex;
+
 use task_maker_dag::*;
 
-/// Version of the C++ standard and compiler to use.
-#[allow(dead_code)]
-#[derive(Debug)]
-pub enum LanguageCppVersion {
-    /// g++ with -std=c++11
-    GccCpp11,
-    /// g++ with -std=c++14
-    GccCpp14,
-    /// clang++ with -std=c++11
-    ClangCpp11,
+use crate::languages::{find_dependencies, Language};
+use crate::Dependency;
+
+/// Configuration of the C++ language to use.
+#[derive(Clone, Debug)]
+pub struct LanguageCppConfiguration {
+    /// Compiler to use (e.g. ExecutionCommand::system("g++") ).
+    pub compiler: ExecutionCommand,
+    /// Version of the C++ standard library to use (e.g. c++11).
+    pub std_version: String,
+    /// Extra flags to pass to the compiler.
+    pub extra_flags: Vec<String>,
 }
 
 /// The C++ language.
 #[derive(Debug)]
 pub struct LanguageCpp {
-    pub version: LanguageCppVersion,
+    pub config: LanguageCppConfiguration,
+}
+
+impl LanguageCppConfiguration {
+    /// Get the configuration of C++ from the environment variables.
+    pub fn from_env() -> LanguageCppConfiguration {
+        let compiler = std::env::var_os("TM_CXX").unwrap_or_else(|| "g++".into());
+        let std_version = std::env::var("TM_CXX_STD_VERSION").unwrap_or_else(|_| "c++11".into());
+        let extra_flags = std::env::var("TM_CXXFLAGS").unwrap_or_else(|_| String::new());
+        let extra_flags = shell_words::split(&extra_flags).expect("Invalid $TM_CXXFLAGS");
+        LanguageCppConfiguration {
+            compiler: ExecutionCommand::System(compiler.into()),
+            std_version,
+            extra_flags,
+        }
+    }
 }
 
 impl LanguageCpp {
     /// Make a new LanguageCpp using the specified version.
-    pub fn new(version: LanguageCppVersion) -> LanguageCpp {
-        LanguageCpp { version }
+    pub fn new(config: LanguageCppConfiguration) -> LanguageCpp {
+        LanguageCpp { config }
     }
 }
 
 impl Language for LanguageCpp {
     fn name(&self) -> &'static str {
-        match self.version {
-            LanguageCppVersion::GccCpp11 => "C++11 / gcc",
-            LanguageCppVersion::GccCpp14 => "C++14 / gcc",
-            LanguageCppVersion::ClangCpp11 => "C++11 / clang",
-        }
+        "C++"
     }
 
     fn extensions(&self) -> Vec<&'static str> {
@@ -47,25 +60,26 @@ impl Language for LanguageCpp {
     }
 
     fn compilation_command(&self, _path: &Path, _write_to: Option<&Path>) -> ExecutionCommand {
-        match self.version {
-            LanguageCppVersion::GccCpp11 | LanguageCppVersion::GccCpp14 => {
-                ExecutionCommand::system("g++")
-            }
-            LanguageCppVersion::ClangCpp11 => ExecutionCommand::system("clang++"),
-        }
+        self.config.compiler.clone()
     }
 
     fn compilation_args(&self, path: &Path, write_to: Option<&Path>) -> Vec<String> {
         let exe_name = self.compiled_file_name(path, write_to);
         let exe_name = exe_name.to_string_lossy();
-        let mut args = vec!["-O2", "-Wall", "-ggdb3", "-DEVAL", "-o", exe_name.as_ref()];
-        match self.version {
-            LanguageCppVersion::GccCpp11 | LanguageCppVersion::ClangCpp11 => {
-                args.push("-std=c++11")
-            }
-            LanguageCppVersion::GccCpp14 => args.push("-std=c++14"),
-        }
+        let args = vec![
+            "-O2",
+            "-Wall",
+            "-ggdb3",
+            "-DEVAL",
+            "-fdiagnostics-color=always",
+            "-o",
+            exe_name.as_ref(),
+        ];
         let mut args: Vec<_> = args.into_iter().map(|s| s.to_string()).collect();
+        args.push(format!("-std={}", self.config.std_version));
+        for arg in &self.config.extra_flags {
+            args.push(arg.clone());
+        }
         args.push(
             path.file_name()
                 .expect("Invalid source file name")
@@ -125,23 +139,30 @@ fn extract_includes(path: &Path) -> Vec<(PathBuf, PathBuf)> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use spectral::prelude::*;
     use std::fs::write;
+
+    use spectral::prelude::*;
+
+    use super::*;
 
     #[test]
     fn test_compilation_args() {
-        let lang = LanguageCpp::new(LanguageCppVersion::GccCpp14);
+        let lang = LanguageCpp::new(LanguageCppConfiguration {
+            compiler: ExecutionCommand::System("g++".into()),
+            std_version: "c++14".to_string(),
+            extra_flags: vec!["-lfoobar".into()],
+        });
         let args = lang.compilation_args(Path::new("foo.cpp"), None);
         assert_that!(args).contains("foo.cpp".to_string());
         assert_that!(args).contains("-std=c++14".to_string());
+        assert_that!(args).contains("-lfoobar".to_string());
         assert_that!(args).contains("-o".to_string());
         assert_that!(args).contains("compiled".to_string());
     }
 
     #[test]
     fn test_compilation_add_file() {
-        let lang = LanguageCpp::new(LanguageCppVersion::GccCpp14);
+        let lang = LanguageCpp::new(LanguageCppConfiguration::from_env());
         let args = lang.compilation_args(Path::new("foo.cpp"), None);
         let new_args = lang.compilation_add_file(args.clone(), Path::new("bar.cpp"));
         assert_that!(new_args.iter()).contains_all_of(&args.iter());
@@ -150,7 +171,7 @@ mod tests {
 
     #[test]
     fn test_executable_name() {
-        let lang = LanguageCpp::new(LanguageCppVersion::GccCpp14);
+        let lang = LanguageCpp::new(LanguageCppConfiguration::from_env());
         assert_that!(lang.executable_name(Path::new("foo.cpp"), None))
             .is_equal_to(PathBuf::from("foo"));
     }

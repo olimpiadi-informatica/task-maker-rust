@@ -104,8 +104,8 @@ impl GraderMap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::languages::c::{LanguageC, LanguageCVersion};
-    use crate::languages::cpp::{LanguageCpp, LanguageCppVersion};
+    use crate::languages::c::{LanguageC, LanguageCConfiguration};
+    use crate::languages::cpp::{LanguageCpp, LanguageCppConfiguration};
     use crate::languages::python::{LanguagePython, LanguagePythonVersion};
     use spectral::prelude::*;
 
@@ -119,12 +119,12 @@ mod tests {
     fn test_get_compilation_deps() {
         let grader_map = GraderMap::new(vec!["grader.cpp", "grader.py"]);
 
-        let lang = LanguageCpp::new(LanguageCppVersion::GccCpp14);
+        let lang = LanguageCpp::new(LanguageCppConfiguration::from_env());
         let deps = grader_map.get_compilation_deps(&lang);
         assert_that!(deps).has_length(1);
         assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("grader.cpp"));
 
-        let lang = LanguageC::new(LanguageCVersion::GccC11);
+        let lang = LanguageC::new(LanguageCConfiguration::from_env());
         let deps = grader_map.get_compilation_deps(&lang);
         assert_that!(deps).is_empty();
 
@@ -137,11 +137,11 @@ mod tests {
     fn test_get_runtime_deps() {
         let grader_map = GraderMap::new(vec!["grader.cpp", "grader.py"]);
 
-        let lang = LanguageCpp::new(LanguageCppVersion::GccCpp14);
+        let lang = LanguageCpp::new(LanguageCppConfiguration::from_env());
         let deps = grader_map.get_runtime_deps(&lang);
         assert_that!(deps).is_empty();
 
-        let lang = LanguageC::new(LanguageCVersion::GccC11);
+        let lang = LanguageC::new(LanguageCConfiguration::from_env());
         let deps = grader_map.get_runtime_deps(&lang);
         assert_that!(deps).is_empty();
 

@@ -53,8 +53,10 @@ impl LanguageManager {
         LanguageManager {
             // ordered by most important first
             known_languages: vec![
-                Arc::new(cpp::LanguageCpp::new(cpp::LanguageCppVersion::GccCpp14)),
-                Arc::new(c::LanguageC::new(c::LanguageCVersion::GccC11)),
+                Arc::new(cpp::LanguageCpp::new(
+                    cpp::LanguageCppConfiguration::from_env(),
+                )),
+                Arc::new(c::LanguageC::new(c::LanguageCConfiguration::from_env())),
                 Arc::new(python::LanguagePython::new(
                     python::LanguagePythonVersion::Autodetect,
                 )),
@@ -114,20 +116,20 @@ lazy_static! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::languages::cpp::{LanguageCpp, LanguageCppVersion};
+    use crate::languages::cpp::{LanguageCpp, LanguageCppConfiguration};
     use spectral::prelude::*;
 
     #[test]
     fn test_detect_language() {
         let lang = LanguageManager::detect_language("foo.cpp").unwrap();
-        let name = LanguageCpp::new(LanguageCppVersion::GccCpp14).name();
+        let name = LanguageCpp::new(LanguageCppConfiguration::from_env()).name();
         assert_that!(lang.name()).is_equal_to(name);
     }
 
     #[test]
     fn test_detect_language_uppercase() {
         let lang = LanguageManager::detect_language("foo.CPP").unwrap();
-        let name = LanguageCpp::new(LanguageCppVersion::GccCpp14).name();
+        let name = LanguageCpp::new(LanguageCppConfiguration::from_env()).name();
         assert_that!(lang.name()).is_equal_to(name);
     }
 
@@ -139,7 +141,7 @@ mod tests {
 
     #[test]
     fn test_from_name() {
-        let name = LanguageCpp::new(LanguageCppVersion::GccCpp14).name();
+        let name = LanguageCpp::new(LanguageCppConfiguration::from_env()).name();
         let lang = LanguageManager::from_name(name).unwrap();
         assert_that!(lang.name()).is_equal_to(name);
     }
