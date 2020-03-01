@@ -1,0 +1,26 @@
+whitespace = _{ " " | "\t" }
+non_newline = _{ !NEWLINE ~ ANY }
+
+number = { ("-" | "+")? ~ ASCII_DIGIT+ }
+float = { ("-" | "+")? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
+word = { (!(whitespace | "#") ~ non_newline)+ }
+rest = { (!"#" ~ non_newline)+ }
+variable = { "$" ~ word }
+variables_list = { (whitespace+ ~ word)* }
+comp_operator = { "<=" | "<" | ">=" | ">" | "=" }
+
+comment = { "#" ~ whitespace* ~ non_newline* }
+GEN = { "GEN" ~ whitespace+ ~ word ~ (whitespace+ ~ word ~ variables_list)? ~ whitespace* }
+VAL = { "VAL" ~ whitespace+ ~ word ~ (whitespace+ ~ word ~ variables_list)? ~ whitespace* }
+CONSTRAINT = { "CONSTRAINT" ~ whitespace+ ~ (number | variable) ~ (whitespace* ~ comp_operator ~ whitespace* ~ (number | variable))+ ~ whitespace* }
+SUBTASK = { "SUBTASK" ~ whitespace+ ~ float ~ (whitespace+ ~ rest)? ~ whitespace* }
+COPY = { "COPY" ~ whitespace+ ~ rest ~ whitespace* }
+RUN = { "RUN" ~ whitespace+ ~ word ~ whitespace+ ~ rest }
+
+command = { ":" ~ whitespace* ~ (GEN | VAL | CONSTRAINT | SUBTASK | COPY | RUN) }
+testcase = { !("#"|":") ~ rest }
+empty = { whitespace* }
+
+line = { (comment | command | testcase | empty) ~ comment? }
+
+file = { SOI ~ (line ~ NEWLINE)* ~ line ~ NEWLINE? ~ EOI }

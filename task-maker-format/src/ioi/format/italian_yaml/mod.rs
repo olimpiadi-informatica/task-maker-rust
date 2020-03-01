@@ -19,6 +19,7 @@ use crate::ioi::{
 };
 use crate::{find_source_file, list_files, EvaluationConfig};
 
+mod cases_gen;
 mod gen_gen;
 mod static_inputs;
 
@@ -112,7 +113,14 @@ pub fn parse_task<P: AsRef<Path>>(
     debug!("The graders are: {:#?}", grader_map);
 
     let gen_gen = task_dir.join("gen").join("GEN");
-    let inputs = if gen_gen.exists() {
+    let cases_gen = task_dir.join("gen").join("cases.gen");
+    let inputs = if cases_gen.exists() {
+        debug!("Parsing testcases from gen/cases.gen");
+        cases_gen::parse_cases_gen(
+            &cases_gen,
+            detect_output_generator(task_dir.to_path_buf(), grader_map.clone()),
+        )?
+    } else if gen_gen.exists() {
         debug!("Parsing testcases from gen/GEN");
         gen_gen::parse_gen_gen(
             &gen_gen,

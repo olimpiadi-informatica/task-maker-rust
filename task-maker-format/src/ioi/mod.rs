@@ -114,6 +114,8 @@ pub struct Task {
 pub struct SubtaskInfo {
     /// The id of the subtask.
     pub id: SubtaskId,
+    /// Textual description of the subtask.
+    pub description: Option<String>,
     /// The maximum score of the subtask, must be >= 0.
     pub max_score: f64,
     /// The testcases inside this subtask.
@@ -147,7 +149,9 @@ impl Task {
     pub fn is_valid<P: AsRef<Path>>(path: P) -> bool {
         let path = path.as_ref();
         path.join("task.yaml").exists()
-            && (path.join("gen/GEN").exists() || path.join("input").is_dir())
+            && (path.join("gen/GEN").exists()
+                || path.join("gen/cases.gen").exists()
+                || path.join("input").is_dir())
     }
 }
 

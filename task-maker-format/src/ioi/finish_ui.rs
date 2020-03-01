@@ -104,6 +104,9 @@ impl FinishUI {
         cwriteln!(self, BLUE, "Generations");
         for (st_num, subtask) in state.generations.iter().sorted_by_key(|(n, _)| *n) {
             cwrite!(self, BOLD, "Subtask {}", st_num);
+            if let Some(description) = &state.task.subtasks[&st_num].description {
+                print!(" [{}]", description);
+            }
             println!(": {} points", state.task.subtasks[&st_num].max_score);
             for (tc_num, testcase) in subtask.testcases.iter().sorted_by_key(|(n, _)| *n) {
                 print!("#{:<3} ", tc_num);
@@ -212,6 +215,9 @@ impl FinishUI {
 
         for (st_num, subtask) in eval.subtasks.iter().sorted_by_key(|(n, _)| *n) {
             cwrite!(self, BOLD, "Subtask #{}", st_num);
+            if let Some(description) = &state.task.subtasks[&st_num].description {
+                print!(" [{}]", description);
+            }
             print!(": ");
             let max_score = state.task.subtasks[&st_num].max_score;
             let score = subtask.score.unwrap_or(0.0);

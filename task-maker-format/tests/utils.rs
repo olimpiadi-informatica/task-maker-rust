@@ -40,6 +40,7 @@ pub fn new_task_with_context(path: &Path) -> Task {
     };
     let st0 = task.subtasks.entry(0).or_insert(SubtaskInfo {
         id: 0,
+        description: None,
         max_score: 10.0,
         testcases: HashMap::default(),
     });
@@ -51,6 +52,7 @@ pub fn new_task_with_context(path: &Path) -> Task {
     });
     let st1 = task.subtasks.entry(1).or_insert(SubtaskInfo {
         id: 1,
+        description: None,
         max_score: 90.0,
         testcases: HashMap::default(),
     });
