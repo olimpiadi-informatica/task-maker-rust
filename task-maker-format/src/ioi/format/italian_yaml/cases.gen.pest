@@ -1,8 +1,8 @@
 whitespace = _{ " " | "\t" }
 non_newline = _{ !NEWLINE ~ ANY }
 
-number = { ("-" | "+")? ~ ASCII_DIGIT+ }
-float = { ("-" | "+")? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
+number = { ("-" | "+")? ~ASCII_DIGIT+ }
+float = { ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
 word = { (!(whitespace | "#") ~ non_newline)+ }
 rest = { (!"#" ~ non_newline)+ }
 variable = { "$" ~ word }

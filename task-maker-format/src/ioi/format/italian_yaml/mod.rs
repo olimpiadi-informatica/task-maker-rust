@@ -1,5 +1,245 @@
 //! The `italian_yaml` format is defined by [`cms`](https://cms.readthedocs.io/en/v1.4/External%20contest%20formats.html#italian-import-format)
 //! and it's the most used format in the Italian Olympiads.
+//!
+//! # `gen/GEN` format
+//! Here it's provided the definition of the format of the `gen/GEN` file, as interpreted by
+//! task-maker. The aim is to be as compatible as possible to the format accepted by `cmsMake` and
+//! `cmsImportTask`.
+//!
+//! The `gen/GEN` file describes how the input files of the testcases should be generated and how
+//! the subtasks are composed. The formal definition of the format can be found looking at the
+//! [parsing grammar](https://github.com/edomora97/task-maker-rust/blob/master/task-maker-format/src/ioi/format/italian_yaml/GEN.pest).
+//! The format is described here informally.
+//!
+//! Each line of that file can be of one of the following types:
+//!
+//! - if the line starts with `# ` (number sign followed by a space) it is a comment and will be
+//!   ignored. Example: `# this is a comment`
+//! - if the line starts with `#ST:` it is the marker of the start of a new subtask. Following the
+//!   column there is the score of the subtask, an integer number. Example: `#ST: 20`, meaning that
+//!   all the following testcases, before the next `#ST:` are grouped in a single subtask worth 20
+//!   points.
+//! - if the line starts with `#COPY:` it is a testcase with a static input file, meaning that the
+//!   input file will be simply copied from the path specified after the column. Example:
+//!   `#COPY: gen/hardcoded.in`. The path is relative to the task root directory and the file must
+//!   exists and be readable from task-maker. The path should not contain spaces.
+//! - non-empty lines not starting with `#` defines a new testcases each. Each line contains
+//!   command line arguments to pass to the generator executable. The generator should be named
+//!   `gen/generator.*` or `gen/generatore.*`. Example: `1 2 3`, the generator will be invoked
+//!   passing the three arguments.
+//!
+//! If a line contains a `#`, all the characters following it (`#` included) will be ignored as they
+//! are considered comments. Example: `1 2 3 # inline comment`.
+//!
+//! If no `#ST` lines are present, a single subtask worth 100 points is automatically added.
+//!
+//! ## Full example of `gen/GEN`
+//!
+//! ```text
+//! # N     M       seed
+//! #ST: 0
+//! #COPY: gen/example1.txt
+//! #COPY: gen/example2.txt
+//!
+//! #ST: 30
+//! 10      1000    101
+//! 20      1000    102
+//! 1       1       103 # corner case!
+//!
+//! #ST: 70
+//! 1000    10000   201
+//! 2000    10000   202
+//! ```
+//!
+//! In this example the first line is ignored since it's a comment, then the definition of a subtask
+//! of zero points starts. The content of that subtask are 2 hardcoded input files, for example the
+//! sample cases in the text statement.
+//!
+//! Then a new subtask of 30 points starts, it's composed of 3 testcases. Note that the comment on
+//! the third will be ignored and just the 3 numbers will be passed to the generator.
+//!
+//! Then there is a third subtask with 2 testcases.
+//!
+//! # `gen/cases.gen` format
+//!
+//! The `gen/GEN` format is pretty limited regarding some important aspects of task preparation. For
+//! example it allows you to use just a single generator and a single validator. A new format, not
+//! yet officially supported by `cms` (but workaround exists!), is here described.
+//!
+//! The formal definition of the format can be found in the
+//! [parsing grammar](https://github.com/edomora97/task-maker-rust/blob/master/task-maker-format/src/ioi/format/italian_yaml/cases.gen.pest).
+//! An informal explanation is here provided.
+//!
+//! Similarly to `gen/GEN`, each line is independent and can be one of the following:
+//! - if it starts with `#` it is a comment and will be ignored.
+//! - if it starts with `:` it is a command and what follows is described below.
+//! - otherwise if it does not start with `#` nor `:`, it's a simple testcase definition. The
+//!   testcases will be generated using the _current generator_, which is either the default one or
+//!   the overridden one in the current subtask.
+//!
+//! If a line contains a `#`, all the characters following it (`#` included) will be ignored as they
+//! are considered comments. Example: `1 2 3 # inline comment`.
+//!
+//! ## `cases.gen` commands
+//! The lines starting with a column `:` are commands. What follows the column is the actual command
+//! which can be of many types.
+//!
+//! ### `: GEN name path [args...]`
+//! This command registers a new generator for the task. The generator is referenced in the file
+//! with the specified `name`, a unique string without spaces. That generator's source file will be
+//! found at the specified `path`. The optional following `args...` define the command line
+//! arguments of this generator, they will be used for validating the constraints (see below).
+//!
+//! If the name is `default` the generator will be considered the default one and will be used when
+//! no specific generator is selected.
+//!
+//! Example: `: GEN default gen/generator.py N M seed` defines the _default_ generator for the task,
+//! whose source file is at `gen/generator.py` (relative to the task's root directory) and will
+//! accept 3 arguments named `N`, `M` and `seed`. When this generator will be used the variables
+//! `$N`, `$M` and `$seed` will be set and available for the constraint evaluation.
+//!
+//! Example: `: GEN line gen/line.py` defines a new generator named `line` whose parameters are not
+//! known and won't be validated.
+//!
+//! ### `: VAL name path [args...]`
+//! This command registers a new validator for the task. The semantics of the command are the same
+//! of `: GEN name path [args...]`, including the behaviour of the `default` name.
+//!
+//! If no arguments are specified for the validator the default behaviour is to pass the same
+//! arguments as `gen/GEN`, i.e. the path to the file to validate and the 1-based index of the
+//! subtask.
+//!
+//! Note that the `name` must be unique among the validators, but it can be the same of the one of
+//! a generator.
+//!
+//! Example: `: VAL default gen/validator.py` defines the _default_ validator for the task.
+//!
+//! Example: `: VAL line gen/val_line.py $INPUT $ST_NUM` defines the `line` validator which takes 2
+//! arguments, the same as the default behaviour, but using the variables to specify them.
+//!
+//! ### `: GEN name`
+//! This command overrides the default generator for the current subtask, meaning that all the
+//! testcases in the current subtask, following this command, will use the generator named `name` by
+//! default. A generator named `name` must have been previously defined.
+//!
+//! Example: `: GEN line` sets the current generator to `line`.
+//!
+//! ### `: VAL name`
+//! This command overrides the default validator for the current subtask, meaning that all the
+//! testcases in the current subtask, following this command, will use the validator named `name`.
+//! A validator named `name` must have been previously defined.
+//!
+//! Example: `: VAL line` sets the current validator to `line`.
+//!
+//! ### `: CONSTRAINT operand (operator operand)+`
+//! This command adds a constraint that validates the parameters of the testcases. The arguments of
+//! `: CONSTRAINT` form an expression that is an inequality (with equalities allowed) between
+//! constants and variables. When a testcase is defined using a generator with the arguments known,
+//! all those variables become defined and will be checked with all the constraints.
+//!
+//! The operators available are: < <= > >= =, but note that the inequalities must have the same
+//! direction (cannot mix < and >).
+//!
+//! Constraints defined before the first subtask will be used for all the subtasks. Constraints
+//! defined inside a subtask will be used only for that subtask.
+//!
+//! Example: `:CONSTRAINT 0 <= $N < $M <= 1000000` will check that the variables `$N` and `$M` are
+//! between 0 and 1000000 and `$N` is smaller than `$M`.
+//!
+//! ### `: SUBTASK score [description]`
+//! This command marks the start of a new subtask, just like how `#ST` in `gen/GEN` did. The score
+//! can be a simple floating point number (either an integer or an integer.integer). The description
+//! that follows is optional and will be included in the subtask metadata.
+//!
+//! When a new subtask is started the generator and validator will be reset to the default ones.
+//!
+//! Example: `: SUBTASK 40 All the nodes are in a line` defines a new subtask worth 40 points, with
+//! the provided description.
+//!
+//! ### `: COPY path`
+//! This command creates a new testcase coping the input file from the specified path, relative to
+//! the task root directory. The file will be validated using the current validator of the subtask.
+//!
+//! Example: `: COPY gen/hardcoded.in`
+//!
+//! ### `: RUN name args...`
+//! This command creates a new testcase using the generator named `name`, passing to it the
+//! following arguments. The generator must have been previously defined.
+//!
+//! If the generator has the definition of its parameters, they will be used for assigning the
+//! variables for checking the constraints. All the constraints must be satisfied for each testcase.
+//!
+//! The arguments provided are parsed with a shell lexer, meaning that `"` and `'` have a semantic
+//! value (the same as a shell). Unlike `gen/GEN` you can pass arguments with a space in it using
+//! the quotes.
+//!
+//! Example: `: RUN line 1 2 3` will run the `line` generator passing the three integers as
+//! arguments.
+//!
+//! ## Testcase definition
+//! Similarly to `gen/GEN` lines that are not commands nor comments are simple testcase definition.
+//! Their semantics is the same of `: RUN default args...`.
+//!
+//! ## Automatic variables
+//! In the constraint evaluation and in the validator argument specification all the variables
+//! obtained from the parsing of the generator's arguments will be available. Also some automatic
+//! variables will be available:
+//! - `$ST_NUM`: the 0-based index of the subtask
+//! - `$ST_DESCRIPTION`: the description of the subtask
+//! - `$TC_NUM`: the 0-based index of the testcase
+//! - `$INPUT` _(only for validators)_: the name of the file to validate
+//!
+//! ## Full example of `cases.gen`
+//! ```text
+//! : GEN default gen/generator.py N M seed
+//! : GEN line gen/line.py N seed
+//! : GEN hard gen/hard.py
+//!
+//! : VAL default gen/validator.py
+//! : VAL line gen/val_line.py $INPUT $ST_NUM # same as default
+//!
+//! : CONSTRAINT 1 <= $N <= 1000
+//! : CONSTRAINT 1 <= $M <= 1000000
+//!
+//! : SUBTASK 0 Examples
+//! : COPY gen/example1.in
+//! : COPY gen/example2.in
+//!
+//! : SUBTASK 30 Nodes are in a line
+//! : GEN line
+//! : VAL line
+//! : CONSTRAINT $N <= 500
+//! 500   101
+//! 500   102
+//!
+//! : SUBTASK 70
+//! 1000   1000      201
+//! 1000   1000000   202
+//! : RUN hard 1000 1000 95% 12.3 203
+//! ```
+//!
+//! In this example 3 generators and 2 validators are defined, named `default`, `line`, `hard` and
+//! `default`, `line` respectively. The `default` and `line` generators have their parameters
+//! specified, they will be used for the constraints check; the `hard` generator arguments won't be
+//! validated.
+//!
+//! Note that the second validator has the arguments specified, and they are the same as the default
+//! ones. Also note that the inline comment will be ignored.
+//!
+//! This file defines 3 subtasks, worth 0, 30 and 70 points each.
+//!
+//! The first subtask contains 2 testcases whose file will be simply copied from the specified
+//! paths.
+//!
+//! The second subtask has 2 testcases each generated with the `line` generator and validated with
+//! the `line` validator. Note that there is an additional constraint for the subtask, it will be
+//! checked only in this subtask.
+//!
+//! The third subtask will use the `default` generator and validator, except for the last testcase
+//! which will use the `hard` one. Note that since the `hard` generator does not have the argument
+//! specification, its parameters won't be checked. Also note that the constraint `$N <= 500` won't
+//! be checked because it was scoped only to the second subtask.
+//! The subtask also does not have a description, the default one (`Subtask 2`) will be used.
 
 use std::collections::HashMap;
 use std::fs;

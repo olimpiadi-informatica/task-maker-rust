@@ -328,6 +328,7 @@ where
 
     /// Parse a `:CONSTRAINT` command.
     fn parse_constraint(&mut self, line: Pair) -> Result<(), Error> {
+        // TODO add support for subtask-level constraints
         let line_str = line.as_str().to_string();
         let line: Vec<_> = line.into_inner().collect();
         let mut constraint = Constraint::default();
