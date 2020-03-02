@@ -178,7 +178,7 @@ where
                             cases.parse_command(command)?;
                         }
                         parser::Rule::testcase => {
-                            cases.parse_testcase(line.as_str())?;
+                            cases.parse_testcase(line.as_str(), cases.current_generator.clone())?;
                         }
                         parser::Rule::comment => {}
                         parser::Rule::empty => {}
@@ -219,21 +219,27 @@ where
     }
 
     /// Parse a raw testcase, a line not starting with `:`.
-    fn parse_testcase(&mut self, line: &str) -> Result<(), Error> {
+    fn parse_testcase(
+        &mut self,
+        line: &str,
+        current_generator: Option<String>,
+    ) -> Result<(), Error> {
         if self.subtask_id == 0 {
-            bail!("Cannot add a COPY testcase outside a subtask");
+            bail!("Cannot add a testcase outside a subtask");
         }
-        if self.current_generator.is_none() {
+        let current_generator = if current_generator.is_none()
+            || !self
+                .generators
+                .contains_key(current_generator.as_ref().unwrap())
+        {
             bail!("Cannot generate testcase: no default generator set");
-        }
+        } else {
+            current_generator.unwrap()
+        };
         let args = shell_words::split(line)
             .map_err(|e| format_err!("Invalid command arguments for testcase '{}': {}", line, e))?;
-        let generator = InputGenerator::Custom(
-            self.generators[self.current_generator.as_ref().unwrap()]
-                .source
-                .clone(),
-            args,
-        );
+        let generator =
+            InputGenerator::Custom(self.generators[&current_generator].source.clone(), args);
         // TODO check arguments
         self.result.push(TaskInputEntry::Testcase(TestcaseInfo {
             id: self.testcase_id,
@@ -474,30 +480,15 @@ where
     /// Parse a `:RUN` command.
     fn parse_run(&mut self, line: Pair) -> Result<(), Error> {
         if self.subtask_id == 0 {
-            bail!("Cannot add a RUN testcase outside a subtask");
+            bail!("Cannot add a testcase outside a subtask");
         }
-        let line_str = line.as_str().to_string();
         let line: Vec<_> = line.into_inner().collect();
         let name = line[0].as_str();
-        let args = shell_words::split(line[1].as_str()).map_err(|e| {
-            format_err!(
-                "Invalid command arguments for RUN command '{}': {}",
-                line_str,
-                e
-            )
-        })?;
+        let args = line[1].as_str();
         if !self.generators.contains_key(name) {
             bail!("Generator '{}' not declared", name);
         }
-        let generator = InputGenerator::Custom(self.generators[name].source.clone(), args);
-        // TODO: check arguments
-        self.result.push(TaskInputEntry::Testcase(TestcaseInfo {
-            id: self.testcase_id,
-            input_generator: generator,
-            input_validator: self.get_validator(),
-            output_generator: (self.get_output_gen)(self.testcase_id),
-        }));
-        self.testcase_id += 1;
+        self.parse_testcase(args, Some(name.into()))?;
         Ok(())
     }
 }
@@ -1090,7 +1081,9 @@ mod tests {
 
     #[test]
     fn test_add_run_corrupted_command() {
-        let gen = TestHelper::new().cases_gen(":SUBTASK 42\n:RUN foo good ol' quotes");
+        let gen = TestHelper::new()
+            .add_file("gen/gen.py")
+            .cases_gen(":GEN foo gen/gen.py\n:SUBTASK 42\n:RUN foo good ol' quotes");
         assert!(gen.is_err());
         assert_that!(gen.unwrap_err().to_string()).contains("Invalid command arguments");
     }
