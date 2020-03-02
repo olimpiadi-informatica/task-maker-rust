@@ -95,6 +95,8 @@ where
     result: Vec<TaskInputEntry>,
     /// The list of constraints found in the file.
     constraints: Vec<Constraint>,
+    /// The list of additional constraints for the current subtask.
+    subtask_constraints: Vec<Constraint>,
     /// The list of all the generators found, indexed by generator name.
     generators: HashMap<String, Manager>,
     /// The list of all the validators found, indexed by validator name.
@@ -149,6 +151,7 @@ where
             get_output_gen: output_gen,
             result: vec![],
             constraints: vec![],
+            subtask_constraints: vec![],
             generators: Default::default(),
             validators: Default::default(),
             default_generator: None,
@@ -328,7 +331,6 @@ where
 
     /// Parse a `:CONSTRAINT` command.
     fn parse_constraint(&mut self, line: Pair) -> Result<(), Error> {
-        // TODO add support for subtask-level constraints
         let line_str = line.as_str().to_string();
         let line: Vec<_> = line.into_inner().collect();
         let mut constraint = Constraint::default();
@@ -378,7 +380,12 @@ where
         if constraint.operands.len() < 2 {
             bail!("Malformed constraint: too few operands");
         }
-        self.constraints.push(constraint);
+        // subtask_id = 0 means no subtask has been defined yet, so this constraint is global
+        if self.subtask_id == 0 {
+            self.constraints.push(constraint);
+        } else {
+            self.subtask_constraints.push(constraint);
+        }
         Ok(())
     }
 
