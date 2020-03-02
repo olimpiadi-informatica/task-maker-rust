@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 pub use checker::Checker;
 pub use input_generator::InputGenerator;
-pub use input_validator::InputValidator;
+pub use input_validator::{InputValidator, TM_VALIDATION_FILE_NAME};
 pub use output_generator::OutputGenerator;
 use task_maker_dag::Priority;
 pub use task_type::TaskType;

@@ -11,7 +11,7 @@ use pest::Parser;
 use crate::ioi::format::italian_yaml::TaskInputEntry;
 use crate::ioi::{
     InputGenerator, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo, TestcaseId,
-    TestcaseInfo,
+    TestcaseInfo, TM_VALIDATION_FILE_NAME,
 };
 use crate::SourceFile;
 
@@ -238,13 +238,14 @@ where
         };
         let args = shell_words::split(line)
             .map_err(|e| format_err!("Invalid command arguments for testcase '{}': {}", line, e))?;
-        let generator =
-            InputGenerator::Custom(self.generators[&current_generator].source.clone(), args);
+        let generator = &self.generators[&current_generator];
+        let variables = self.get_variables(&generator.args, &args);
         // TODO check arguments
+        let generator = InputGenerator::Custom(generator.source.clone(), args);
         self.result.push(TaskInputEntry::Testcase(TestcaseInfo {
             id: self.testcase_id,
             input_generator: generator,
-            input_validator: self.get_validator(),
+            input_validator: self.get_validator(&variables)?,
             output_generator: (self.get_output_gen)(self.testcase_id),
         }));
         self.testcase_id += 1;
@@ -455,7 +456,7 @@ where
         self.result.push(TaskInputEntry::Testcase(TestcaseInfo {
             id: self.testcase_id,
             input_generator: InputGenerator::StaticFile(path),
-            input_validator: self.get_validator(),
+            input_validator: self.get_validator(&self.get_auto_variables())?,
             output_generator: (self.get_output_gen)(self.testcase_id),
         }));
         self.testcase_id += 1;
@@ -463,17 +464,33 @@ where
     }
 
     /// Get the current validator for the next testcase.
-    fn get_validator(&self) -> InputValidator {
+    fn get_validator(&self, variables: &HashMap<String, String>) -> Result<InputValidator, Error> {
         match &self.current_validator {
-            // TODO: build the command line argument
-            Some(val) => InputValidator::Custom(
-                self.validators[val].source.clone(),
-                vec![
-                    "tm_validation_file".to_string(),
-                    (self.subtask_id - 1).to_string(),
-                ],
-            ),
-            None => InputValidator::AssumeValid,
+            Some(val) => {
+                let validator = &self.validators[val];
+                let args = if validator.args.is_empty() {
+                    vec![variables["INPUT"].clone(), variables["ST_NUM"].clone()]
+                } else {
+                    let mut args = Vec::new();
+                    for arg in &validator.args {
+                        // variables may (and should!) start with `$`, remove it before accessing
+                        // the `variables` map.
+                        let arg = if arg.starts_with('$') {
+                            &arg[1..]
+                        } else {
+                            &arg[..]
+                        };
+                        if let Some(value) = variables.get(arg) {
+                            args.push(value.clone());
+                        } else {
+                            bail!("Unknown variable in validator arguments: ${}", arg);
+                        }
+                    }
+                    args
+                };
+                Ok(InputValidator::Custom(validator.source.clone(), args))
+            }
+            None => Ok(InputValidator::AssumeValid),
         }
     }
 
@@ -490,6 +507,29 @@ where
         }
         self.parse_testcase(args, Some(name.into()))?;
         Ok(())
+    }
+
+    /// Compute the list of all the variables accessible for the current testcase, including the
+    /// automatic ones and the ones extracted from the command line arguments of the generator.
+    fn get_variables(&self, definition: &[String], args: &[String]) -> HashMap<String, String> {
+        let mut vars = self.get_auto_variables();
+        for (var, val) in definition.iter().zip(args.iter()) {
+            vars.insert(var.clone(), val.clone());
+        }
+        vars
+    }
+
+    /// Obtain the automatic variables for the current testcase.
+    fn get_auto_variables(&self) -> HashMap<String, String> {
+        [
+            ("INPUT", TM_VALIDATION_FILE_NAME),
+            ("ST_NUM", &(self.subtask_id - 1).to_string()),
+            // TODO: ST_DESCRIPTION
+            ("TC_NUM", &(self.testcase_id).to_string()),
+        ]
+        .iter()
+        .map(|(a, b)| ((*a).to_string(), (*b).to_string()))
+        .collect()
     }
 }
 
@@ -553,7 +593,9 @@ mod tests {
         CasesGen, ConstraintOperand, ConstraintOperator,
     };
     use crate::ioi::format::italian_yaml::TaskInputEntry;
-    use crate::ioi::{InputGenerator, InputValidator, OutputGenerator, TestcaseId};
+    use crate::ioi::{
+        InputGenerator, InputValidator, OutputGenerator, TestcaseId, TM_VALIDATION_FILE_NAME,
+    };
 
     struct TestHelper(TempDir);
 
@@ -579,6 +621,66 @@ mod tests {
             std::fs::write(&dest, content.as_ref()).unwrap();
             CasesGen::new(dest, |_| OutputGenerator::StaticFile("nope".into()))
         }
+    }
+
+    #[test]
+    fn test_auto_variables() {
+        let gen = TestHelper::new()
+            .add_file("gen/generator.py")
+            .cases_gen(":GEN gen gen/generator.py\n:SUBTASK 42\n12 34")
+            .unwrap();
+        let vars = gen.get_auto_variables();
+        assert_eq!(vars["INPUT"], TM_VALIDATION_FILE_NAME);
+        assert_eq!(vars["ST_NUM"], "0");
+        assert_eq!(vars["TC_NUM"], "1");
+    }
+
+    #[test]
+    fn test_variables() {
+        let gen = TestHelper::new()
+            .add_file("gen/generator.py")
+            .cases_gen(":GEN gen gen/generator.py N M seed\n:SUBTASK 42\n12 34")
+            .unwrap();
+        let args = vec!["1".into(), "2".into(), "1337".into()];
+        let vars = gen.get_variables(&gen.generators["gen"].args, &args);
+        assert_eq!(vars["INPUT"], TM_VALIDATION_FILE_NAME);
+        assert_eq!(vars["ST_NUM"], "0");
+        assert_eq!(vars["TC_NUM"], "1");
+        assert_eq!(vars["N"], "1");
+        assert_eq!(vars["M"], "2");
+        assert_eq!(vars["seed"], "1337");
+    }
+
+    #[test]
+    fn test_variables_extra_vars() {
+        let gen = TestHelper::new()
+            .add_file("gen/generator.py")
+            .cases_gen(":GEN gen gen/generator.py N M seed\n:SUBTASK 42\n12 34")
+            .unwrap();
+        let args = vec!["1".into(), "2".into(), "1337".into(), "boh!".into()];
+        let vars = gen.get_variables(&gen.generators["gen"].args, &args);
+        assert_eq!(vars["INPUT"], TM_VALIDATION_FILE_NAME);
+        assert_eq!(vars["ST_NUM"], "0");
+        assert_eq!(vars["TC_NUM"], "1");
+        assert_eq!(vars["N"], "1");
+        assert_eq!(vars["M"], "2");
+        assert_eq!(vars["seed"], "1337");
+    }
+
+    #[test]
+    fn test_variables_fewer_vars() {
+        let gen = TestHelper::new()
+            .add_file("gen/generator.py")
+            .cases_gen(":GEN gen gen/generator.py N M seed\n:SUBTASK 42\n12 34")
+            .unwrap();
+        let args = vec!["1".into()];
+        let vars = gen.get_variables(&gen.generators["gen"].args, &args);
+        assert_eq!(vars["INPUT"], TM_VALIDATION_FILE_NAME);
+        assert_eq!(vars["ST_NUM"], "0");
+        assert_eq!(vars["TC_NUM"], "1");
+        assert_eq!(vars["N"], "1");
+        assert!(!vars.contains_key("M"));
+        assert!(!vars.contains_key("seed"));
     }
 
     #[test]
@@ -1206,6 +1308,63 @@ mod tests {
                 panic!(
                     "Expecting a custom generator, got: {:?}",
                     testcase.input_generator
+                );
+            }
+        } else {
+            panic!("Expecting a testcase, got: {:?}", testcase);
+        }
+    }
+
+    #[test]
+    fn test_testcase_validator_args_default() {
+        let gen = TestHelper::new()
+            .add_file("gen/generator.py")
+            .add_file("gen/val.py")
+            .cases_gen(":GEN default gen/generator.py\n:VAL default gen/val.py\n:SUBTASK 42\n1 2 3")
+            .unwrap();
+        assert_eq!(gen.subtask_id, 1);
+        assert_eq!(gen.testcase_id, 1);
+        assert_eq!(gen.result.len(), 2);
+        let testcase = &gen.result[1];
+        if let TaskInputEntry::Testcase(testcase) = testcase {
+            assert_eq!(testcase.id, 0);
+            if let InputValidator::Custom(source, args) = &testcase.input_validator {
+                assert_eq!(source.name(), "val.py");
+                assert_eq!(args, &vec![TM_VALIDATION_FILE_NAME, "0"]);
+            } else {
+                panic!(
+                    "Expecting a custom validator, got: {:?}",
+                    testcase.input_validator
+                );
+            }
+        } else {
+            panic!("Expecting a testcase, got: {:?}", testcase);
+        }
+    }
+
+    #[test]
+    fn test_testcase_validator_args_custom() {
+        let gen = TestHelper::new()
+            .add_file("gen/generator.py")
+            .add_file("gen/val.py")
+            .cases_gen(":GEN default gen/generator.py N M seed\n:VAL default gen/val.py $N $M $seed $INPUT $TC_NUM $ST_NUM\n:SUBTASK 42\n1 2 3")
+            .unwrap();
+        assert_eq!(gen.subtask_id, 1);
+        assert_eq!(gen.testcase_id, 1);
+        assert_eq!(gen.result.len(), 2);
+        let testcase = &gen.result[1];
+        if let TaskInputEntry::Testcase(testcase) = testcase {
+            assert_eq!(testcase.id, 0);
+            if let InputValidator::Custom(source, args) = &testcase.input_validator {
+                assert_eq!(source.name(), "val.py");
+                assert_eq!(
+                    args,
+                    &vec!["1", "2", "3", TM_VALIDATION_FILE_NAME, "0", "0"]
+                );
+            } else {
+                panic!(
+                    "Expecting a custom validator, got: {:?}",
+                    testcase.input_validator
                 );
             }
         } else {

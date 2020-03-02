@@ -10,6 +10,10 @@ use crate::ioi::{SubtaskId, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENG
 use crate::ui::UIMessage;
 use crate::{EvaluationData, SourceFile, Tag};
 
+/// The file name of the input file that the `InputValidator` has to validate. This file will be
+/// placed in the current working directory of the validation sandbox.
+pub const TM_VALIDATION_FILE_NAME: &str = "tm_validation_file";
+
 /// An input file validator is responsible for checking that the input file follows the format and
 /// constraints defined by the task.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,7 +41,7 @@ impl InputValidator {
             InputValidator::AssumeValid => Ok((None, None)),
             InputValidator::Custom(source_file, args) => {
                 let mut exec = source_file.execute(eval, description, args.clone())?;
-                exec.input(input, "tm_validation_file", false)
+                exec.input(input, TM_VALIDATION_FILE_NAME, false)
                     .tag(Tag::Generation.into())
                     .priority(GENERATION_PRIORITY - testcase_id as Priority)
                     .env("TM_SUBTASK", subtask_id.to_string())

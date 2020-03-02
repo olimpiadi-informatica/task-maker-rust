@@ -253,6 +253,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use task_maker_lang::GraderMap;
 
 use crate::ioi::sanity_checks::get_sanity_checks;
+use crate::ioi::TM_VALIDATION_FILE_NAME;
 use crate::ioi::{
     make_booklets, Checker, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo, Task,
     TaskType, TestcaseId, TestcaseInfo, TestcaseScoreAggregator,
@@ -484,7 +485,7 @@ fn detect_validator(task_dir: PathBuf) -> impl Fn(SubtaskId) -> InputValidator {
             InputValidator::Custom(
                 validator.clone(),
                 // for legacy support reasons the subtask is passed 1-based
-                vec!["tm_validation_file".to_string(), (st + 1).to_string()],
+                vec![TM_VALIDATION_FILE_NAME.to_string(), (st + 1).to_string()],
             )
         } else {
             InputValidator::AssumeValid
