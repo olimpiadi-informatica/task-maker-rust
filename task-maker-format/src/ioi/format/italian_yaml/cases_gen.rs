@@ -113,6 +113,8 @@ where
     current_validator: Option<String>,
     /// The identifier of the next subtask to process.
     subtask_id: SubtaskId,
+    /// The description of the last subtask added, if any.
+    subtask_description: Option<String>,
     /// The identifier of the next testcase to process.
     testcase_id: TestcaseId,
 }
@@ -159,6 +161,7 @@ where
             current_generator: None,
             current_validator: None,
             subtask_id: 0,
+            subtask_description: None,
             testcase_id: 0,
         };
 
@@ -430,6 +433,7 @@ where
         } else {
             None
         };
+        self.subtask_description = description.clone();
         self.result.push(TaskInputEntry::Subtask(SubtaskInfo {
             id: self.subtask_id,
             description,
@@ -521,15 +525,14 @@ where
 
     /// Obtain the automatic variables for the current testcase.
     fn get_auto_variables(&self) -> HashMap<String, String> {
-        [
-            ("INPUT", TM_VALIDATION_FILE_NAME),
-            ("ST_NUM", &(self.subtask_id - 1).to_string()),
-            // TODO: ST_DESCRIPTION
-            ("TC_NUM", &(self.testcase_id).to_string()),
-        ]
-        .iter()
-        .map(|(a, b)| ((*a).to_string(), (*b).to_string()))
-        .collect()
+        let mut vars = HashMap::new();
+        vars.insert("INPUT".to_string(), TM_VALIDATION_FILE_NAME.to_string());
+        vars.insert("ST_NUM".to_string(), (self.subtask_id - 1).to_string());
+        vars.insert("TC_NUM".to_string(), self.testcase_id.to_string());
+        if let Some(descr) = &self.subtask_description {
+            vars.insert("ST_DESCRIPTION".to_string(), descr.clone());
+        }
+        vars
     }
 }
 
@@ -627,12 +630,26 @@ mod tests {
     fn test_auto_variables() {
         let gen = TestHelper::new()
             .add_file("gen/generator.py")
-            .cases_gen(":GEN gen gen/generator.py\n:SUBTASK 42\n12 34")
+            .cases_gen(":GEN gen gen/generator.py\n:SUBTASK 42 lol\n12 34")
             .unwrap();
         let vars = gen.get_auto_variables();
         assert_eq!(vars["INPUT"], TM_VALIDATION_FILE_NAME);
         assert_eq!(vars["ST_NUM"], "0");
         assert_eq!(vars["TC_NUM"], "1");
+        assert_eq!(vars["ST_DESCRIPTION"], "lol");
+    }
+
+    #[test]
+    fn test_auto_variables_no_descr() {
+        let gen = TestHelper::new()
+            .add_file("gen/generator.py")
+            .cases_gen(":GEN gen gen/generator.py\n:SUBTASK 42 lol\n12 34\n: SUBTASK 43")
+            .unwrap();
+        let vars = gen.get_auto_variables();
+        assert_eq!(vars["INPUT"], TM_VALIDATION_FILE_NAME);
+        assert_eq!(vars["ST_NUM"], "1");
+        assert_eq!(vars["TC_NUM"], "1");
+        assert!(!vars.contains_key("ST_DESCRIPTION"));
     }
 
     #[test]
