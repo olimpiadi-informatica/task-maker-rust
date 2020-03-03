@@ -230,20 +230,30 @@ where
         if self.subtask_id == 0 {
             bail!("Cannot add a testcase outside a subtask");
         }
-        let current_generator = if current_generator.is_none()
-            || !self
-                .generators
-                .contains_key(current_generator.as_ref().unwrap())
-        {
-            bail!("Cannot generate testcase: no default generator set");
+        let current_generator = if let Some(gen) = current_generator {
+            gen
         } else {
-            current_generator.unwrap()
+            bail!("Cannot generate testcase: no default generator set");
         };
         let args = shell_words::split(line)
             .map_err(|e| format_err!("Invalid command arguments for testcase '{}': {}", line, e))?;
-        let generator = &self.generators[&current_generator];
+        let generator = &self
+            .generators
+            .get(&current_generator)
+            .expect("invalid current generator");
         let variables = self.get_variables(&generator.args, &args);
-        // TODO check arguments
+        for constr in &self.constraints {
+            if let Some(false) = constr.is_valid(&variables) {
+                let mut error = format!(
+                    "Testcase '{}' violates constraint {:?}\nWith:",
+                    line, constr
+                );
+                for (var, val) in &variables {
+                    error += &format!("\n  ${} = {}", var, val);
+                }
+                bail!("{}", error)
+            }
+        }
         let generator = InputGenerator::Custom(generator.source.clone(), args);
         self.result.push(TaskInputEntry::Testcase(TestcaseInfo {
             id: self.testcase_id,
@@ -536,6 +546,19 @@ where
     }
 }
 
+impl ConstraintOperator {
+    /// Apply the operator to the provided values and return the result of the comparison.
+    fn is_valid(&self, lhs: i64, rhs: i64) -> bool {
+        match self {
+            ConstraintOperator::Less => lhs < rhs,
+            ConstraintOperator::LessEqual => lhs <= rhs,
+            ConstraintOperator::Equal => lhs == rhs,
+            ConstraintOperator::Greater => lhs > rhs,
+            ConstraintOperator::GreaterEqual => lhs >= rhs,
+        }
+    }
+}
+
 impl FromStr for ConstraintOperator {
     type Err = Error;
 
@@ -564,12 +587,51 @@ impl ToString for ConstraintOperator {
     }
 }
 
+impl ConstraintOperand {
+    /// Return the value of this operand which is either the constant or the integer value of the
+    /// variable contained in it. If the variable is not present, or it's not a valid integer `None`
+    /// is returned.
+    fn get_val(&self, vars: &HashMap<String, String>) -> Option<i64> {
+        match self {
+            ConstraintOperand::Constant(k) => Some(*k),
+            ConstraintOperand::Variable(var) => {
+                if let Some(val) = vars.get(var) {
+                    if let Ok(val) = i64::from_str(val) {
+                        Some(val)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
+
 impl ToString for ConstraintOperand {
     fn to_string(&self) -> String {
         match self {
             ConstraintOperand::Constant(k) => k.to_string(),
             ConstraintOperand::Variable(v) => format!("${}", v),
         }
+    }
+}
+
+impl Constraint {
+    /// Check if the variables verify this constraint, returning `Some(res)` if the check was
+    /// successful (i.e. all the variables were present and valid). `None` is returned if this
+    /// constraint cannot be fully verified.
+    fn is_valid(&self, vars: &HashMap<String, String>) -> Option<bool> {
+        let mut last = self.operands[0].get_val(vars)?;
+        for (operator, operand) in self.operators.iter().zip(&self.operands[1..]) {
+            let this = operand.get_val(vars)?;
+            if !operator.is_valid(last, this) {
+                return Some(false);
+            }
+            last = this;
+        }
+        Some(true)
     }
 }
 
@@ -1387,6 +1449,31 @@ mod tests {
         } else {
             panic!("Expecting a testcase, got: {:?}", testcase);
         }
+    }
+
+    #[test]
+    fn test_testcase_valid_constraints() {
+        let gen = TestHelper::new().add_file("gen/generator.py").cases_gen(
+            ":GEN default gen/generator.py N M\n:CONSTRAINT 1 <= $N < $M < 1000\n:SUBTASK 42\n1 2",
+        );
+        assert!(gen.is_ok());
+    }
+
+    #[test]
+    fn test_testcase_invalid_constraints() {
+        let gen = TestHelper::new().add_file("gen/generator.py").cases_gen(
+            ":GEN default gen/generator.py N M\n:CONSTRAINT 1 <= $N < $M < 1000\n:SUBTASK 42\n1 1000",
+        );
+        assert!(gen.is_err());
+        assert_that!(gen.unwrap_err().to_string()).contains("violates constraint");
+    }
+
+    #[test]
+    fn test_testcase_uncheckable_constraints() {
+        let gen = TestHelper::new().add_file("gen/generator.py").cases_gen(
+            ":GEN default gen/generator.py N M\n:CONSTRAINT 1 <= $N < $M < 1000\n:SUBTASK 42\n10000",
+        );
+        assert!(gen.is_ok());
     }
 
     #[test]

@@ -105,9 +105,12 @@
 //! This command registers a new validator for the task. The semantics of the command are the same
 //! of `: GEN name path [args...]`, including the behaviour of the `default` name.
 //!
-//! If no arguments are specified for the validator the default behaviour is to pass the same
-//! arguments as `gen/GEN`, i.e. the path to the file to validate and the 1-based index of the
-//! subtask.
+//! If no arguments are specified for the validator the default behaviour is to pass the variables
+//! `$INPUT` and `$ST_NUM` (similar to `gen/GEN`, but the subtask is 0-based).
+//!
+//! Note that, differently than `: GEN` the arguments of the validator do not define new variables,
+//! instead defines which parameters task-maker will pass to the validator. Because of that the
+//! variables should be prefixed with `$` (the variables are used, not declared).
 //!
 //! Note that the `name` must be unique among the validators, but it can be the same of the one of
 //! a generator.
