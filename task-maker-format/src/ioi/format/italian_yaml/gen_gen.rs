@@ -187,7 +187,6 @@ mod tests {
             get_output_generator,
         )
         .unwrap()
-        .collect()
     }
 
     #[test]

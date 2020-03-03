@@ -198,6 +198,7 @@ impl Opt {
             solution_paths: self.solution.clone(),
             disabled_sanity_checks: self.skip_sanity_checks.clone(),
             seed: self.seed,
+            dry_run: self.dry_run,
         }
     }
 

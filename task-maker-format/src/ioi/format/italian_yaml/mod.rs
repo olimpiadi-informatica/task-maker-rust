@@ -364,6 +364,9 @@ pub fn parse_task<P: AsRef<Path>>(
             &cases_gen,
             detect_output_generator(task_dir.to_path_buf(), grader_map.clone()),
         )?;
+        if !eval_config.dry_run {
+            gen.write_gen_gen()?;
+        }
         gen.get_task_entries()
     } else if gen_gen.exists() {
         debug!("Parsing testcases from gen/GEN");

@@ -107,6 +107,8 @@ pub struct EvaluationConfig {
     pub disabled_sanity_checks: Vec<String>,
     /// Force this seed in terry evaluations.
     pub seed: Option<Seed>,
+    /// Do not write any file inside the task directory.
+    pub dry_run: bool,
 }
 
 /// The data for an evaluation, including the DAG and the UI channel.
