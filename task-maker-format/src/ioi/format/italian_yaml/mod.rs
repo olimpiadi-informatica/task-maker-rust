@@ -306,7 +306,7 @@ struct TaskYAML {
 }
 
 /// The iterator item type when following the task input testcases.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum TaskInputEntry {
     /// Create a new subtask given its information.
     Subtask(SubtaskInfo),
@@ -360,10 +360,11 @@ pub fn parse_task<P: AsRef<Path>>(
     let cases_gen = task_dir.join("gen").join("cases.gen");
     let inputs = if cases_gen.exists() {
         debug!("Parsing testcases from gen/cases.gen");
-        cases_gen::parse_cases_gen(
+        let gen = cases_gen::CasesGen::new(
             &cases_gen,
             detect_output_generator(task_dir.to_path_buf(), grader_map.clone()),
-        )?
+        )?;
+        gen.get_task_entries()
     } else if gen_gen.exists() {
         debug!("Parsing testcases from gen/GEN");
         gen_gen::parse_gen_gen(
@@ -378,6 +379,7 @@ pub fn parse_task<P: AsRef<Path>>(
             detect_validator(task_dir.to_path_buf()),
             detect_output_generator(task_dir.to_path_buf(), grader_map.clone()),
         )
+        .collect()
     };
 
     let mut subtasks = HashMap::new();

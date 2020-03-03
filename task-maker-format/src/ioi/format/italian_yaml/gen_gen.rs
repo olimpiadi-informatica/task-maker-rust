@@ -26,7 +26,7 @@ pub(crate) fn parse_gen_gen<P: AsRef<Path>, V, O>(
     path: P,
     get_validator: V,
     get_output_gen: O,
-) -> Result<Box<dyn Iterator<Item = TaskInputEntry>>, Error>
+) -> Result<Vec<TaskInputEntry>, Error>
 where
     V: Fn(SubtaskId) -> InputValidator,
     O: Fn(TestcaseId) -> OutputGenerator,
@@ -136,7 +136,7 @@ where
             _ => unreachable!(),
         }
     }
-    Ok(Box::new(entries.into_iter()))
+    Ok(entries)
 }
 
 #[cfg(test)]

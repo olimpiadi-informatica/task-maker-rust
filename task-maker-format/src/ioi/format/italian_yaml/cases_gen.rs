@@ -81,7 +81,7 @@ struct Constraint {
 /// is filled and updated during the parsing of the file.
 #[derive(Derivative)]
 #[derivative(Debug)]
-struct CasesGen<O>
+pub(crate) struct CasesGen<O>
 where
     O: Fn(TestcaseId) -> OutputGenerator,
 {
@@ -119,25 +119,12 @@ where
     testcase_id: TestcaseId,
 }
 
-/// Parse the `gen/cases.gen` file extracting the subtasks and the testcases.
-pub(crate) fn parse_cases_gen<P: AsRef<Path>, O>(
-    path: P,
-    output_gen: O,
-) -> Result<Box<dyn Iterator<Item = TaskInputEntry>>, Error>
-where
-    O: Fn(TestcaseId) -> OutputGenerator,
-{
-    Ok(Box::new(
-        CasesGen::new(path, output_gen)?.result.into_iter(),
-    ))
-}
-
 impl<O> CasesGen<O>
 where
     O: Fn(TestcaseId) -> OutputGenerator,
 {
     /// Parse the `cases.gen` file pointed at the specified path.
-    fn new<P: AsRef<Path>>(path: P, output_gen: O) -> Result<CasesGen<O>, Error> {
+    pub(crate) fn new<P: AsRef<Path>>(path: P, output_gen: O) -> Result<CasesGen<O>, Error> {
         let task_dir = path
             .as_ref()
             .parent()
@@ -193,6 +180,11 @@ where
             }
         }
         Ok(cases)
+    }
+
+    /// Return the list of `TaskInputEntry` from the `cases.gen` file.
+    pub(crate) fn get_task_entries(&self) -> Vec<TaskInputEntry> {
+        self.result.clone()
     }
 
     /// Parse a line with a command: one of the `:` prefixed actions.
