@@ -80,6 +80,18 @@
 //! If a line contains a `#`, all the characters following it (`#` included) will be ignored as they
 //! are considered comments. Example: `1 2 3 # inline comment`.
 //!
+//! ## Backwards compatibility with cms
+//! Since the importers of cms do not yet support the `cases.gen` format, there is a workaround that
+//! works as follows: when the task is built task-maker will create a _fake_ `gen/GEN` with just the
+//! metadata needed by `cmsImportTask` (like the number of testcases and subtasks).
+//!
+//! This file also contains some comments that may be found useful for debugging the generations.
+//!
+//! That file will be ignore by task-maker if the `cases.gen` file is present and will be removed
+//! with `--clean`. Note that you should not edit that file because it will be overwritten the next
+//! time task-maker will be launched. To keep that file you should remove the comment containing
+//! `tm-allow-delete`.
+//!
 //! ## `cases.gen` commands
 //! The lines starting with a column `:` are commands. What follows the column is the actual command
 //! which can be of many types.
