@@ -42,6 +42,8 @@ mod statement;
 pub(crate) mod task_info;
 pub(crate) mod ui_state;
 
+use crate::ioi::format::italian_yaml::TM_ALLOW_DELETE_COOKIE;
+use crate::ioi::italian_yaml::is_gen_gen_deletable;
 pub use format::italian_yaml;
 
 /// In IOI tasks the subtask numbers are non-negative 0-based integers.
@@ -298,6 +300,20 @@ impl TaskFormat for Task {
                     info!("Removing {:?}", path);
                     std::fs::remove_file(path)?;
                 }
+            }
+        }
+        // remove the gen/GEN if there is cases.gen
+        let gen_gen_path = self.path.join("gen/GEN");
+        let cases_gen_path = self.path.join("gen/cases.gen");
+        if cases_gen_path.exists() && gen_gen_path.exists() {
+            if is_gen_gen_deletable(&gen_gen_path)? {
+                info!("Removing {:?}", gen_gen_path);
+                std::fs::remove_file(gen_gen_path)?;
+            } else {
+                warn!(
+                    "Won't remove gen/GEN since it doesn't contain {}",
+                    TM_ALLOW_DELETE_COOKIE
+                );
             }
         }
         Ok(())

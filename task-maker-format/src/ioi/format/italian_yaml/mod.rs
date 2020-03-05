@@ -278,6 +278,7 @@ use crate::{find_source_file, list_files, EvaluationConfig};
 mod cases_gen;
 mod gen_gen;
 mod static_inputs;
+pub(crate) use cases_gen::{is_gen_gen_deletable, TM_ALLOW_DELETE_COOKIE};
 
 /// Deserialized data from the task.yaml of a IOI format task.
 #[derive(Debug, Serialize, Deserialize)]
