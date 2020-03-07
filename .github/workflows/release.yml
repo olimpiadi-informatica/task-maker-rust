@@ -5,8 +5,8 @@ on:
     types: [created]
 
 jobs:
-  build:
-    name: Build & Publish
+  Linux:
+    name: Build & Publish (Linux)
     # Ubuntu 16.04 to keep the library versions backward-compatible
     runs-on: ubuntu-16.04
     steps:
@@ -31,3 +31,26 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           args: "target/debian/*.deb"
+
+  macOS:
+    name: Build & Publish (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build
+        run: |
+          export version=$(grep version Cargo.toml | cut -d'"' -f 2)
+          sed -i "" "s/ARCHIVE_VERSION/v$version/g" ./tools/homebrew/task-maker-rust.rb
+          curl -L -o archive.tar.gz "https://github.com/edomora97/task-maker-rust/archive/v$version.tar.gz"
+          export hash=$(shasum -a 256 archive.tar.gz | grep -o "[0-9a-f]*" | head -n 1)
+          sed -i "" "s/ARCHIVE_SHA256/$hash/g" ./tools/homebrew/task-maker-rust.rb
+
+          brew update
+          brew install --verbose --build-bottle ./tools/homebrew/task-maker-rust.rb
+          brew bottle --force-core-tap ./tools/homebrew/task-maker-rust.rb
+      - name: Upload the artifacts
+        uses: skx/github-action-publish-binaries@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: "*.bottle.tar.gz"
