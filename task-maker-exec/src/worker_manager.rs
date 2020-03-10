@@ -5,7 +5,7 @@ use std::thread;
 
 use failure::{format_err, Error};
 
-use task_maker_dag::WorkerUuid;
+use task_maker_dag::{ExecutionGroupUuid, WorkerUuid};
 use task_maker_store::FileStore;
 
 use crate::executor::WorkerJob;
@@ -28,7 +28,10 @@ pub(crate) enum WorkerManagerInMessage {
     WorkerJob { worker: WorkerUuid, job: WorkerJob },
     /// The scheduler is asking a worker to stop doing a job, if the worker is still working on
     /// that.
-    StopWorkerJob { worker: WorkerUuid, job: WorkerUuid },
+    StopWorkerJob {
+        worker: WorkerUuid,
+        job: ExecutionGroupUuid,
+    },
     /// The WorkerManager is asked to exit and tell all the connected worker to exit too.
     Exit,
 }

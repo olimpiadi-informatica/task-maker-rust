@@ -8,7 +8,9 @@ use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
 
 use task_maker_cache::Cache;
-use task_maker_dag::{Execution, ExecutionUuid, FileUuid, ProvidedFile, WorkerUuid};
+use task_maker_dag::{
+    Execution, ExecutionGroup, ExecutionUuid, FileUuid, ProvidedFile, WorkerUuid,
+};
 use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey};
 
 use crate::check_dag::check_dag;
@@ -43,7 +45,7 @@ pub struct ExecutionDAGWatchSet {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerJob {
     /// What the worker should do.
-    pub execution: Execution,
+    pub group: ExecutionGroup,
     /// The `FileStoreKey`s the worker has to know to start the evaluation.
     pub dep_keys: HashMap<FileUuid, FileStoreKey>,
 }

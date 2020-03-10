@@ -45,9 +45,11 @@ extern crate approx;
 
 mod dag;
 mod execution;
+mod execution_group;
 mod file;
 mod signals;
 
 pub use dag::*;
 pub use execution::*;
+pub use execution_group::*;
 pub use file::*;

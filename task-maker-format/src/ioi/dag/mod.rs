@@ -189,10 +189,10 @@ mod tests {
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let out = generator.generate_and_bind(&mut eval, 0, 0).unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 1);
-        assert_eq!(eval.dag.data.executions.len(), 1);
-        let exec = eval.dag.data.executions.values().next().unwrap();
-        assert_eq!(exec.tag.as_ref().unwrap(), &Tag::Generation.into());
-        assert_eq!(exec.stdout.as_ref().unwrap().uuid, out);
+        assert_eq!(eval.dag.data.execution_groups.len(), 1);
+        let group = eval.dag.data.execution_groups.values().next().unwrap();
+        assert_eq!(group.tag().as_ref().unwrap(), &Tag::Generation.into());
+        assert_eq!(group.executions[0].stdout.as_ref().unwrap().uuid, out);
         assert!(eval
             .dag
             .file_callbacks
@@ -211,7 +211,7 @@ mod tests {
             .validate_and_bind(&mut eval, 0, 0, file.uuid)
             .unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 0);
-        assert_eq!(eval.dag.data.executions.len(), 0);
+        assert_eq!(eval.dag.data.execution_groups.len(), 0);
         assert!(out.is_none());
     }
 
@@ -228,12 +228,15 @@ mod tests {
             .validate_and_bind(&mut eval, 0, 0, file.uuid)
             .unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 1);
-        assert_eq!(eval.dag.data.executions.len(), 1);
-        let exec = eval.dag.data.executions.values().next().unwrap();
-        assert_eq!(exec.tag.as_ref().unwrap(), &Tag::Generation.into());
-        assert_eq!(exec.stdout.as_ref().unwrap().uuid, out.unwrap());
-        assert_eq!(exec.env["TM_SUBTASK"], "0");
-        assert_eq!(exec.env["TM_TESTCASE"], "0");
+        assert_eq!(eval.dag.data.execution_groups.len(), 1);
+        let group = eval.dag.data.execution_groups.values().next().unwrap();
+        assert_eq!(group.tag().as_ref().unwrap(), &Tag::Generation.into());
+        assert_eq!(
+            group.executions[0].stdout.as_ref().unwrap().uuid,
+            out.unwrap()
+        );
+        assert_eq!(group.executions[0].env["TM_SUBTASK"], "0");
+        assert_eq!(group.executions[0].env["TM_TESTCASE"], "0");
     }
 
     #[test]
@@ -288,12 +291,12 @@ mod tests {
             .generate_and_bind(&task, &mut eval, 0, 0, file.uuid, Some(val.uuid))
             .unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 1);
-        assert_eq!(eval.dag.data.executions.len(), 1);
-        let exec = eval.dag.data.executions.values().next().unwrap();
-        assert_eq!(exec.tag.as_ref().unwrap(), &Tag::Generation.into());
-        assert_eq!(exec.stdout.as_ref().unwrap().uuid, out);
-        assert!(exec.dependencies().contains(&file.uuid));
-        assert!(exec.dependencies().contains(&val.uuid));
+        assert_eq!(eval.dag.data.execution_groups.len(), 1);
+        let group = eval.dag.data.execution_groups.values().next().unwrap();
+        assert_eq!(group.tag().as_ref().unwrap(), &Tag::Generation.into());
+        assert_eq!(group.executions[0].stdout.as_ref().unwrap().uuid, out);
+        assert!(group.executions[0].dependencies().contains(&file.uuid));
+        assert!(group.executions[0].dependencies().contains(&val.uuid));
         assert!(eval
             .dag
             .file_callbacks
@@ -316,13 +319,17 @@ mod tests {
             })
             .unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 0);
-        assert_eq!(eval.dag.data.executions.len(), 1);
-        let exec = eval.dag.data.executions.values().next().unwrap();
-        assert_eq!(exec.tag.as_ref().unwrap(), &Tag::Checking.into());
-        assert!(exec.args.contains(&"--ignore-blank-lines".into()));
-        assert!(exec.args.contains(&"--ignore-space-change".into()));
-        assert!(exec.dependencies().contains(&output));
-        assert!(exec.dependencies().contains(&test));
+        assert_eq!(eval.dag.data.execution_groups.len(), 1);
+        let group = eval.dag.data.execution_groups.values().next().unwrap();
+        assert_eq!(group.tag().as_ref().unwrap(), &Tag::Checking.into());
+        assert!(group.executions[0]
+            .args
+            .contains(&"--ignore-blank-lines".into()));
+        assert!(group.executions[0]
+            .args
+            .contains(&"--ignore-space-change".into()));
+        assert!(group.executions[0].dependencies().contains(&output));
+        assert!(group.executions[0].dependencies().contains(&test));
     }
 
     #[test]
@@ -418,12 +425,12 @@ mod tests {
             })
             .unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 1);
-        assert_eq!(eval.dag.data.executions.len(), 1);
-        let exec = eval.dag.data.executions.values().next().unwrap();
-        assert_eq!(exec.tag.as_ref().unwrap(), &Tag::Checking.into());
-        assert!(exec.dependencies().contains(&input));
-        assert!(exec.dependencies().contains(&output));
-        assert!(exec.dependencies().contains(&test));
+        assert_eq!(eval.dag.data.execution_groups.len(), 1);
+        let group = eval.dag.data.execution_groups.values().next().unwrap();
+        assert_eq!(group.tag().as_ref().unwrap(), &Tag::Checking.into());
+        assert!(group.executions[0].dependencies().contains(&input));
+        assert!(group.executions[0].dependencies().contains(&output));
+        assert!(group.executions[0].dependencies().contains(&test));
     }
 
     #[test]
@@ -448,8 +455,8 @@ mod tests {
         checker
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
-        let exec = eval.dag.data.executions.values().next().unwrap();
-
+        let group = eval.dag.data.execution_groups.values().next().unwrap();
+        let exec = &group.executions[0];
         let on_done = eval.dag.execution_callbacks.get_mut(&exec.uuid).unwrap();
         on_done
             .on_done
@@ -489,8 +496,8 @@ mod tests {
         checker
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
-        let exec = eval.dag.data.executions.values().next().unwrap();
-
+        let group = eval.dag.data.execution_groups.values().next().unwrap();
+        let exec = &group.executions[0];
         let on_done = eval.dag.execution_callbacks.get_mut(&exec.uuid).unwrap();
         on_done
             .on_done
@@ -523,8 +530,8 @@ mod tests {
         checker
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
-        let exec = eval.dag.data.executions.values().next().unwrap();
-
+        let group = eval.dag.data.execution_groups.values().next().unwrap();
+        let exec = &group.executions[0];
         let on_done = eval.dag.execution_callbacks.get_mut(&exec.uuid).unwrap();
         let err = on_done
             .on_done

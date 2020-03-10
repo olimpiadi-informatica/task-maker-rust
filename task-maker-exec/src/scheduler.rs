@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use task_maker_cache::{Cache, CacheResult};
 use task_maker_dag::{
-    CacheMode, Execution, ExecutionDAGData, ExecutionResult, ExecutionStatus, ExecutionUuid,
-    FileUuid, Priority, WorkerUuid,
+    CacheMode, Execution, ExecutionDAGData, ExecutionGroup, ExecutionGroupUuid, ExecutionResult,
+    ExecutionStatus, ExecutionUuid, FileUuid, Priority, WorkerUuid,
 };
 use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey};
 
@@ -135,7 +135,7 @@ struct ConnectedWorker {
     /// The name of the worker.
     name: String,
     /// The job the worker is currently working on, with the instant of the start.
-    current_job: Option<(ClientUuid, ExecutionUuid, Instant)>,
+    current_job: Option<(ClientUuid, ExecutionGroupUuid, Instant)>,
 }
 
 /// The scheduling information about the DAG of a single client.
@@ -149,16 +149,16 @@ struct SchedulerClientData {
     callbacks: ExecutionDAGWatchSet,
     /// The set of executions that depends on a file, this is a lookup table for when the files
     /// become ready.
-    input_of: HashMap<FileUuid, HashSet<ExecutionUuid>>,
+    input_of: HashMap<FileUuid, HashSet<ExecutionGroupUuid>>,
     /// The set of executions that are ready to be executed. Note that this is not the same as
     /// `Scheduler::ready_execs`, it's just a fast lookup for known if there is still something to
     /// do for this client.
-    ready_execs: HashSet<ExecutionUuid>,
+    ready_groups: HashSet<ExecutionGroupUuid>,
     /// The set of executions that are currently running in a worker.
-    running_execs: HashSet<ExecutionUuid>,
+    running_groups: HashSet<ExecutionGroupUuid>,
     /// The list of tasks waiting for some dependencies, each with the list of missing files, when a
     /// task is ready it's removed from the map.
-    missing_deps: HashMap<ExecutionUuid, HashSet<FileUuid>>,
+    missing_deps: HashMap<ExecutionGroupUuid, HashSet<FileUuid>>,
     /// The list of known [`FileStoreHandle`](../task_maker_store/struct.FileStoreHandle.html)s.
     /// Storing them here prevents the `FileStore` from flushing them away.
     file_handles: HashMap<FileUuid, FileStoreHandle>,
@@ -176,8 +176,8 @@ impl SchedulerClientData {
             dag,
             callbacks,
             input_of: HashMap::new(),
-            ready_execs: HashSet::new(),
-            running_execs: HashSet::new(),
+            ready_groups: HashSet::new(),
+            running_groups: HashSet::new(),
             missing_deps: HashMap::new(),
             file_handles: HashMap::new(),
         }
@@ -186,7 +186,9 @@ impl SchedulerClientData {
     /// True if the client has completed all the executions and there are no more ready nor running
     /// ones.
     fn is_done(&self) -> bool {
-        self.ready_execs.is_empty() && self.running_execs.is_empty() && self.missing_deps.is_empty()
+        self.ready_groups.is_empty()
+            && self.running_groups.is_empty()
+            && self.missing_deps.is_empty()
     }
 }
 
@@ -211,7 +213,7 @@ pub(crate) struct Scheduler {
     worker_manager: Sender<WorkerManagerInMessage>,
 
     /// The priority queue of the ready tasks, waiting for the workers.
-    ready_execs: BinaryHeap<(Priority, ExecutionUuid, ClientUuid)>,
+    ready_execs: BinaryHeap<(Priority, ExecutionGroupUuid, ClientUuid)>,
     /// The data about the clients currently working.
     clients: HashMap<ClientUuid, SchedulerClientData>,
 
@@ -305,12 +307,14 @@ impl Scheduler {
         // build the scheduler structures, insert the client in the list of working
         // clients and schedule all the already cached executions.
         let mut client_data = SchedulerClientData::new(client.name, dag, callbacks);
-        for exec in client_data.dag.executions.values() {
-            let missing_dep = client_data.missing_deps.entry(exec.uuid).or_default();
-            for input in exec.dependencies() {
-                let entry = client_data.input_of.entry(input).or_default();
-                entry.insert(exec.uuid);
-                missing_dep.insert(input);
+        for group in client_data.dag.execution_groups.values() {
+            let missing_dep = client_data.missing_deps.entry(group.uuid).or_default();
+            for exec in &group.executions {
+                for input in exec.dependencies() {
+                    let entry = client_data.input_of.entry(input).or_default();
+                    entry.insert(group.uuid);
+                    missing_dep.insert(input);
+                }
             }
         }
         self.clients.insert(client.uuid, client_data);
@@ -353,7 +357,7 @@ impl Scheduler {
                 return Ok(());
             }
         };
-        let (client_uuid, exec_uuid) = match worker.current_job {
+        let (client_uuid, group_uuid) = match worker.current_job {
             Some((client, exec, _)) => (client, exec),
             None => {
                 warn!(
@@ -371,10 +375,13 @@ impl Scheduler {
             self.check_completion(client_uuid)?;
             return Ok(());
         };
-        let execution = client.dag.executions[&exec_uuid].clone();
-        info!("Worker {:?} completed execution {}", worker, execution.uuid);
-        client.running_execs.remove(&exec_uuid);
-        self.exec_completed(client_uuid, &execution, result, outputs)?;
+        let group = client.dag.execution_groups[&group_uuid].clone();
+        info!(
+            "Worker {:?} completed execution group {}",
+            worker, group.uuid
+        );
+        client.running_groups.remove(&group_uuid);
+        self.exec_completed(client_uuid, &group, result, outputs)?;
         self.assign_jobs()?;
         self.check_completion(client_uuid)?;
         Ok(())
@@ -407,10 +414,10 @@ impl Scheduler {
                     warn!("Worker was doing something for a gone client");
                     return Ok(());
                 };
-                let priority = client.dag.executions[&job].priority;
+                let priority = client.dag.execution_groups[&job].priority();
                 self.ready_execs.push((priority, job, client_uuid));
-                client.ready_execs.insert(job);
-                client.running_execs.remove(&job);
+                client.ready_groups.insert(job);
+                client.running_groups.remove(&job);
             }
         }
         Ok(())
@@ -457,7 +464,7 @@ impl Scheduler {
         let mut ready_execs = 0;
         let mut waiting_execs = 0;
         for client in self.clients.values() {
-            ready_execs += client.ready_execs.len();
+            ready_execs += client.ready_groups.len();
             waiting_execs += client.missing_deps.len();
         }
         let status = ExecutorStatus {
@@ -474,7 +481,7 @@ impl Scheduler {
                             } else {
                                 return None;
                             };
-                            let exec = &client.dag.executions[exec_uuid];
+                            let exec = &client.dag.execution_groups[exec_uuid];
                             Some(WorkerCurrentJobStatus {
                                 job: exec.description.clone(),
                                 client: ClientInfo {
@@ -530,24 +537,28 @@ impl Scheduler {
             return Ok(());
         }
         let mut failed_files = Vec::new();
-        for exec in client.input_of[&file].clone() {
+        for group_uuid in client.input_of[&file].clone() {
             // do not skip the same execution twice
-            if client.missing_deps.contains_key(&exec) {
-                client.missing_deps.remove(&exec);
+            if client.missing_deps.contains_key(&group_uuid) {
+                client.missing_deps.remove(&group_uuid);
             } else {
                 continue;
             }
-            if client.callbacks.executions.contains(&exec) {
-                if let Err(e) = self.executor.send((
-                    client_uuid,
-                    SchedulerExecutorMessageData::ExecutionSkipped { execution: exec },
-                )) {
-                    warn!("Cannot tell the client the execution was skipped: {:?}", e);
+            let group = &client.dag.execution_groups[&group_uuid];
+            for exec in &group.executions {
+                if client.callbacks.executions.contains(&exec.uuid) {
+                    if let Err(e) = self.executor.send((
+                        client_uuid,
+                        SchedulerExecutorMessageData::ExecutionSkipped {
+                            execution: exec.uuid,
+                        },
+                    )) {
+                        warn!("Cannot tell the client the execution was skipped: {:?}", e);
+                    }
                 }
-            }
-            let exec = &client.dag.executions[&exec];
-            for output in exec.outputs() {
-                failed_files.push((client_uuid, output));
+                for output in exec.outputs() {
+                    failed_files.push((client_uuid, output));
+                }
             }
         }
         for (client_uuid, output) in failed_files {
@@ -569,15 +580,15 @@ impl Scheduler {
         if !client.input_of.contains_key(&file) {
             return Ok(());
         }
-        for exec_uuid in &client.input_of[&file] {
-            let exec = &client.dag.executions[&exec_uuid];
-            if let Some(files) = client.missing_deps.get_mut(exec_uuid) {
+        for group_uuid in &client.input_of[&file] {
+            let group = &client.dag.execution_groups[&group_uuid];
+            if let Some(files) = client.missing_deps.get_mut(group_uuid) {
                 files.remove(&file);
                 if files.is_empty() {
-                    client.missing_deps.remove(exec_uuid);
+                    client.missing_deps.remove(group_uuid);
                     self.ready_execs
-                        .push((exec.priority, *exec_uuid, client_uuid));
-                    client.ready_execs.insert(*exec_uuid);
+                        .push((group.priority(), *group_uuid, client_uuid));
+                    client.ready_groups.insert(*group_uuid);
                 }
             }
         }
@@ -625,7 +636,7 @@ impl Scheduler {
     fn exec_completed(
         &mut self,
         client_uuid: ClientUuid,
-        execution: &Execution,
+        group: &ExecutionGroup,
         result: ExecutionResult,
         outputs: HashMap<FileUuid, FileStoreHandle>,
     ) -> Result<(), Error> {
@@ -635,32 +646,40 @@ impl Scheduler {
             // client is gone, dont worry to much about it
             return Ok(());
         };
-        if client.callbacks.executions.contains(&execution.uuid) {
-            if let Err(e) = self.executor.send((
-                client_uuid,
-                SchedulerExecutorMessageData::ExecutionDone {
-                    execution: execution.uuid,
-                    result: result.clone(),
-                },
-            )) {
-                warn!("Cannot tell the client the execution is done: {:?}", e);
+        for exec in &group.executions {
+            if client.callbacks.executions.contains(&exec.uuid) {
+                if let Err(e) = self.executor.send((
+                    client_uuid,
+                    SchedulerExecutorMessageData::ExecutionDone {
+                        execution: exec.uuid,
+                        result: result.clone(),
+                    },
+                )) {
+                    warn!("Cannot tell the client the execution is done: {:?}", e);
+                }
             }
         }
         for (uuid, handle) in outputs.iter() {
             client.file_handles.insert(*uuid, handle.clone());
         }
+
         let successful = ExecutionStatus::Success == result.status;
-        match &result.status {
-            ExecutionStatus::InternalError(_) => {} // do not cache internal errors
-            _ => self.cache_execution(client_uuid, &execution, outputs, result),
-        }
+        // TODO: handle cache
+        // match &result.status {
+        //     ExecutionStatus::InternalError(_) => {} // do not cache internal errors
+        //     _ => self.cache_execution(client_uuid, &group, outputs, result),
+        // }
         if successful {
-            for output in execution.outputs() {
-                self.file_success(client_uuid, output)?;
+            for exec in &group.executions {
+                for output in exec.outputs() {
+                    self.file_success(client_uuid, output)?;
+                }
             }
         } else {
-            for output in execution.outputs() {
-                self.file_failed(client_uuid, output)?;
+            for exec in &group.executions {
+                for output in exec.outputs() {
+                    self.file_failed(client_uuid, output)?;
+                }
             }
         }
         self.schedule_cached()?;
@@ -696,9 +715,9 @@ impl Scheduler {
     /// cache.
     fn schedule_cached(&mut self) -> Result<(), Error> {
         let mut not_cached = BinaryHeap::new();
-        let mut cached = Vec::new();
+        // let mut cached = Vec::new();
 
-        for (priority, exec, client_uuid) in self.ready_execs.iter() {
+        for (priority, group_uuid, client_uuid) in self.ready_execs.iter() {
             let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
                 client
             } else {
@@ -709,33 +728,35 @@ impl Scheduler {
             let cache_mode = &dag.config.cache_mode;
             // disable the cache for the execution
             if let CacheMode::Nothing = cache_mode {
-                not_cached.push((*priority, *exec, *client_uuid));
+                not_cached.push((*priority, *group_uuid, *client_uuid));
                 continue;
             }
-            let exec = dag.executions[exec].clone();
-            if !Scheduler::is_cacheable(&exec, &cache_mode) {
-                not_cached.push((*priority, exec.uuid, *client_uuid));
-                continue;
-            }
-            let result = self
-                .cache
-                .get(&exec, &client.file_handles, self.file_store.as_ref());
-            match result {
-                CacheResult::Hit { result, outputs } => {
-                    info!("Execution {} is a cache hit!", exec.uuid);
-                    client.ready_execs.remove(&exec.uuid);
-                    cached.push((*client_uuid, exec, result, outputs));
-                }
-                CacheResult::Miss => {
-                    not_cached.push((*priority, exec.uuid, *client_uuid));
-                }
-            }
+            // TODO handle cache
+            let group = dag.execution_groups[group_uuid].clone();
+            not_cached.push((*priority, group.uuid, *client_uuid));
+            // if !Scheduler::is_cacheable(&group, &cache_mode) {
+            //     not_cached.push((*priority, group.uuid, *client_uuid));
+            //     continue;
+            // }
+            // let result = self
+            //     .cache
+            //     .get(&group, &client.file_handles, self.file_store.as_ref());
+            // match result {
+            //     CacheResult::Hit { result, outputs } => {
+            //         info!("Execution {} is a cache hit!", group.uuid);
+            //         client.ready_groups.remove(&group.uuid);
+            //         cached.push((*client_uuid, group, result, outputs));
+            //     }
+            //     CacheResult::Miss => {
+            //         not_cached.push((*priority, group.uuid, *client_uuid));
+            //     }
+            // }
         }
 
         self.ready_execs = not_cached;
-        for (client, exec, result, outputs) in cached.into_iter() {
-            self.exec_completed(client, &exec, result, outputs)?;
-        }
+        // for (client, exec, result, outputs) in cached.into_iter() {
+        //     self.exec_completed(client, &exec, result, outputs)?;
+        // }
 
         Ok(())
     }
@@ -756,38 +777,35 @@ impl Scheduler {
             if worker.current_job.is_some() {
                 continue;
             }
-            let (_, exec, client_uuid) = match self.ready_execs.pop() {
+            let (_, group_uuid, client_uuid) = match self.ready_execs.pop() {
                 Some(exec) => exec,
                 None => break,
             };
-            trace!("Assigning {} to worker {}", exec, worker_uuid);
-            worker.current_job = Some((client_uuid, exec, Instant::now()));
+            trace!("Assigning {} to worker {}", group_uuid, worker_uuid);
+            worker.current_job = Some((client_uuid, group_uuid, Instant::now()));
             let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
                 client
             } else {
                 // client is gone, dont worry to much about it
                 continue;
             };
-            client.ready_execs.remove(&exec);
-            client.running_execs.insert(exec);
-            let execution = client.dag.executions[&exec].clone();
-            let dep_keys = execution
-                .dependencies()
-                .iter()
-                .map(|k| {
-                    (
-                        *k,
-                        client
-                            .file_handles
-                            .get(k)
-                            .unwrap_or_else(|| panic!("Unknown file key of {}", k))
-                            .key()
-                            .clone(),
-                    )
-                })
-                .collect();
+            client.ready_groups.remove(&group_uuid);
+            client.running_groups.insert(group_uuid);
+            let group = &client.dag.execution_groups[&group_uuid];
+            let mut dep_keys: HashMap<FileUuid, FileStoreKey> = HashMap::new();
+            for exec in &group.executions {
+                for file in exec.dependencies() {
+                    let handle = client
+                        .file_handles
+                        .get(&file)
+                        .unwrap_or_else(|| panic!("Unknown file key of {}", file))
+                        .key()
+                        .clone();
+                    dep_keys.insert(file, handle);
+                }
+            }
             let job = WorkerJob {
-                execution,
+                group: group.clone(),
                 dep_keys,
             };
             self.worker_manager
@@ -796,15 +814,17 @@ impl Scheduler {
                     job,
                 })
                 .map_err(|e| format_err!("Failed to send job to worker: {:?}", e))?;
-            if client.callbacks.executions.contains(&exec) {
-                if let Err(e) = self.executor.send((
-                    client_uuid,
-                    SchedulerExecutorMessageData::ExecutionStarted {
-                        execution: exec,
-                        worker: *worker_uuid,
-                    },
-                )) {
-                    warn!("Cannot tell the client the execution started: {:?}", e);
+            for exec in &group.executions {
+                if client.callbacks.executions.contains(&exec.uuid) {
+                    if let Err(e) = self.executor.send((
+                        client_uuid,
+                        SchedulerExecutorMessageData::ExecutionStarted {
+                            execution: exec.uuid,
+                            worker: *worker_uuid,
+                        },
+                    )) {
+                        warn!("Cannot tell the client the execution started: {:?}", e);
+                    }
                 }
             }
         }

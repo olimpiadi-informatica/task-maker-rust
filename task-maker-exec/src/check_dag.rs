@@ -1,7 +1,7 @@
 use crate::executor::ExecutionDAGWatchSet;
 use failure::Fail;
 use std::collections::{HashMap, HashSet, VecDeque};
-use task_maker_dag::{ExecutionDAGData, ExecutionUuid, FileUuid};
+use task_maker_dag::{ExecutionDAGData, ExecutionGroupUuid, ExecutionUuid, FileUuid};
 
 /// An error in the DAG structure.
 #[derive(Debug, Fail)]
@@ -49,55 +49,76 @@ pub enum DAGError {
         /// The duplicated UUID.
         uuid: FileUuid,
     },
+    /// There is a duplicate execution UUID.
+    #[fail(display = "duplicate execution UUID {}", uuid)]
+    DuplicateExecutionUUID {
+        /// The duplicated UUID.
+        uuid: FileUuid,
+    },
+    /// There is an invalid execution group.
+    #[fail(display = "invalid execution group {}", uuid)]
+    InvalidGroup {
+        /// The UUID of the execution group.
+        uuid: ExecutionGroupUuid,
+    },
 }
 
 /// Validate the DAG checking if all the required pieces are present and they actually make a DAG.
 /// It's checked that no duplicated UUID are present, no files are missing, all the executions are
 /// reachable and no cycles are present.
 pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Result<(), DAGError> {
-    let mut dependencies: HashMap<FileUuid, Vec<ExecutionUuid>> = HashMap::new();
-    let mut num_dependencies: HashMap<ExecutionUuid, usize> = HashMap::new();
+    let mut dependencies: HashMap<FileUuid, Vec<ExecutionGroupUuid>> = HashMap::new();
+    let mut num_dependencies: HashMap<ExecutionGroupUuid, usize> = HashMap::new();
     let mut known_files: HashSet<FileUuid> = HashSet::new();
-    let mut ready_execs: VecDeque<ExecutionUuid> = VecDeque::new();
+    let mut known_execs: HashSet<ExecutionUuid> = HashSet::new();
+    let mut ready_groups: VecDeque<ExecutionGroupUuid> = VecDeque::new();
     let mut ready_files: VecDeque<FileUuid> = VecDeque::new();
 
-    let mut add_dependency = |file: FileUuid, exec: ExecutionUuid| {
+    let mut add_dependency = |file: FileUuid, group: ExecutionGroupUuid| {
         dependencies
             .entry(file)
             .or_insert_with(|| vec![])
-            .push(exec);
+            .push(group);
     };
 
     // add the executions and check for duplicated UUIDs
-    for exec_uuid in dag.executions.keys() {
-        let exec = dag.executions.get(exec_uuid).expect("No such exec");
-        let deps = exec.dependencies();
-        let count = deps.len();
-        for dep in deps.into_iter() {
-            add_dependency(dep, *exec_uuid);
+    for (group_uuid, group) in dag.execution_groups.iter() {
+        if group.executions.is_empty() {
+            return Err(DAGError::InvalidGroup { uuid: *group_uuid });
         }
-        if exec.capture_stdout.is_some() && exec.stdout.is_none() {
-            return Err(DAGError::InvalidCapture {
-                stream: "stdout".to_string(),
-                uuid: *exec_uuid,
-                description: exec.description.clone(),
-            });
-        }
-        if exec.capture_stderr.is_some() && exec.stderr.is_none() {
-            return Err(DAGError::InvalidCapture {
-                stream: "stderr".to_string(),
-                uuid: *exec_uuid,
-                description: exec.description.clone(),
-            });
-        }
-        for out in exec.outputs().into_iter() {
-            if !known_files.insert(out) {
-                return Err(DAGError::DuplicateFileUUID { uuid: out });
+        let mut count = 0;
+        for exec in &group.executions {
+            let deps = exec.dependencies();
+            if !known_execs.insert(exec.uuid) {
+                return Err(DAGError::DuplicateExecutionUUID { uuid: exec.uuid });
+            }
+            count += deps.len();
+            for dep in deps.into_iter() {
+                add_dependency(dep, *group_uuid);
+            }
+            if exec.capture_stdout.is_some() && exec.stdout.is_none() {
+                return Err(DAGError::InvalidCapture {
+                    stream: "stdout".to_string(),
+                    uuid: exec.uuid,
+                    description: exec.description.clone(),
+                });
+            }
+            if exec.capture_stderr.is_some() && exec.stderr.is_none() {
+                return Err(DAGError::InvalidCapture {
+                    stream: "stderr".to_string(),
+                    uuid: exec.uuid,
+                    description: exec.description.clone(),
+                });
+            }
+            for out in exec.outputs().into_iter() {
+                if !known_files.insert(out) {
+                    return Err(DAGError::DuplicateFileUUID { uuid: out });
+                }
             }
         }
-        num_dependencies.insert(*exec_uuid, count);
+        num_dependencies.insert(*group_uuid, count);
         if count == 0 {
-            ready_execs.push_back(exec_uuid.clone());
+            ready_groups.push_back(group_uuid.clone());
         }
     }
     // add the provided files
@@ -108,49 +129,56 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
         }
     }
     // visit the DAG for finding the unreachable executions / cycles
-    while !ready_execs.is_empty() || !ready_files.is_empty() {
+    while !ready_groups.is_empty() || !ready_files.is_empty() {
         for file in ready_files.drain(..) {
             if !dependencies.contains_key(&file) {
                 continue;
             }
-            for exec in dependencies[&file].iter() {
+            for group_uuid in dependencies[&file].iter() {
                 let num_deps = num_dependencies
-                    .get_mut(&exec)
-                    .expect("num_dependencies of an unknown execution");
+                    .get_mut(&group_uuid)
+                    .expect("num_dependencies of an unknown execution group");
                 assert_ne!(
                     *num_deps, 0,
-                    "num_dependencis is going to be negative for {}",
-                    exec
+                    "num_dependencies is going to be negative for {}",
+                    group_uuid
                 );
                 *num_deps -= 1;
                 if *num_deps == 0 {
-                    ready_execs.push_back(exec.clone());
+                    ready_groups.push_back(group_uuid.clone());
                 }
             }
         }
-        for exec_uuid in ready_execs.drain(..) {
-            let exec = dag.executions.get(&exec_uuid).expect("No such exec");
-            for file in exec.outputs().into_iter() {
-                ready_files.push_back(file);
+        for group_uuid in ready_groups.drain(..) {
+            let group = dag
+                .execution_groups
+                .get(&group_uuid)
+                .expect("No such exec group");
+            for exec in &group.executions {
+                for file in exec.outputs().into_iter() {
+                    ready_files.push_back(file);
+                }
             }
         }
     }
     // search for unreachable execution / cycles
-    for (exec_uuid, count) in num_dependencies.iter() {
+    for (group_uuid, count) in num_dependencies.iter() {
         if *count == 0 {
             continue;
         }
-        let exec = &dag.executions[&exec_uuid];
-        for dep in exec.dependencies().iter() {
-            if !known_files.contains(dep) {
-                return Err(DAGError::MissingFile {
-                    uuid: *dep,
-                    description: format!("Dependency of '{}'", exec.description),
-                });
+        let group = &dag.execution_groups[&group_uuid];
+        for exec in &group.executions {
+            for dep in exec.dependencies().iter() {
+                if !known_files.contains(dep) {
+                    return Err(DAGError::MissingFile {
+                        uuid: *dep,
+                        description: format!("Dependency of '{}'", exec.description),
+                    });
+                }
             }
         }
         return Err(DAGError::CycleDetected {
-            description: exec.description.clone(),
+            description: dag.execution_groups[group_uuid].description.clone(),
         });
     }
     // check the file callbacks
@@ -164,7 +192,7 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
     }
     // check the execution callbacks
     for exec in callbacks.executions.iter() {
-        if !num_dependencies.contains_key(&exec) {
+        if !known_execs.contains(&exec) {
             return Err(DAGError::MissingExecution { uuid: *exec });
         }
     }

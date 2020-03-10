@@ -179,22 +179,24 @@ impl Worker {
                     wait_sandbox!(current_sandbox_thread);
                     let mut missing_deps: HashMap<FileStoreKey, Vec<FileUuid>> = HashMap::new();
                     let mut handles = HashMap::new();
-                    for input in job.execution.dependencies().iter() {
-                        let key = job
-                            .dep_keys
-                            .get(&input)
-                            .ok_or(WorkerError::MissingDependencyKey { uuid: *input })?;
-                        match self.file_store.get(&key) {
-                            None => {
-                                // ask the file only once
-                                if !missing_deps.contains_key(key) {
-                                    self.sender
-                                        .send(WorkerClientMessage::AskFile(key.clone()))?;
+                    for exec in &job.group.executions {
+                        for input in exec.dependencies().iter() {
+                            let key = job
+                                .dep_keys
+                                .get(&input)
+                                .ok_or(WorkerError::MissingDependencyKey { uuid: *input })?;
+                            match self.file_store.get(&key) {
+                                None => {
+                                    // ask the file only once
+                                    if !missing_deps.contains_key(key) {
+                                        self.sender
+                                            .send(WorkerClientMessage::AskFile(key.clone()))?;
+                                    }
+                                    missing_deps.entry(key.clone()).or_default().push(*input);
                                 }
-                                missing_deps.entry(key.clone()).or_default().push(*input);
-                            }
-                            Some(handle) => {
-                                handles.insert(*input, handle);
+                                Some(handle) => {
+                                    handles.insert(*input, handle);
+                                }
                             }
                         }
                     }
@@ -240,7 +242,7 @@ impl Worker {
                     let current_job = self.current_job.lock().unwrap();
                     if let Some((worker_job, _)) = current_job.current_job.as_ref() {
                         // check that the job is the same
-                        if worker_job.execution.uuid == job {
+                        if worker_job.group.uuid == job {
                             if let Some(sandbox) = current_job.current_sandbox.as_ref() {
                                 // ask the sandbox to kill the process
                                 sandbox.kill();
@@ -285,17 +287,18 @@ fn execute_job(
             .expect("Worker job is gone");
         (
             job.0.clone(),
-            Sandbox::new(sandbox_path, &job.0.execution, &job.1)?,
+            // TODO spawn actual sandboxes
+            Sandbox::new(sandbox_path, &job.0.group.executions[0], &job.1)?,
         )
     };
-    if job.execution.config().keep_sandboxes {
+    if job.group.config().keep_sandboxes {
         sandbox.keep();
     }
     let thread_sender = sender.clone();
     let thread_sandbox = sandbox.clone();
     let thread_job = job.clone();
     let join_handle = thread::Builder::new()
-        .name(format!("Sandbox of {}", job.execution.description))
+        .name(format!("Sandbox of {}", job.group.description))
         .spawn(move || {
             let sender = thread_sender;
             let sandbox = thread_sandbox;
@@ -328,22 +331,24 @@ fn execute_job(
                     return;
                 }
             };
-            let result = compute_execution_result(&job.execution, result, &sandbox)
+            // TODO get actual results
+            let result = compute_execution_result(&job.group.executions[0], result, &sandbox)
                 .expect("Cannot compute execution result");
 
             let mut outputs = HashMap::new();
             let mut output_paths = HashMap::new();
-            if let Some(stdout) = job.execution.stdout {
+            let exec = &job.group.executions[0]; // TODO use actual executions
+            if let Some(stdout) = &exec.stdout {
                 let path = sandbox.stdout_path();
                 outputs.insert(stdout.uuid, FileStoreKey::from_file(&path).unwrap());
                 output_paths.insert(stdout.uuid, path);
             }
-            if let Some(stderr) = job.execution.stderr {
+            if let Some(stderr) = &exec.stderr {
                 let path = sandbox.stderr_path();
                 outputs.insert(stderr.uuid, FileStoreKey::from_file(&path).unwrap());
                 output_paths.insert(stderr.uuid, path);
             }
-            for (path, file) in job.execution.outputs.iter() {
+            for (path, file) in exec.outputs.iter() {
                 let path = sandbox.output_path(path);
                 // the sandbox process may want to remove a file, consider missing files as empty
                 if path.exists() {

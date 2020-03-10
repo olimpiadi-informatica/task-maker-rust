@@ -72,7 +72,7 @@ pub struct ExecutionDAGData {
     /// All the files provided by the client.
     pub provided_files: HashMap<FileUuid, ProvidedFile>,
     /// All the executions to run.
-    pub executions: HashMap<ExecutionUuid, Execution>,
+    pub execution_groups: HashMap<ExecutionGroupUuid, ExecutionGroup>,
     /// The configuration of this DAG.
     pub config: ExecutionDAGConfig,
 }
@@ -98,7 +98,7 @@ impl ExecutionDAG {
         ExecutionDAG {
             data: ExecutionDAGData {
                 provided_files: HashMap::new(),
-                executions: HashMap::new(),
+                execution_groups: HashMap::new(),
                 config: ExecutionDAGConfig::new(),
             },
             execution_callbacks: HashMap::new(),
@@ -136,7 +136,17 @@ impl ExecutionDAG {
     /// Add an execution to the DAG.
     pub fn add_execution(&mut self, mut execution: Execution) {
         execution.config = self.data.config.clone();
-        self.data.executions.insert(execution.uuid, execution);
+        let mut group = ExecutionGroup::new(execution.description.clone());
+        group.add_execution(execution);
+        self.data.execution_groups.insert(group.uuid, group);
+    }
+
+    /// Add an execution group to the DAG.
+    pub fn add_execution_group(&mut self, mut group: ExecutionGroup) {
+        for exec in group.executions.iter_mut() {
+            exec.config = self.data.config.clone();
+        }
+        self.data.execution_groups.insert(group.uuid, group);
     }
 
     /// When `file` is ready it will be written to `path`. The file must be present in the dag
@@ -384,8 +394,12 @@ mod tests {
         dag.config_mut().extra_time(42.0);
         let exec = Execution::new("exec", ExecutionCommand::local("foo"));
         dag.add_execution(exec.clone());
-        assert_eq!("exec", &dag.data.executions[&exec.uuid].description);
-        assert_abs_diff_eq!(&42.0, &dag.data.executions[&exec.uuid].config.extra_time);
+        let group_uuid = dag.data.execution_groups.keys().next().unwrap();
+        assert_eq!("exec", &dag.data.execution_groups[group_uuid].description);
+        assert_abs_diff_eq!(
+            &42.0,
+            &dag.data.execution_groups[&group_uuid].config().extra_time
+        );
     }
 
     #[test]
