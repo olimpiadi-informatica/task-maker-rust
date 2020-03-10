@@ -97,7 +97,9 @@ pub enum WorkerClientMessage {
     GetWork,
     /// The worker completed the job with this result producing those files. The actual files will
     /// be sent immediately after using `ProvideFile` messages.
-    WorkerDone(ExecutionResult, HashMap<FileUuid, FileStoreKey>),
+    /// The list of `ExecutionResult` contains the results of all the executions inside the group,
+    /// in the same order.
+    WorkerDone(Vec<ExecutionResult>, HashMap<FileUuid, FileStoreKey>),
     /// The worker is sending a file to the server. After this message there is a protocol switch
     /// for the file transmission.
     ProvideFile(FileUuid, FileStoreKey),

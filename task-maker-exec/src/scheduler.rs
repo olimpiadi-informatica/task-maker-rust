@@ -4,7 +4,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use failure::{format_err, Error};
+use failure::{bail, format_err, Error};
 use uuid::Uuid;
 
 use task_maker_cache::{Cache, CacheResult};
@@ -60,8 +60,8 @@ pub(crate) enum SchedulerInMessage {
     WorkerResult {
         /// The uuid of the worker that was doing the job.
         worker: WorkerUuid,
-        /// The result of the execution.
-        result: ExecutionResult,
+        /// The list of the results of all the executions inside the group, in the same order.
+        result: Vec<ExecutionResult>,
         /// The outputs that the worker produced.
         outputs: HashMap<FileUuid, FileStoreHandle>,
     },
@@ -347,7 +347,7 @@ impl Scheduler {
     fn handle_worker_result(
         &mut self,
         worker: WorkerUuid,
-        result: ExecutionResult,
+        result: Vec<ExecutionResult>,
         outputs: HashMap<FileUuid, FileStoreHandle>,
     ) -> Result<(), Error> {
         let worker = match self.connected_workers.remove(&worker) {
@@ -380,6 +380,12 @@ impl Scheduler {
             "Worker {:?} completed execution group {}",
             worker, group.uuid
         );
+        if group.executions.len() != result.len() {
+            // FIXME: this is a pretty bad way to handle this error, it should never happen but if
+            //        the workers are not trusted it can cause a DoS of the server. Maybe just
+            //        rescheduling the job or disconnecting the client is a better choice.
+            bail!("Invalid worker result: the number of results does not match the number of executions");
+        }
         client.running_groups.remove(&group_uuid);
         self.exec_completed(client_uuid, &group, result, outputs)?;
         self.assign_jobs()?;
@@ -637,7 +643,7 @@ impl Scheduler {
         &mut self,
         client_uuid: ClientUuid,
         group: &ExecutionGroup,
-        result: ExecutionResult,
+        result: Vec<ExecutionResult>,
         outputs: HashMap<FileUuid, FileStoreHandle>,
     ) -> Result<(), Error> {
         let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
@@ -646,13 +652,13 @@ impl Scheduler {
             // client is gone, dont worry to much about it
             return Ok(());
         };
-        for exec in &group.executions {
+        for (exec, res) in group.executions.iter().zip(result.iter()) {
             if client.callbacks.executions.contains(&exec.uuid) {
                 if let Err(e) = self.executor.send((
                     client_uuid,
                     SchedulerExecutorMessageData::ExecutionDone {
                         execution: exec.uuid,
-                        result: result.clone(),
+                        result: res.clone(),
                     },
                 )) {
                     warn!("Cannot tell the client the execution is done: {:?}", e);
@@ -663,7 +669,8 @@ impl Scheduler {
             client.file_handles.insert(*uuid, handle.clone());
         }
 
-        let successful = ExecutionStatus::Success == result.status;
+        // TODO handle status
+        let successful = ExecutionStatus::Success == result[0].status;
         // TODO: handle cache
         // match &result.status {
         //     ExecutionStatus::InternalError(_) => {} // do not cache internal errors

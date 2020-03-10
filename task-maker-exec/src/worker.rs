@@ -16,13 +16,14 @@ use crate::proto::*;
 use crate::sandbox::{Sandbox, SandboxResult};
 use crate::sandbox_runner::SandboxRunner;
 use crate::{new_local_channel, ChannelReceiver, ChannelSender};
+use std::sync::mpsc::{channel, Sender};
 
 /// The information about the current job the worker is doing.
 struct WorkerCurrentJob {
     /// Job currently waiting for, when there is a job running this should be `None`
     current_job: Option<(Box<WorkerJob>, HashMap<FileUuid, FileStoreHandle>)>,
     /// The currently running sandbox.
-    current_sandbox: Option<Sandbox>,
+    current_sandboxes: Option<Vec<Sandbox>>,
     /// The dependencies that are missing and required for the execution start.
     missing_deps: HashMap<FileStoreKey, Vec<FileUuid>>,
 }
@@ -74,7 +75,7 @@ impl WorkerCurrentJob {
     fn new() -> WorkerCurrentJob {
         WorkerCurrentJob {
             current_job: None,
-            current_sandbox: None,
+            current_sandboxes: None,
             missing_deps: HashMap::new(),
         }
     }
@@ -151,13 +152,13 @@ impl Worker {
         let mut current_sandbox_thread: Option<JoinHandle<()>> = None;
         macro_rules! start_job {
             ($self:expr, $current_sandbox_thread:expr) => {{
-                let (sandbox, thread) = execute_job(
+                let (sandboxes, thread) = execute_job(
                     $self.current_job.clone(),
                     &$self.sender,
                     &$self.sandbox_path,
                     $self.sandbox_runner.clone(),
                 )?;
-                $self.current_job.lock().unwrap().current_sandbox = Some(sandbox);
+                $self.current_job.lock().unwrap().current_sandboxes = Some(sandboxes);
                 $current_sandbox_thread = Some(thread);
             }};
         }
@@ -243,9 +244,11 @@ impl Worker {
                     if let Some((worker_job, _)) = current_job.current_job.as_ref() {
                         // check that the job is the same
                         if worker_job.group.uuid == job {
-                            if let Some(sandbox) = current_job.current_sandbox.as_ref() {
+                            if let Some(sandboxes) = current_job.current_sandboxes.as_ref() {
                                 // ask the sandbox to kill the process
-                                sandbox.kill();
+                                for sandbox in sandboxes {
+                                    sandbox.kill();
+                                }
                                 drop(current_job);
                                 wait_sandbox!(current_sandbox_thread);
                             }
@@ -259,9 +262,12 @@ impl Worker {
                     } else {
                         error!("Connection error: {}", cause);
                     }
-                    if let Some(sandbox) = self.current_job.lock().unwrap().current_sandbox.as_ref()
+                    if let Some(sandboxes) =
+                        self.current_job.lock().unwrap().current_sandboxes.as_ref()
                     {
-                        sandbox.kill();
+                        for sandbox in sandboxes {
+                            sandbox.kill();
+                        }
                     }
                     break;
                 }
@@ -278,101 +284,158 @@ fn execute_job(
     sender: &ChannelSender<WorkerClientMessage>,
     sandbox_path: &Path,
     runner: Arc<dyn SandboxRunner>,
-) -> Result<(Sandbox, JoinHandle<()>), Error> {
-    let (job, mut sandbox) = {
+) -> Result<(Vec<Sandbox>, JoinHandle<()>), Error> {
+    let (job, sandboxes) = {
         let current_job = current_job.lock().unwrap();
         let job = current_job
             .current_job
             .as_ref()
             .expect("Worker job is gone");
-        (
-            job.0.clone(),
-            // TODO spawn actual sandboxes
-            Sandbox::new(sandbox_path, &job.0.group.executions[0], &job.1)?,
-        )
+        let mut boxes = Vec::new();
+        let keep_sandboxes = job.0.group.config().keep_sandboxes;
+        for exec in &job.0.group.executions {
+            let mut sandbox = Sandbox::new(sandbox_path, exec, &job.1)?;
+            if keep_sandboxes {
+                sandbox.keep();
+            }
+            boxes.push(sandbox);
+        }
+        (job.0.clone(), boxes)
     };
-    if job.group.config().keep_sandboxes {
-        sandbox.keep();
+    let thread_sandboxes = sandboxes.clone();
+    let sender = sender.clone();
+    let join_handle = std::thread::Builder::new()
+        .name(format!(
+            "Sandbox group manager for {}",
+            job.group.description
+        ))
+        .spawn(move || sandbox_group_manager(current_job, job, sender, thread_sandboxes, runner))?;
+    Ok((sandboxes, join_handle))
+}
+
+/// The sandbox group manager spawns the threads of the sandbox of all the executions in the group.
+/// Then waits for their outcome and eventually stops the sandboxes if a process fails. When all the
+/// sandboxes complete, this manager collects their results and send them back to the server.
+fn sandbox_group_manager(
+    current_job: Arc<Mutex<WorkerCurrentJob>>,
+    job: Box<WorkerJob>,
+    sender: ChannelSender<WorkerClientMessage>,
+    sandboxes: Vec<Sandbox>,
+    runner: Arc<dyn SandboxRunner>,
+) {
+    // TODO: since in the vast majority of the cases the ExecutionGroup is composed by a single
+    //       Execution, this function can be heavily optimized by using this thread to spawn the
+    //       sandbox and avoid spawning/joining all the sandbox threads.
+    let mut handles = Vec::new();
+    let (group_sender, receiver) = channel();
+    for (index, sandbox) in sandboxes.clone().into_iter().enumerate() {
+        handles.push(
+            spawn_sandbox(
+                &job.group.description,
+                sandbox,
+                runner.clone(),
+                index,
+                group_sender.clone(),
+            )
+            .unwrap(),
+        );
     }
-    let thread_sender = sender.clone();
-    let thread_sandbox = sandbox.clone();
-    let thread_job = job.clone();
-    let join_handle = thread::Builder::new()
-        .name(format!("Sandbox of {}", job.group.description))
+
+    let mut results = vec![None; job.group.executions.len()];
+    let mut missing = job.group.executions.len();
+    let mut outputs = HashMap::new();
+    let mut output_paths = HashMap::new();
+
+    while missing > 0 {
+        match receiver.recv() {
+            Ok((index, result)) => {
+                assert!(results[index].is_none());
+
+                let exec = &job.group.executions[index];
+                let sandbox = &sandboxes[index];
+
+                let result = compute_execution_result(exec, result, &sandbox)
+                    .expect("Cannot compute execution result");
+                // if the process didn't exit successfully, kill the remaining sandboxes
+                if !result.status.is_success() {
+                    for (res, sandbox) in results.iter().zip(sandboxes.iter()) {
+                        if res.is_none() {
+                            sandbox.kill();
+                        }
+                    }
+                }
+
+                if let Some(stdout) = &exec.stdout {
+                    let path = sandbox.stdout_path();
+                    outputs.insert(stdout.uuid, FileStoreKey::from_file(&path).unwrap());
+                    output_paths.insert(stdout.uuid, path);
+                }
+                if let Some(stderr) = &exec.stderr {
+                    let path = sandbox.stderr_path();
+                    outputs.insert(stderr.uuid, FileStoreKey::from_file(&path).unwrap());
+                    output_paths.insert(stderr.uuid, path);
+                }
+                for (path, file) in exec.outputs.iter() {
+                    let path = sandbox.output_path(path);
+                    // the sandbox process may want to remove a file, consider missing files as empty
+                    if path.exists() {
+                        outputs.insert(file.uuid, FileStoreKey::from_file(&path).unwrap());
+                        output_paths.insert(file.uuid, path.clone());
+                    } else {
+                        // FIXME: /dev/null may not be used
+                        outputs.insert(file.uuid, FileStoreKey::from_file("/dev/null").unwrap());
+                        output_paths.insert(file.uuid, "/dev/null".into());
+                    }
+                }
+
+                results[index] = Some(result);
+                missing -= 1;
+            }
+            Err(e) => panic!("The sandboxes didn't exit well"),
+        }
+    }
+    for handle in handles {
+        handle.join().expect("Sandbox thread failed");
+    }
+    sender
+        .send(WorkerClientMessage::WorkerDone(
+            results.into_iter().map(Option::unwrap).collect(),
+            outputs.clone(),
+        ))
+        .unwrap();
+    for (uuid, key) in outputs.into_iter() {
+        sender
+            .send(WorkerClientMessage::ProvideFile(uuid, key))
+            .unwrap();
+        ChannelFileSender::send(&output_paths[&uuid], &sender).unwrap();
+    }
+    // this job is completed, reset the worker and ask for more work
+    let mut job = current_job.lock().unwrap();
+    job.current_job = None;
+    job.current_sandboxes = None;
+    let _ = sender.send(WorkerClientMessage::GetWork);
+}
+
+/// Spawn the sandbox of an execution in a different thread and send to the group manager the
+/// results.
+fn spawn_sandbox(
+    description: &str,
+    sandbox: Sandbox,
+    runner: Arc<dyn SandboxRunner>,
+    index: usize,
+    group_sender: Sender<(usize, SandboxResult)>,
+) -> Result<JoinHandle<()>, Error> {
+    Ok(thread::Builder::new()
+        .name(format!("Sandbox of {}", description))
         .spawn(move || {
-            let sender = thread_sender;
-            let sandbox = thread_sandbox;
-            let job = thread_job;
-
-            defer! {{
-                let mut job = current_job.lock().unwrap();
-                job.current_job = None;
-                job.current_sandbox = None;
-                let _ = sender.send(WorkerClientMessage::GetWork);
-            }}
-
-            let result = match sandbox.run(runner.as_ref()) {
+            let res = match sandbox.run(runner.as_ref()) {
                 Ok(res) => res,
-                Err(e) => {
-                    let result = ExecutionResult {
-                        status: ExecutionStatus::InternalError(format!(
-                            "Sandbox failed: {}",
-                            e.to_string()
-                        )),
-                        was_killed: false,
-                        was_cached: false,
-                        resources: ExecutionResourcesUsage::default(),
-                        stdout: None,
-                        stderr: None,
-                    };
-                    sender
-                        .send(WorkerClientMessage::WorkerDone(result, Default::default()))
-                        .unwrap();
-                    return;
-                }
+                Err(e) => SandboxResult::Failed {
+                    error: e.to_string(),
+                },
             };
-            // TODO get actual results
-            let result = compute_execution_result(&job.group.executions[0], result, &sandbox)
-                .expect("Cannot compute execution result");
-
-            let mut outputs = HashMap::new();
-            let mut output_paths = HashMap::new();
-            let exec = &job.group.executions[0]; // TODO use actual executions
-            if let Some(stdout) = &exec.stdout {
-                let path = sandbox.stdout_path();
-                outputs.insert(stdout.uuid, FileStoreKey::from_file(&path).unwrap());
-                output_paths.insert(stdout.uuid, path);
-            }
-            if let Some(stderr) = &exec.stderr {
-                let path = sandbox.stderr_path();
-                outputs.insert(stderr.uuid, FileStoreKey::from_file(&path).unwrap());
-                output_paths.insert(stderr.uuid, path);
-            }
-            for (path, file) in exec.outputs.iter() {
-                let path = sandbox.output_path(path);
-                // the sandbox process may want to remove a file, consider missing files as empty
-                if path.exists() {
-                    outputs.insert(file.uuid, FileStoreKey::from_file(&path).unwrap());
-                    output_paths.insert(file.uuid, path.clone());
-                } else {
-                    // FIXME: /dev/null may not be used
-                    outputs.insert(file.uuid, FileStoreKey::from_file("/dev/null").unwrap());
-                    output_paths.insert(file.uuid, "/dev/null".into());
-                }
-            }
-
-            sender
-                .send(WorkerClientMessage::WorkerDone(result, outputs.clone()))
-                .unwrap();
-
-            for (uuid, key) in outputs.into_iter() {
-                sender
-                    .send(WorkerClientMessage::ProvideFile(uuid, key))
-                    .unwrap();
-                ChannelFileSender::send(&output_paths[&uuid], &sender).unwrap();
-            }
-        })?;
-    Ok((sandbox, join_handle))
+            group_sender.send((index, res)).unwrap();
+        })?)
 }
 
 /// Compute the [`ExecutionResult`](../task_maker_dag/struct.ExecutionResult.html) based on the
