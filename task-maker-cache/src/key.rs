@@ -37,6 +37,7 @@ impl CacheKeyItem {
     pub fn from_execution(
         execution: &Execution,
         file_keys: &HashMap<FileUuid, FileStoreHandle>,
+        group: Option<&ExecutionGroup>,
     ) -> CacheKeyItem {
         let stdin = execution.stdin.as_ref().map(|f| file_keys[f].key().clone());
         let inputs = execution
@@ -47,9 +48,27 @@ impl CacheKeyItem {
             .sorted()
             .collect_vec();
         let env = execution.env.clone().into_iter().sorted().collect_vec();
+        let args = if let Some(group) = group {
+            let mut fifos = HashMap::new();
+            for (i, fifo) in group.fifo.iter().enumerate() {
+                let name = fifo.sandbox_path().to_str().unwrap().to_string();
+                fifos.insert(name, format!("tm_fifo_{}", i));
+            }
+            let mut args = Vec::new();
+            for arg in &execution.args {
+                if let Some(name) = fifos.get(arg) {
+                    args.push(name.clone());
+                } else {
+                    args.push(arg.clone());
+                }
+            }
+            args
+        } else {
+            execution.args.clone()
+        };
         CacheKeyItem {
             command: execution.command.clone(),
-            args: execution.args.clone(),
+            args,
             stdin,
             inputs,
             env,
@@ -68,7 +87,7 @@ impl CacheKey {
             items: group
                 .executions
                 .iter()
-                .map(|e| CacheKeyItem::from_execution(e, file_keys))
+                .map(|e| CacheKeyItem::from_execution(e, file_keys, Some(group)))
                 .collect(),
         }
     }
@@ -77,6 +96,7 @@ impl CacheKey {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::borrow::Cow;
     use std::collections::hash_map::DefaultHasher;
     use std::fs::File;
     use std::hash::{Hash, Hasher};
@@ -106,10 +126,10 @@ mod tests {
         let exec2 = Execution::new("exec2", ExecutionCommand::local("foo"));
         let exec3 = Execution::new("exec3", ExecutionCommand::local("bar"));
         let exec4 = Execution::new("exec4", ExecutionCommand::system("foo"));
-        let key1 = CacheKeyItem::from_execution(&exec1, &HashMap::new());
-        let key2 = CacheKeyItem::from_execution(&exec2, &HashMap::new());
-        let key3 = CacheKeyItem::from_execution(&exec3, &HashMap::new());
-        let key4 = CacheKeyItem::from_execution(&exec4, &HashMap::new());
+        let key1 = CacheKeyItem::from_execution(&exec1, &HashMap::new(), None);
+        let key2 = CacheKeyItem::from_execution(&exec2, &HashMap::new(), None);
+        let key3 = CacheKeyItem::from_execution(&exec3, &HashMap::new(), None);
+        let key4 = CacheKeyItem::from_execution(&exec4, &HashMap::new(), None);
         assert_eq!(key1, key2);
         assert_ne!(key1, key3);
         assert_ne!(key1, key4);
@@ -128,10 +148,10 @@ mod tests {
         exec3.args(vec!["baz", "bar"]);
         let mut exec4 = Execution::new("exec4", ExecutionCommand::local("foo"));
         exec4.args(vec!["bar", "bar"]);
-        let key1 = CacheKeyItem::from_execution(&exec1, &HashMap::new());
-        let key2 = CacheKeyItem::from_execution(&exec2, &HashMap::new());
-        let key3 = CacheKeyItem::from_execution(&exec3, &HashMap::new());
-        let key4 = CacheKeyItem::from_execution(&exec4, &HashMap::new());
+        let key1 = CacheKeyItem::from_execution(&exec1, &HashMap::new(), None);
+        let key2 = CacheKeyItem::from_execution(&exec2, &HashMap::new(), None);
+        let key3 = CacheKeyItem::from_execution(&exec3, &HashMap::new(), None);
+        let key4 = CacheKeyItem::from_execution(&exec4, &HashMap::new(), None);
         assert_eq!(key1, key2);
         assert_ne!(key1, key3);
         assert_ne!(key1, key4);
@@ -159,10 +179,10 @@ mod tests {
         let mut exec3 = Execution::new("exec3", ExecutionCommand::local("foo"));
         exec3.stdin(file2.uuid);
         let exec4 = Execution::new("exec4", ExecutionCommand::local("foo"));
-        let key1 = CacheKeyItem::from_execution(&exec1, &map);
-        let key2 = CacheKeyItem::from_execution(&exec2, &map);
-        let key3 = CacheKeyItem::from_execution(&exec3, &map);
-        let key4 = CacheKeyItem::from_execution(&exec4, &map);
+        let key1 = CacheKeyItem::from_execution(&exec1, &map, None);
+        let key2 = CacheKeyItem::from_execution(&exec2, &map, None);
+        let key3 = CacheKeyItem::from_execution(&exec3, &map, None);
+        let key4 = CacheKeyItem::from_execution(&exec4, &map, None);
         assert_eq!(key1, key2);
         assert_ne!(key1, key3);
         assert_ne!(key1, key4);
@@ -194,10 +214,10 @@ mod tests {
         let mut exec4 = Execution::new("exec4", ExecutionCommand::local("foo"));
         exec4.input(file1.uuid, "file1", true);
         exec4.input(file2.uuid, "file2", false);
-        let key1 = CacheKeyItem::from_execution(&exec1, &map);
-        let key2 = CacheKeyItem::from_execution(&exec2, &map);
-        let key3 = CacheKeyItem::from_execution(&exec3, &map);
-        let key4 = CacheKeyItem::from_execution(&exec4, &map);
+        let key1 = CacheKeyItem::from_execution(&exec1, &map, None);
+        let key2 = CacheKeyItem::from_execution(&exec2, &map, None);
+        let key3 = CacheKeyItem::from_execution(&exec3, &map, None);
+        let key4 = CacheKeyItem::from_execution(&exec4, &map, None);
         assert_eq!(key1, key2);
         assert_ne!(key1, key3);
         assert_ne!(key1, key4);
@@ -219,15 +239,60 @@ mod tests {
         exec3.env("baz", "bizarre");
         let mut exec4 = Execution::new("exec4", ExecutionCommand::local("foo"));
         exec4.env("foo", "bar");
-        let key1 = CacheKeyItem::from_execution(&exec1, &HashMap::new());
-        let key2 = CacheKeyItem::from_execution(&exec2, &HashMap::new());
-        let key3 = CacheKeyItem::from_execution(&exec3, &HashMap::new());
-        let key4 = CacheKeyItem::from_execution(&exec4, &HashMap::new());
+        let key1 = CacheKeyItem::from_execution(&exec1, &HashMap::new(), None);
+        let key2 = CacheKeyItem::from_execution(&exec2, &HashMap::new(), None);
+        let key3 = CacheKeyItem::from_execution(&exec3, &HashMap::new(), None);
+        let key4 = CacheKeyItem::from_execution(&exec4, &HashMap::new(), None);
         assert_eq!(key1, key2);
         assert_ne!(key1, key3);
         assert_ne!(key1, key4);
         assert_eq!(hash(&key1), hash(&key2));
         assert_ne!(hash(&key1), hash(&key3));
         assert_ne!(hash(&key1), hash(&key4));
+    }
+
+    #[test]
+    fn test_fifo_arg_replace() {
+        let mut group = ExecutionGroup::new("group");
+        let fifo = group.new_fifo();
+        let mut exec = Execution::new("exec1", ExecutionCommand::local("foo"));
+        exec.args(vec![
+            fifo.sandbox_path().to_string_lossy(),
+            Cow::from("lol"),
+        ]);
+        group.add_execution(exec);
+        let exec = &group.executions[0];
+        let key = CacheKeyItem::from_execution(exec, &HashMap::new(), Some(&group));
+        assert_eq!(key.args[0], "tm_fifo_0");
+        assert_eq!(key.args[1], "lol");
+    }
+
+    #[test]
+    fn test_fifo() {
+        let mut group1 = ExecutionGroup::new("group");
+        let fifo1 = group1.new_fifo();
+        let mut exec1 = Execution::new("exec1", ExecutionCommand::local("foo"));
+        exec1.args(vec![fifo1.sandbox_path().to_string_lossy()]);
+        group1.add_execution(exec1);
+        let exec1 = &group1.executions[0];
+        let key1 = CacheKeyItem::from_execution(exec1, &HashMap::new(), Some(&group1));
+
+        let mut group2 = ExecutionGroup::new("group 2");
+        let fifo2 = group2.new_fifo();
+        // extra unused fifo are ok
+        group2.new_fifo();
+        group2.new_fifo();
+        group2.new_fifo();
+        let mut exec2 = Execution::new("exec2", ExecutionCommand::local("foo"));
+        exec2.args(vec![fifo2.sandbox_path().to_string_lossy()]);
+        group2.add_execution(exec2);
+        let exec2 = &group2.executions[0];
+        let key2 = CacheKeyItem::from_execution(exec2, &HashMap::new(), Some(&group2));
+
+        assert_eq!(key1, key2);
+
+        let key1 = CacheKey::from_execution_group(&group1, &HashMap::new());
+        let key2 = CacheKey::from_execution_group(&group2, &HashMap::new());
+        assert_eq!(key1, key2);
     }
 }
