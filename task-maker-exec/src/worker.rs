@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 
 use failure::{format_err, Error, Fail};
+use tempdir::TempDir;
 use uuid::Uuid;
 
 use task_maker_dag::*;
@@ -16,7 +18,6 @@ use crate::proto::*;
 use crate::sandbox::{Sandbox, SandboxResult};
 use crate::sandbox_runner::SandboxRunner;
 use crate::{new_local_channel, ChannelReceiver, ChannelSender};
-use std::sync::mpsc::{channel, Sender};
 
 /// The information about the current job the worker is doing.
 struct WorkerCurrentJob {
@@ -285,22 +286,40 @@ fn execute_job(
     sandbox_path: &Path,
     runner: Arc<dyn SandboxRunner>,
 ) -> Result<(Vec<Sandbox>, JoinHandle<()>), Error> {
-    let (job, sandboxes) = {
+    let (job, sandboxes, fifo_dir) = {
         let current_job = current_job.lock().unwrap();
         let job = current_job
             .current_job
             .as_ref()
             .expect("Worker job is gone");
         let mut boxes = Vec::new();
-        let keep_sandboxes = job.0.group.config().keep_sandboxes;
-        for exec in &job.0.group.executions {
-            let mut sandbox = Sandbox::new(sandbox_path, exec, &job.1)?;
+        let group = &job.0.group;
+        let fifo_dir = if group.fifo.is_empty() {
+            None
+        } else {
+            let fifo_dir = TempDir::new_in(sandbox_path, "pipes")?;
+            for fifo in &group.fifo {
+                let path = fifo_dir
+                    .path()
+                    .join(fifo.sandbox_path().file_name().unwrap());
+                nix::unistd::mkfifo(&path, nix::sys::stat::Mode::S_IRWXU)?;
+            }
+            Some(fifo_dir)
+        };
+        let keep_sandboxes = group.config().keep_sandboxes;
+        for exec in &group.executions {
+            let mut sandbox = Sandbox::new(
+                sandbox_path,
+                exec,
+                &job.1,
+                fifo_dir.as_ref().map(|d| d.path().to_owned()),
+            )?;
             if keep_sandboxes {
                 sandbox.keep();
             }
             boxes.push(sandbox);
         }
-        (job.0.clone(), boxes)
+        (job.0.clone(), boxes, fifo_dir)
     };
     let thread_sandboxes = sandboxes.clone();
     let sender = sender.clone();
@@ -309,7 +328,16 @@ fn execute_job(
             "Sandbox group manager for {}",
             job.group.description
         ))
-        .spawn(move || sandbox_group_manager(current_job, job, sender, thread_sandboxes, runner))?;
+        .spawn(move || {
+            sandbox_group_manager(
+                current_job,
+                *job,
+                sender,
+                thread_sandboxes,
+                runner,
+                fifo_dir,
+            )
+        })?;
     Ok((sandboxes, join_handle))
 }
 
@@ -318,10 +346,11 @@ fn execute_job(
 /// sandboxes complete, this manager collects their results and send them back to the server.
 fn sandbox_group_manager(
     current_job: Arc<Mutex<WorkerCurrentJob>>,
-    job: Box<WorkerJob>,
+    job: WorkerJob,
     sender: ChannelSender<WorkerClientMessage>,
     sandboxes: Vec<Sandbox>,
     runner: Arc<dyn SandboxRunner>,
+    _fifo_dir: Option<TempDir>, // keep the TempDir alive
 ) {
     // TODO: since in the vast majority of the cases the ExecutionGroup is composed by a single
     //       Execution, this function can be heavily optimized by using this thread to spawn the

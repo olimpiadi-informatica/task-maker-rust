@@ -18,6 +18,7 @@ use task_maker_dag::*;
 use task_maker_store::*;
 
 use crate::sandbox_runner::SandboxRunner;
+use std::fs::Permissions;
 
 /// The list of all the system-wide readable directories inside the sandbox.
 const READABLE_DIRS: &[&str] = &[
@@ -63,6 +64,8 @@ struct SandboxData {
     boxdir: Option<TempDir>,
     /// Whether to keep the sandbox after exit.
     keep_sandbox: bool,
+    /// Directory where the FIFO pipes are stored.
+    fifo_dir: Option<PathBuf>,
     /// The PID of the sandbox process, zero if not available or not spawned yet.
     box_pid: Arc<AtomicU32>,
 }
@@ -85,6 +88,7 @@ pub enum RawSandboxResult {
 pub struct Sandbox {
     /// Internal data of the sandbox.
     data: Arc<Mutex<SandboxData>>,
+    // TODO move `execution` inside `data`
     /// Execution to run.
     execution: Execution,
 }
@@ -96,6 +100,7 @@ impl Sandbox {
         sandboxes_dir: &Path,
         execution: &Execution,
         dep_keys: &HashMap<FileUuid, FileStoreHandle>,
+        fifo_dir: Option<PathBuf>,
     ) -> Result<Sandbox, Error> {
         std::fs::create_dir_all(sandboxes_dir)?;
         let boxdir = TempDir::new_in(sandboxes_dir, "box")?;
@@ -104,6 +109,7 @@ impl Sandbox {
             data: Arc::new(Mutex::new(SandboxData {
                 boxdir: Some(boxdir),
                 keep_sandbox: false,
+                fifo_dir,
                 box_pid: Arc::new(AtomicU32::new(0)),
             })),
             execution: execution.clone(),
@@ -112,19 +118,22 @@ impl Sandbox {
 
     /// Starts the sandbox and blocks the thread until the sandbox exits.
     pub fn run(&self, runner: &dyn SandboxRunner) -> Result<SandboxResult, Error> {
-        let (boxdir, pid, keep) = {
+        let (boxdir, pid, keep, fifo_dir) = {
             let data = self.data.lock().unwrap();
             (
                 data.path().to_owned(),
                 data.box_pid.clone(),
                 data.keep_sandbox,
+                data.fifo_dir.clone(),
             )
         };
         trace!("Running sandbox at {:?}", boxdir);
 
         let mut config = SandboxConfiguration::default();
-        if let Err(e) = self.build_command(&boxdir, &mut config) {
-            return Ok(SandboxResult::Failed { error: e });
+        if let Err(e) = self.build_command(&boxdir, &mut config, fifo_dir) {
+            return Ok(SandboxResult::Failed {
+                error: e.to_string(),
+            });
         }
         trace!("Sandbox configuration: {:#?}", config);
 
@@ -218,7 +227,7 @@ impl Sandbox {
         std::fs::write(path.join("info.json"), serialized)
             .expect("Cannot write execution info inside sandbox");
         let mut config = SandboxConfiguration::default();
-        if let Ok(()) = self.build_command(&path, &mut config) {
+        if let Ok(()) = self.build_command(&path, &mut config, data.fifo_dir.clone()) {
             std::fs::write(path.join("tabox.txt"), format!("{:#?}\n", config))
                 .expect("Cannot write command info inside sandbox");
         }
@@ -244,7 +253,8 @@ impl Sandbox {
         &self,
         boxdir: &Path,
         config: &mut SandboxConfiguration,
-    ) -> Result<(), String> {
+        fifo_dir: Option<PathBuf>,
+    ) -> Result<(), Error> {
         config.working_directory("/box");
         // the box directory must be writable otherwise the output files cannot be written
         config.mount(boxdir.join("box"), "/box", true);
@@ -295,6 +305,11 @@ impl Sandbox {
         ));
         // has to be writable for mounting stuff in it
         config.mount(boxdir.join("etc"), "/etc", true);
+        if let Some(path) = fifo_dir {
+            // allow access knowing the path but prevent listing the dir content
+            Sandbox::set_permissions(&path, 0o111)?;
+            config.mount(path, Path::new("/box").join(FIFO_SANDBOX_DIR), false);
+        }
         for dir in READABLE_DIRS {
             if Path::new(dir).is_dir() {
                 config.mount(dir, dir, false);
@@ -313,7 +328,7 @@ impl Sandbox {
                 if let Ok(cmd) = which::which(cmd) {
                     config.executable(cmd);
                 } else {
-                    return Err(format!("Executable {:?} not found", cmd));
+                    bail!("Executable {:?} not found", cmd);
                 }
             }
             ExecutionCommand::Local(cmd) => {
@@ -403,8 +418,7 @@ impl Sandbox {
     }
 
     fn set_permissions(dest: &Path, perm: u32) -> Result<(), Error> {
-        let mut permissions = std::fs::metadata(&dest)?.permissions();
-        permissions.set_mode(perm);
+        let permissions = Permissions::from_mode(perm);
         std::fs::set_permissions(dest, permissions)?;
         Ok(())
     }
@@ -449,7 +463,7 @@ mod tests {
         let mut exec = Execution::new("test", ExecutionCommand::system("true"));
         exec.output("fooo");
         exec.limits_mut().read_only(true);
-        let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new()).unwrap();
+        let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new(), None).unwrap();
         let outfile = sandbox.output_path(Path::new("fooo"));
         if let Err(e) = sandbox.run(&ErrorSandboxRunner::default()) {
             assert!(e.to_string().contains("Nope"));
@@ -476,9 +490,11 @@ mod tests {
             .nproc(2)
             .memory(1234);
         exec.env("foo", "bar");
-        let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new()).unwrap();
+        let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new(), None).unwrap();
         let mut config = SandboxConfiguration::default();
-        sandbox.build_command(tmpdir.path(), &mut config).unwrap();
+        sandbox
+            .build_command(tmpdir.path(), &mut config, None)
+            .unwrap();
         let extra_time = exec.config().extra_time;
         let total_time = (1.0 + 2.6 + extra_time).ceil() as u64;
         let wall_time = (10.0 + extra_time).ceil() as u64;

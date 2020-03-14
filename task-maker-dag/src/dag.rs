@@ -393,7 +393,7 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         dag.config_mut().extra_time(42.0);
         let exec = Execution::new("exec", ExecutionCommand::local("foo"));
-        dag.add_execution(exec.clone());
+        dag.add_execution(exec);
         let group_uuid = dag.data.execution_groups.keys().next().unwrap();
         assert_eq!("exec", &dag.data.execution_groups[group_uuid].description);
         assert_abs_diff_eq!(

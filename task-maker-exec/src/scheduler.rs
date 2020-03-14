@@ -304,6 +304,7 @@ impl Scheduler {
         dag: ExecutionDAGData,
         callbacks: ExecutionDAGWatchSet,
     ) -> Result<(), Error> {
+        info!("Client '{}' asked to evaluate a new DAG", client.name);
         // build the scheduler structures, insert the client in the list of working
         // clients and schedule all the already cached executions.
         let mut client_data = SchedulerClientData::new(client.name, dag, callbacks);
@@ -314,6 +315,15 @@ impl Scheduler {
                     let entry = client_data.input_of.entry(input).or_default();
                     entry.insert(group.uuid);
                     missing_dep.insert(input);
+                }
+            }
+            // if this execution does not have any dependency, schedule it immediately
+            if missing_dep.is_empty() {
+                client_data.missing_deps.remove(&group.uuid);
+                client_data.ready_groups.insert(group.uuid);
+                for exec in &group.executions {
+                    self.ready_execs
+                        .push((exec.priority, group.uuid, client.uuid));
                 }
             }
         }

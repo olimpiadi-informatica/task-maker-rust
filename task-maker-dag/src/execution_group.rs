@@ -2,16 +2,25 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{Execution, ExecutionDAGConfig, ExecutionTag, Priority};
+use std::path::{Path, PathBuf};
+
+/// Directory inside the sandbox where to place all the pipes of the group. This is used to allow
+/// the sandbox bind-mount all the pipes with a single mount point, inside all the sandboxes of the
+/// group.
+pub static FIFO_SANDBOX_DIR: &str = "tm_pipes";
 
 /// The identifier of an execution group, it's globally unique and it identifies a group during an
 /// evaluation.
-#[derive(Debug, Clone, Copy, Hash, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
-pub struct ExecutionGroupUuid(Uuid); // TODO revert to type alias
+pub type ExecutionGroupUuid = Uuid;
+/// The identifier of a Fifo pipe inside a group.
+pub type FifoUuid = Uuid;
 
-impl std::fmt::Display for ExecutionGroupUuid {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
+/// A First-in First-out channel for letting executions communicate inside an execution group. Each
+/// Fifo is identified by an UUID which is unique inside the same `ExecutionGroup`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Fifo {
+    /// The UUID of this `Fifo`.
+    pub uuid: FifoUuid,
 }
 
 /// A group of executions that have to be executed concurrently in the same worker. If any of the
@@ -25,17 +34,32 @@ pub struct ExecutionGroup {
     pub description: String,
     /// The list of executions to run.
     pub executions: Vec<Execution>,
-    // /// The list of FIFO pipes to create for this group.
-    // pub fifo: Vec<Fifo>,
+    /// The list of FIFO pipes to create for this group.
+    pub fifo: Vec<Fifo>,
+}
+
+impl Fifo {
+    /// Make a new Fifo with a random uuid.
+    fn new() -> Fifo {
+        Fifo {
+            uuid: Uuid::new_v4(),
+        }
+    }
+
+    /// The path inside the sandbox that this pipe is mapped to.
+    pub fn sandbox_path(&self) -> PathBuf {
+        Path::new(FIFO_SANDBOX_DIR).join(self.uuid.to_string())
+    }
 }
 
 impl ExecutionGroup {
     /// Create an empty execution group.
     pub fn new<S: Into<String>>(descr: S) -> ExecutionGroup {
         ExecutionGroup {
-            uuid: ExecutionGroupUuid(Uuid::new_v4()),
+            uuid: Uuid::new_v4(),
             description: descr.into(),
             executions: vec![],
+            fifo: vec![],
         }
     }
 
@@ -43,6 +67,13 @@ impl ExecutionGroup {
     pub fn add_execution(&mut self, exec: Execution) -> &mut Self {
         self.executions.push(exec);
         self
+    }
+
+    /// Create a new `Fifo` and return it.
+    pub fn new_fifo(&mut self) -> Fifo {
+        let fifo = Fifo::new();
+        self.fifo.push(fifo);
+        fifo
     }
 
     /// Priority of this execution group. The actual value is computed based on the executions

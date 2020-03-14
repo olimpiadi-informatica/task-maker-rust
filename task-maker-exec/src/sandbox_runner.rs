@@ -4,6 +4,8 @@ use std::sync::Arc;
 use tabox::configuration::SandboxConfiguration;
 
 use crate::RawSandboxResult;
+use std::fs::{File, OpenOptions};
+use std::process::Stdio;
 use tabox::result::{ExitStatus, ResourceUsage, SandboxExecutionResult};
 
 /// Something able to spawn a sandbox, wait for it to exit and return the results.
@@ -42,30 +44,40 @@ impl SandboxRunner for SuccessSandboxRunner {
     }
 }
 
-/// A fake sandbox that don't actually spawn anything and return with success, if the command was
-/// `true` the exit code is zero, otherwise it's 1.
+/// A fake sandbox that simply spawns the process and does not measure anything. No actual
+/// sandboxing is performed, so the process may do bad things.
 #[derive(Default, Debug)]
-pub struct FakeSandboxRunner;
+pub struct UnsafeSandboxRunner;
 
-impl SandboxRunner for FakeSandboxRunner {
+impl SandboxRunner for UnsafeSandboxRunner {
     fn run(&self, config: SandboxConfiguration, _pid: Arc<AtomicU32>) -> RawSandboxResult {
+        let mut child = std::process::Command::new(config.executable);
+        child.args(config.args);
+        if let Some(path) = config.stdout {
+            child.stdout(Stdio::from(
+                OpenOptions::new().write(true).open(path).unwrap(),
+            ));
+        }
+        if let Some(path) = config.stderr {
+            child.stderr(Stdio::from(
+                OpenOptions::new().write(true).open(path).unwrap(),
+            ));
+        }
+        if let Some(path) = config.stdin {
+            child.stdin(Stdio::from(File::open(path).unwrap()));
+        }
+        let res = child.spawn().unwrap().wait().unwrap();
+
         let resource_usage = ResourceUsage {
             memory_usage: 0,
             user_cpu_time: 0.0,
             system_cpu_time: 0.0,
             wall_time_usage: 0.0,
         };
-        if config.executable.ends_with("true") {
-            RawSandboxResult::Success(SandboxExecutionResult {
-                status: ExitStatus::ExitCode(0),
-                resource_usage,
-            })
-        } else {
-            RawSandboxResult::Success(SandboxExecutionResult {
-                status: ExitStatus::ExitCode(1),
-                resource_usage,
-            })
-        }
+        RawSandboxResult::Success(SandboxExecutionResult {
+            status: ExitStatus::ExitCode(res.code().unwrap()),
+            resource_usage,
+        })
     }
 }
 

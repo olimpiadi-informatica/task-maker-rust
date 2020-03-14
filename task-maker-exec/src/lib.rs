@@ -90,7 +90,7 @@ pub use client::ExecutorClient;
 pub use executor::{ExecutorStatus, ExecutorWorkerStatus, WorkerCurrentJobStatus};
 pub use sandbox::RawSandboxResult;
 pub use sandbox_runner::{
-    ErrorSandboxRunner, FakeSandboxRunner, SandboxRunner, SuccessSandboxRunner,
+    ErrorSandboxRunner, SandboxRunner, SuccessSandboxRunner, UnsafeSandboxRunner,
 };
 pub use scheduler::ClientInfo;
 use task_maker_cache::Cache;
@@ -495,7 +495,7 @@ mod tests {
             cwd.path(),
             1000,
             1000,
-            FakeSandboxRunner::default(),
+            UnsafeSandboxRunner::default(),
         );
 
         assert!(exec_done2.load(Ordering::Relaxed));

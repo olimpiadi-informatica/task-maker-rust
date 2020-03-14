@@ -1,7 +1,7 @@
 use crate::executor::ExecutionDAGWatchSet;
 use failure::Fail;
 use std::collections::{HashMap, HashSet, VecDeque};
-use task_maker_dag::{ExecutionDAGData, ExecutionGroupUuid, ExecutionUuid, FileUuid};
+use task_maker_dag::{ExecutionDAGData, ExecutionGroupUuid, ExecutionUuid, FifoUuid, FileUuid};
 
 /// An error in the DAG structure.
 #[derive(Debug, Fail)]
@@ -49,6 +49,12 @@ pub enum DAGError {
         /// The duplicated UUID.
         uuid: FileUuid,
     },
+    /// There is a duplicate Fifo UUID.
+    #[fail(display = "duplicate FIFO UUID {}", uuid)]
+    DuplicateFifoUUID {
+        /// The duplicated UUID.
+        uuid: FifoUuid,
+    },
     /// There is a duplicate execution UUID.
     #[fail(display = "duplicate execution UUID {}", uuid)]
     DuplicateExecutionUUID {
@@ -56,8 +62,8 @@ pub enum DAGError {
         uuid: FileUuid,
     },
     /// There is an invalid execution group.
-    #[fail(display = "invalid execution group {}", uuid)]
-    InvalidGroup {
+    #[fail(display = "empty execution group {}", uuid)]
+    EmptyGroup {
         /// The UUID of the execution group.
         uuid: ExecutionGroupUuid,
     },
@@ -84,7 +90,13 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
     // add the executions and check for duplicated UUIDs
     for (group_uuid, group) in dag.execution_groups.iter() {
         if group.executions.is_empty() {
-            return Err(DAGError::InvalidGroup { uuid: *group_uuid });
+            return Err(DAGError::EmptyGroup { uuid: *group_uuid });
+        }
+        let mut fifo_uuids = HashSet::new();
+        for fifo in group.fifo.iter() {
+            if !fifo_uuids.insert(fifo.uuid) {
+                return Err(DAGError::DuplicateFifoUUID { uuid: fifo.uuid });
+            }
         }
         let mut count = 0;
         for exec in &group.executions {

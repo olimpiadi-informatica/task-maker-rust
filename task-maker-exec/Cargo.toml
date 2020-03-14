@@ -26,6 +26,7 @@ nix = "0.17"
 [dev-dependencies]
 pretty_assertions = "0.6"
 rand = "0.7"
+env_logger = "0.6"
 
 [build-dependencies]
 glob = "0.2"
