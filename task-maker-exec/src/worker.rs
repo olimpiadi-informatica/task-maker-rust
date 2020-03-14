@@ -391,7 +391,7 @@ fn sandbox_group_manager(
                 results[index] = Some(result);
                 missing -= 1;
             }
-            Err(e) => panic!("The sandboxes didn't exit well"),
+            Err(_) => panic!("The sandboxes didn't exit well"),
         }
     }
     for handle in handles {

@@ -72,3 +72,11 @@ impl ExecutionGroup {
             .clone()
     }
 }
+
+impl From<Execution> for ExecutionGroup {
+    fn from(exec: Execution) -> Self {
+        let mut group = ExecutionGroup::new(exec.description.clone());
+        group.add_execution(exec);
+        group
+    }
+}

@@ -61,15 +61,15 @@
 //! file_keys.insert(input.uuid, store.store(&key, ReadFileIterator::new(&path).unwrap()).unwrap());
 //!
 //! // insert the result in the cache
-//! cache.insert(&exec, &file_keys, result);
+//! cache.insert(&exec.clone().into(), &file_keys, vec![result]);
 //!
 //! // retrieve the result from the cache
-//! let res = cache.get(&exec, &file_keys, &mut store);
+//! let res = cache.get(&exec.into(), &file_keys, &mut store);
 //! match res {
 //!     CacheResult::Miss => panic!("Expecting a hit"),
 //!     CacheResult::Hit { result, outputs } => {
-//!         assert_eq!(result.status, ExecutionStatus::Success);
-//!         assert_eq!(result.resources.memory, 12345);
+//!         assert_eq!(result[0].status, ExecutionStatus::Success);
+//!         assert_eq!(result[0].resources.memory, 12345);
 //!     }
 //! }
 //! ```
@@ -91,7 +91,7 @@ use std::path::{Path, PathBuf};
 use failure::Error;
 use itertools::Itertools;
 
-use task_maker_dag::{Execution, ExecutionResult, ExecutionStatus, FileUuid};
+use task_maker_dag::{ExecutionGroup, ExecutionResult, ExecutionStatus, FileUuid};
 use task_maker_store::{FileStore, FileStoreHandle};
 
 /// The name of the file which holds the cache data.
@@ -113,7 +113,7 @@ pub enum CacheResult {
     /// The requested entry is present in the cache.
     Hit {
         /// The result of the execution.
-        result: ExecutionResult,
+        result: Vec<ExecutionResult>,
         /// The outputs of the execution.
         outputs: HashMap<FileUuid, FileStoreHandle>,
     },
@@ -153,37 +153,15 @@ impl Cache {
     /// to the persistent `FileStoreKey`s.
     pub fn insert(
         &mut self,
-        execution: &Execution,
+        group: &ExecutionGroup,
         file_keys: &HashMap<FileUuid, FileStoreHandle>,
-        result: ExecutionResult,
+        result: Vec<ExecutionResult>,
     ) {
-        let key = CacheKey::from_execution(execution, file_keys);
+        let key = CacheKey::from_execution_group(group, file_keys);
         let set = self.entries.entry(key).or_default();
-        let stdout = execution
-            .stdout
-            .as_ref()
-            .and_then(|f| file_keys.get(&f.uuid))
-            .map(|hdl| hdl.key().clone());
-        let stderr = execution
-            .stderr
-            .as_ref()
-            .and_then(|f| file_keys.get(&f.uuid))
-            .map(|hdl| hdl.key().clone());
-        let outputs = execution
-            .outputs
-            .iter()
-            .map(|(path, file)| (path.clone(), file_keys[&file.uuid].key().clone()))
-            .collect();
-        let entry = CacheEntry {
-            result,
-            limits: execution.limits.clone(),
-            extra_time: execution.config().extra_time,
-            stdout,
-            stderr,
-            outputs,
-        };
+        let entry = CacheEntry::from_execution_group(group, file_keys, result);
         // do not insert duplicated keys, replace if the limits are the same
-        let pos = set.iter().find_position(|e| e.limits == entry.limits);
+        let pos = set.iter().find_position(|e| e.same_limits(&entry));
         if let Some((pos, _)) = pos {
             set[pos] = entry;
         } else {
@@ -198,39 +176,39 @@ impl Cache {
     /// from erasing them.
     pub fn get(
         &mut self,
-        execution: &Execution,
+        group: &ExecutionGroup,
         file_keys: &HashMap<FileUuid, FileStoreHandle>,
         file_store: &FileStore,
     ) -> CacheResult {
-        let key = CacheKey::from_execution(execution, file_keys);
+        let key = CacheKey::from_execution_group(group, file_keys);
         if !self.entries.contains_key(&key) {
             return CacheResult::Miss;
         }
         for entry in self.entries[&key].iter() {
-            match entry.outputs(file_store, execution) {
+            match entry.outputs(file_store, group) {
                 None => {
                     // TODO: remove the entry because it's not valid anymore
                 }
                 Some(outputs) => {
-                    if entry.is_compatible(execution) {
-                        let (exit_status, signal) = match entry.result.status {
-                            ExecutionStatus::ReturnCode(c) => (c, None),
-                            ExecutionStatus::Signal(s, _) => (0, Some(s)),
-                            _ => (0, None),
-                        };
-                        return CacheResult::Hit {
-                            result: ExecutionResult {
-                                status: execution.status(
-                                    exit_status,
-                                    signal,
-                                    &entry.result.resources,
-                                ),
-                                was_killed: entry.result.was_killed,
+                    if entry.is_compatible(group) {
+                        let mut results = Vec::new();
+                        for (exec, item) in group.executions.iter().zip(entry.items.iter()) {
+                            let (exit_status, signal) = match item.result.status {
+                                ExecutionStatus::ReturnCode(c) => (c, None),
+                                ExecutionStatus::Signal(s, _) => (0, Some(s)),
+                                _ => (0, None),
+                            };
+                            results.push(ExecutionResult {
+                                status: exec.status(exit_status, signal, &item.result.resources),
+                                was_killed: item.result.was_killed,
                                 was_cached: true,
-                                resources: entry.result.resources.clone(),
-                                stdout: entry.result.stdout.clone(),
-                                stderr: entry.result.stderr.clone(),
-                            },
+                                resources: item.result.resources.clone(),
+                                stdout: item.result.stdout.clone(),
+                                stderr: item.result.stderr.clone(),
+                            });
+                        }
+                        return CacheResult::Hit {
+                            result: results,
                             outputs,
                         };
                     }

@@ -8,9 +8,7 @@ use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
 
 use task_maker_cache::Cache;
-use task_maker_dag::{
-    Execution, ExecutionGroup, ExecutionUuid, FileUuid, ProvidedFile, WorkerUuid,
-};
+use task_maker_dag::{ExecutionGroup, ExecutionUuid, FileUuid, ProvidedFile, WorkerUuid};
 use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey};
 
 use crate::check_dag::check_dag;

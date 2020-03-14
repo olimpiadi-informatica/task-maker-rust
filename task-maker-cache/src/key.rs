@@ -2,12 +2,12 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use task_maker_dag::{Execution, ExecutionCommand, FileUuid};
+use task_maker_dag::{Execution, ExecutionCommand, ExecutionGroup, FileUuid};
 use task_maker_store::{FileStoreHandle, FileStoreKey};
 
-/// The cache key used to address the cache entries.
+/// The cache key of a single execution of a group.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct CacheKey {
+struct CacheKeyItem {
     /// The command of the execution. Note that this assumes that the system commands are all the
     /// same between the different workers.
     pub command: ExecutionCommand,
@@ -23,13 +23,21 @@ pub struct CacheKey {
     pub env: Vec<(String, String)>,
 }
 
-impl CacheKey {
-    /// Make a new `CacheKey` based on an `Execution` and on the mapping of its input files, from
-    /// the UUIDs of the current DAG to the persisted `FileStoreKey`s.
+/// The cache key used to address the cache entries. It is composed by a key item for each execution
+/// in the group, in the same order.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CacheKey {
+    /// The items of the cache key, one for each execution in the group.
+    items: Vec<CacheKeyItem>,
+}
+
+impl CacheKeyItem {
+    /// Make a new `CacheKeyItem` based on an `Execution` and on the mapping of its input files,
+    /// from the UUIDs of the current DAG to the persisted `FileStoreKey`s.
     pub fn from_execution(
         execution: &Execution,
         file_keys: &HashMap<FileUuid, FileStoreHandle>,
-    ) -> CacheKey {
+    ) -> CacheKeyItem {
         let stdin = execution.stdin.as_ref().map(|f| file_keys[f].key().clone());
         let inputs = execution
             .inputs
@@ -39,12 +47,29 @@ impl CacheKey {
             .sorted()
             .collect_vec();
         let env = execution.env.clone().into_iter().sorted().collect_vec();
-        CacheKey {
+        CacheKeyItem {
             command: execution.command.clone(),
             args: execution.args.clone(),
             stdin,
             inputs,
             env,
+        }
+    }
+}
+
+impl CacheKey {
+    /// Make a new `CacheKey` based on an `Execution` and on the mapping of its input files, from
+    /// the UUIDs of the current DAG to the persisted `FileStoreKey`s.
+    pub fn from_execution_group(
+        group: &ExecutionGroup,
+        file_keys: &HashMap<FileUuid, FileStoreHandle>,
+    ) -> CacheKey {
+        CacheKey {
+            items: group
+                .executions
+                .iter()
+                .map(|e| CacheKeyItem::from_execution(e, file_keys))
+                .collect(),
         }
     }
 }
@@ -69,7 +94,7 @@ mod tests {
         store.store(&key, iter).unwrap()
     }
 
-    fn hash(key: &CacheKey) -> u64 {
+    fn hash(key: &CacheKeyItem) -> u64 {
         let mut hasher = DefaultHasher::new();
         key.hash(&mut hasher);
         hasher.finish()
@@ -81,10 +106,10 @@ mod tests {
         let exec2 = Execution::new("exec2", ExecutionCommand::local("foo"));
         let exec3 = Execution::new("exec3", ExecutionCommand::local("bar"));
         let exec4 = Execution::new("exec4", ExecutionCommand::system("foo"));
-        let key1 = CacheKey::from_execution(&exec1, &HashMap::new());
-        let key2 = CacheKey::from_execution(&exec2, &HashMap::new());
-        let key3 = CacheKey::from_execution(&exec3, &HashMap::new());
-        let key4 = CacheKey::from_execution(&exec4, &HashMap::new());
+        let key1 = CacheKeyItem::from_execution(&exec1, &HashMap::new());
+        let key2 = CacheKeyItem::from_execution(&exec2, &HashMap::new());
+        let key3 = CacheKeyItem::from_execution(&exec3, &HashMap::new());
+        let key4 = CacheKeyItem::from_execution(&exec4, &HashMap::new());
         assert_eq!(key1, key2);
         assert_ne!(key1, key3);
         assert_ne!(key1, key4);
@@ -103,10 +128,10 @@ mod tests {
         exec3.args(vec!["baz", "bar"]);
         let mut exec4 = Execution::new("exec4", ExecutionCommand::local("foo"));
         exec4.args(vec!["bar", "bar"]);
-        let key1 = CacheKey::from_execution(&exec1, &HashMap::new());
-        let key2 = CacheKey::from_execution(&exec2, &HashMap::new());
-        let key3 = CacheKey::from_execution(&exec3, &HashMap::new());
-        let key4 = CacheKey::from_execution(&exec4, &HashMap::new());
+        let key1 = CacheKeyItem::from_execution(&exec1, &HashMap::new());
+        let key2 = CacheKeyItem::from_execution(&exec2, &HashMap::new());
+        let key3 = CacheKeyItem::from_execution(&exec3, &HashMap::new());
+        let key4 = CacheKeyItem::from_execution(&exec4, &HashMap::new());
         assert_eq!(key1, key2);
         assert_ne!(key1, key3);
         assert_ne!(key1, key4);
@@ -134,10 +159,10 @@ mod tests {
         let mut exec3 = Execution::new("exec3", ExecutionCommand::local("foo"));
         exec3.stdin(file2.uuid);
         let exec4 = Execution::new("exec4", ExecutionCommand::local("foo"));
-        let key1 = CacheKey::from_execution(&exec1, &map);
-        let key2 = CacheKey::from_execution(&exec2, &map);
-        let key3 = CacheKey::from_execution(&exec3, &map);
-        let key4 = CacheKey::from_execution(&exec4, &map);
+        let key1 = CacheKeyItem::from_execution(&exec1, &map);
+        let key2 = CacheKeyItem::from_execution(&exec2, &map);
+        let key3 = CacheKeyItem::from_execution(&exec3, &map);
+        let key4 = CacheKeyItem::from_execution(&exec4, &map);
         assert_eq!(key1, key2);
         assert_ne!(key1, key3);
         assert_ne!(key1, key4);
@@ -169,10 +194,10 @@ mod tests {
         let mut exec4 = Execution::new("exec4", ExecutionCommand::local("foo"));
         exec4.input(file1.uuid, "file1", true);
         exec4.input(file2.uuid, "file2", false);
-        let key1 = CacheKey::from_execution(&exec1, &map);
-        let key2 = CacheKey::from_execution(&exec2, &map);
-        let key3 = CacheKey::from_execution(&exec3, &map);
-        let key4 = CacheKey::from_execution(&exec4, &map);
+        let key1 = CacheKeyItem::from_execution(&exec1, &map);
+        let key2 = CacheKeyItem::from_execution(&exec2, &map);
+        let key3 = CacheKeyItem::from_execution(&exec3, &map);
+        let key4 = CacheKeyItem::from_execution(&exec4, &map);
         assert_eq!(key1, key2);
         assert_ne!(key1, key3);
         assert_ne!(key1, key4);
@@ -194,10 +219,10 @@ mod tests {
         exec3.env("baz", "bizarre");
         let mut exec4 = Execution::new("exec4", ExecutionCommand::local("foo"));
         exec4.env("foo", "bar");
-        let key1 = CacheKey::from_execution(&exec1, &HashMap::new());
-        let key2 = CacheKey::from_execution(&exec2, &HashMap::new());
-        let key3 = CacheKey::from_execution(&exec3, &HashMap::new());
-        let key4 = CacheKey::from_execution(&exec4, &HashMap::new());
+        let key1 = CacheKeyItem::from_execution(&exec1, &HashMap::new());
+        let key2 = CacheKeyItem::from_execution(&exec2, &HashMap::new());
+        let key3 = CacheKeyItem::from_execution(&exec3, &HashMap::new());
+        let key4 = CacheKeyItem::from_execution(&exec4, &HashMap::new());
         assert_eq!(key1, key2);
         assert_ne!(key1, key3);
         assert_ne!(key1, key4);

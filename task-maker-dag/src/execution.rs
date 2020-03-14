@@ -366,6 +366,14 @@ impl ExecutionStatus {
             _ => false,
         }
     }
+
+    /// Returns true only if it is `ExecutionStatus::InternalError(_)`.
+    pub fn is_internal_error(&self) -> bool {
+        match self {
+            ExecutionStatus::InternalError(_) => true,
+            _ => false,
+        }
+    }
 }
 
 impl ExecutionCommand {

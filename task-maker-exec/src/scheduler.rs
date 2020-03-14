@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use task_maker_cache::{Cache, CacheResult};
 use task_maker_dag::{
-    CacheMode, Execution, ExecutionDAGData, ExecutionGroup, ExecutionGroupUuid, ExecutionResult,
-    ExecutionStatus, ExecutionUuid, FileUuid, Priority, WorkerUuid,
+    CacheMode, ExecutionDAGData, ExecutionGroup, ExecutionGroupUuid, ExecutionResult,
+    ExecutionUuid, FileUuid, Priority, WorkerUuid,
 };
 use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey};
 
@@ -669,13 +669,11 @@ impl Scheduler {
             client.file_handles.insert(*uuid, handle.clone());
         }
 
-        // TODO handle status
-        let successful = ExecutionStatus::Success == result[0].status;
-        // TODO: handle cache
-        // match &result.status {
-        //     ExecutionStatus::InternalError(_) => {} // do not cache internal errors
-        //     _ => self.cache_execution(client_uuid, &group, outputs, result),
-        // }
+        let successful = result.iter().all(|r| r.status.is_success());
+        let internal_error = result.iter().any(|r| r.status.is_internal_error());
+        if !internal_error {
+            self.cache_execution(client_uuid, &group, outputs, result);
+        }
         if successful {
             for exec in &group.executions {
                 for output in exec.outputs() {
@@ -697,9 +695,9 @@ impl Scheduler {
     fn cache_execution(
         &mut self,
         client_uuid: ClientUuid,
-        execution: &Execution,
+        group: &ExecutionGroup,
         outputs: HashMap<FileUuid, FileStoreHandle>,
-        result: ExecutionResult,
+        result: Vec<ExecutionResult>,
     ) {
         let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
             client
@@ -707,22 +705,23 @@ impl Scheduler {
             // client is gone, dont worry to much about it
             return;
         };
-        let mut file_keys: HashMap<FileUuid, FileStoreKey> = execution
-            .dependencies()
+        let mut file_keys: HashMap<FileUuid, FileStoreKey> = group
+            .executions
             .iter()
-            .map(|f| (*f, client.file_handles[f].key().clone()))
+            .flat_map(|e| e.dependencies())
+            .map(|f| (f, client.file_handles[&f].key().clone()))
             .collect();
-        for output in execution.outputs() {
+        for output in group.executions.iter().flat_map(|e| e.outputs()) {
             file_keys.insert(output, outputs[&output].key().clone());
         }
-        self.cache.insert(execution, &client.file_handles, result);
+        self.cache.insert(group, &client.file_handles, result);
     }
 
     /// Look at all the ready executions and mark as completed all the ones that are inside the
     /// cache.
     fn schedule_cached(&mut self) -> Result<(), Error> {
         let mut not_cached = BinaryHeap::new();
-        // let mut cached = Vec::new();
+        let mut cached = Vec::new();
 
         for (priority, group_uuid, client_uuid) in self.ready_execs.iter() {
             let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
@@ -738,39 +737,37 @@ impl Scheduler {
                 not_cached.push((*priority, *group_uuid, *client_uuid));
                 continue;
             }
-            // TODO handle cache
             let group = dag.execution_groups[group_uuid].clone();
-            not_cached.push((*priority, group.uuid, *client_uuid));
-            // if !Scheduler::is_cacheable(&group, &cache_mode) {
-            //     not_cached.push((*priority, group.uuid, *client_uuid));
-            //     continue;
-            // }
-            // let result = self
-            //     .cache
-            //     .get(&group, &client.file_handles, self.file_store.as_ref());
-            // match result {
-            //     CacheResult::Hit { result, outputs } => {
-            //         info!("Execution {} is a cache hit!", group.uuid);
-            //         client.ready_groups.remove(&group.uuid);
-            //         cached.push((*client_uuid, group, result, outputs));
-            //     }
-            //     CacheResult::Miss => {
-            //         not_cached.push((*priority, group.uuid, *client_uuid));
-            //     }
-            // }
+            if !Scheduler::is_cacheable(&group, &cache_mode) {
+                not_cached.push((*priority, group.uuid, *client_uuid));
+                continue;
+            }
+            let result = self
+                .cache
+                .get(&group, &client.file_handles, self.file_store.as_ref());
+            match result {
+                CacheResult::Hit { result, outputs } => {
+                    info!("Execution {} is a cache hit!", group.uuid);
+                    client.ready_groups.remove(&group.uuid);
+                    cached.push((*client_uuid, group, result, outputs));
+                }
+                CacheResult::Miss => {
+                    not_cached.push((*priority, group.uuid, *client_uuid));
+                }
+            }
         }
 
         self.ready_execs = not_cached;
-        // for (client, exec, result, outputs) in cached.into_iter() {
-        //     self.exec_completed(client, &exec, result, outputs)?;
-        // }
+        for (client, exec, result, outputs) in cached.into_iter() {
+            self.exec_completed(client, &exec, result, outputs)?;
+        }
 
         Ok(())
     }
 
     /// Whether an execution is eligible to be fetch from the cache.
-    fn is_cacheable(execution: &Execution, cache_mode: &CacheMode) -> bool {
-        if let (CacheMode::Except(set), Some(tag)) = (cache_mode, execution.tag.as_ref()) {
+    fn is_cacheable(group: &ExecutionGroup, cache_mode: &CacheMode) -> bool {
+        if let (CacheMode::Except(set), Some(tag)) = (cache_mode, group.tag().as_ref()) {
             if set.contains(tag) {
                 return false;
             }
