@@ -8,6 +8,7 @@ build = "build.rs"
 [dependencies]
 task-maker-format = { path = "../task-maker-format" }
 task-maker-dag = { path = "../task-maker-dag" }
+task-maker-exec = { path = "../task-maker-exec" }
 task-maker-rust = { path = ".." }
 structopt = "0.3"
 better-panic = "0.1"

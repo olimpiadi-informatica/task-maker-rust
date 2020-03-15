@@ -13,6 +13,7 @@ extern crate scopeguard;
 
 pub use local::*;
 pub use opt::*;
+pub use sandbox::*;
 pub use server::*;
 pub use worker::*;
 
@@ -20,6 +21,6 @@ mod detect_format;
 mod error;
 pub mod local;
 pub mod opt;
-mod sandbox;
+pub mod sandbox;
 pub mod server;
 pub mod worker;
