@@ -388,8 +388,9 @@ fn sandbox_group_manager(
                     .expect("Cannot compute execution result");
                 // if the process didn't exit successfully, kill the remaining sandboxes
                 if !result.status.is_success() {
-                    for (res, sandbox) in results.iter().zip(sandboxes.iter()) {
-                        if res.is_none() {
+                    for (i, (res, sandbox)) in results.iter().zip(sandboxes.iter()).enumerate() {
+                        // do not kill the current process
+                        if i != index && res.is_none() {
                             sandbox.kill();
                         }
                     }

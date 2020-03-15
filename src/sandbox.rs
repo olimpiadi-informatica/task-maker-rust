@@ -75,8 +75,8 @@ fn self_exec_sandbox_internal(
     let output = cmd.wait_with_output()?;
     if !output.status.success() {
         bail!(
-            "Sandbox failed with code: {:?}\n{}",
-            output.status.code(),
+            "Sandbox process failed: {}\n{}",
+            output.status.to_string(),
             String::from_utf8_lossy(&output.stderr)
         );
     }

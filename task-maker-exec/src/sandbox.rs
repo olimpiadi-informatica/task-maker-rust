@@ -206,7 +206,7 @@ impl Sandbox {
             return;
         }
         info!("Sandbox at {:?} (pid {}) will be killed", path, pid);
-        if let Err(e) = signal::kill(Pid::from_raw(pid as i32), Signal::SIGKILL) {
+        if let Err(e) = signal::kill(Pid::from_raw(pid as i32), Signal::SIGTERM) {
             warn!("Cannot kill sandbox at {} (pid {}): {:?}", path, pid, e);
         }
     }
