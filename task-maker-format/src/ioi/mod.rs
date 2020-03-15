@@ -288,20 +288,15 @@ impl TaskFormat for Task {
             std::fs::remove_dir_all(bin_path)?;
         }
         // remove the compiled checkers
-        match &self.task_type {
-            TaskType::Batch(data) => {
-                if let Checker::Custom(_) = data.checker {
-                    for checker in &["check/checker", "cor/correttore"] {
-                        let path = self.path.join(checker);
-                        if path.exists() {
-                            info!("Removing {:?}", path);
-                            std::fs::remove_file(path)?;
-                        }
+        if let TaskType::Batch(data) = &self.task_type {
+            if let Checker::Custom(_) = data.checker {
+                for checker in &["check/checker", "cor/correttore"] {
+                    let path = self.path.join(checker);
+                    if path.exists() {
+                        info!("Removing {:?}", path);
+                        std::fs::remove_file(path)?;
                     }
                 }
-            }
-            TaskType::Communication(data) => {
-                unimplemented!();
             }
         }
         // remove the gen/GEN if there is cases.gen

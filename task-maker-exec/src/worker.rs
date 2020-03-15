@@ -145,6 +145,7 @@ impl Worker {
     }
 
     /// The worker body, this function will block until the worker disconnects.
+    #[allow(clippy::cognitive_complexity)]
     pub fn work(self) -> Result<(), Error> {
         trace!("Worker {} ready, asking for work", self);
         self.sender.send(WorkerClientMessage::GetWork)?;
@@ -420,7 +421,7 @@ fn sandbox_group_manager(
                 results[index] = Some(result);
                 missing -= 1;
             }
-            Err(_) => panic!("The sandboxes didn't exit well"),
+            _ => panic!("The sandboxes didn't exit well"),
         }
     }
     for handle in handles {

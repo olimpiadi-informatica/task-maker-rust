@@ -278,6 +278,7 @@ impl<'a> FinishUIUtils<'a> {
 }
 
 /// The sender of the UIMessage
+#[derive(Debug)]
 pub struct UIMessageSender {
     sender: UIChannelSender,
 }

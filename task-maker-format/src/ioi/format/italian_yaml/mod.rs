@@ -559,11 +559,10 @@ fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> TaskTyp
     .map(Checker::Custom)
     .unwrap_or(Checker::WhiteDiff);
 
-    let official_solution =
-        match detect_output_generator(task_dir.to_path_buf(), grader_map.clone())(0) {
-            gen @ OutputGenerator::Custom(_, _) => Some(gen),
-            _ => None,
-        };
+    let official_solution = match detect_output_generator(task_dir.to_path_buf(), grader_map)(0) {
+        gen @ OutputGenerator::Custom(_, _) => Some(gen),
+        _ => None,
+    };
     TaskType::Batch(BatchTypeData {
         output_generator: official_solution,
         checker,

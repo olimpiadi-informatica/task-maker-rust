@@ -336,6 +336,8 @@ fn test_ui_state_evaluation_skipped() {
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Skipped,
+        part: 0,
+        num_parts: 1,
     });
     assert_eq!(
         ui.evaluations[&file].subtasks[&0].testcases[&0].status,
@@ -355,6 +357,8 @@ fn test_ui_state_evaluation_started() {
         status: UIExecutionStatus::Started {
             worker: Default::default(),
         },
+        part: 0,
+        num_parts: 1,
     });
     assert_eq!(
         ui.evaluations[&file].subtasks[&0].testcases[&0].status,
@@ -374,6 +378,8 @@ fn test_ui_state_evaluation_solved() {
         status: UIExecutionStatus::Done {
             result: utils::good_result(),
         },
+        part: 0,
+        num_parts: 1,
     });
     assert_eq!(
         ui.evaluations[&file].subtasks[&0].testcases[&0].status,
@@ -393,6 +399,8 @@ fn test_ui_state_evaluation_return_code() {
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
+        part: 0,
+        num_parts: 1,
     });
     assert_eq!(
         ui.evaluations[&file].subtasks[&0].testcases[&0].status,
@@ -412,6 +420,8 @@ fn test_ui_state_evaluation_signal() {
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
+        part: 0,
+        num_parts: 1,
     });
     assert_eq!(
         ui.evaluations[&file].subtasks[&0].testcases[&0].status,
@@ -431,6 +441,8 @@ fn test_ui_state_evaluation_time_limit() {
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
+        part: 0,
+        num_parts: 1,
     });
     assert_eq!(
         ui.evaluations[&file].subtasks[&0].testcases[&0].status,
@@ -450,6 +462,8 @@ fn test_ui_state_evaluation_sys_limit() {
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
+        part: 0,
+        num_parts: 1,
     });
     assert_eq!(
         ui.evaluations[&file].subtasks[&0].testcases[&0].status,
@@ -469,6 +483,8 @@ fn test_ui_state_evaluation_wall_limit() {
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
+        part: 0,
+        num_parts: 1,
     });
     assert_eq!(
         ui.evaluations[&file].subtasks[&0].testcases[&0].status,
@@ -488,6 +504,8 @@ fn test_ui_state_evaluation_memory_limit() {
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
+        part: 0,
+        num_parts: 1,
     });
     assert_eq!(
         ui.evaluations[&file].subtasks[&0].testcases[&0].status,
@@ -507,6 +525,8 @@ fn test_ui_state_evaluation_internal_error() {
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
+        part: 0,
+        num_parts: 1,
     });
     assert_eq!(
         ui.evaluations[&file].subtasks[&0].testcases[&0].status,
@@ -526,6 +546,8 @@ fn test_ui_state_checker_skipped() {
         status: UIExecutionStatus::Started {
             worker: Default::default(),
         },
+        part: 0,
+        num_parts: 1,
     });
     ui.apply(UIMessage::IOIChecker {
         subtask: 0,

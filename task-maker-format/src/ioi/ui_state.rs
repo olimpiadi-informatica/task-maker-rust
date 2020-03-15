@@ -90,7 +90,7 @@ pub struct SolutionTestcaseEvaluationState {
     /// The status of the execution.
     pub status: TestcaseEvaluationStatus,
     /// The result of the solution.
-    pub result: Option<ExecutionResult>,
+    pub results: Vec<Option<ExecutionResult>>,
     /// The result of the checker.
     pub checker: Option<ExecutionResult>,
 }
@@ -138,7 +138,7 @@ impl SolutionEvaluationState {
                                         SolutionTestcaseEvaluationState {
                                             score: None,
                                             status: TestcaseEvaluationStatus::Pending,
-                                            result: None,
+                                            results: Vec::new(),
                                             checker: None,
                                         },
                                     )
@@ -409,6 +409,8 @@ impl UIStateT for UIState {
                 testcase,
                 solution,
                 status,
+                part,
+                num_parts,
             } => {
                 let task = &self.task;
                 let eval = self
@@ -420,6 +422,9 @@ impl UIStateT for UIState {
                     .testcases
                     .get_mut(&testcase)
                     .expect("Missing testcase");
+                if testcase.results.len() != num_parts {
+                    testcase.results = vec![None; num_parts];
+                }
                 match status {
                     UIExecutionStatus::Pending => {}
                     UIExecutionStatus::Started { .. } => {
@@ -452,7 +457,7 @@ impl UIStateT for UIState {
                                 testcase.status = TestcaseEvaluationStatus::Failed
                             }
                         }
-                        testcase.result = Some(result);
+                        testcase.results[part] = Some(result);
                     }
                     UIExecutionStatus::Skipped => {
                         testcase.status = TestcaseEvaluationStatus::Skipped

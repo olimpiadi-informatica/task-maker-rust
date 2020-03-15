@@ -6,6 +6,7 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 use task_maker_dag::ExecutionStatus;
 
 use crate::ioi::ui_state::{SolutionEvaluationState, TestcaseEvaluationStatus, UIState};
+use crate::ioi::{SolutionTestcaseEvaluationState, TestcaseId};
 use crate::ui::{
     FinishUI as FinishUITrait, FinishUIUtils, UIExecutionStatus, BLUE, BOLD, GREEN, RED, YELLOW,
 };
@@ -207,7 +208,8 @@ impl FinishUI {
         let results = eval
             .subtasks
             .values()
-            .flat_map(|st| st.testcases.values().filter_map(|tc| tc.result.as_ref()))
+            .flat_map(|st| st.testcases.values().flat_map(|tc| tc.results.iter()))
+            .filter_map(|e| e.as_ref())
             .map(|r| &r.resources);
         let (max_time, max_memory) = results.fold((0.0, 0), |(time, mem), r| {
             (f64::max(time, r.cpu_time), u64::max(mem, r.memory))
@@ -224,60 +226,88 @@ impl FinishUI {
             self.print_score_frac(score, max_score);
             println!();
             for (tc_num, testcase) in subtask.testcases.iter().sorted_by_key(|(n, _)| *n) {
-                print!("{:3}) ", tc_num);
-                let score = testcase.score.unwrap_or(0.0);
-                if abs_diff_eq!(score, 1.0) {
-                    cwrite!(self, GREEN, "[{:.2}]", score);
-                } else if abs_diff_eq!(score, 0.0) {
-                    cwrite!(self, RED, "[{:.2}]", score);
-                } else {
-                    cwrite!(self, YELLOW, "[{:.2}]", score);
-                }
-                if let Some(result) = &testcase.result {
-                    print!(" [");
-                    let time_color = FinishUI::resource_color(
-                        result.resources.cpu_time,
-                        max_time * BOLD_RESOURCE_THRESHOLD,
-                        state.task.time_limit.unwrap_or(1.0 / 0.0) * YELLOW_RESOURCE_THRESHOLD,
-                    );
-                    let memory_color = FinishUI::resource_color(
-                        result.resources.memory as f64,
-                        max_memory as f64 * BOLD_RESOURCE_THRESHOLD,
-                        state.task.memory_limit.unwrap_or(u64::max_value()) as f64
-                            * 1024.0
-                            * YELLOW_RESOURCE_THRESHOLD,
-                    );
-                    cwrite!(self, time_color, "{:2.3}s", result.resources.cpu_time);
-                    print!(" | ");
-                    cwrite!(
-                        self,
-                        memory_color,
-                        "{:3.1}MiB",
-                        (result.resources.memory as f64) / 1024.0
-                    );
-                    print!("]");
-                }
-                print!(" {}", testcase.status.message());
-                if let Some(result) = &testcase.result {
-                    match &result.status {
-                        ExecutionStatus::ReturnCode(code) => print!(": Exited with {}", code),
-                        ExecutionStatus::Signal(sig, name) => print!(": Signal {} ({})", sig, name),
-                        ExecutionStatus::InternalError(err) => print!(": Internal error: {}", err),
-                        _ => {}
-                    }
-                    if result.was_killed {
-                        print!(" (killed)");
-                    }
-                    if result.was_cached {
-                        print!(" (from cache)");
-                    }
-                }
-                if FinishUI::is_ansi() {
-                    self.print_right(format!("[{}]", name));
-                }
-                println!();
+                self.print_testcase_outcome(&name, *tc_num, testcase, max_time, max_memory, state);
             }
         }
+    }
+
+    /// Print the testcase info line for a single solution.
+    fn print_testcase_outcome(
+        &mut self,
+        name: &str,
+        tc_num: TestcaseId,
+        testcase: &SolutionTestcaseEvaluationState,
+        max_time: f64,
+        max_memory: u64,
+        state: &UIState,
+    ) {
+        print!("{:3}) ", tc_num);
+        let score = testcase.score.unwrap_or(0.0);
+        if abs_diff_eq!(score, 1.0) {
+            cwrite!(self, GREEN, "[{:.2}]", score);
+        } else if abs_diff_eq!(score, 0.0) {
+            cwrite!(self, RED, "[{:.2}]", score);
+        } else {
+            cwrite!(self, YELLOW, "[{:.2}]", score);
+        }
+        // print the time and memory info
+        for result in &testcase.results {
+            if let Some(result) = result {
+                print!(" [");
+                let time_color = FinishUI::resource_color(
+                    result.resources.cpu_time,
+                    max_time * BOLD_RESOURCE_THRESHOLD,
+                    state.task.time_limit.unwrap_or(1.0 / 0.0) * YELLOW_RESOURCE_THRESHOLD,
+                );
+                let memory_color = FinishUI::resource_color(
+                    result.resources.memory as f64,
+                    max_memory as f64 * BOLD_RESOURCE_THRESHOLD,
+                    state.task.memory_limit.unwrap_or(u64::max_value()) as f64
+                        * 1024.0
+                        * YELLOW_RESOURCE_THRESHOLD,
+                );
+                cwrite!(self, time_color, "{:2.3}s", result.resources.cpu_time);
+                print!(" | ");
+                cwrite!(
+                    self,
+                    memory_color,
+                    "{:3.1}MiB",
+                    (result.resources.memory as f64) / 1024.0
+                );
+                print!("]");
+            } else {
+                print!(" [???]")
+            }
+        }
+        print!(" {}", testcase.status.message());
+        let mut was_killed = false;
+        let mut was_cached = true;
+        for res in &testcase.results {
+            if let Some(res) = res {
+                was_killed |= res.was_killed;
+                was_cached &= res.was_cached;
+            }
+        }
+        for result in &testcase.results {
+            if let Some(result) = result {
+                match &result.status {
+                    ExecutionStatus::ReturnCode(code) => print!(": Exited with {}", code),
+                    ExecutionStatus::Signal(sig, name) => print!(": Signal {} ({})", sig, name),
+                    ExecutionStatus::InternalError(err) => print!(": Internal error: {}", err),
+                    _ => {}
+                }
+            }
+        }
+        if was_killed {
+            print!(" (killed)");
+        }
+        if was_cached {
+            print!(" (from cache)");
+        }
+        if FinishUI::is_ansi() {
+            self.print_right(format!("[{}]", name));
+        }
+        println!();
     }
 
     fn print_summary(&mut self, state: &UIState) {

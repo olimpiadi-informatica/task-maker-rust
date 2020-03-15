@@ -216,11 +216,17 @@ impl UI for PrintUI {
                 testcase,
                 solution,
                 status,
+                part,
+                num_parts,
             } => {
                 self.write_status(&status);
                 self.write_message(format!(
-                    "Evaluation of {:?} of testcase {} of subtask {} ",
-                    solution, testcase, subtask
+                    "Evaluation of {:?} of testcase {} of subtask {} (part {} of {}) ",
+                    solution,
+                    testcase,
+                    subtask,
+                    part + 1,
+                    num_parts
                 ));
                 self.write_status_details(&status);
             }
