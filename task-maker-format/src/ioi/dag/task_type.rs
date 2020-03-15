@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use failure::Error;
+use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
 
 use task_maker_dag::{ExecutionStatus, FileUuid, Priority};
@@ -19,6 +19,9 @@ pub enum TaskType {
     /// file and reading the output file. The solution may be compiled with additional graders
     /// (called `grader.LANG`). The output is checked with an external program.
     Batch(BatchTypeData),
+    /// The solution is executed in parallel with a manager and communicate using FIFO pipes. There
+    /// are only input files since the manager computes the score of the solution.
+    Communication(CommunicationTypeData),
 }
 
 /// The internal data of a task of type `Batch`.
@@ -29,6 +32,15 @@ pub struct BatchTypeData {
     pub output_generator: Option<OutputGenerator>,
     /// The checker to use for this task.
     pub checker: Checker,
+}
+
+/// The internal data of a task of type `Batch`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommunicationTypeData {
+    /// The source file of the manager that communicates with the solutions.
+    pub manager: Arc<SourceFile>,
+    /// Number of solution processes to spawn in parallel in a communication task.
+    pub num_processes: u8,
 }
 
 impl TaskType {
@@ -44,11 +56,13 @@ impl TaskType {
         source_file: &SourceFile,
         input: FileUuid,
         validation_handle: Option<FileUuid>,
-        correct_output: FileUuid,
+        correct_output: Option<FileUuid>,
         score_manager: Arc<Mutex<ScoreManager>>,
     ) -> Result<(), Error> {
         match self {
             TaskType::Batch(data) => {
+                let correct_output =
+                    correct_output.ok_or_else(|| format_err!("Missing official solution"))?;
                 let mut exec = source_file.execute(
                     eval,
                     format!(
@@ -120,6 +134,9 @@ impl TaskType {
                         )
                     },
                 )?;
+            }
+            TaskType::Communication(data) => {
+                unimplemented!();
             }
         };
         Ok(())

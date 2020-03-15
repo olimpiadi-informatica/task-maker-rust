@@ -15,6 +15,8 @@ use crate::{EvaluationData, SourceFile, Tag};
 /// command that will generate an output file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OutputGenerator {
+    /// The output generator is not available.
+    NotAvailable,
     /// Use the static file as output. The file will be copied without transformations.
     StaticFile(PathBuf),
     /// Use a custom command to generate the output file. The task specification for input/output
@@ -36,8 +38,9 @@ impl OutputGenerator {
         testcase_id: TestcaseId,
         input: FileUuid,
         validation_handle: Option<FileUuid>,
-    ) -> Result<(FileUuid, Option<Execution>), Error> {
+    ) -> Result<(Option<FileUuid>, Option<Execution>), Error> {
         match self {
+            OutputGenerator::NotAvailable => Ok((None, None)),
             OutputGenerator::StaticFile(path) => {
                 if !path.exists() {
                     bail!("Static output file not found: {:?}", path);
@@ -48,14 +51,14 @@ impl OutputGenerator {
                 ));
                 let uuid = file.uuid;
                 eval.dag.provide_file(file, &path)?;
-                Ok((uuid, None))
+                Ok((Some(uuid), None))
             }
             OutputGenerator::Custom(source_file, args) => {
                 let mut exec = source_file.execute(eval, description, args.clone())?;
                 exec.tag(Tag::Generation.into());
                 exec.priority(GENERATION_PRIORITY - testcase_id as Priority);
                 let output = bind_exec_io!(exec, task, input, validation_handle);
-                Ok((output.uuid, Some(exec)))
+                Ok((Some(output.uuid), Some(exec)))
             }
         }
     }
@@ -70,7 +73,7 @@ impl OutputGenerator {
         testcase_id: TestcaseId,
         input: FileUuid,
         validation_handle: Option<FileUuid>,
-    ) -> Result<FileUuid, Error> {
+    ) -> Result<Option<FileUuid>, Error> {
         let (output, sol) = self.generate(
             task,
             eval,
@@ -91,13 +94,15 @@ impl OutputGenerator {
             })?;
             eval.dag.add_execution(sol);
         }
-        eval.dag.write_file_to(
-            output,
-            task.path
-                .join("output")
-                .join(format!("output{}.txt", testcase_id)),
-            false,
-        );
+        if let Some(output) = output {
+            eval.dag.write_file_to(
+                output,
+                task.path
+                    .join("output")
+                    .join(format!("output{}.txt", testcase_id)),
+                false,
+            );
+        }
         Ok(output)
     }
 }

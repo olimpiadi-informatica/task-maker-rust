@@ -164,6 +164,8 @@ impl SanityCheck<Task> for AttSampleFilesValid {
                     input_uuid,
                     val_handle,
                 )?;
+                let correct_output =
+                    correct_output.ok_or_else(|| format_err!("Missing official solution"))?;
                 if let Some(sol) = sol {
                     let sender = eval.sender.clone();
                     let output_name = output_name.clone();

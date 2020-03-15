@@ -5,7 +5,7 @@ pub use input_generator::InputGenerator;
 pub use input_validator::{InputValidator, TM_VALIDATION_FILE_NAME};
 pub use output_generator::OutputGenerator;
 use task_maker_dag::Priority;
-pub use task_type::{BatchTypeData, TaskType};
+pub use task_type::{BatchTypeData, CommunicationTypeData, TaskType};
 
 mod checker;
 mod input_generator;
@@ -251,6 +251,7 @@ mod tests {
         let (mut eval, _) = EvaluationData::new(tmpdir.path());
         let out = generator
             .generate_and_bind(&task, &mut eval, 0, 0, file.uuid, None)
+            .unwrap()
             .unwrap();
         assert!(eval.dag.data.provided_files.contains_key(&out));
         assert!(eval
@@ -290,6 +291,7 @@ mod tests {
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let out = generator
             .generate_and_bind(&task, &mut eval, 0, 0, file.uuid, Some(val.uuid))
+            .unwrap()
             .unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.execution_groups.len(), 1);

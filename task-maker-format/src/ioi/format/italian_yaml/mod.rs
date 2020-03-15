@@ -269,12 +269,12 @@ pub(crate) use cases_gen::{is_gen_gen_deletable, TM_ALLOW_DELETE_COOKIE};
 use task_maker_lang::GraderMap;
 
 use crate::ioi::sanity_checks::get_sanity_checks;
-use crate::ioi::BatchTypeData;
 use crate::ioi::TM_VALIDATION_FILE_NAME;
 use crate::ioi::{
     make_booklets, Checker, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo, Task,
     TaskType, TestcaseId, TestcaseInfo, TestcaseScoreAggregator,
 };
+use crate::ioi::{BatchTypeData, CommunicationTypeData};
 use crate::{find_source_file, list_files, EvaluationConfig};
 
 mod cases_gen;
@@ -317,6 +317,9 @@ struct TaskYAML {
     /// An integer that defines the level inside a _syllabus_ (for example for the Olympiads in
     /// Teams). Used only in booklet compilations.
     pub syllabuslevel: Option<u8>,
+
+    /// Number of solution processes to spawn in parallel in a communication task.
+    pub num_processes: Option<u8>,
 }
 
 /// The iterator item type when following the task input testcases.
@@ -363,21 +366,34 @@ pub fn parse_task<P: AsRef<Path>>(
             _ => Some(file.into()),
         }
     };
-    let infile = map_file(yaml.infile);
-    let outfile = map_file(yaml.outfile);
+    let infile = map_file(yaml.infile.clone());
+    let outfile = map_file(yaml.outfile.clone());
 
     let graders = list_files(task_dir, vec!["sol/grader.*", "sol/stub.*"]);
     let grader_map = Arc::new(GraderMap::new(graders));
     debug!("The graders are: {:#?}", grader_map);
 
+    let task_type = if let Some(comm) = parse_communication_task_data(task_dir, &yaml) {
+        comm
+    } else {
+        parse_batch_task_data(task_dir, grader_map.clone())
+    };
+
     let gen_gen = task_dir.join("gen").join("GEN");
     let cases_gen = task_dir.join("gen").join("cases.gen");
+    let output_generator: Box<dyn Fn(TestcaseId) -> OutputGenerator> =
+        if let TaskType::Batch(_) = &task_type {
+            Box::new(detect_output_generator(
+                task_dir.to_path_buf(),
+                grader_map.clone(),
+            ))
+        } else {
+            Box::new(|_| OutputGenerator::NotAvailable)
+        };
+
     let inputs = if cases_gen.exists() {
         debug!("Parsing testcases from gen/cases.gen");
-        let gen = cases_gen::CasesGen::new(
-            &cases_gen,
-            detect_output_generator(task_dir.to_path_buf(), grader_map.clone()),
-        )?;
+        let gen = cases_gen::CasesGen::new(&cases_gen, output_generator)?;
         if !eval_config.dry_run {
             gen.write_gen_gen()?;
         }
@@ -387,14 +403,14 @@ pub fn parse_task<P: AsRef<Path>>(
         gen_gen::parse_gen_gen(
             &gen_gen,
             detect_validator(task_dir.to_path_buf()),
-            detect_output_generator(task_dir.to_path_buf(), grader_map.clone()),
+            output_generator,
         )?
     } else {
         debug!("Using testcases inside input/");
         static_inputs::static_inputs(
             task_dir,
             detect_validator(task_dir.to_path_buf()),
-            detect_output_generator(task_dir.to_path_buf(), grader_map.clone()),
+            output_generator,
         )
         .collect()
     };
@@ -423,35 +439,6 @@ pub fn parse_task<P: AsRef<Path>>(
         subtasks.insert(subtask.id, subtask);
     }
 
-    let checker = find_source_file(
-        task_dir,
-        vec![
-            "check/checker.*",
-            "cor/correttore.*",
-            "check/checker",
-            "cor/correttore",
-        ],
-        task_dir,
-        None,
-        Some(task_dir.join("check").join("checker")),
-    )
-    .map(|mut c| {
-        // always copy the custom checker
-        c.copy_exe();
-        c
-    })
-    .map(Arc::new)
-    .map(Checker::Custom)
-    .unwrap_or(Checker::WhiteDiff);
-    let official_solution =
-        match detect_output_generator(task_dir.to_path_buf(), grader_map.clone())(0) {
-            gen @ OutputGenerator::Custom(_, _) => Some(gen),
-            _ => None,
-        };
-    let task_type = TaskType::Batch(BatchTypeData {
-        output_generator: official_solution,
-        checker,
-    });
     let mut task = Task {
         path: task_dir.into(),
         task_type,
@@ -547,6 +534,56 @@ fn detect_output_generator(
             OutputGenerator::StaticFile(output_directory.join(format!("output{}.txt", tc)))
         }
     }
+}
+
+/// Parse the task components relative to the batch task type.
+fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> TaskType {
+    let checker = find_source_file(
+        task_dir,
+        vec![
+            "check/checker.*",
+            "cor/correttore.*",
+            "check/checker",
+            "cor/correttore",
+        ],
+        task_dir,
+        None,
+        Some(task_dir.join("check").join("checker")),
+    )
+    .map(|mut c| {
+        // always copy the custom checker
+        c.copy_exe();
+        c
+    })
+    .map(Arc::new)
+    .map(Checker::Custom)
+    .unwrap_or(Checker::WhiteDiff);
+
+    let official_solution =
+        match detect_output_generator(task_dir.to_path_buf(), grader_map.clone())(0) {
+            gen @ OutputGenerator::Custom(_, _) => Some(gen),
+            _ => None,
+        };
+    TaskType::Batch(BatchTypeData {
+        output_generator: official_solution,
+        checker,
+    })
+}
+
+/// Parse the task components relative to the communication task type.
+fn parse_communication_task_data(task_dir: &Path, yaml: &TaskYAML) -> Option<TaskType> {
+    let manager = Arc::new(find_source_file(
+        task_dir,
+        vec!["check/manager.*", "cor/manager.*"],
+        task_dir,
+        None,
+        Some(task_dir.join("bin").join("manager")),
+    )?);
+
+    Some(TaskType::Communication(CommunicationTypeData {
+        manager,
+        num_processes: yaml.num_processes.unwrap_or(1),
+    }))
 }
 
 /// Serializer of a boolean using the python syntax:

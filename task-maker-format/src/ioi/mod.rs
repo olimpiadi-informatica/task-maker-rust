@@ -300,6 +300,9 @@ impl TaskFormat for Task {
                     }
                 }
             }
+            TaskType::Communication(data) => {
+                unimplemented!();
+            }
         }
         // remove the gen/GEN if there is cases.gen
         let gen_gen_path = self.path.join("gen/GEN");
