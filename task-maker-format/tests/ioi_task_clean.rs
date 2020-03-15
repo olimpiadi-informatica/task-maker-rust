@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use task_maker_format::ioi::{Checker, InputGenerator};
+use task_maker_format::ioi::{Checker, InputGenerator, TaskType};
 use task_maker_format::{SourceFile, TaskFormat};
 
 mod utils;
@@ -76,7 +76,9 @@ fn test_ioi_task_clean_checker() {
     std::fs::write(tmpdir.path().join("check.py"), "x").unwrap();
     let source =
         SourceFile::new(tmpdir.path().join("check.py"), "", None, None::<PathBuf>).unwrap();
-    task.checker = Checker::Custom(Arc::new(source));
+    if let TaskType::Batch(data) = &mut task.task_type {
+        data.checker = Checker::Custom(Arc::new(source));
+    }
     task.clean().unwrap();
 
     assert!(!check.join("checker").exists());

@@ -89,11 +89,6 @@ pub struct Task {
     /// The default input validator for this task, if any.
     #[serde(skip_serializing)]
     pub input_validator: InputValidator,
-    /// The default output generator for this task, if any.
-    #[serde(skip_serializing)]
-    pub output_generator: Option<OutputGenerator>,
-    /// The checker to use for this task.
-    pub checker: Checker,
     /// The aggregator to use to compute the score of the subtask based on the score of the
     /// testcases.
     pub testcase_score_aggregator: TestcaseScoreAggregator,
@@ -293,12 +288,16 @@ impl TaskFormat for Task {
             std::fs::remove_dir_all(bin_path)?;
         }
         // remove the compiled checkers
-        if let Checker::Custom(_) = self.checker {
-            for checker in &["check/checker", "cor/correttore"] {
-                let path = self.path.join(checker);
-                if path.exists() {
-                    info!("Removing {:?}", path);
-                    std::fs::remove_file(path)?;
+        match &self.task_type {
+            TaskType::Batch(data) => {
+                if let Checker::Custom(_) = data.checker {
+                    for checker in &["check/checker", "cor/correttore"] {
+                        let path = self.path.join(checker);
+                        if path.exists() {
+                            info!("Removing {:?}", path);
+                            std::fs::remove_file(path)?;
+                        }
+                    }
                 }
             }
         }

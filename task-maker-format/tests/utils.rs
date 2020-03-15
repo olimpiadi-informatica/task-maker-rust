@@ -20,7 +20,10 @@ pub fn new_task_with_context(path: &Path) -> Task {
     }
     let mut task = Task {
         path: path.into(),
-        task_type: TaskType::Batch,
+        task_type: TaskType::Batch(BatchTypeData {
+            output_generator: None,
+            checker: Checker::WhiteDiff,
+        }),
         name: "task".to_string(),
         title: "The Task".to_string(),
         time_limit: None,
@@ -29,8 +32,6 @@ pub fn new_task_with_context(path: &Path) -> Task {
         outfile: None,
         subtasks: HashMap::new(),
         input_validator: InputValidator::AssumeValid,
-        output_generator: None,
-        checker: Checker::WhiteDiff,
         testcase_score_aggregator: TestcaseScoreAggregator::Min,
         grader_map: Arc::new(GraderMap::new(Vec::<PathBuf>::new())),
         booklets: vec![],

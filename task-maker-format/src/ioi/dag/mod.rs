@@ -5,7 +5,7 @@ pub use input_generator::InputGenerator;
 pub use input_validator::{InputValidator, TM_VALIDATION_FILE_NAME};
 pub use output_generator::OutputGenerator;
 use task_maker_dag::Priority;
-pub use task_type::TaskType;
+pub use task_type::{BatchTypeData, TaskType};
 
 mod checker;
 mod input_generator;
@@ -100,7 +100,10 @@ mod tests {
     fn make_task<P: Into<PathBuf>>(path: P) -> Task {
         Task {
             path: path.into(),
-            task_type: TaskType::Batch,
+            task_type: TaskType::Batch(BatchTypeData {
+                output_generator: None,
+                checker: Checker::WhiteDiff,
+            }),
             name: "".to_string(),
             title: "".to_string(),
             time_limit: None,
@@ -109,8 +112,6 @@ mod tests {
             outfile: None,
             subtasks: Default::default(),
             input_validator: InputValidator::AssumeValid,
-            output_generator: None,
-            checker: Checker::WhiteDiff,
             testcase_score_aggregator: TestcaseScoreAggregator::Min,
             grader_map: Arc::new(GraderMap::new(Vec::<PathBuf>::new())),
             booklets: vec![],

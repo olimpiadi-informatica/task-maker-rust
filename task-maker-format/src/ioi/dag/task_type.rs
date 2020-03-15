@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use task_maker_dag::{ExecutionStatus, FileUuid, Priority};
 
-use crate::ioi::{ScoreManager, SubtaskId, Task, TestcaseId, EVALUATION_PRIORITY};
+use crate::ioi::{
+    Checker, OutputGenerator, ScoreManager, SubtaskId, Task, TestcaseId, EVALUATION_PRIORITY,
+};
 use crate::ui::UIMessage;
 use crate::{bind_exec_callbacks, bind_exec_io};
 use crate::{EvaluationData, SourceFile, Tag};
@@ -16,7 +18,17 @@ pub enum TaskType {
     /// The solution is a single file that will be executed once per testcase, feeding in the input
     /// file and reading the output file. The solution may be compiled with additional graders
     /// (called `grader.LANG`). The output is checked with an external program.
-    Batch,
+    Batch(BatchTypeData),
+}
+
+/// The internal data of a task of type `Batch`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchTypeData {
+    /// The default output generator for this task, if any.
+    #[serde(skip_serializing)]
+    pub output_generator: Option<OutputGenerator>,
+    /// The checker to use for this task.
+    pub checker: Checker,
 }
 
 impl TaskType {
@@ -36,7 +48,7 @@ impl TaskType {
         score_manager: Arc<Mutex<ScoreManager>>,
     ) -> Result<(), Error> {
         match self {
-            TaskType::Batch => {
+            TaskType::Batch(data) => {
                 let mut exec = source_file.execute(
                     eval,
                     format!(
@@ -89,7 +101,7 @@ impl TaskType {
 
                 let sender = eval.sender.clone();
                 let path = source_file.path.clone();
-                task.checker.check_and_bind(
+                data.checker.check_and_bind(
                     eval,
                     subtask_id,
                     testcase_id,

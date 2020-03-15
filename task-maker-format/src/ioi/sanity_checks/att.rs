@@ -7,7 +7,7 @@ use regex::Regex;
 use task_maker_dag::File;
 
 use crate::ioi::sanity_checks::check_missing_graders;
-use crate::ioi::{Task, TestcaseId};
+use crate::ioi::{Task, TaskType, TestcaseId};
 use crate::sanity_checks::SanityCheck;
 use crate::ui::UIMessage;
 use crate::{list_files, EvaluationData, UISender};
@@ -106,7 +106,12 @@ impl SanityCheck<Task> for AttSampleFilesValid {
 
     fn pre_hook(&mut self, task: &Task, eval: &mut EvaluationData) -> Result<(), Error> {
         let validator = &task.input_validator;
-        let official_solution = &task.output_generator;
+        let task_type = if let TaskType::Batch(data) = &task.task_type {
+            data
+        } else {
+            return Ok(());
+        };
+        let official_solution = &task_type.output_generator;
         let samples = get_sample_files(task, eval)?;
         for (input, output) in samples {
             let input_name = input.strip_prefix(&task.path).unwrap().to_owned();
@@ -178,7 +183,7 @@ impl SanityCheck<Task> for AttSampleFilesValid {
 
                 // validate the output with the correct one
                 let sender = eval.sender.clone();
-                let chk = task.checker.check(
+                let chk = task_type.checker.check(
                     eval,
                     0,
                     format!("Checking sample output {}", output_name.display()),

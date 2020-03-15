@@ -265,9 +265,11 @@ use std::sync::Arc;
 use failure::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+pub(crate) use cases_gen::{is_gen_gen_deletable, TM_ALLOW_DELETE_COOKIE};
 use task_maker_lang::GraderMap;
 
 use crate::ioi::sanity_checks::get_sanity_checks;
+use crate::ioi::BatchTypeData;
 use crate::ioi::TM_VALIDATION_FILE_NAME;
 use crate::ioi::{
     make_booklets, Checker, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo, Task,
@@ -278,7 +280,6 @@ use crate::{find_source_file, list_files, EvaluationConfig};
 mod cases_gen;
 mod gen_gen;
 mod static_inputs;
-pub(crate) use cases_gen::{is_gen_gen_deletable, TM_ALLOW_DELETE_COOKIE};
 
 /// Deserialized data from the task.yaml of a IOI format task.
 #[derive(Debug, Serialize, Deserialize)]
@@ -422,7 +423,7 @@ pub fn parse_task<P: AsRef<Path>>(
         subtasks.insert(subtask.id, subtask);
     }
 
-    let custom_checker = find_source_file(
+    let checker = find_source_file(
         task_dir,
         vec![
             "check/checker.*",
@@ -440,22 +441,26 @@ pub fn parse_task<P: AsRef<Path>>(
         c
     })
     .map(Arc::new)
-    .map(Checker::Custom);
+    .map(Checker::Custom)
+    .unwrap_or(Checker::WhiteDiff);
     let official_solution =
         match detect_output_generator(task_dir.to_path_buf(), grader_map.clone())(0) {
             gen @ OutputGenerator::Custom(_, _) => Some(gen),
             _ => None,
         };
+    let task_type = TaskType::Batch(BatchTypeData {
+        output_generator: official_solution,
+        checker,
+    });
     let mut task = Task {
         path: task_dir.into(),
-        task_type: TaskType::Batch,
+        task_type,
         name: yaml.name,
         title: yaml.title,
         time_limit: yaml.time_limit,
         memory_limit: yaml.memory_limit,
         infile,
         outfile,
-        checker: custom_checker.unwrap_or(Checker::WhiteDiff),
         testcase_score_aggregator: yaml
             .score_type
             .as_ref()
@@ -474,7 +479,6 @@ pub fn parse_task<P: AsRef<Path>>(
         syllabus_level: yaml.syllabuslevel,
         sanity_checks: Arc::new(get_sanity_checks(&eval_config.disabled_sanity_checks)),
         input_validator: detect_validator(task_dir.to_path_buf())(0),
-        output_generator: official_solution,
     };
     // split the creation of the task because make_booklets need an instance of Task
     if !eval_config.no_statement {
