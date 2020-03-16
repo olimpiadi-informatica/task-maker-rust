@@ -139,7 +139,7 @@ impl SourceFile {
         args: Vec<String>,
     ) -> Result<(Option<ExecutionUuid>, Execution), Error> {
         let comp = self.prepare(dag)?;
-        let write_to = self.write_bin_to.as_ref().map(|p| p.as_path());
+        let write_to = self.write_bin_to.as_deref();
         let mut exec = Execution::new(
             description.as_ref(),
             self.language.runtime_command(&self.path, write_to),
@@ -228,7 +228,7 @@ impl SourceFile {
         if self.executable.lock().unwrap().is_some() {
             return Ok(None);
         }
-        let write_to = self.write_bin_to.as_ref().map(|p| p.as_path());
+        let write_to = self.write_bin_to.as_deref();
         if self.language.need_compilation() {
             let mut comp = Execution::new(
                 &format!("Compilation of {:?}", self.name()),
