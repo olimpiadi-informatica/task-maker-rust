@@ -10,6 +10,7 @@ use crate::ioi::Task;
 use crate::sanity_checks::{SanityCheck, SanityChecks};
 use crate::ui::UIMessage;
 use crate::{list_files, EvaluationData, UISender};
+use std::collections::HashSet;
 
 mod att;
 mod sol;
@@ -60,27 +61,42 @@ fn check_missing_graders<P: AsRef<Path>>(
     if !has_grader(task) {
         return Ok(());
     }
+    // some task formats use stub.* others use grader.*
+    // To avoid confusion emit warnings only either for stubs or graders.
+    let is_stub = task
+        .grader_map
+        .all_paths()
+        .filter_map(|p| p.file_stem())
+        .any(|p| p == "stub");
+    let mut graders = HashSet::new();
     for file in list_files(task.path.join(folder.as_ref()), vec!["*.*"]) {
         let stem = match file.file_stem() {
             Some(stem) => stem,
             None => continue,
         };
         // do not check the graders
-        if stem == "grader" {
+        if stem == "grader" || stem == "stub" {
             continue;
         }
         if let Some(lang) = LanguageManager::detect_language(&file) {
             let ext = lang.extensions()[0];
-            let grader = file.with_file_name(format!("grader.{}", ext));
-            if !grader.exists() {
-                eval.sender.send(UIMessage::Warning {
-                    message: format!(
-                        "Missing grader at {}/grader.{}",
-                        folder.as_ref().display(),
-                        ext
-                    ),
-                })?;
+            if is_stub {
+                graders.insert(file.with_file_name(format!("stub.{}", ext)));
+            } else {
+                graders.insert(file.with_file_name(format!("grader.{}", ext)));
             }
+        }
+    }
+    for grader in graders {
+        if !grader.exists() {
+            let name = Path::new(grader.file_name().unwrap());
+            eval.sender.send(UIMessage::Warning {
+                message: format!(
+                    "Missing grader at {}/{}",
+                    folder.as_ref().display(),
+                    name.display()
+                ),
+            })?;
         }
     }
     Ok(())
