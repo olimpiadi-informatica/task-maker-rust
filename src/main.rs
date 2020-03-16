@@ -114,6 +114,7 @@ extern crate log;
 extern crate scopeguard;
 
 use std::io::Write;
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 use structopt::StructOpt;
@@ -194,17 +195,21 @@ fn dont_panic(path: PathBuf) {
 
     println!("Removing {}...", path.display());
     // first pass to make everything writable
-    for entry in WalkDir::new(&path).contents_first(false) {
-        let entry = entry.unwrap();
-        let path = entry.path();
-        let mut perm = entry.metadata().unwrap().permissions();
-        if perm.readonly() {
-            perm.set_readonly(false);
-            if let Err(e) = std::fs::set_permissions(path, perm) {
-                eprintln!("Failed to chmod +w {}: {}", path.display(), e);
+    WalkDir::new(&path)
+        .contents_first(false)
+        .into_iter()
+        .filter_entry(|e| {
+            let path = e.path();
+            if path.is_dir() {
+                let mut permisions = std::fs::metadata(&path).unwrap().permissions();
+                permisions.set_mode(0o755);
+                if let Err(e) = std::fs::set_permissions(path, permisions) {
+                    eprintln!("Failed to chmod 755 {}: {}", path.display(), e);
+                }
             }
-        }
-    }
+            true
+        })
+        .last();
     // second pass to remove everything
     if let Err(e) = std::fs::remove_dir_all(&path) {
         eprintln!("Failed to remove {}: {}", path.display(), e);
