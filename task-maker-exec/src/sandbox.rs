@@ -338,6 +338,9 @@ impl Sandbox {
         for arg in self.execution.args.iter() {
             config.arg(arg);
         }
+        // drop root privileges in the sandbox
+        config.uid(1000);
+        config.gid(1000);
         Ok(())
     }
 
@@ -357,7 +360,8 @@ impl Sandbox {
         std::fs::create_dir_all(box_dir.as_ref().join("etc"))?;
         std::fs::write(
             box_dir.as_ref().join("etc").join("passwd"),
-            "root::0:0::/:/bin/sh\n",
+            "root::0:0::/:/bin/sh\n\
+            nobody::1000:1000::/:/bin/sh\n",
         )?;
         if let Some(stdin) = execution.stdin {
             Sandbox::write_sandbox_file(
