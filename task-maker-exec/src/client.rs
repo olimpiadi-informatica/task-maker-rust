@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -114,7 +115,7 @@ impl ExecutorClient {
                         missing_files = Some(missing - 1);
                     }
                     let iterator = ChannelFileIterator::new(&receiver);
-                    process_provided_file(&mut dag.file_callbacks, uuid, success, iterator)?;
+                    process_provided_file(&mut dag.file_callbacks, uuid, success, iterator, None)?;
                 }
                 Ok(ExecutorServerMessage::NotifyStart(uuid, worker)) => {
                     info!("Execution {} started on {}", uuid, worker);
@@ -169,6 +170,7 @@ impl ExecutorClient {
                                 uuid,
                                 success,
                                 iterator,
+                                None,
                             )?;
                         } else {
                             sender.send(ExecutorClientMessage::AskFile(uuid, key, success))?;
@@ -207,7 +209,13 @@ impl ExecutorClient {
             match file {
                 ProvidedFile::LocalFile { local_path, .. } => {
                     let iterator = ReadFileIterator::new(&local_path)?;
-                    process_provided_file(&mut dag.file_callbacks, *uuid, true, iterator)?;
+                    process_provided_file(
+                        &mut dag.file_callbacks,
+                        *uuid,
+                        true,
+                        iterator,
+                        Some(&local_path),
+                    )?;
                 }
                 ProvidedFile::Content { content, .. } => {
                     process_provided_file(
@@ -215,6 +223,7 @@ impl ExecutorClient {
                         *uuid,
                         true,
                         vec![content.clone()],
+                        None,
                     )?;
                 }
             }
@@ -299,11 +308,17 @@ where
 
 /// Process a file provided either by the client or by the server, calling the callback and writing
 /// it to the `write_to` path. This will consume the iterator even if the callback is not present.
+///
+/// If the iterator is reading the same file this function writes to, the result is the file getting
+/// truncated, for this reason a best-effort approach is implemented: if the iterator reads a local
+/// file pass to this function also the path to the file. The file wont be truncated if write_to
+/// points to the same file as the hint.
 fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
     file_callbacks: &mut HashMap<FileUuid, FileCallbacks>,
     uuid: FileUuid,
     success: bool,
     iterator: I,
+    source_path_hint: Option<&Path>,
 ) -> Result<(), Error> {
     if let Some(callback) = file_callbacks.get_mut(&uuid) {
         let limit = callback
@@ -321,11 +336,26 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
                 if !success && !*allow_failure {
                     None
                 } else {
-                    std::fs::create_dir_all(
-                        dest.parent()
-                            .ok_or_else(|| format_err!("Invalid file destination path"))?,
-                    )?;
-                    Some(std::fs::File::create(dest)?)
+                    let mut skip = false;
+                    if let Some(source) = source_path_hint {
+                        match (source.canonicalize(), dest.canonicalize()) {
+                            (Ok(path), Ok(path2)) if path == path2 => {
+                                info!("Not writing {} from itself", path.display());
+                                skip = true;
+                            }
+                            _ => {}
+                        }
+                    }
+                    if skip {
+                        None
+                    } else {
+                        info!("Writing file {} to {}", uuid, dest.display());
+                        std::fs::create_dir_all(
+                            dest.parent()
+                                .ok_or_else(|| format_err!("Invalid file destination path"))?,
+                        )?;
+                        Some(std::fs::File::create(dest)?)
+                    }
                 }
             }
             _ => None,
