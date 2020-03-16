@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::fs::Permissions;
 use std::io::Read;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
@@ -345,13 +347,16 @@ fn execute_job(
 /// The sandbox group manager spawns the threads of the sandbox of all the executions in the group.
 /// Then waits for their outcome and eventually stops the sandboxes if a process fails. When all the
 /// sandboxes complete, this manager collects their results and send them back to the server.
+///
+/// Note that this function owns `fifo_dir`, the `TempDir` where the FIFOs are stored, it has not to
+/// be dropped before all the sandboxes end.
 fn sandbox_group_manager(
     current_job: Arc<Mutex<WorkerCurrentJob>>,
     job: WorkerJob,
     sender: ChannelSender<WorkerClientMessage>,
     sandboxes: Vec<Sandbox>,
     runner: Arc<dyn SandboxRunner>,
-    _fifo_dir: Option<TempDir>, // keep the TempDir alive
+    fifo_dir: Option<TempDir>,
 ) {
     // TODO: since in the vast majority of the cases the ExecutionGroup is composed by a single
     //       Execution, this function can be heavily optimized by using this thread to spawn the
@@ -445,6 +450,10 @@ fn sandbox_group_manager(
     job.current_job = None;
     job.current_sandboxes = None;
     let _ = sender.send(WorkerClientMessage::GetWork);
+    // The sandbox may chmod -r the directory, revert it to allow deletion on drop
+    if let Some(fifo_dir) = fifo_dir {
+        let _ = std::fs::set_permissions(fifo_dir.path(), Permissions::from_mode(0o755));
+    }
 }
 
 /// Spawn the sandbox of an execution in a different thread and send to the group manager the
