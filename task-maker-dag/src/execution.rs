@@ -3,6 +3,7 @@ use crate::signals::strsignal;
 use crate::ExecutionDAGConfig;
 use boxfnonce::BoxFnOnce;
 use failure::Error;
+use failure::_core::fmt::Formatter;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -227,7 +228,7 @@ pub struct ExecutionResourcesUsage {
 }
 
 /// The result of an [`Execution`](struct.Execution.html).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct ExecutionResult {
     /// Status of the completed execution.
     pub status: ExecutionStatus,
@@ -722,6 +723,31 @@ impl std::default::Default for ExecutionCallbacks {
             on_done: Vec::new(),
             on_skip: Vec::new(),
         }
+    }
+}
+
+impl std::fmt::Debug for ExecutionResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExecutionResult")
+            .field("status", &self.status)
+            .field("was_killed", &self.was_killed)
+            .field("was_cached", &self.was_cached)
+            .field("resources", &self.resources)
+            .field(
+                "stdout",
+                &self
+                    .stdout
+                    .as_ref()
+                    .map(|s| String::from_utf8_lossy(s).to_string()),
+            )
+            .field(
+                "stderr",
+                &self
+                    .stderr
+                    .as_ref()
+                    .map(|s| String::from_utf8_lossy(s).to_string()),
+            )
+            .finish()
     }
 }
 
