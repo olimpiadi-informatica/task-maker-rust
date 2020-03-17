@@ -121,6 +121,7 @@ use structopt::StructOpt;
 use walkdir::WalkDir;
 
 pub use local::{run_evaluation, Evaluation};
+pub use print_dag::print_dag;
 pub use server::main_server;
 pub use worker::main_worker;
 
@@ -128,6 +129,7 @@ mod detect_format;
 mod error;
 mod local;
 mod opt;
+mod print_dag;
 mod sandbox;
 mod server;
 mod worker;

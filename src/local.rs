@@ -7,6 +7,7 @@ use failure::{bail, format_err, Error};
 use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
 use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage};
+use task_maker_exec::proto::ExecutorClientMessage;
 use task_maker_exec::{connect_channel, new_local_channel, ExecutorClient};
 use task_maker_format::ui::{UIMessage, UIType, UI};
 use task_maker_format::{EvaluationData, TaskFormat, UISender, VALID_TAGS};
@@ -15,8 +16,8 @@ use task_maker_store::FileStore;
 use crate::detect_format::find_task;
 use crate::error::NiceError;
 use crate::opt::Opt;
+use crate::print_dag;
 use crate::sandbox::SelfExecSandboxRunner;
-use task_maker_exec::proto::ExecutorClientMessage;
 
 /// The result of an evaluation.
 pub enum Evaluation {
@@ -106,6 +107,24 @@ where
         })?,
     );
 
+    // setup the executor
+    let cache = Cache::new(store_path.join("cache"))
+        .map_err(|e| format_err!("Cannot create the cache: {}", e.to_string()))?;
+    let num_cores = opt.num_cores.unwrap_or_else(num_cpus::get);
+    let sandbox_path = store_path.join("sandboxes");
+    let executor = LocalExecutor::new(file_store.clone(), num_cores, sandbox_path);
+
+    // build the DAG for the task
+    if let Err(e) = task.build_dag(&mut eval, &eval_config) {
+        bail!("Cannot build task DAG! {:?}", e);
+    }
+
+    trace!("The DAG is: {:#?}", eval.dag);
+    if opt.print_dag {
+        print_dag(eval.dag);
+        return Ok(Evaluation::Done);
+    }
+
     // setup the ui thread
     let mut ui = task
         .ui(&opt.ui)
@@ -122,24 +141,6 @@ where
             ui.finish();
         })
         .map_err(|e| format_err!("Failed to spawn UI thread: {}", e.to_string()))?;
-
-    // setup the executor
-    let cache = Cache::new(store_path.join("cache"))
-        .map_err(|e| format_err!("Cannot create the cache: {}", e.to_string()))?;
-    let num_cores = opt.num_cores.unwrap_or_else(num_cpus::get);
-    let sandbox_path = store_path.join("sandboxes");
-    let executor = LocalExecutor::new(file_store.clone(), num_cores, sandbox_path);
-
-    // build the DAG for the task
-    if let Err(e) = task.build_dag(&mut eval, &eval_config) {
-        eval.sender.send(UIMessage::StopUI)?;
-        ui_thread
-            .join()
-            .map_err(|e| format_err!("UI panicked: {:?}", e))?;
-        bail!("Cannot build task DAG! {:?}", e);
-    }
-
-    trace!("The DAG is: {:#?}", eval.dag);
 
     let (tx, rx, server) = if let Some(evaluate_on) = opt.evaluate_on {
         let server_addr = SocketAddr::from_str(&evaluate_on)

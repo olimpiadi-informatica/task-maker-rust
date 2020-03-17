@@ -31,6 +31,10 @@ pub struct Opt {
     #[structopt(long = "dry-run")]
     pub dry_run: bool,
 
+    /// Print the evaluation DAG in DOT format
+    #[structopt(long = "print-dag")]
+    pub print_dag: bool,
+
     /// Disable the cache for this comma separated list of tags
     #[structopt(long = "no-cache", long_help = no_cache_long_help())]
     #[allow(clippy::option_option)]
