@@ -1,26 +1,12 @@
 #[cfg(test)]
 mod tests {
     use task_maker_dag::{Execution, ExecutionCommand, ExecutionDAG, ExecutionGroup, File};
-    use task_maker_exec::eval_dag_locally;
-    use task_maker_rust::SelfExecSandboxRunner;
 
-    use std::path::PathBuf;
-
-    fn setup() {
-        let _ = env_logger::Builder::from_default_env()
-            .default_format_timestamp_nanos(true)
-            .is_test(true)
-            .try_init();
-        std::env::set_var(
-            "TASK_MAKER_SANDBOX_BIN",
-            PathBuf::from(env!("OUT_DIR")).join("sandbox"),
-        );
-    }
+    use crate::{eval_dag, setup};
 
     #[test]
     fn test_fifo() {
         setup();
-        let cwd = tempdir::TempDir::new("tm-test").unwrap();
         let mut dag = ExecutionDAG::new();
 
         let mut group = ExecutionGroup::new("group");
@@ -82,14 +68,6 @@ mod tests {
         group.add_execution(exec2);
 
         dag.add_execution_group(group);
-        eval_dag_locally(
-            dag,
-            cwd.path(),
-            2,
-            cwd.path(),
-            1000,
-            1000,
-            SelfExecSandboxRunner::default(),
-        );
+        eval_dag(dag);
     }
 }
