@@ -11,6 +11,10 @@ use crate::{bind_exec_callbacks, EvaluationData, SourceFile, Tag};
 
 /// Maximum number of bytes of the checker's standard output.
 const OUTCOME_SIZE_LIMIT: usize = 1024 * 1024; // 1MiB
+/// Maximum number of bytes of the standard error of the executions.
+const STDERR_SIZE_LIMIT: usize = 10 * 1024;
+/// Time limit for the execution of the solutions.
+const SOLUTION_TIME_LIMIT: f64 = 20.0;
 
 /// The source of the input files.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,7 +74,7 @@ impl InputGenerator {
         seed: Seed,
         official_solution: Option<Arc<SourceFile>>,
     ) -> Result<FileUuid, Error> {
-        let (input, gen) = self.generate(
+        let (input, mut gen) = self.generate(
             eval,
             format!(
                 "Generation of input file for {} with seed {}",
@@ -100,7 +104,7 @@ impl InputGenerator {
             path,
             seed
         )?;
-        // TODO: bind stdout/stderr
+        gen.capture_stderr(STDERR_SIZE_LIMIT);
         eval.dag.add_execution(gen);
         Ok(input)
     }
@@ -137,7 +141,7 @@ impl InputValidator {
         input: FileUuid,
         official_solution: Option<Arc<SourceFile>>,
     ) -> Result<FileUuid, Error> {
-        let (handle, val) = self.validate(
+        let (handle, mut val) = self.validate(
             eval,
             format!("Validation of input file for {}", solution.name()),
             input,
@@ -150,7 +154,7 @@ impl InputValidator {
             |status, solution| UIMessage::TerryValidation { solution, status },
             path
         )?;
-        // TODO bind stdout/stderr
+        val.capture_stderr(STDERR_SIZE_LIMIT);
         eval.dag.add_execution(val);
         Ok(handle)
     }
@@ -177,7 +181,9 @@ impl Solution {
             exec.input(validation, "wait_for_validation", false);
         }
         let output = exec.stdout();
-        exec.limits_mut().cpu_time(20.0).wall_time(21.0); // TODO set limits
+        exec.limits_mut()
+            .cpu_time(SOLUTION_TIME_LIMIT)
+            .wall_time(SOLUTION_TIME_LIMIT * 1.25);
         Ok((output.uuid, exec))
     }
 
@@ -188,7 +194,7 @@ impl Solution {
         input: FileUuid,
         validation_handle: Option<FileUuid>,
     ) -> Result<FileUuid, Error> {
-        let (output, sol) = Solution::solve(eval, solution, input, validation_handle)?;
+        let (output, mut sol) = Solution::solve(eval, solution, input, validation_handle)?;
         if eval.dag.config_mut().copy_exe {
             eval.dag.write_file_to(
                 output,
@@ -204,6 +210,7 @@ impl Solution {
             |status, solution| UIMessage::TerrySolution { solution, status },
             path
         )?;
+        sol.capture_stderr(STDERR_SIZE_LIMIT);
         eval.dag.add_execution(sol);
         Ok(output)
     }
@@ -258,7 +265,7 @@ impl Checker {
     where
         F: FnOnce(Result<SolutionOutcome, Error>) -> Result<(), Error> + 'static,
     {
-        let exec = self.check(
+        let mut exec = self.check(
             eval,
             format!("Checking output of {}", solution.name()),
             input,
@@ -273,6 +280,7 @@ impl Checker {
             |status, solution| UIMessage::TerryChecker { solution, status },
             path
         )?;
+        exec.capture_stderr(STDERR_SIZE_LIMIT);
         eval.dag.add_execution(exec);
         Ok(())
     }

@@ -94,19 +94,37 @@ impl FinishUI {
             print!("Generation: ");
             print_result(&solution.generator_result);
             println!();
+            self.print_stderr(&solution.generator_result);
 
             print!("Validation: ");
             print_result(&solution.validator_result);
             println!();
+            self.print_stderr(&solution.validator_result);
 
             print!("Evaluation: ");
             print_result(&solution.solution_result);
             println!();
+            self.print_stderr(&solution.solution_result);
 
             print!("   Checker: ");
             print_result(&solution.checker_result);
             println!();
+            self.print_stderr(&solution.checker_result);
             println!();
+        }
+    }
+
+    /// Print the standard error in the provided, if present and not empty.
+    fn print_stderr(&mut self, result: &Option<ExecutionResult>) {
+        if let Some(res) = result {
+            if let Some(content) = &res.stderr {
+                let content = String::from_utf8_lossy(content);
+                let content = content.trim();
+                if !content.is_empty() {
+                    cwriteln!(self, YELLOW, "Stderr:");
+                    println!("{}", content);
+                }
+            }
         }
     }
 
