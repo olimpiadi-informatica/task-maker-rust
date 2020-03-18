@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use task_maker_dag::{Execution, ExecutionDAG, File, ProvidedFile};
 
 /// A node in the printed graph.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 enum Node {
     /// The node is an Execution.
