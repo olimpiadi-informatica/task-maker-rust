@@ -5,7 +5,7 @@ use termcolor::{ColorChoice, StandardStream};
 
 use task_maker_dag::{ExecutionResult, ExecutionStatus};
 
-use crate::terry::ui_state::{SolutionStatus, UIState};
+use crate::terry::ui_state::{SolutionState, SolutionStatus, UIState};
 use crate::terry::CaseStatus;
 use crate::ui::{FinishUI as FinishUITrait, FinishUIUtils, BLUE, BOLD, GREEN, RED, YELLOW};
 use crate::{cwrite, cwriteln};
@@ -110,6 +110,9 @@ impl FinishUI {
             print_result(&solution.checker_result);
             println!();
             self.print_stderr(&solution.checker_result);
+
+            self.print_feedback(solution);
+
             println!();
         }
     }
@@ -125,6 +128,41 @@ impl FinishUI {
                     println!("{}", content);
                 }
             }
+        }
+    }
+
+    fn print_feedback(&mut self, solution: &SolutionState) {
+        let outcome = if let Some(Ok(outcome)) = &solution.outcome {
+            outcome
+        } else {
+            return;
+        };
+        for (index, (val, feedback)) in outcome
+            .validation
+            .cases
+            .iter()
+            .zip(outcome.feedback.cases.iter())
+            .enumerate()
+        {
+            print!("#{:<3}  ", index);
+            match val.status {
+                CaseStatus::Missing => cwrite!(self, YELLOW, "Missing"),
+                CaseStatus::Parsed => cwrite!(self, GREEN, " Valid "),
+                CaseStatus::Invalid => cwrite!(self, RED, "Invalid"),
+            }
+            print!(" | ");
+            if feedback.correct {
+                cwrite!(self, GREEN, "Correct");
+            } else {
+                cwrite!(self, RED, "Wrong  ");
+            }
+            if let Some(message) = &val.message {
+                print!(" | {}", message);
+            }
+            if let Some(message) = &feedback.message {
+                print!(" | {}", message);
+            }
+            println!();
         }
     }
 
