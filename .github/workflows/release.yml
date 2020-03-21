@@ -31,6 +31,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           args: "target/debian/*.deb"
+      - name: Publish docker container
+        run: |
+          echo ${DOCKER_PASSWORD} | docker login --username edomora97 --password-stdin
+          export TM_VERSION=$(grep version Cargo.toml | cut -d'"' -f 2)
+          cd tools/docker
+          docker build --build-arg TM_VERSION=$TM_VERSION -t edomora97/task-maker-rust:latest -t edomora97/task-maker-rust:$TM_VERSION .
+          docker push edomora97/task-maker-rust:$TM_VERSION
+          docker push edomora97/task-maker-rust:latest
+        env:
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
   macOS:
     name: Build & Publish (macOS)
