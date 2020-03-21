@@ -1,6 +1,6 @@
 [package]
 name = "task-maker-test"
-version = "0.3.6"
+version = "0.3.7"
 authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
 edition = "2018"
 build = "build.rs"
