@@ -59,8 +59,17 @@ jobs:
           brew install --verbose --build-bottle ./tools/homebrew/task-maker-rust.rb
           brew bottle --force-core-tap ./tools/homebrew/task-maker-rust.rb
       - name: Upload the artifacts
-        uses: skx/github-action-publish-binaries@master
+        run: |
+          export filename=$(ls *.bottle.tar.gz)
+          export tag=v$(grep version Cargo.toml | cut -d'"' -f 2)
+          export GH_API="https://api.github.com"
+          export GH_REPO="$GH_API/repos/edomora97/task-maker-rust"
+          export GH_TAGS="$GH_REPO/releases/tags/$tag"
+          export AUTH="Authorization: token $GITHUB_TOKEN"
+          response=$(curl -sH "$AUTH" $GH_TAGS)
+          eval $(echo "$response" | grep -m 1 "id.:" | grep -w id | tr : = | tr -cd '[[:alnum:]]=')
+          [ "$id" ] || { echo "Error: Failed to get release id for tag: $tag"; echo "$response" | awk 'length($0)<100' >&2; exit 1; }
+          export GH_ASSET="https://uploads.github.com/repos/edomora97/task-maker-rust/releases/$id/assets?name=$(basename $filename)"
+          curl --data-binary @"$filename" -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/octet-stream" $GH_ASSET
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          args: "*.bottle.tar.gz"
