@@ -248,6 +248,24 @@ impl Sandbox {
         self.data.lock().unwrap().path().join("box").join(output)
     }
 
+    /// Directory to use inside the sandbox as the root for the evaluation.
+    ///
+    /// Due to a limitation of `tabox`, under macos the sandbox is not able to mount the directories
+    /// well (the bind-mounts are not available), so `/box` cannot be emulated easily. To workaround
+    /// this limitation, only under macos the original path is kept. This leaks some information
+    /// about the host, but since the sandbox is pretty fake anyway this is not really a problem.
+    #[allow(unused_variables)]
+    fn box_root(&self, boxdir: &Path) -> PathBuf {
+        #[cfg(not(target_os = "macos"))]
+        {
+            PathBuf::from("/box")
+        }
+        #[cfg(target_os = "macos")]
+        {
+            boxdir.join("box")
+        }
+    }
+
     /// Build the configuration of the tabox sandbox.
     fn build_command(
         &self,
@@ -255,9 +273,10 @@ impl Sandbox {
         config: &mut SandboxConfiguration,
         fifo_dir: Option<PathBuf>,
     ) -> Result<(), Error> {
-        config.working_directory("/box");
+        let box_root = self.box_root(boxdir);
+        config.working_directory(&box_root);
         // the box directory must be writable otherwise the output files cannot be written
-        config.mount(boxdir.join("box"), "/box", true);
+        config.mount(boxdir.join("box"), &box_root, true);
         config.env("PATH", std::env::var("PATH").unwrap_or_default());
         if self.execution.stdin.is_some() {
             config.stdin(boxdir.join("stdin"));
@@ -308,7 +327,7 @@ impl Sandbox {
         if let Some(path) = fifo_dir {
             // allow access knowing the path but prevent listing the dir content
             Sandbox::set_permissions(&path, 0o111)?;
-            config.mount(path, Path::new("/box").join(FIFO_SANDBOX_DIR), false);
+            config.mount(path, box_root.join(FIFO_SANDBOX_DIR), false);
         }
         for dir in READABLE_DIRS {
             if Path::new(dir).is_dir() {
@@ -332,7 +351,7 @@ impl Sandbox {
                 }
             }
             ExecutionCommand::Local(cmd) => {
-                config.executable(Path::new("/box").join(cmd));
+                config.executable(box_root.join(cmd));
             }
         };
         for arg in self.execution.args.iter() {
@@ -480,6 +499,7 @@ mod tests {
         assert!(!outfile.parent().unwrap().parent().unwrap().exists()); // the sandbox dir
     }
 
+    #[cfg(not(target_os = "macos"))]
     #[test]
     fn test_command_args() {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
