@@ -37,8 +37,6 @@ const READABLE_DIRS: &[&str] = &[
 pub enum SandboxResult {
     /// The sandbox exited successfully, the statistics about the sandboxed process are reported.
     Success {
-        // TODO make these an enum since there are three disjoint cases: exit with status, killed by
-        //  signal, killed by sandbox
         /// The exit status of the process.
         exit_status: u32,
         /// The signal that caused the process to exit.
@@ -62,6 +60,8 @@ struct SandboxData {
     /// Handle to the temporary directory, will be deleted on drop. It's always Some(_) except
     /// inside `Drop`.
     boxdir: Option<TempDir>,
+    /// Execution to run.
+    execution: Execution,
     /// Whether to keep the sandbox after exit.
     keep_sandbox: bool,
     /// Directory where the FIFO pipes are stored.
@@ -88,9 +88,6 @@ pub enum RawSandboxResult {
 pub struct Sandbox {
     /// Internal data of the sandbox.
     data: Arc<Mutex<SandboxData>>,
-    // TODO move `execution` inside `data`
-    /// Execution to run.
-    execution: Execution,
 }
 
 impl Sandbox {
@@ -108,29 +105,34 @@ impl Sandbox {
         Ok(Sandbox {
             data: Arc::new(Mutex::new(SandboxData {
                 boxdir: Some(boxdir),
+                execution: execution.clone(),
                 keep_sandbox: false,
                 fifo_dir,
                 box_pid: Arc::new(AtomicU32::new(0)),
             })),
-            execution: execution.clone(),
         })
     }
 
     /// Starts the sandbox and blocks the thread until the sandbox exits.
     pub fn run(&self, runner: &dyn SandboxRunner) -> Result<SandboxResult, Error> {
-        let (boxdir, pid, keep, fifo_dir) = {
+        let mut config = SandboxConfiguration::default();
+        let (boxdir, pid, keep, cmd) = {
             let data = self.data.lock().unwrap();
             (
                 data.path().to_owned(),
                 data.box_pid.clone(),
                 data.keep_sandbox,
-                data.fifo_dir.clone(),
+                self.build_command(
+                    data.path(),
+                    &data.execution,
+                    &mut config,
+                    data.fifo_dir.clone(),
+                ),
             )
         };
         trace!("Running sandbox at {:?}", boxdir);
 
-        let mut config = SandboxConfiguration::default();
-        if let Err(e) = self.build_command(&boxdir, &mut config, fifo_dir) {
+        if let Err(e) = cmd {
             return Ok(SandboxResult::Failed {
                 error: e.to_string(),
             });
@@ -223,11 +225,13 @@ impl Sandbox {
         debug!("Keeping sandbox at {:?}", path);
         data.keep_sandbox = true;
         let serialized =
-            serde_json::to_string_pretty(&self.execution).expect("Cannot serialize execution");
+            serde_json::to_string_pretty(&data.execution).expect("Cannot serialize execution");
         std::fs::write(path.join("info.json"), serialized)
             .expect("Cannot write execution info inside sandbox");
         let mut config = SandboxConfiguration::default();
-        if let Ok(()) = self.build_command(&path, &mut config, data.fifo_dir.clone()) {
+        if let Ok(()) =
+            self.build_command(&path, &data.execution, &mut config, data.fifo_dir.clone())
+        {
             std::fs::write(path.join("tabox.txt"), format!("{:#?}\n", config))
                 .expect("Cannot write command info inside sandbox");
         }
@@ -270,6 +274,7 @@ impl Sandbox {
     fn build_command(
         &self,
         boxdir: &Path,
+        execution: &Execution,
         config: &mut SandboxConfiguration,
         fifo_dir: Option<PathBuf>,
     ) -> Result<(), Error> {
@@ -278,50 +283,44 @@ impl Sandbox {
         // the box directory must be writable otherwise the output files cannot be written
         config.mount(boxdir.join("box"), &box_root, true);
         config.env("PATH", std::env::var("PATH").unwrap_or_default());
-        if self.execution.stdin.is_some() {
+        if execution.stdin.is_some() {
             config.stdin(boxdir.join("stdin"));
         } else {
             config.stdin("/dev/null");
         }
-        if self.execution.stdout.is_some() {
+        if execution.stdout.is_some() {
             config.stdout(boxdir.join("stdout"));
         } else {
             config.stdout("/dev/null");
         }
-        if self.execution.stderr.is_some() {
+        if execution.stderr.is_some() {
             config.stderr(boxdir.join("stderr"));
         } else {
             config.stderr("/dev/null");
         }
-        for (key, value) in self.execution.env.iter() {
+        for (key, value) in execution.env.iter() {
             config.env(key, value);
         }
 
-        let cpu_limit = match (
-            self.execution.limits.cpu_time,
-            self.execution.limits.sys_time,
-        ) {
+        let cpu_limit = match (execution.limits.cpu_time, execution.limits.sys_time) {
             (Some(cpu), Some(sys)) => Some(cpu + sys),
             (Some(cpu), None) => Some(cpu),
             (None, Some(sys)) => Some(sys),
             (None, None) => None,
         };
         if let Some(cpu) = cpu_limit {
-            let cpu = cpu + self.execution.config().extra_time;
+            let cpu = cpu + execution.config().extra_time;
             config.time_limit(cpu.ceil() as u64);
         }
-        if let Some(wall) = self.execution.limits.wall_time {
-            let wall = wall + self.execution.config().extra_time;
+        if let Some(wall) = execution.limits.wall_time {
+            let wall = wall + execution.config().extra_time;
             config.wall_time_limit(wall.ceil() as u64);
         }
-        if let Some(mem) = self.execution.limits.memory {
+        if let Some(mem) = execution.limits.memory {
             config.memory_limit(mem * 1024);
         }
-        let multiproc = Some(1) != self.execution.limits.nproc;
-        config.syscall_filter(SyscallFilter::build(
-            multiproc,
-            !self.execution.limits.read_only,
-        ));
+        let multiproc = Some(1) != execution.limits.nproc;
+        config.syscall_filter(SyscallFilter::build(multiproc, !execution.limits.read_only));
         // has to be writable for mounting stuff in it
         config.mount(boxdir.join("etc"), "/etc", true);
         if let Some(path) = fifo_dir {
@@ -334,15 +333,15 @@ impl Sandbox {
                 config.mount(dir, dir, false);
             }
         }
-        for dir in &self.execution.limits.extra_readable_dirs {
+        for dir in &execution.limits.extra_readable_dirs {
             if dir.is_dir() {
                 config.mount(dir, dir, false);
             }
         }
-        if self.execution.limits.mount_tmpfs {
+        if execution.limits.mount_tmpfs {
             config.mount_tmpfs(true);
         }
-        match &self.execution.command {
+        match &execution.command {
             ExecutionCommand::System(cmd) => {
                 if let Ok(cmd) = which::which(cmd) {
                     config.executable(cmd);
@@ -354,7 +353,7 @@ impl Sandbox {
                 config.executable(box_root.join(cmd));
             }
         };
-        for arg in self.execution.args.iter() {
+        for arg in execution.args.iter() {
             config.arg(arg);
         }
         // drop root privileges in the sandbox
@@ -517,7 +516,7 @@ mod tests {
         let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new(), None).unwrap();
         let mut config = SandboxConfiguration::default();
         sandbox
-            .build_command(tmpdir.path(), &mut config, None)
+            .build_command(tmpdir.path(), &exec, &mut config, None)
             .unwrap();
         let extra_time = exec.config().extra_time;
         let total_time = (1.0 + 2.6 + extra_time).ceil() as u64;
