@@ -354,84 +354,84 @@ fn sandbox_group_manager(
     current_job: Arc<Mutex<WorkerCurrentJob>>,
     job: WorkerJob,
     sender: ChannelSender<WorkerClientMessage>,
-    sandboxes: Vec<Sandbox>,
+    mut sandboxes: Vec<Sandbox>,
     runner: Arc<dyn SandboxRunner>,
     fifo_dir: Option<TempDir>,
 ) {
-    // TODO: since in the vast majority of the cases the ExecutionGroup is composed by a single
-    //       Execution, this function can be heavily optimized by using this thread to spawn the
-    //       sandbox and avoid spawning/joining all the sandbox threads.
-    let mut handles = Vec::new();
-    let (group_sender, receiver) = channel();
-    for (index, sandbox) in sandboxes.clone().into_iter().enumerate() {
-        handles.push(
-            spawn_sandbox(
-                &job.group.description,
-                sandbox,
-                runner.clone(),
-                index,
-                group_sender.clone(),
-            )
-            .unwrap(),
-        );
-    }
-
+    assert_eq!(sandboxes.len(), job.group.executions.len());
     let mut results = vec![None; job.group.executions.len()];
-    let mut missing = job.group.executions.len();
     let mut outputs = HashMap::new();
     let mut output_paths = HashMap::new();
 
-    while missing > 0 {
-        match receiver.recv() {
-            Ok((index, result)) => {
-                assert!(results[index].is_none());
+    // in case of simple executions there's no need to spawn the sandbox in a different thread and
+    // then join from here
+    if job.group.executions.len() == 1 {
+        let sandbox = sandboxes.pop().unwrap();
+        let result = match sandbox.run(runner.as_ref()) {
+            Ok(res) => res,
+            Err(e) => SandboxResult::Failed {
+                error: e.to_string(),
+            },
+        };
+        let exec = &job.group.executions[0];
+        let result = compute_execution_result(exec, result, &sandbox)
+            .expect("Cannot compute execution result");
+        get_result_outputs(exec, &sandbox, &mut outputs, &mut output_paths);
 
-                let exec = &job.group.executions[index];
-                let sandbox = &sandboxes[index];
+        results[0] = Some(result);
+    // this is the complex case: more than an execution (therefore more than a sandbox)
+    // All the sandboxes will run in a separate thread and this thread will wait all of them. When
+    // a sandbox is done, it signals to this thread the completion which simply computes the result.
+    // When all of them have finished this thread sends the result and exits.
+    } else {
+        let mut missing = job.group.executions.len();
+        let mut handles = Vec::new();
+        let (group_sender, receiver) = channel();
+        for (index, sandbox) in sandboxes.clone().into_iter().enumerate() {
+            handles.push(
+                spawn_sandbox(
+                    &job.group.description,
+                    sandbox,
+                    runner.clone(),
+                    index,
+                    group_sender.clone(),
+                )
+                .unwrap(),
+            );
+        }
 
-                let result = compute_execution_result(exec, result, &sandbox)
-                    .expect("Cannot compute execution result");
-                // if the process didn't exit successfully, kill the remaining sandboxes
-                if !result.status.is_success() {
-                    for (i, (res, sandbox)) in results.iter().zip(sandboxes.iter()).enumerate() {
-                        // do not kill the current process
-                        if i != index && res.is_none() {
-                            sandbox.kill();
+        while missing > 0 {
+            match receiver.recv() {
+                Ok((index, result)) => {
+                    assert!(results[index].is_none());
+
+                    let exec = &job.group.executions[index];
+                    let sandbox = &sandboxes[index];
+
+                    let result = compute_execution_result(exec, result, &sandbox)
+                        .expect("Cannot compute execution result");
+                    // if the process didn't exit successfully, kill the remaining sandboxes
+                    if !result.status.is_success() {
+                        for (i, (res, sandbox)) in results.iter().zip(sandboxes.iter()).enumerate()
+                        {
+                            // do not kill the current process
+                            if i != index && res.is_none() {
+                                sandbox.kill();
+                            }
                         }
                     }
-                }
 
-                if let Some(stdout) = &exec.stdout {
-                    let path = sandbox.stdout_path();
-                    outputs.insert(stdout.uuid, FileStoreKey::from_file(&path).unwrap());
-                    output_paths.insert(stdout.uuid, path);
-                }
-                if let Some(stderr) = &exec.stderr {
-                    let path = sandbox.stderr_path();
-                    outputs.insert(stderr.uuid, FileStoreKey::from_file(&path).unwrap());
-                    output_paths.insert(stderr.uuid, path);
-                }
-                for (path, file) in exec.outputs.iter() {
-                    let path = sandbox.output_path(path);
-                    // the sandbox process may want to remove a file, consider missing files as empty
-                    if path.exists() {
-                        outputs.insert(file.uuid, FileStoreKey::from_file(&path).unwrap());
-                        output_paths.insert(file.uuid, path.clone());
-                    } else {
-                        // FIXME: /dev/null may not be used
-                        outputs.insert(file.uuid, FileStoreKey::from_file("/dev/null").unwrap());
-                        output_paths.insert(file.uuid, "/dev/null".into());
-                    }
-                }
+                    get_result_outputs(exec, sandbox, &mut outputs, &mut output_paths);
 
-                results[index] = Some(result);
-                missing -= 1;
+                    results[index] = Some(result);
+                    missing -= 1;
+                }
+                _ => panic!("The sandboxes didn't exit well"),
             }
-            _ => panic!("The sandboxes didn't exit well"),
         }
-    }
-    for handle in handles {
-        handle.join().expect("Sandbox thread failed");
+        for handle in handles {
+            handle.join().expect("Sandbox thread failed");
+        }
     }
     sender
         .send(WorkerClientMessage::WorkerDone(
@@ -507,6 +507,37 @@ fn compute_execution_result(
             was_cached: false,
             stderr: None,
         }),
+    }
+}
+
+/// Extract the output files from the result of the sandbox and store them in the provided HashMaps.
+fn get_result_outputs(
+    exec: &Execution,
+    sandbox: &Sandbox,
+    outputs: &mut HashMap<FileUuid, FileStoreKey>,
+    output_paths: &mut HashMap<FileUuid, PathBuf>,
+) {
+    if let Some(stdout) = &exec.stdout {
+        let path = sandbox.stdout_path();
+        outputs.insert(stdout.uuid, FileStoreKey::from_file(&path).unwrap());
+        output_paths.insert(stdout.uuid, path);
+    }
+    if let Some(stderr) = &exec.stderr {
+        let path = sandbox.stderr_path();
+        outputs.insert(stderr.uuid, FileStoreKey::from_file(&path).unwrap());
+        output_paths.insert(stderr.uuid, path);
+    }
+    for (path, file) in exec.outputs.iter() {
+        let path = sandbox.output_path(path);
+        // the sandbox process may want to remove a file, consider missing files as empty
+        if path.exists() {
+            outputs.insert(file.uuid, FileStoreKey::from_file(&path).unwrap());
+            output_paths.insert(file.uuid, path.clone());
+        } else {
+            // FIXME: /dev/null may not be used
+            outputs.insert(file.uuid, FileStoreKey::from_file("/dev/null").unwrap());
+            output_paths.insert(file.uuid, "/dev/null".into());
+        }
     }
 }
 
