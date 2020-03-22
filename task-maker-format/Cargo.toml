@@ -29,6 +29,7 @@ mime_guess = "2.0"
 rand = "0.7"
 shell-words = "0.1"
 derivative = "1.0"
+nix = "0.17"
 
 [dev-dependencies]
 tempdir = "0.3"

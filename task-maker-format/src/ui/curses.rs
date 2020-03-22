@@ -4,9 +4,12 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
+use std::time::SystemTime;
 
 use failure::Error;
 use itertools::Itertools;
+use nix::sys::signal::{self, Signal};
+use nix::unistd::Pid;
 use termion::event::{Event, Key};
 use termion::input::{MouseTerminal, TermRead};
 use termion::raw::{IntoRawMode, RawTerminal};
@@ -17,9 +20,9 @@ use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, Paragraph, Text, Widget};
 use tui::{Frame, Terminal};
 
-use crate::ui::{CompilationStatus, FinishUI, UIMessage, UIStateT, UI};
-use std::time::SystemTime;
 use task_maker_exec::{ExecutorStatus, ExecutorWorkerStatus};
+
+use crate::ui::{CompilationStatus, FinishUI, UIMessage, UIStateT, UI};
 
 /// The framerate of the UI.
 pub(crate) const FPS: u64 = 30;
@@ -107,7 +110,8 @@ where
                         match event {
                             Event::Key(Key::Ctrl('c')) | Event::Key(Key::Ctrl('\\')) => {
                                 drop(terminal);
-                                std::process::exit(1)
+                                send_ctrl_c();
+                                return;
                             }
                             _ => {}
                         }
@@ -369,4 +373,12 @@ fn draw_workers_chunk(
         })
         .collect();
     Paragraph::new(text.iter()).wrap(false).render(frame, rect);
+}
+
+/// Send to the current process `SIGINT`, letting it exit gracefully.
+fn send_ctrl_c() {
+    let pid = std::process::id();
+    if let Err(e) = signal::kill(Pid::from_raw(pid as i32), Signal::SIGINT) {
+        error!("Failed to send SIGINT to {}: {}", pid, e);
+    }
 }
