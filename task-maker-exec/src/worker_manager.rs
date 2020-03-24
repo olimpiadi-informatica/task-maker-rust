@@ -200,7 +200,7 @@ impl WorkerManager {
                         result,
                         outputs: output_handlers,
                     }) {
-                        error!("Failed to send message to scheduler: {:?}", e);
+                        warn!("Failed to send message to scheduler: {:?}", e);
                         break;
                     }
                 }

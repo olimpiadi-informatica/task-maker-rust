@@ -477,10 +477,17 @@ fn sandbox_group_manager(
             }
         }
         Err(e) => {
-            panic!(
+            // not receiving the list from the server means that the server is going down and does
+            // not bother of responding, letting the worker crash will crash the local executor.
+            // So just cleanup and exit without asking for more jobs.
+            warn!(
                 "List of missing files not received from the server: {:?}",
                 e
             );
+            let mut job = current_job.lock().unwrap();
+            job.current_job = None;
+            job.current_sandboxes = None;
+            return;
         }
     }
     // this job is completed, reset the worker and ask for more work
