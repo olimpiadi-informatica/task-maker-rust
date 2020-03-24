@@ -29,6 +29,8 @@ struct WorkerCurrentJob {
     current_sandboxes: Option<Vec<Sandbox>>,
     /// The dependencies that are missing and required for the execution start.
     missing_deps: HashMap<FileStoreKey, Vec<FileUuid>>,
+    /// Send to the sandbox_manager the list of files the server is missing.
+    server_asked_files: Option<Sender<Vec<FileUuid>>>,
 }
 
 /// The worker is the component that receives the work from the server and sends the results back.
@@ -80,6 +82,7 @@ impl WorkerCurrentJob {
             current_job: None,
             current_sandboxes: None,
             missing_deps: HashMap::new(),
+            server_asked_files: None,
         }
     }
 }
@@ -156,13 +159,12 @@ impl Worker {
         let mut current_sandbox_thread: Option<JoinHandle<()>> = None;
         macro_rules! start_job {
             ($self:expr, $current_sandbox_thread:expr) => {{
-                let (sandboxes, thread) = execute_job(
+                let thread = execute_job(
                     $self.current_job.clone(),
                     &$self.sender,
                     &$self.sandbox_path,
                     $self.sandbox_runner.clone(),
                 )?;
-                $self.current_job.lock().unwrap().current_sandboxes = Some(sandboxes);
                 $current_sandbox_thread = Some(thread);
             }};
         }
@@ -259,6 +261,16 @@ impl Worker {
                         }
                     }
                 }
+                Ok(WorkerServerMessage::AskFiles(files)) => {
+                    let mut current_job = self.current_job.lock().unwrap();
+                    if let Some(sender) = current_job.server_asked_files.take() {
+                        if let Err(e) = sender.send(files) {
+                            error!("Cannot send the list of files from the server to the worker manager: {:?}", e);
+                        }
+                    } else {
+                        error!("Unexpected WorkerServerMessage::AskFiles");
+                    }
+                }
                 Err(e) => {
                     let cause = e.find_root_cause().to_string();
                     if cause == "receiving on an empty and disconnected channel" {
@@ -288,9 +300,9 @@ fn execute_job(
     sender: &ChannelSender<WorkerClientMessage>,
     sandbox_path: &Path,
     runner: Arc<dyn SandboxRunner>,
-) -> Result<(Vec<Sandbox>, JoinHandle<()>), Error> {
+) -> Result<JoinHandle<()>, Error> {
     let (job, sandboxes, fifo_dir) = {
-        let current_job = current_job.lock().unwrap();
+        let mut current_job = current_job.lock().unwrap();
         let job = current_job
             .current_job
             .as_ref()
@@ -322,9 +334,10 @@ fn execute_job(
             }
             boxes.push(sandbox);
         }
-        (job.0.clone(), boxes, fifo_dir)
+        let job = job.0.clone();
+        current_job.current_sandboxes = Some(boxes.clone());
+        (job, boxes, fifo_dir)
     };
-    let thread_sandboxes = sandboxes.clone();
     let sender = sender.clone();
     let join_handle = std::thread::Builder::new()
         .name(format!(
@@ -332,16 +345,9 @@ fn execute_job(
             job.group.description
         ))
         .spawn(move || {
-            sandbox_group_manager(
-                current_job,
-                *job,
-                sender,
-                thread_sandboxes,
-                runner,
-                fifo_dir,
-            )
+            sandbox_group_manager(current_job, *job, sender, sandboxes, runner, fifo_dir)
         })?;
-    Ok((sandboxes, join_handle))
+    Ok(join_handle)
 }
 
 /// The sandbox group manager spawns the threads of the sandbox of all the executions in the group.
@@ -433,17 +439,43 @@ fn sandbox_group_manager(
             handle.join().expect("Sandbox thread failed");
         }
     }
+    // prepare for receiving the list of missing files before sending the response to the server
+    let server_asked_files = {
+        let mut current_job = current_job.lock().unwrap();
+        let (sender, receiver) = channel();
+        current_job.server_asked_files = Some(sender);
+        receiver
+    };
+    // tell the server the results and the list of produced files
     sender
         .send(WorkerClientMessage::WorkerDone(
             results.into_iter().map(Option::unwrap).collect(),
             outputs.clone(),
         ))
         .unwrap();
-    for (uuid, key) in outputs.into_iter() {
-        sender
-            .send(WorkerClientMessage::ProvideFile(uuid, key))
-            .unwrap();
-        ChannelFileSender::send(&output_paths[&uuid], &sender).unwrap();
+    // wait for the list of files to send
+    match server_asked_files.recv() {
+        Ok(missing_files) => {
+            for uuid in missing_files {
+                if let Some(key) = outputs.get(&uuid) {
+                    sender
+                        .send(WorkerClientMessage::ProvideFile(uuid, key.clone()))
+                        .unwrap();
+                    ChannelFileSender::send(&output_paths[&uuid], &sender).unwrap();
+                } else {
+                    error!(
+                        "Server asked for file {}, which is not known to the worker",
+                        uuid
+                    );
+                }
+            }
+        }
+        Err(e) => {
+            panic!(
+                "List of missing files not received from the server: {:?}",
+                e
+            );
+        }
     }
     // this job is completed, reset the worker and ask for more work
     let mut job = current_job.lock().unwrap();

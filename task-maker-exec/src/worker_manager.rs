@@ -168,9 +168,20 @@ impl WorkerManager {
                 }
                 WorkerClientMessage::WorkerDone(result, outputs) => {
                     // the worker completed its job and will send the produced files
-                    // TODO send only the files that are not already present in the local store
                     let mut output_handlers = HashMap::new();
-                    for _ in 0..outputs.len() {
+                    let mut missing_files = Vec::new();
+                    for (uuid, key) in &outputs {
+                        if let Some(handle) = file_store.get(key) {
+                            output_handlers.insert(*uuid, handle);
+                        } else {
+                            missing_files.push(*uuid);
+                        }
+                    }
+                    let num_missing = missing_files.len();
+                    worker
+                        .sender
+                        .send(WorkerServerMessage::AskFiles(missing_files))?;
+                    for _ in 0..num_missing {
                         let message = worker.receiver.recv()?;
                         if let WorkerClientMessage::ProvideFile(uuid, key) = message {
                             let handle = file_store

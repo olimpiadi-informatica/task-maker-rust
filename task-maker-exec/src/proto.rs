@@ -118,6 +118,9 @@ pub enum WorkerServerMessage {
     /// The file the workers as asked. After this message there is a protocol switch for the file
     /// transmission.
     ProvideFile(FileStoreKey),
+    /// The worker completed the execution and produced some files, the server asks the ones that
+    /// are missing using this message.
+    AskFiles(Vec<FileUuid>),
     /// Ask the worker to exit.
     Exit,
 }
