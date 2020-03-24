@@ -1,5 +1,4 @@
 use crate::file::*;
-use crate::signals::strsignal;
 use crate::ExecutionDAGConfig;
 use boxfnonce::BoxFnOnce;
 use failure::Error;
@@ -669,7 +668,7 @@ impl Execution {
     pub fn status(
         &self,
         exit_status: u32,
-        signal: Option<u32>,
+        signal: Option<(u32, String)>,
         resources: &ExecutionResourcesUsage,
     ) -> ExecutionStatus {
         // it's important to check those before the signals because exceeding those
@@ -694,8 +693,8 @@ impl Execution {
                 return ExecutionStatus::MemoryLimitExceeded;
             }
         }
-        if let Some(signal) = signal {
-            return ExecutionStatus::Signal(signal, strsignal(signal));
+        if let Some((signal, name)) = signal {
+            return ExecutionStatus::Signal(signal, name);
         }
         if exit_status != 0 {
             return ExecutionStatus::ReturnCode(exit_status);
@@ -760,7 +759,6 @@ impl From<&str> for ExecutionTag {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::signals::strsignal;
 
     #[test]
     fn test_status_success() {
@@ -851,7 +849,7 @@ mod tests {
         let exec = Execution::new("foo", ExecutionCommand::local("foo"));
         let status = exec.status(
             0,
-            Some(11),
+            Some((11, "Killed".into())),
             &ExecutionResourcesUsage {
                 cpu_time: 0.0,
                 sys_time: 0.0,
@@ -859,7 +857,7 @@ mod tests {
                 memory: 0,
             },
         );
-        assert_eq!(ExecutionStatus::Signal(11, strsignal(11)), status);
+        assert_eq!(ExecutionStatus::Signal(11, "Killed".into()), status);
     }
 
     #[test]

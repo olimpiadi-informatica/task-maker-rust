@@ -40,7 +40,7 @@ pub enum SandboxResult {
         /// The exit status of the process.
         exit_status: u32,
         /// The signal that caused the process to exit.
-        signal: Option<u32>,
+        signal: Option<(u32, String)>,
         /// Resources used by the process.
         resources: ExecutionResourcesUsage,
         /// Whether the sandbox killed the process.
@@ -167,13 +167,16 @@ impl Sandbox {
             }),
             Signal(s) => Ok(SandboxResult::Success {
                 exit_status: 0,
-                signal: Some(s as u32),
+                signal: Some((
+                    s as u32,
+                    res.status.signal_name().unwrap_or_else(|| "unknown".into()),
+                )),
                 resources,
                 was_killed: false,
             }),
             Killed => Ok(SandboxResult::Success {
                 exit_status: 1,
-                signal: Some(9),
+                signal: Some((9, "Killed by sandbox".into())),
                 resources,
                 was_killed: true,
             }),

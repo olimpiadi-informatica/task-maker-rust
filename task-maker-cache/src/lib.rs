@@ -193,9 +193,9 @@ impl Cache {
                     if entry.is_compatible(group) {
                         let mut results = Vec::new();
                         for (exec, item) in group.executions.iter().zip(entry.items.iter()) {
-                            let (exit_status, signal) = match item.result.status {
-                                ExecutionStatus::ReturnCode(c) => (c, None),
-                                ExecutionStatus::Signal(s, _) => (0, Some(s)),
+                            let (exit_status, signal) = match &item.result.status {
+                                ExecutionStatus::ReturnCode(c) => (*c, None),
+                                ExecutionStatus::Signal(s, name) => (0, Some((*s, name.clone()))),
                                 _ => (0, None),
                             };
                             results.push(ExecutionResult {
