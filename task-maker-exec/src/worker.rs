@@ -3,7 +3,7 @@ use std::fs::Permissions;
 use std::io::Read;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
@@ -242,7 +242,6 @@ impl Worker {
                 }
                 Ok(WorkerServerMessage::Exit) => {
                     info!("Worker {} ({}) is asked to exit", self.name, self.uuid);
-                    wait_sandbox!(current_sandbox_thread);
                     break;
                 }
                 Ok(WorkerServerMessage::KillJob(job)) => {
@@ -255,8 +254,6 @@ impl Worker {
                                 for sandbox in sandboxes {
                                     sandbox.kill();
                                 }
-                                drop(current_job);
-                                wait_sandbox!(current_sandbox_thread);
                             }
                         }
                     }
@@ -289,6 +286,11 @@ impl Worker {
                 }
             }
         }
+        {
+            // make sure that the worker doesn't wait for the server's response
+            let mut current_job = self.current_job.lock().unwrap();
+            current_job.server_asked_files.take();
+        }
         wait_sandbox!(current_sandbox_thread);
         Ok(())
     }
@@ -301,7 +303,7 @@ fn execute_job(
     sandbox_path: &Path,
     runner: Arc<dyn SandboxRunner>,
 ) -> Result<JoinHandle<()>, Error> {
-    let (job, sandboxes, fifo_dir) = {
+    let (job, sandboxes, fifo_dir, server_asked_files) = {
         let mut current_job = current_job.lock().unwrap();
         let job = current_job
             .current_job
@@ -336,7 +338,9 @@ fn execute_job(
         }
         let job = job.0.clone();
         current_job.current_sandboxes = Some(boxes.clone());
-        (job, boxes, fifo_dir)
+        let (sender, receiver) = channel();
+        current_job.server_asked_files = Some(sender);
+        (job, boxes, fifo_dir, receiver)
     };
     let sender = sender.clone();
     let join_handle = std::thread::Builder::new()
@@ -345,7 +349,15 @@ fn execute_job(
             job.group.description
         ))
         .spawn(move || {
-            sandbox_group_manager(current_job, *job, sender, sandboxes, runner, fifo_dir)
+            sandbox_group_manager(
+                current_job,
+                *job,
+                sender,
+                server_asked_files,
+                sandboxes,
+                runner,
+                fifo_dir,
+            )
         })?;
     Ok(join_handle)
 }
@@ -360,6 +372,7 @@ fn sandbox_group_manager(
     current_job: Arc<Mutex<WorkerCurrentJob>>,
     job: WorkerJob,
     sender: ChannelSender<WorkerClientMessage>,
+    server_asked_files_receiver: Receiver<Vec<FileUuid>>,
     mut sandboxes: Vec<Sandbox>,
     runner: Arc<dyn SandboxRunner>,
     fifo_dir: Option<TempDir>,
@@ -439,13 +452,6 @@ fn sandbox_group_manager(
             handle.join().expect("Sandbox thread failed");
         }
     }
-    // prepare for receiving the list of missing files before sending the response to the server
-    let server_asked_files = {
-        let mut current_job = current_job.lock().unwrap();
-        let (sender, receiver) = channel();
-        current_job.server_asked_files = Some(sender);
-        receiver
-    };
     // tell the server the results and the list of produced files
     sender
         .send(WorkerClientMessage::WorkerDone(
@@ -454,7 +460,7 @@ fn sandbox_group_manager(
         ))
         .unwrap();
     // wait for the list of files to send
-    match server_asked_files.recv() {
+    match server_asked_files_receiver.recv() {
         Ok(missing_files) => {
             for uuid in missing_files {
                 if let Some(key) = outputs.get(&uuid) {

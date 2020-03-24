@@ -3,7 +3,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 
-use failure::{format_err, Error};
+use failure::Error;
 
 use task_maker_dag::{ExecutionGroupUuid, WorkerUuid};
 use task_maker_store::FileStore;
@@ -178,6 +178,10 @@ impl WorkerManager {
                         }
                     }
                     let num_missing = missing_files.len();
+                    info!(
+                        "Asking worker {} for {} missing files",
+                        worker.uuid, num_missing
+                    );
                     worker
                         .sender
                         .send(WorkerServerMessage::AskFiles(missing_files))?;
@@ -191,13 +195,14 @@ impl WorkerManager {
                             panic!("Unexpected message from worker: {:?}", message);
                         }
                     }
-                    scheduler
-                        .send(SchedulerInMessage::WorkerResult {
-                            worker: worker.uuid,
-                            result,
-                            outputs: output_handlers,
-                        })
-                        .map_err(|e| format_err!("Failed to send message to scheduler: {:?}", e))?;
+                    if let Err(e) = scheduler.send(SchedulerInMessage::WorkerResult {
+                        worker: worker.uuid,
+                        result,
+                        outputs: output_handlers,
+                    }) {
+                        error!("Failed to send message to scheduler: {:?}", e);
+                        break;
+                    }
                 }
             }
         }
