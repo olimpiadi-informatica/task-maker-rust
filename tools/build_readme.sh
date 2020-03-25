@@ -2,4 +2,4 @@
 
 ROOT=$(git rev-parse --show-toplevel)
 cd "$ROOT"
-cargo readme > README.md
+cargo readme -i src/main.rs > README.md

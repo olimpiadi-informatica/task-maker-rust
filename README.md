@@ -14,6 +14,9 @@ There is a good chance that you have already all the dependencies already instal
 For **ArchLinux** users you can find the packages in the AUR: [`task-maker-rust`](https://aur.archlinux.org/packages/task-maker-rust) (the stable release)
 and [`task-maker-rust-git`](https://aur.archlinux.org/packages/task-maker-rust-git) (the version based on `master`).
 
+For **MacOS Catalina** users you can find the pre-built bottle in the [Releases](https://github.com/edomora97/task-maker-rust/releases) page.
+You can install it using `brew install task-maker-rust--*.catalina.bottle.tar.gz`.
+
 For the other operating systems the recommended way to use task-maker-rust is the following:
 
 - Install the latest stable rust version (and cargo). For example using [rustup](https://rustup.rs/)
