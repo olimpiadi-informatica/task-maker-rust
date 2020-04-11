@@ -129,20 +129,24 @@ impl AsyFile {
         let mut result = HashMap::new();
         for include in ASY_INCLUDE.captures_iter(&content) {
             let include = &include[1];
-            let local_path = dir.join(include.to_owned() + ".asy");
-            // may happen for example with `import math;`
-            if !local_path.exists() {
-                continue;
+            // the filename might already have the ".asy" extension
+            let extensions = ["", ".asy"];
+            for ext in &extensions {
+                let local_path = dir.join(include.to_owned() + ext);
+                // may happen for example with `import math;`
+                if !local_path.exists() {
+                    continue;
+                }
+                let sandbox_path = local_path.strip_prefix(prefix)?;
+                trace!(
+                    "Asy dependency detected: {:?} -> {:?} = {:?}",
+                    path,
+                    sandbox_path,
+                    local_path
+                );
+                result.extend(AsyFile::find_asy_deps(&local_path, prefix)?.into_iter());
+                result.insert(sandbox_path.into(), local_path);
             }
-            let sandbox_path = local_path.strip_prefix(prefix)?;
-            trace!(
-                "Asy dependency detected: {:?} -> {:?} = {:?}",
-                path,
-                sandbox_path,
-                local_path
-            );
-            result.extend(AsyFile::find_asy_deps(&local_path, prefix)?.into_iter());
-            result.insert(sandbox_path.into(), local_path);
         }
         for graphic in ASY_GRAPHIC.captures_iter(&content) {
             let graphic = &graphic[1];
