@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use failure::Error;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::ioi::Task;
@@ -88,6 +89,7 @@ impl TaskInfo {
                 subtasks: task
                     .subtasks
                     .iter()
+                    .sorted_by_key(|(&id, _)| id)
                     .map(|(_, subtask)| TaskInfoSubtask {
                         max_score: subtask.max_score,
                         testcases: subtask.testcases.len() as u64,
