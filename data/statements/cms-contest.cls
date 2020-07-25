@@ -31,7 +31,6 @@
 \RequirePackage{comment}
 \RequirePackage{import} % for changing current dir
 \RequirePackage{epigraph}
-\RequirePackage{daytime} % for displaying version number and date
 \RequirePackage{wrapfig} % for having text alongside pictures
 \RequirePackage{verbatim}
 \RequirePackage{tikz}
