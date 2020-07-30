@@ -1,15 +1,18 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use askama::Template;
 use failure::{format_err, Error};
 use itertools::Itertools;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use task_maker_dag::{Execution, ExecutionCommand, File};
 
 use crate::ioi::statement::statement::Statement;
-use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, Tag, DATA_DIR};
+use crate::ui::UIMessageSender;
+use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, Tag, UISender, DATA_DIR};
 
 /// Configuration of a `Booklet`, including the setting from the contest configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -168,6 +171,14 @@ impl Booklet {
             eval.dag
                 .write_file_to_allow_fail(exec.stdout(), stdout_dest, false);
         }
+        let sender = eval.sender.clone();
+        exec.capture_stdout(1024 * 1024 * 1024);
+        eval.dag.on_execution_done(&exec.uuid, |res| {
+            if let Some(content) = &res.stdout {
+                Booklet::emit_warnings(&content, sender)?;
+            }
+            Ok(())
+        });
         eval.dag.add_execution(exec);
         // latexmk may fail but still produce a good-enough pdf file
         eval.dag.write_file_to_allow_fail(output, &self.dest, false);
@@ -211,6 +222,24 @@ impl Booklet {
     /// Return a string which is `if_true` if `b` is true, otherwise an empty string.
     fn bool_to_tpl_string(b: bool, if_true: &str) -> String {
         if b { if_true } else { "" }.to_string()
+    }
+
+    /// Given the content of the log from latexmk, extract the errors and emit them as warnings.
+    fn emit_warnings(content: &[u8], sender: Arc<Mutex<UIMessageSender>>) -> Result<(), Error> {
+        lazy_static! {
+            static ref FIND_ERRORS: Regex =
+                Regex::new(r"(?ms)^!(?: LaTeX Error:)? ([^\n]+).*?(^l\.\d+)")
+                    .expect("Invalid regex");
+        }
+        // latexmk sometimes emit the same warning more than once
+        let mut errors = HashSet::new();
+        for cap in FIND_ERRORS.captures_iter(&String::from_utf8_lossy(content)) {
+            errors.insert(format!("Latex error at line {}: {}", &cap[2][2..], &cap[1]));
+        }
+        for message in errors {
+            sender.send(UIMessage::Warning { message })?;
+        }
+        Ok(())
     }
 }
 
