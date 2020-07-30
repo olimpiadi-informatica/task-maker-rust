@@ -6,7 +6,7 @@ use failure::{bail, format_err, Error};
 
 use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
-use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage};
+use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage, RemoteEntityMessageResponse};
 use task_maker_exec::proto::ExecutorClientMessage;
 use task_maker_exec::{connect_channel, new_local_channel, ExecutorClient};
 use task_maker_format::ui::{UIMessage, UIType, UI};
@@ -18,6 +18,9 @@ use crate::error::NiceError;
 use crate::opt::Opt;
 use crate::print_dag;
 use crate::sandbox::SelfExecSandboxRunner;
+
+/// Version of task-maker
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The result of an evaluation.
 pub enum Evaluation {
@@ -125,23 +128,6 @@ where
         return Ok(Evaluation::Done);
     }
 
-    // setup the ui thread
-    let mut ui = task
-        .ui(&opt.ui)
-        .map_err(|_| format_err!("This UI is not supported on this task type."))?;
-    let ui_thread = std::thread::Builder::new()
-        .name("UI".to_owned())
-        .spawn(move || {
-            while let Ok(message) = ui_receiver.recv() {
-                if let UIMessage::StopUI = message {
-                    break;
-                }
-                on_message(ui.as_mut(), message);
-            }
-            ui.finish();
-        })
-        .map_err(|e| format_err!("Failed to spawn UI thread: {}", e.to_string()))?;
-
     let (tx, rx, server) = if let Some(evaluate_on) = opt.evaluate_on {
         let server_addr = SocketAddr::from_str(&evaluate_on)
             .map_err(|_| format_err!("Invalid server address provided"))?;
@@ -150,8 +136,14 @@ where
         let name = opt
             .name
             .unwrap_or_else(|| format!("{}@{}", whoami::username(), whoami::hostname()));
-        tx.send(RemoteEntityMessage::Welcome { name })
-            .map_err(|e| format_err!("Cannot send welcome to the server: {}", e.to_string()))?;
+        tx.send(RemoteEntityMessage::Welcome {
+            name,
+            version: VERSION.into(),
+        })
+        .map_err(|e| format_err!("Cannot send welcome to the server: {}", e.to_string()))?;
+        if let RemoteEntityMessageResponse::Rejected(err) = rx.recv()? {
+            bail!("The server rejected the client connection: {}", err);
+        }
         (tx.change_type(), rx.change_type(), None)
     } else {
         // start the server and the client
@@ -172,6 +164,23 @@ where
             .map_err(|e| format_err!("Failed to spawn the executor thread: {}", e.to_string()))?;
         (tx, rx, Some(server))
     };
+
+    // setup the ui thread
+    let mut ui = task
+        .ui(&opt.ui)
+        .map_err(|_| format_err!("This UI is not supported on this task type."))?;
+    let ui_thread = std::thread::Builder::new()
+        .name("UI".to_owned())
+        .spawn(move || {
+            while let Ok(message) = ui_receiver.recv() {
+                if let UIMessage::StopUI = message {
+                    break;
+                }
+                on_message(ui.as_mut(), message);
+            }
+            ui.finish();
+        })
+        .map_err(|e| format_err!("Failed to spawn UI thread: {}", e.to_string()))?;
 
     let ui_sender = eval.sender.clone();
     // a shared sender for the ctrl-c handler, it has to be wrapped in Arc-Mutex-Option to be freed
@@ -218,7 +227,7 @@ where
         if let Some(tx) = client_sender.lock().unwrap().as_ref() {
             let _ = tx.send(ExecutorClientMessage::Stop);
         }
-        format_err!("Client failed: {}", e.to_string())
+        format_err!("Client failed: {:?}", e)
     })?;
     // disable the ctrl-c handler dropping the owned clone of the sender, letting the client exit
     client_sender.lock().unwrap().take();

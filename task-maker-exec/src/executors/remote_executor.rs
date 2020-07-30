@@ -9,21 +9,36 @@ use task_maker_store::FileStore;
 
 use crate::executor::{Executor, ExecutorInMessage};
 use crate::scheduler::ClientInfo;
-use crate::{ChannelServer, WorkerConn};
+use crate::{ChannelSender, ChannelServer, WorkerConn};
+use std::net::SocketAddr;
+
+/// Version of task-maker
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// An executor that accepts remote connections from clients and workers.
 pub struct RemoteExecutor {
     file_store: Arc<FileStore>,
 }
 
-/// Message sent only by remote clients and workers for sending its name.
+/// Message sent only by remote clients and workers for connecting to the server.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum RemoteEntityMessage {
     /// Tell the remote executor the name of the client or of the worker.
     Welcome {
         /// The name of the client or of the worker.
         name: String,
+        /// The required version of task-maker.
+        version: String,
     },
+}
+
+/// Message sent only by the server in response of a `RemoteEntityMessage`.
+#[derive(Debug, Serialize, Deserialize)]
+pub enum RemoteEntityMessageResponse {
+    /// The server accepted the connection of the client, the communication can continue.
+    Accepted,
+    /// The server rejected the connection of the client, the channel will be closed.
+    Rejected(String),
 }
 
 impl RemoteExecutor {
@@ -59,7 +74,12 @@ impl RemoteExecutor {
                 for (sender, receiver, addr) in server {
                     info!("Client connected from {}", addr);
                     let uuid = Uuid::new_v4();
-                    let name = if let Ok(RemoteEntityMessage::Welcome { name }) = receiver.recv() {
+                    let name = if let Ok(RemoteEntityMessage::Welcome { name, version }) =
+                        receiver.recv()
+                    {
+                        if !validate_welcome(addr, &name, version, &sender, "Client") {
+                            continue;
+                        }
                         name
                     } else {
                         warn!(
@@ -72,7 +92,7 @@ impl RemoteExecutor {
                     client_executor_tx
                         .send(ExecutorInMessage::ClientConnected {
                             client,
-                            sender,
+                            sender: sender.change_type(),
                             receiver: receiver.change_type(),
                         })
                         .expect("Executor is gone");
@@ -91,7 +111,12 @@ impl RemoteExecutor {
                 for (sender, receiver, addr) in server {
                     info!("Worker connected from {}", addr);
                     let uuid = Uuid::new_v4();
-                    let name = if let Ok(RemoteEntityMessage::Welcome { name }) = receiver.recv() {
+                    let name = if let Ok(RemoteEntityMessage::Welcome { name, version }) =
+                        receiver.recv()
+                    {
+                        if !validate_welcome(addr, &name, version, &sender, "Worker") {
+                            continue;
+                        }
                         name
                     } else {
                         warn!(
@@ -103,7 +128,7 @@ impl RemoteExecutor {
                     let worker = WorkerConn {
                         uuid,
                         name,
-                        sender,
+                        sender: sender.change_type(),
                         receiver: receiver.change_type(),
                     };
                     executor_tx
@@ -121,5 +146,28 @@ impl RemoteExecutor {
         worker_listener_thread
             .join()
             .expect("Worker listener failed");
+    }
+}
+
+fn validate_welcome(
+    addr: SocketAddr,
+    name: &str,
+    version: String,
+    sender: &ChannelSender<RemoteEntityMessageResponse>,
+    client: &str,
+) -> bool {
+    if version != VERSION {
+        warn!(
+            "{} '{}' from {} connected with version {}, server has {}",
+            client, name, addr, version, VERSION
+        );
+        let _ = sender.send(RemoteEntityMessageResponse::Rejected(format!(
+            "Wrong task-maker version, you have {}, server has {}",
+            version, VERSION
+        )));
+        false
+    } else {
+        let _ = sender.send(RemoteEntityMessageResponse::Accepted);
+        true
     }
 }

@@ -3,13 +3,16 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
 
-use task_maker_exec::executors::RemoteEntityMessage;
+use task_maker_exec::executors::{RemoteEntityMessage, RemoteEntityMessageResponse};
 use task_maker_exec::{connect_channel, Worker};
 use task_maker_store::FileStore;
 
 use crate::error::NiceError;
 use crate::opt::{Opt, WorkerOptions};
 use crate::sandbox::SelfExecSandboxRunner;
+
+/// Version of task-maker
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Entry point for the worker.
 pub fn main_worker(opt: Opt, worker_opt: WorkerOptions) {
@@ -36,8 +39,18 @@ pub fn main_worker(opt: Opt, worker_opt: WorkerOptions) {
         let (executor_tx, executor_rx) =
             connect_channel(server_addr).nice_expect("Failed to connect to the server");
         executor_tx
-            .send(RemoteEntityMessage::Welcome { name: name.clone() })
+            .send(RemoteEntityMessage::Welcome {
+                name: name.clone(),
+                version: VERSION.into(),
+            })
             .nice_expect("Cannot send welcome to the server");
+        if let RemoteEntityMessageResponse::Rejected(err) = executor_rx
+            .recv()
+            .nice_expect("Remote executor didn't reply to the welcome message")
+        {
+            error!("The server rejected the worker connection: {}", err);
+            break;
+        }
         let worker = Worker::new_with_channel(
             &format!("{} {}", name, i),
             file_store.clone(),

@@ -321,9 +321,9 @@ impl<S, R> Iterator for ChannelServer<S, R> {
 }
 
 /// Connect to a remote channel.
-pub fn connect_channel<A: ToSocketAddrs, T>(
+pub fn connect_channel<A: ToSocketAddrs, S, R>(
     addr: A,
-) -> Result<(ChannelSender<T>, ChannelReceiver<T>), Error> {
+) -> Result<(ChannelSender<S>, ChannelReceiver<R>), Error> {
     let stream = TcpStream::connect(addr)?;
     let stream2 = stream.try_clone()?;
     Ok((
@@ -411,7 +411,7 @@ mod tests {
         let client_thread = std::thread::spawn(move || {
             let (sender, receiver) = connect_channel(("127.0.0.1", port)).unwrap();
             sender.send(vec![1, 2, 3, 4]).unwrap();
-            let data = receiver.recv().unwrap();
+            let data: Vec<i32> = receiver.recv().unwrap();
             assert_eq!(data, vec![5, 6, 7, 8]);
             sender.send(vec![9, 10, 11, 12]).unwrap();
         });
