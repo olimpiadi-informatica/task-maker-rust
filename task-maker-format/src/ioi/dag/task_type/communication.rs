@@ -88,6 +88,13 @@ pub fn evaluate(
         score_manager,
     );
     for process_index in 0..num_processes {
+        let mut args = vec![
+            fifo_sol2man[process_index].clone(),
+            fifo_man2sol[process_index].clone(),
+        ];
+        if num_processes > 1 {
+            args.push(process_index.to_string());
+        }
         let mut exec = source_file.execute(
             eval,
             format!(
@@ -98,11 +105,7 @@ pub fn evaluate(
                 testcase_id,
                 subtask_id
             ),
-            vec![
-                &fifo_sol2man[process_index],
-                &fifo_man2sol[process_index],
-                &process_index.to_string(),
-            ],
+            args,
         )?;
         exec.tag(Tag::Evaluation.into());
         exec.priority(EVALUATION_PRIORITY - testcase_id as Priority);
