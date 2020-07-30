@@ -83,7 +83,7 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
     let mut add_dependency = |file: FileUuid, group: ExecutionGroupUuid| {
         dependencies
             .entry(file)
-            .or_insert_with(|| vec![])
+            .or_insert_with(Vec::new)
             .push(group);
     };
 
@@ -130,13 +130,13 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
         }
         num_dependencies.insert(*group_uuid, count);
         if count == 0 {
-            ready_groups.push_back(group_uuid.clone());
+            ready_groups.push_back(*group_uuid);
         }
     }
     // add the provided files
     for uuid in dag.provided_files.keys() {
-        ready_files.push_back(uuid.clone());
-        if !known_files.insert(uuid.clone()) {
+        ready_files.push_back(*uuid);
+        if !known_files.insert(*uuid) {
             return Err(DAGError::DuplicateFileUUID { uuid: *uuid });
         }
     }
@@ -157,7 +157,7 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
                 );
                 *num_deps -= 1;
                 if *num_deps == 0 {
-                    ready_groups.push_back(group_uuid.clone());
+                    ready_groups.push_back(*group_uuid);
                 }
             }
         }

@@ -226,10 +226,8 @@ fn check_subtasks_ois(text: &str) -> Option<Vec<(SubtaskId, f64)>> {
 fn extract_subtasks(tex: String) -> Option<Vec<(SubtaskId, f64)>> {
     let mut subtasks = if let Some(subtasks) = check_subtasks_oii(&tex) {
         subtasks
-    } else if let Some(subtasks) = check_subtasks_ois(&tex) {
-        subtasks
     } else {
-        return None;
+        check_subtasks_ois(&tex)?
     };
     // subtasks 1-based
     if subtasks[0].0 == 1 {

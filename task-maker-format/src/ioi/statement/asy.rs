@@ -133,16 +133,15 @@ impl AsyFile {
             let extensions = ["", ".asy"];
             for ext in &extensions {
                 let local_path = dir.join(include.to_owned() + ext);
+                trace!("Checking probable asy dependency: {}", local_path.display());
                 // may happen for example with `import math;`
                 if !local_path.exists() {
                     continue;
                 }
                 let sandbox_path = local_path.strip_prefix(prefix)?;
-                trace!(
+                debug!(
                     "Asy dependency detected: {:?} -> {:?} = {:?}",
-                    path,
-                    sandbox_path,
-                    local_path
+                    path, sandbox_path, local_path
                 );
                 result.extend(AsyFile::find_asy_deps(&local_path, prefix)?.into_iter());
                 result.insert(sandbox_path.into(), local_path);

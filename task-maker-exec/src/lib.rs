@@ -80,7 +80,6 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use bincode;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use failure::{bail, Error};
 use serde::de::DeserializeOwned;

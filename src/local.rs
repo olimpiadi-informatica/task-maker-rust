@@ -45,7 +45,7 @@ pub enum Evaluation {
 /// ```
 pub fn run_evaluation<F>(opt: Opt, mut on_message: F) -> Result<Evaluation, Error>
 where
-    F: 'static + FnMut(&mut dyn UI, UIMessage) -> () + Send,
+    F: 'static + FnMut(&mut dyn UI, UIMessage) + Send,
 {
     if opt.exclusive {
         bail!("This option is not implemented yet");

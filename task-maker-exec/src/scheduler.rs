@@ -492,11 +492,7 @@ impl Scheduler {
                     name: worker.name.clone(),
                     current_job: worker.current_job.as_ref().and_then(
                         |(client_uuid, exec_uuid, start)| {
-                            let client = if let Some(client) = self.clients.get(&client_uuid) {
-                                client
-                            } else {
-                                return None;
-                            };
+                            let client = self.clients.get(&client_uuid)?;
                             let exec = &client.dag.execution_groups[exec_uuid];
                             Some(WorkerCurrentJobStatus {
                                 job: exec.description.clone(),

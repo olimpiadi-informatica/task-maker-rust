@@ -28,7 +28,7 @@ askama_derive = "0.8"
 mime_guess = "2.0"
 rand = "0.7"
 shell-words = "0.1"
-derivative = "1.0"
+derivative = "2.1"
 nix = "0.17"
 
 [dev-dependencies]
