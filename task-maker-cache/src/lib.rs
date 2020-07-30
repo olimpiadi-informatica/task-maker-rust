@@ -81,11 +81,11 @@ extern crate log;
 
 mod entry;
 mod key;
+mod storage;
 use entry::CacheEntry;
 use key::CacheKey;
 
 use std::collections::HashMap;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use failure::Error;
@@ -101,9 +101,9 @@ const CACHE_FILE: &str = "cache.bin";
 #[derive(Debug)]
 pub struct Cache {
     /// All the cached entries.
-    entries: HashMap<CacheKey, Vec<CacheEntry>>,
+    pub(crate) entries: HashMap<CacheKey, Vec<CacheEntry>>,
     /// The path to the cache file.
-    cache_file: PathBuf,
+    pub(crate) cache_file: PathBuf,
 }
 
 /// The result of a cache query, can be either successful (`Hit`) or unsuccessful (`Miss`).
@@ -125,21 +125,14 @@ impl Cache {
     pub fn new<P: AsRef<Path>>(cache_dir: P) -> Result<Cache, Error> {
         let path = cache_dir.as_ref().join(CACHE_FILE);
         if path.exists() {
-            let file = std::fs::File::open(&path)?;
-            let entries: Result<Vec<(CacheKey, Vec<CacheEntry>)>, _> =
-                bincode::deserialize_from(file);
-            if let Ok(entries) = entries {
-                Ok(Cache {
-                    entries: entries.into_iter().collect(),
-                    cache_file: path,
-                })
-            } else {
-                error!("Cache store is broken, resetting");
-                Ok(Cache {
-                    entries: HashMap::new(),
-                    cache_file: path,
-                })
+            let entries = storage::load(&path);
+            if let Err(e) = &entries {
+                error!("Cache store is broken, resetting: {:?}", e);
             }
+            Ok(Cache {
+                entries: entries.unwrap_or_default(),
+                cache_file: path,
+            })
         } else {
             Ok(Cache {
                 entries: HashMap::new(),
@@ -230,29 +223,8 @@ impl Cache {
 
 impl Drop for Cache {
     fn drop(&mut self) {
-        if let Err(e) =
-            std::fs::create_dir_all(self.cache_file.parent().expect("Invalid cache file"))
-        {
-            error!("Failed to create the directory of the cache file: {:?}", e);
-            return;
-        }
-        let mut file = match std::fs::File::create(&self.cache_file) {
-            Ok(file) => file,
-            Err(e) => {
-                error!("Cannot save cache file to disk! {:?}", e);
-                return;
-            }
-        };
-        let serialized = match bincode::serialize(&self.entries.iter().collect_vec()) {
-            Ok(data) => data,
-            Err(e) => {
-                error!("Cannot serialize cache! {:?}", e);
-                return;
-            }
-        };
-        match file.write_all(&serialized) {
-            Ok(_) => {}
-            Err(e) => error!("Cannot write cache file to disk! {:?}", e),
+        if let Err(e) = storage::store(self) {
+            error!("Failed to store the cache: {:?}", e);
         }
     }
 }
