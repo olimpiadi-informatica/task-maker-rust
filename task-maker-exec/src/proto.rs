@@ -34,6 +34,7 @@
 
 use crate::executor::{ExecutionDAGWatchSet, ExecutorStatus, WorkerJob};
 use crate::*;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
