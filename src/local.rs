@@ -1,5 +1,3 @@
-use std::net::SocketAddr;
-use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use failure::{bail, format_err, Error};
@@ -8,10 +6,7 @@ use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
 use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage, RemoteEntityMessageResponse};
 use task_maker_exec::proto::ExecutorClientMessage;
-use task_maker_exec::{
-    connect_channel, connect_channel_with_enc, derive_key_from_password, new_local_channel,
-    ExecutorClient,
-};
+use task_maker_exec::{new_local_channel, ExecutorClient};
 use task_maker_format::ui::{UIMessage, UIType, UI};
 use task_maker_format::{EvaluationData, TaskFormat, UISender, VALID_TAGS};
 use task_maker_store::FileStore;
@@ -20,6 +15,7 @@ use crate::detect_format::find_task;
 use crate::error::NiceError;
 use crate::opt::Opt;
 use crate::print_dag;
+use crate::remote::connect_to_remote_server;
 use crate::sandbox::SelfExecSandboxRunner;
 
 /// Version of task-maker
@@ -132,17 +128,7 @@ where
     }
 
     let (tx, rx, server) = if let Some(evaluate_on) = opt.evaluate_on {
-        let server_addr = SocketAddr::from_str(&evaluate_on)
-            .map_err(|_| format_err!("Invalid server address provided"))?;
-        let (tx, rx) = match &opt.password {
-            Some(password) => {
-                connect_channel_with_enc(server_addr, &derive_key_from_password(password)).map_err(
-                    |e| format_err!("Failed to connect to the server: {}", e.to_string()),
-                )?
-            }
-            None => connect_channel(server_addr)
-                .map_err(|e| format_err!("Failed to connect to the server: {}", e.to_string()))?,
-        };
+        let (tx, rx) = connect_to_remote_server(&evaluate_on, 27182)?;
         let name = opt
             .name
             .unwrap_or_else(|| format!("{}@{}", whoami::username(), whoami::hostname()));

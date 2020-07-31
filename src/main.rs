@@ -133,6 +133,7 @@ mod error;
 mod local;
 mod opt;
 mod print_dag;
+mod remote;
 mod sandbox;
 mod server;
 mod worker;

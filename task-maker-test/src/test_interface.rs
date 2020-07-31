@@ -67,7 +67,7 @@ impl TestInterface {
                 path,
                 false,
                 &tempdir.path(),
-                &["--evaluate-on", "127.0.0.1:27182"],
+                &["--evaluate-on", "tcp://127.0.0.1:27182"],
             ),
             tempdir,
         }
@@ -202,7 +202,7 @@ impl TestInterface {
                     "--store-dir",
                     &store,
                     "--worker",
-                    "127.0.0.1:27183",
+                    "tcp://127.0.0.1:27183",
                 ]);
                 std::env::set_var(
                     "TASK_MAKER_SANDBOX_BIN",

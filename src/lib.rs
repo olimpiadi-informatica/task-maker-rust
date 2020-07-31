@@ -23,6 +23,7 @@ mod error;
 pub mod local;
 pub mod opt;
 pub mod print_dag;
+pub mod remote;
 pub mod sandbox;
 pub mod server;
 pub mod worker;

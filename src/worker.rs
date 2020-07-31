@@ -1,16 +1,13 @@
-use std::net::SocketAddr;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
 
 use task_maker_exec::executors::{RemoteEntityMessage, RemoteEntityMessageResponse};
-use task_maker_exec::{
-    connect_channel, connect_channel_with_enc, derive_key_from_password, Worker,
-};
+use task_maker_exec::Worker;
 use task_maker_store::FileStore;
 
 use crate::error::NiceError;
 use crate::opt::{Opt, WorkerOptions};
+use crate::remote::connect_to_remote_server;
 use crate::sandbox::SelfExecSandboxRunner;
 
 /// Version of task-maker
@@ -18,9 +15,6 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Entry point for the worker.
 pub fn main_worker(opt: Opt, worker_opt: WorkerOptions) {
-    let server_addr = SocketAddr::from_str(&worker_opt.server_addr)
-        .nice_expect("Invalid server address provided");
-
     let store_path = opt.store_dir();
     let file_store = Arc::new(
         FileStore::new(
@@ -38,14 +32,8 @@ pub fn main_worker(opt: Opt, worker_opt: WorkerOptions) {
         .name
         .unwrap_or_else(|| format!("{}@{}", whoami::username(), whoami::hostname()));
     for i in 0..num_workers {
-        let (executor_tx, executor_rx) = match &worker_opt.password {
-            Some(password) => {
-                let key = derive_key_from_password(password);
-                connect_channel_with_enc(server_addr, &key)
-                    .nice_expect("Failed to connect to the server")
-            }
-            None => connect_channel(server_addr).nice_expect("Failed to connect to the server"),
-        };
+        let (executor_tx, executor_rx) = connect_to_remote_server(&worker_opt.server_addr, 27183)
+            .nice_expect("Failed to connect to the server");
         executor_tx
             .send(RemoteEntityMessage::Welcome {
                 name: name.clone(),

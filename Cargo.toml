@@ -55,6 +55,7 @@ lazy_static = "1.4"
 itertools = "0.8"
 walkdir = "2.3"
 scopeguard = "1.0"
+url = "2.1"
 
 [[bin]]
 name = "task-maker"

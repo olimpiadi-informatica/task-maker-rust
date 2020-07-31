@@ -112,10 +112,6 @@ pub struct Opt {
     #[structopt(long = "evaluate-on")]
     pub evaluate_on: Option<String>,
 
-    /// Password to use for connecting to the remote server
-    #[structopt(long = "password")]
-    pub password: Option<String>,
-
     /// List of sanity checks to skip.
     #[structopt(short = "-W", long_help = skip_sanity_checks_long_help())]
     pub skip_sanity_checks: Vec<String>,
@@ -178,9 +174,6 @@ pub struct ServerOptions {
 pub struct WorkerOptions {
     /// Address to use to connect to a remote server
     pub server_addr: String,
-    /// Password to use for connecting to the remote server
-    #[structopt(long = "password")]
-    pub password: Option<String>,
 }
 
 /// Returns the long-help for the "skip sanity checks" option.
