@@ -16,7 +16,7 @@ pub fn connect_to_remote_server<S, R, Str: AsRef<str>>(
         Err(ParseError::RelativeUrlWithoutBase) => {
             Url::parse(&format!("tcp://{}", server_url.as_ref()))?
         }
-        Err(e) => Err(e)?,
+        Err(e) => return Err(e.into()),
     };
     let (server_addrs, password) = match url.scheme() {
         "tcp" => {
@@ -29,7 +29,7 @@ pub fn connect_to_remote_server<S, R, Str: AsRef<str>>(
             url.scheme()
         ),
     };
-    if server_addrs.len() == 0 {
+    if server_addrs.is_empty() {
         bail!("Cannot resolve server address");
     }
     if !url.path().is_empty() {
