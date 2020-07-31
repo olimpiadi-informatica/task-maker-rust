@@ -455,7 +455,7 @@ fn check_encryption_key(
 ) -> Result<(), Error> {
     let mut magic = MAGIC.to_le_bytes();
     enc.apply_keystream(&mut magic);
-    stream.write_all(&mut magic)?;
+    stream.write_all(&magic)?;
     stream.flush()?;
 
     stream.read_exact(&mut magic)?;
@@ -539,8 +539,7 @@ mod tests {
     fn test_remote_channels_emc() {
         let port = rand::thread_rng().gen_range(10000u16, 20000u16);
         let enc_key = [69u8; 32];
-        let mut server =
-            ChannelServer::bind_with_enc(("127.0.0.1", port), enc_key.clone()).unwrap();
+        let mut server = ChannelServer::bind_with_enc(("127.0.0.1", port), enc_key).unwrap();
         let client_thread = std::thread::spawn(move || {
             let (sender, receiver) =
                 connect_channel_with_enc(("127.0.0.1", port), &enc_key).unwrap();
@@ -573,7 +572,7 @@ mod tests {
         let port = rand::thread_rng().gen_range(10000u16, 20000u16);
         let enc_key = [42u8; 32];
         let mut server: ChannelServer<Vec<u8>, Vec<u8>> =
-            ChannelServer::bind_with_enc(("127.0.0.1", port), enc_key.clone()).unwrap();
+            ChannelServer::bind_with_enc(("127.0.0.1", port), enc_key).unwrap();
         let client_thread = std::thread::spawn(move || {
             let wrong_enc_key = [69u8; 32];
             assert!(
