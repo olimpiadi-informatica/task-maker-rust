@@ -20,5 +20,11 @@ pub fn main_server(opt: Opt, server_opt: ServerOptions) {
 
     let remote_executor = RemoteExecutor::new(file_store);
 
-    remote_executor.start(&server_opt.client_addr, &server_opt.worker_addr, cache);
+    remote_executor.start(
+        &server_opt.client_addr,
+        &server_opt.worker_addr,
+        server_opt.client_password,
+        server_opt.worker_password,
+        cache,
+    );
 }

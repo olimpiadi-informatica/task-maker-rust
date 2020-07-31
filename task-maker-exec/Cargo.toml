@@ -24,6 +24,7 @@ tabox = "0.1"
 nix = "0.17"
 chacha20 = "0.4"
 rand = "0.7"
+scrypt = "0.3"
 
 [dev-dependencies]
 pretty_assertions = "0.6"

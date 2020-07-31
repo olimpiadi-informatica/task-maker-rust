@@ -9,7 +9,7 @@ use task_maker_store::FileStore;
 
 use crate::executor::{Executor, ExecutorInMessage};
 use crate::scheduler::ClientInfo;
-use crate::{ChannelSender, ChannelServer, WorkerConn};
+use crate::{derive_key_from_password, ChannelSender, ChannelServer, WorkerConn};
 use std::net::SocketAddr;
 
 /// Version of task-maker
@@ -52,6 +52,8 @@ impl RemoteExecutor {
         self,
         bind_client_addr: S,
         bind_worker_addr: S2,
+        client_password: Option<String>,
+        worker_password: Option<String>,
         cache: Cache,
     ) {
         let file_store = self.file_store;
@@ -65,8 +67,15 @@ impl RemoteExecutor {
         let client_listener_thread = std::thread::Builder::new()
             .name("Client listener".to_string())
             .spawn(move || {
-                let server =
-                    ChannelServer::bind(&bind_client_addr).expect("Failed to bind client address");
+                let server = match client_password {
+                    Some(password) => {
+                        let key = derive_key_from_password(password);
+                        ChannelServer::bind_with_enc(&bind_client_addr, key)
+                            .expect("Failed to bind client address")
+                    }
+                    None => ChannelServer::bind(&bind_client_addr)
+                        .expect("Failed to bind client address"),
+                };
                 info!(
                     "Accepting client connections at tcp://{}",
                     server.local_addr().unwrap()
@@ -102,8 +111,15 @@ impl RemoteExecutor {
         let worker_listener_thread = std::thread::Builder::new()
             .name("Worker listener".to_string())
             .spawn(move || {
-                let server =
-                    ChannelServer::bind(&bind_worker_addr).expect("Failed to bind worker address");
+                let server = match worker_password {
+                    Some(password) => {
+                        let key = derive_key_from_password(password);
+                        ChannelServer::bind_with_enc(&bind_worker_addr, key)
+                            .expect("Failed to bind worker address")
+                    }
+                    None => ChannelServer::bind(&bind_worker_addr)
+                        .expect("Failed to bind worker address"),
+                };
                 info!(
                     "Accepting worker connections at tcp://{}",
                     server.local_addr().unwrap()

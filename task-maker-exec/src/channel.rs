@@ -17,6 +17,7 @@ use chacha20::stream_cipher::SyncStreamCipher;
 use crate::proto::FileProtocol;
 use rand::rngs::OsRng;
 use rand::RngCore;
+use scrypt::ScryptParams;
 
 const MAGIC: u32 = 0x69696969;
 
@@ -292,7 +293,7 @@ pub fn new_local_channel<T>() -> (ChannelSender<T>, ChannelReceiver<T>) {
 /// `S` and `R` are the types of message sent and received respectively.
 pub struct ChannelServer<S, R> {
     listener: TcpListener,
-    enc_key: Option<Vec<u8>>,
+    enc_key: Option<[u8; 32]>,
     _sender: PhantomData<*const S>,
     _receiver: PhantomData<*const R>,
 }
@@ -312,7 +313,7 @@ impl<S, R> ChannelServer<S, R> {
     /// be encrypted.
     pub fn bind_with_enc<A: ToSocketAddrs>(
         addr: A,
-        enc_key: Vec<u8>,
+        enc_key: [u8; 32],
     ) -> Result<ChannelServer<S, R>, Error> {
         Ok(ChannelServer {
             listener: TcpListener::bind(addr)?,
@@ -355,10 +356,15 @@ impl<S, R> Iterator for ChannelServer<S, R> {
                         }
                     };
                     let enc_nonce = Nonce::from_slice(&enc_nonce);
-                    let enc = ChaCha20::new(&key, &enc_nonce);
+                    let mut enc = ChaCha20::new(&key, &enc_nonce);
 
                     let dec_nonce = Nonce::from_slice(&dec_nonce);
-                    let dec = ChaCha20::new(&key, &dec_nonce);
+                    let mut dec = ChaCha20::new(&key, &dec_nonce);
+
+                    if let Err(e) = check_encryption_key(&mut s, &mut enc, &mut dec) {
+                        warn!("Magic handshake failed with {}: {:?}", peer_addr, e);
+                        continue;
+                    }
 
                     return Some((
                         ChannelSender::RemoteEnc(Arc::new(Mutex::new((s, enc)))),
@@ -366,6 +372,10 @@ impl<S, R> Iterator for ChannelServer<S, R> {
                         peer_addr,
                     ));
                 } else {
+                    if let Err(e) = check_no_encryption(&mut s) {
+                        warn!("Magic handshake failed with {}: {:?}", peer_addr, e);
+                        continue;
+                    }
                     return Some((
                         ChannelSender::Remote(Arc::new(Mutex::new(s))),
                         ChannelReceiver::Remote(RefCell::new(s2)),
@@ -381,8 +391,9 @@ impl<S, R> Iterator for ChannelServer<S, R> {
 pub fn connect_channel<A: ToSocketAddrs, S, R>(
     addr: A,
 ) -> Result<(ChannelSender<S>, ChannelReceiver<R>), Error> {
-    let stream = TcpStream::connect(addr)?;
+    let mut stream = TcpStream::connect(addr)?;
     let stream2 = stream.try_clone()?;
+    check_no_encryption(&mut stream)?;
     Ok((
         ChannelSender::Remote(Arc::new(Mutex::new(stream))),
         ChannelReceiver::Remote(RefCell::new(stream2)),
@@ -392,15 +403,17 @@ pub fn connect_channel<A: ToSocketAddrs, S, R>(
 /// Connect to a remote channel encrypting the connection.
 pub fn connect_channel_with_enc<A: ToSocketAddrs, S, R>(
     addr: A,
-    enc_key: &[u8],
+    enc_key: &[u8; 32],
 ) -> Result<(ChannelSender<S>, ChannelReceiver<R>), Error> {
     let mut stream = TcpStream::connect(addr)?;
     let stream2 = stream.try_clone()?;
 
     let (enc_nonce, dec_nonce) = nonce_handshake(&mut stream)?;
     let key = Key::from_slice(enc_key);
-    let enc = ChaCha20::new(&key, &Nonce::from_slice(&enc_nonce));
-    let dec = ChaCha20::new(&key, &Nonce::from_slice(&dec_nonce));
+    let mut enc = ChaCha20::new(&key, &Nonce::from_slice(&enc_nonce));
+    let mut dec = ChaCha20::new(&key, &Nonce::from_slice(&dec_nonce));
+
+    check_encryption_key(&mut stream, &mut enc, &mut dec)?;
 
     Ok((
         ChannelSender::RemoteEnc(Arc::new(Mutex::new((stream, enc)))),
@@ -408,16 +421,59 @@ pub fn connect_channel_with_enc<A: ToSocketAddrs, S, R>(
     ))
 }
 
+/// Derive the encryption key from a password string.
+pub fn derive_key_from_password<S: AsRef<str>>(password: S) -> [u8; 32] {
+    let mut key = [0u8; 32];
+    scrypt::scrypt(
+        password.as_ref().as_bytes(),
+        b"task-maker",
+        &ScryptParams::new(8, 8, 1).unwrap(),
+        &mut key,
+    )
+    .expect("Failed to derive key from password");
+    key
+}
+
 /// Send the encryption nonce and receive the decryption nonce using the provided socket.
 fn nonce_handshake(s: &mut TcpStream) -> Result<([u8; 12], [u8; 12]), Error> {
     let mut enc_nonce = [0u8; 12];
     OsRng.fill_bytes(&mut enc_nonce);
     s.write_all(&enc_nonce)?;
+    s.flush()?;
 
     let mut dec_nonce = [0u8; 12];
     s.read_exact(&mut dec_nonce)?;
 
     Ok((enc_nonce, dec_nonce))
+}
+
+/// Check that the encryption key is the same both ends.
+fn check_encryption_key(
+    stream: &mut TcpStream,
+    enc: &mut ChaCha20,
+    dec: &mut ChaCha20,
+) -> Result<(), Error> {
+    let mut magic = MAGIC.to_le_bytes();
+    enc.apply_keystream(&mut magic);
+    stream.write_all(&mut magic)?;
+    stream.flush()?;
+
+    stream.read_exact(&mut magic)?;
+    dec.apply_keystream(&mut magic);
+    let magic = u32::from_le_bytes(magic);
+    if magic != MAGIC {
+        bail!("Wrong encryption key");
+    }
+    Ok(())
+}
+
+/// Check that no encryption is used by the other end.
+fn check_no_encryption(stream: &mut TcpStream) -> Result<(), Error> {
+    let key = b"task-maker's the best thing ever";
+    let nonce = b"task-maker!!";
+    let mut enc = ChaCha20::new(Key::from_slice(key), Nonce::from_slice(nonce));
+    let mut dec = ChaCha20::new(Key::from_slice(key), Nonce::from_slice(nonce));
+    check_encryption_key(stream, &mut enc, &mut dec)
 }
 
 #[cfg(test)]
@@ -482,7 +538,7 @@ mod tests {
     #[test]
     fn test_remote_channels_emc() {
         let port = rand::thread_rng().gen_range(10000u16, 20000u16);
-        let enc_key = vec![69u8; 32];
+        let enc_key = [69u8; 32];
         let mut server =
             ChannelServer::bind_with_enc(("127.0.0.1", port), enc_key.clone()).unwrap();
         let client_thread = std::thread::spawn(move || {
@@ -515,21 +571,19 @@ mod tests {
     #[test]
     fn test_remote_channels_enc_wrong_key() {
         let port = rand::thread_rng().gen_range(10000u16, 20000u16);
-        let enc_key = vec![42u8; 32];
+        let enc_key = [42u8; 32];
         let mut server: ChannelServer<Vec<u8>, Vec<u8>> =
             ChannelServer::bind_with_enc(("127.0.0.1", port), enc_key.clone()).unwrap();
         let client_thread = std::thread::spawn(move || {
-            let enc_key = vec![69u8; 32];
-            let (sender, receiver): (_, ChannelReceiver<Vec<u8>>) =
-                connect_channel_with_enc(("127.0.0.1", port), &enc_key).unwrap();
-            sender.send(vec![69u8; 12345]).unwrap();
-            assert!(receiver.recv().is_err());
+            let wrong_enc_key = [69u8; 32];
+            assert!(
+                connect_channel_with_enc::<_, (), ()>(("127.0.0.1", port), &wrong_enc_key).is_err()
+            );
+            // the call to .next() below blocks until a client connects successfully
+            connect_channel_with_enc::<_, (), ()>(("127.0.0.1", port), &enc_key).unwrap();
         });
 
-        let (sender, receiver, _addr) = server.next().unwrap();
-        sender.send(vec![69u8; 12345]).unwrap();
-        assert!(receiver.recv().is_err());
-
+        server.next().unwrap();
         client_thread.join().unwrap();
     }
 }

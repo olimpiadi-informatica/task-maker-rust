@@ -4,7 +4,9 @@ use std::sync::Arc;
 use std::thread;
 
 use task_maker_exec::executors::{RemoteEntityMessage, RemoteEntityMessageResponse};
-use task_maker_exec::{connect_channel, Worker};
+use task_maker_exec::{
+    connect_channel, connect_channel_with_enc, derive_key_from_password, Worker,
+};
 use task_maker_store::FileStore;
 
 use crate::error::NiceError;
@@ -36,8 +38,14 @@ pub fn main_worker(opt: Opt, worker_opt: WorkerOptions) {
         .name
         .unwrap_or_else(|| format!("{}@{}", whoami::username(), whoami::hostname()));
     for i in 0..num_workers {
-        let (executor_tx, executor_rx) =
-            connect_channel(server_addr).nice_expect("Failed to connect to the server");
+        let (executor_tx, executor_rx) = match &worker_opt.password {
+            Some(password) => {
+                let key = derive_key_from_password(password);
+                connect_channel_with_enc(server_addr, &key)
+                    .nice_expect("Failed to connect to the server")
+            }
+            None => connect_channel(server_addr).nice_expect("Failed to connect to the server"),
+        };
         executor_tx
             .send(RemoteEntityMessage::Welcome {
                 name: name.clone(),
