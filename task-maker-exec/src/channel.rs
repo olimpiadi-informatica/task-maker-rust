@@ -5,14 +5,20 @@ use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
+use chacha20::{ChaCha20, Key, Nonce};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use failure::{bail, Error};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use chacha20::stream_cipher::NewStreamCipher;
+use chacha20::stream_cipher::SyncStreamCipher;
+
 use crate::proto::FileProtocol;
-use crypto::aessafe::{AesSafe128Decryptor, AesSafe128Encryptor};
-use crypto::symmetriccipher::{BlockDecryptor, BlockEncryptor};
+use rand::rngs::OsRng;
+use rand::RngCore;
+
+const MAGIC: u32 = 0x69696969;
 
 /// Message type that can be send in a channel.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,8 +42,8 @@ pub enum ChannelSender<T> {
     Local(Sender<ChannelMessage<T>>),
     /// The connection is with a remote party.
     Remote(Arc<Mutex<TcpStream>>),
-    /// The connection is with a remote party, encrypted with AES.
-    RemoteAes(Arc<Mutex<TcpStream>>, AesSafe128Encryptor),
+    /// The connection is with a remote party, encrypted with ChaCha20.
+    RemoteEnc(Arc<Mutex<(TcpStream, ChaCha20)>>),
 }
 
 /// The channel part that receives data.
@@ -46,8 +52,8 @@ pub enum ChannelReceiver<T> {
     Local(Receiver<ChannelMessage<T>>),
     /// The connection is with a remote party.
     Remote(RefCell<TcpStream>),
-    /// The connection is with a remote party, encrypted with AES.
-    RemoteAes(RefCell<TcpStream>, AesSafe128Decryptor),
+    /// The connection is with a remote party and it is encrypted.
+    RemoteEnc(RefCell<(TcpStream, ChaCha20)>),
 }
 
 impl<T> ChannelSender<T>
@@ -63,11 +69,11 @@ where
             ChannelSender::Remote(sender) => {
                 ChannelSender::<T>::send_remote_raw(sender, ChannelMessage::Message(data))
             }
-            ChannelSender::RemoteAes(sender, encryptor) => ChannelSender::<T>::send_remote_raw_aes(
-                sender,
-                encryptor,
-                ChannelMessage::Message(data),
-            ),
+            ChannelSender::RemoteEnc(stream) => {
+                let mut stream = stream.lock().unwrap();
+                let (stream, enc) = stream.deref_mut();
+                ChannelSender::<T>::send_remote_raw_enc(stream, enc, ChannelMessage::Message(data))
+            }
         }
     }
 
@@ -91,24 +97,26 @@ where
                     ChannelSender::<T>::send_remote_raw(sender, ChannelMessage::RawFileEnd)
                 }
             },
-            ChannelSender::RemoteAes(sender, encryptor) => match data {
-                FileProtocol::Data(data) => {
-                    ChannelSender::<T>::send_remote_raw_aes(
-                        sender,
-                        encryptor,
-                        ChannelMessage::RawFileData(data.len()),
-                    )?;
-                    let enc = ChannelSender::<T>::encrypt_buffer(data, encryptor);
-                    let mut sender = sender.lock().expect("Cannot lock ChannelSender");
-                    let stream = sender.deref_mut();
-                    Ok(stream.write_all(&enc)?)
+            ChannelSender::RemoteEnc(stream) => {
+                let mut stream = stream.lock().unwrap();
+                let (stream, enc) = stream.deref_mut();
+                match data {
+                    FileProtocol::Data(data) => {
+                        ChannelSender::<T>::send_remote_raw_enc(
+                            stream,
+                            enc,
+                            ChannelMessage::RawFileData(data.len()),
+                        )?;
+                        let data = ChannelSender::<T>::encrypt_buffer(data, enc)?;
+                        Ok(stream.write_all(&data)?)
+                    }
+                    FileProtocol::End => Ok(ChannelSender::<T>::send_remote_raw_enc(
+                        stream,
+                        enc,
+                        ChannelMessage::RawFileEnd,
+                    )?),
                 }
-                FileProtocol::End => Ok(ChannelSender::<T>::send_remote_raw_aes(
-                    sender,
-                    encryptor,
-                    ChannelMessage::RawFileEnd,
-                )?),
-            },
+            }
         }
     }
 
@@ -123,43 +131,26 @@ where
         Ok(())
     }
 
-    /// Send some unchecked data to the remote channel, encrypting with aes.
-    fn send_remote_raw_aes<E: BlockEncryptor>(
-        sender: &Arc<Mutex<TcpStream>>,
-        encryptor: &E,
+    /// Send some unchecked data to the remote channel, encrypting with ChaCha20.
+    fn send_remote_raw_enc(
+        stream: &mut TcpStream,
+        encryptor: &mut ChaCha20,
         data: ChannelMessage<T>,
     ) -> Result<(), Error> {
-        let data = ChannelSender::<T>::encrypt_buffer(bincode::serialize(&data)?, encryptor);
-
-        let mut sender = sender.lock().expect("Cannot lock ChannelSender");
-        let stream = sender.deref_mut();
-
+        let data = bincode::serialize(&data)?;
+        let data = ChannelSender::<T>::encrypt_buffer(data, encryptor)?;
         stream.write_all(&data)?;
         Ok(())
     }
 
     /// Encrypt a buffer, including it's length into a buffer that is a multiple of the encryptor
     /// block length.
-    fn encrypt_buffer<E: BlockEncryptor>(mut data: Vec<u8>, encryptor: &E) -> Vec<u8> {
-        let block_size = encryptor.block_size();
-
-        let mut buf = Vec::from((data.len() as u32).to_le_bytes());
-        // magic string
-        buf.push(69);
-        buf.push(69);
-        buf.push(69);
-        buf.push(69);
-        buf.append(&mut data);
-        let pad_len = (block_size - buf.len() % block_size) % block_size;
-        buf.resize(buf.len() + pad_len, 0);
-        debug_assert!(buf.len() % block_size == 0);
-
-        let mut tmp = vec![0u8; block_size];
-        for i in 0..buf.len() / block_size {
-            encryptor.encrypt_block(&buf[block_size * i..block_size * (i + 1)], &mut tmp);
-            buf[block_size * i..block_size * (i + 1)].clone_from_slice(&tmp);
-        }
-        buf
+    fn encrypt_buffer(mut data: Vec<u8>, encryptor: &mut ChaCha20) -> Result<Vec<u8>, Error> {
+        let mut res = Vec::from((data.len() as u32).to_le_bytes());
+        res.append(&mut Vec::from(MAGIC.to_le_bytes()));
+        res.append(&mut data);
+        encryptor.apply_keystream(&mut res);
+        Ok(res)
     }
 
     /// Given this is a `ChannelSender::Remote`, change the type of the message. Will panic if this
@@ -172,7 +163,7 @@ where
         match self {
             ChannelSender::Local(_) => panic!("Cannot change ChannelSender::Local type"),
             ChannelSender::Remote(r) => ChannelSender::Remote(r),
-            ChannelSender::RemoteAes(r, e) => ChannelSender::RemoteAes(r, e),
+            ChannelSender::RemoteEnc(r) => ChannelSender::RemoteEnc(r),
         }
     }
 }
@@ -186,8 +177,10 @@ where
         let message = match self {
             ChannelReceiver::Local(receiver) => receiver.recv()?,
             ChannelReceiver::Remote(receiver) => ChannelReceiver::recv_remote_raw(receiver)?,
-            ChannelReceiver::RemoteAes(receiver, decryptor) => {
-                ChannelReceiver::recv_remote_raw_aes(receiver, decryptor)?
+            ChannelReceiver::RemoteEnc(receiver) => {
+                let mut receiver = receiver.borrow_mut();
+                let (receiver, decryptor) = receiver.deref_mut();
+                ChannelReceiver::recv_remote_raw_enc(receiver, decryptor)?
             }
         };
         match message {
@@ -217,12 +210,12 @@ where
                     }
                 }
             }
-            ChannelReceiver::RemoteAes(receiver, decryptor) => {
-                match ChannelReceiver::<T>::recv_remote_raw_aes(receiver, decryptor)? {
+            ChannelReceiver::RemoteEnc(receiver) => {
+                let mut receiver = receiver.borrow_mut();
+                let (receiver, decryptor) = receiver.deref_mut();
+                match ChannelReceiver::<T>::recv_remote_raw_enc(receiver, decryptor)? {
                     ChannelMessage::RawFileData(_) => {
-                        let mut receiver = receiver.borrow_mut();
-                        let buf =
-                            ChannelReceiver::<T>::decrypt_buffer(receiver.deref_mut(), decryptor)?;
+                        let buf = ChannelReceiver::<T>::decrypt_buffer(receiver, decryptor)?;
                         Ok(FileProtocol::Data(buf))
                     }
                     ChannelMessage::RawFileEnd => Ok(FileProtocol::End),
@@ -240,48 +233,36 @@ where
         Ok(bincode::deserialize_from(receiver.deref_mut())?)
     }
 
-    fn recv_remote_raw_aes<D: BlockDecryptor>(
-        receiver: &RefCell<TcpStream>,
-        decryptor: &D,
+    /// Receive a message from the encrypted TCP stream of a channel.
+    fn recv_remote_raw_enc(
+        receiver: &mut TcpStream,
+        decryptor: &mut ChaCha20,
     ) -> Result<ChannelMessage<T>, Error> {
-        let mut receiver = receiver.borrow_mut();
-        let receiver = receiver.deref_mut();
         let buf = ChannelReceiver::<T>::decrypt_buffer(receiver, decryptor)?;
         Ok(bincode::deserialize(&buf)?)
     }
 
-    fn decrypt_buffer<D: BlockDecryptor>(
+    /// Receive and decrypt a frame from the stream.
+    fn decrypt_buffer(
         receiver: &mut TcpStream,
-        decryptor: &D,
+        decryptor: &mut ChaCha20,
     ) -> Result<Vec<u8>, Error> {
-        let block_size = decryptor.block_size();
+        let mut len = [0u8; 4];
+        receiver.read_exact(&mut len)?;
+        decryptor.apply_keystream(&mut len);
+        let len = u32::from_le_bytes(len) as usize;
 
-        let mut block = vec![0u8; block_size];
-        let mut encrypted_block = vec![0u8; block_size];
-
-        // the first block contains the buffer size
-        receiver.read_exact(&mut encrypted_block)?;
-        decryptor.decrypt_block(&encrypted_block, &mut block);
-
-        // extract the buffer size
-        let len = [block[0], block[1], block[2], block[3]];
-        let len = (u32::from_le_bytes(len)) as usize;
-        for i in 4..8 {
-            if block[i] != 69 {
-                bail!("Wrong encryption key");
-            }
+        let mut magic = [0u8; 4];
+        receiver.read_exact(&mut magic)?;
+        decryptor.apply_keystream(&mut magic);
+        let magic = u32::from_le_bytes(magic);
+        if magic != MAGIC {
+            bail!("Wrong encryption key");
         }
 
-        // read and decrypt all the blocks
-        let mut buf = vec![];
-        buf.append(&mut Vec::from(&block[8..]));
-        while buf.len() < len {
-            receiver.read_exact(&mut encrypted_block)?;
-            decryptor.decrypt_block(&encrypted_block, &mut block);
-            buf.append(&mut block.clone());
-        }
-        // remove the padding
-        buf.resize(len, 0);
+        let mut buf = vec![0u8; len];
+        receiver.read_exact(&mut buf)?;
+        decryptor.apply_keystream(&mut buf);
         Ok(buf)
     }
 
@@ -295,7 +276,7 @@ where
         match self {
             ChannelReceiver::Local(_) => panic!("Cannot change ChannelReceiver::Local type"),
             ChannelReceiver::Remote(r) => ChannelReceiver::Remote(r),
-            ChannelReceiver::RemoteAes(r, d) => ChannelReceiver::RemoteAes(r, d),
+            ChannelReceiver::RemoteEnc(r) => ChannelReceiver::RemoteEnc(r),
         }
     }
 }
@@ -311,7 +292,7 @@ pub fn new_local_channel<T>() -> (ChannelSender<T>, ChannelReceiver<T>) {
 /// `S` and `R` are the types of message sent and received respectively.
 pub struct ChannelServer<S, R> {
     listener: TcpListener,
-    aes_key: Option<Vec<u8>>,
+    enc_key: Option<Vec<u8>>,
     _sender: PhantomData<*const S>,
     _receiver: PhantomData<*const R>,
 }
@@ -321,21 +302,21 @@ impl<S, R> ChannelServer<S, R> {
     pub fn bind<A: ToSocketAddrs>(addr: A) -> Result<ChannelServer<S, R>, Error> {
         Ok(ChannelServer {
             listener: TcpListener::bind(addr)?,
-            aes_key: None,
+            enc_key: None,
             _sender: Default::default(),
             _receiver: Default::default(),
         })
     }
 
     /// Bind a socket and create a new `ChannelServer`. All the connection made to this socket must
-    /// be encrypted using AES.
-    pub fn bind_with_aes<A: ToSocketAddrs>(
+    /// be encrypted.
+    pub fn bind_with_enc<A: ToSocketAddrs>(
         addr: A,
-        aes_key: Vec<u8>,
+        enc_key: Vec<u8>,
     ) -> Result<ChannelServer<S, R>, Error> {
         Ok(ChannelServer {
             listener: TcpListener::bind(addr)?,
-            aes_key: Some(aes_key),
+            enc_key: Some(enc_key),
             _sender: Default::default(),
             _receiver: Default::default(),
         })
@@ -360,16 +341,28 @@ impl<S, R> Iterator for ChannelServer<S, R> {
                 .incoming()
                 .next()
                 .expect("TcpListener::incoming returned None");
-            if let Ok(s) = next {
+            if let Ok(mut s) = next {
                 let peer_addr = s.peer_addr().expect("Peer has no remote address");
                 let s2 = s.try_clone().expect("Failed to clone the stream");
-                if let Some(aes_key) = &self.aes_key {
-                    let encryptor = AesSafe128Encryptor::new(aes_key);
-                    let decryptor = AesSafe128Decryptor::new(aes_key);
+                if let Some(enc_key) = &self.enc_key {
+                    let key = Key::from_slice(enc_key);
+
+                    let (enc_nonce, dec_nonce) = match nonce_handshake(&mut s) {
+                        Ok(x) => x,
+                        Err(e) => {
+                            warn!("Nonce handshake failed with {}: {:?}", peer_addr, e);
+                            continue;
+                        }
+                    };
+                    let enc_nonce = Nonce::from_slice(&enc_nonce);
+                    let enc = ChaCha20::new(&key, &enc_nonce);
+
+                    let dec_nonce = Nonce::from_slice(&dec_nonce);
+                    let dec = ChaCha20::new(&key, &dec_nonce);
 
                     return Some((
-                        ChannelSender::RemoteAes(Arc::new(Mutex::new(s)), encryptor),
-                        ChannelReceiver::RemoteAes(RefCell::new(s2), decryptor),
+                        ChannelSender::RemoteEnc(Arc::new(Mutex::new((s, enc)))),
+                        ChannelReceiver::RemoteEnc(RefCell::new((s2, dec))),
                         peer_addr,
                     ));
                 } else {
@@ -396,21 +389,35 @@ pub fn connect_channel<A: ToSocketAddrs, S, R>(
     ))
 }
 
-/// Connect to a remote channel encrypting with AES.
-pub fn connect_channel_with_aes<A: ToSocketAddrs, S, R>(
+/// Connect to a remote channel encrypting the connection.
+pub fn connect_channel_with_enc<A: ToSocketAddrs, S, R>(
     addr: A,
-    aes_key: &[u8],
+    enc_key: &[u8],
 ) -> Result<(ChannelSender<S>, ChannelReceiver<R>), Error> {
-    let stream = TcpStream::connect(addr)?;
+    let mut stream = TcpStream::connect(addr)?;
     let stream2 = stream.try_clone()?;
 
-    let encryptor = AesSafe128Encryptor::new(aes_key);
-    let decryptor = AesSafe128Decryptor::new(aes_key);
+    let (enc_nonce, dec_nonce) = nonce_handshake(&mut stream)?;
+    let key = Key::from_slice(enc_key);
+    let enc = ChaCha20::new(&key, &Nonce::from_slice(&enc_nonce));
+    let dec = ChaCha20::new(&key, &Nonce::from_slice(&dec_nonce));
 
     Ok((
-        ChannelSender::RemoteAes(Arc::new(Mutex::new(stream)), encryptor),
-        ChannelReceiver::RemoteAes(RefCell::new(stream2), decryptor),
+        ChannelSender::RemoteEnc(Arc::new(Mutex::new((stream, enc)))),
+        ChannelReceiver::RemoteEnc(RefCell::new((stream2, dec))),
     ))
+}
+
+/// Send the encryption nonce and receive the decryption nonce using the provided socket.
+fn nonce_handshake(s: &mut TcpStream) -> Result<([u8; 12], [u8; 12]), Error> {
+    let mut enc_nonce = [0u8; 12];
+    OsRng.fill_bytes(&mut enc_nonce);
+    s.write_all(&enc_nonce)?;
+
+    let mut dec_nonce = [0u8; 12];
+    s.read_exact(&mut dec_nonce)?;
+
+    Ok((enc_nonce, dec_nonce))
 }
 
 #[cfg(test)]
@@ -473,15 +480,14 @@ mod tests {
     }
 
     #[test]
-    fn test_remote_channels_aes() {
+    fn test_remote_channels_emc() {
         let port = rand::thread_rng().gen_range(10000u16, 20000u16);
-        let aes_key = vec![1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let enc_key = vec![69u8; 32];
         let mut server =
-            ChannelServer::bind_with_aes(("127.0.0.1", port), aes_key.clone()).unwrap();
+            ChannelServer::bind_with_enc(("127.0.0.1", port), enc_key.clone()).unwrap();
         let client_thread = std::thread::spawn(move || {
-            let aes_key = vec![1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
             let (sender, receiver) =
-                connect_channel_with_aes(("127.0.0.1", port), &aes_key).unwrap();
+                connect_channel_with_enc(("127.0.0.1", port), &enc_key).unwrap();
             sender.send(vec![1u8, 2, 3, 4]).unwrap();
             let data: Vec<u8> = receiver.recv().unwrap();
             assert_eq!(data, vec![5u8, 6, 7, 8]);
@@ -507,15 +513,15 @@ mod tests {
     }
 
     #[test]
-    fn test_remote_channels_aes_wrong_key() {
+    fn test_remote_channels_enc_wrong_key() {
         let port = rand::thread_rng().gen_range(10000u16, 20000u16);
-        let aes_key = vec![42u8; 16];
+        let enc_key = vec![42u8; 32];
         let mut server: ChannelServer<Vec<u8>, Vec<u8>> =
-            ChannelServer::bind_with_aes(("127.0.0.1", port), aes_key.clone()).unwrap();
+            ChannelServer::bind_with_enc(("127.0.0.1", port), enc_key.clone()).unwrap();
         let client_thread = std::thread::spawn(move || {
-            let aes_key = vec![69u8; 16];
+            let enc_key = vec![69u8; 32];
             let (sender, receiver): (_, ChannelReceiver<Vec<u8>>) =
-                connect_channel_with_aes(("127.0.0.1", port), &aes_key).unwrap();
+                connect_channel_with_enc(("127.0.0.1", port), &enc_key).unwrap();
             sender.send(vec![69u8; 12345]).unwrap();
             assert!(receiver.recv().is_err());
         });
