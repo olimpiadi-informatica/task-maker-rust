@@ -130,7 +130,7 @@ pub enum WorkerServerMessage {
 ///
 /// In this mode a series of `Data` messages is sent, ended by an `End` message. After this message
 /// the protocol switches back to normal mode.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum FileProtocol {
     /// A chunk of data.
     Data(Vec<u8>),

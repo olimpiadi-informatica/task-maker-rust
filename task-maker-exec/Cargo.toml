@@ -22,6 +22,7 @@ chashmap = "2.2"
 crossbeam-channel = "0.4"
 tabox = "0.1"
 nix = "0.17"
+rust-crypto = "0.2"
 
 [dev-dependencies]
 pretty_assertions = "0.6"
