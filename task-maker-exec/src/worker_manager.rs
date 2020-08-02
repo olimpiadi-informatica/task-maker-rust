@@ -3,6 +3,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 
+use ductile::ChannelSender;
 use failure::Error;
 
 use task_maker_dag::{ExecutionGroupUuid, WorkerUuid};
@@ -13,7 +14,7 @@ use crate::proto::{
     ChannelFileIterator, ChannelFileSender, WorkerClientMessage, WorkerServerMessage,
 };
 use crate::scheduler::SchedulerInMessage;
-use crate::{ChannelSender, WorkerConn};
+use crate::WorkerConn;
 
 /// Message coming from the Scheduler or the Executor for the WorkerManager
 #[allow(clippy::large_enum_variant)]

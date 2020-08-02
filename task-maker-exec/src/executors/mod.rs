@@ -13,7 +13,8 @@
 //! # use std::thread;
 //! # use tempdir::TempDir;
 //! use task_maker_cache::Cache;
-//! use task_maker_exec::{new_local_channel, ErrorSandboxRunner};
+//! use task_maker_exec::ErrorSandboxRunner;
+//! use ductile::new_local_channel;
 //!
 //! # let tmpdir = TempDir::new("tm-test").unwrap();
 //! # let path = tmpdir.path();

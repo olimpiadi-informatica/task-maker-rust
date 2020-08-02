@@ -75,9 +75,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 
+use ductile::new_local_channel;
 use failure::Error;
+use scrypt::ScryptParams;
 
-pub use channel::*;
 pub use client::ExecutorClient;
 pub use executor::{ExecutorStatus, ExecutorWorkerStatus, WorkerCurrentJobStatus};
 pub use sandbox::RawSandboxResult;
@@ -90,7 +91,6 @@ use task_maker_dag::ExecutionDAG;
 use task_maker_store::FileStore;
 pub use worker::{Worker, WorkerConn};
 
-mod channel;
 mod check_dag;
 mod client;
 mod executor;
@@ -101,6 +101,19 @@ mod sandbox_runner;
 mod scheduler;
 mod worker;
 mod worker_manager;
+
+/// Derive the encryption key from a password string.
+pub fn derive_key_from_password<S: AsRef<str>>(password: S) -> [u8; 32] {
+    let mut key = [0u8; 32];
+    scrypt::scrypt(
+        password.as_ref().as_bytes(),
+        b"task-maker",
+        &ScryptParams::new(8, 8, 1).unwrap(),
+        &mut key,
+    )
+    .expect("Failed to derive key from password");
+    key
+}
 
 /// Evaluate a DAG locally spawning a new [`LocalExecutor`](executors/struct.LocalExecutor.html)
 /// with the specified number of workers.

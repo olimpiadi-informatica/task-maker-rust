@@ -1,10 +1,8 @@
+use ductile::{connect_channel, connect_channel_with_enc, ChannelReceiver, ChannelSender};
 use failure::{bail, Error};
 use url::{ParseError, Url};
 
-use task_maker_exec::{
-    connect_channel, connect_channel_with_enc, derive_key_from_password, ChannelReceiver,
-    ChannelSender,
-};
+use task_maker_exec::derive_key_from_password;
 
 /// Parse the server url address and try to connect to that host.
 pub fn connect_to_remote_server<S, R, Str: AsRef<str>>(

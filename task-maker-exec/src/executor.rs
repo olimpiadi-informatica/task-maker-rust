@@ -2,8 +2,11 @@ use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
+use std::time::SystemTime;
 
 use chashmap::CHashMap;
+use ductile::{ChannelReceiver, ChannelSender};
 use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
 
@@ -20,9 +23,7 @@ use crate::scheduler::{
     SchedulerInMessage,
 };
 use crate::worker_manager::{WorkerManager, WorkerManagerInMessage};
-use crate::{ChannelReceiver, ChannelSender, WorkerConn};
-use failure::_core::time::Duration;
-use std::time::SystemTime;
+use crate::WorkerConn;
 
 /// List of the _interesting_ files and executions, only the callbacks listed here will be called by
 /// the server. Every other callback is not sent to the client for performance reasons.

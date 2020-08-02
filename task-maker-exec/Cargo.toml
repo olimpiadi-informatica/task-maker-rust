@@ -19,16 +19,11 @@ bincode = "1.1"
 itertools = "0.8"
 scopeguard = "1.0"
 chashmap = "2.2"
-crossbeam-channel = "0.4"
 tabox = "0.1"
 nix = "0.17"
-chacha20 = "0.4"
-rand = "0.7"
 scrypt = "0.3"
+ductile = "0.1"
 
 [dev-dependencies]
 pretty_assertions = "0.6"
 env_logger = "0.6"
-
-[build-dependencies]
-glob = "0.2"

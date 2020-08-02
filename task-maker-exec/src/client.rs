@@ -8,6 +8,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::{Duration, SystemTime};
 
+use ductile::{ChannelReceiver, ChannelSender};
 use failure::{format_err, Error};
 
 use task_maker_dag::{ExecutionDAG, FileCallbacks, FileUuid, ProvidedFile, WriteToCallback};
@@ -15,7 +16,6 @@ use task_maker_store::*;
 
 use crate::executor::{ExecutionDAGWatchSet, ExecutorStatus, ExecutorWorkerStatus};
 use crate::proto::*;
-use crate::{ChannelReceiver, ChannelSender};
 
 /// Interval between each Status message is sent asking for server status updates.
 const STATUS_POLL_INTERVAL_MS: u64 = 1000;
@@ -38,12 +38,13 @@ impl ExecutorClient {
     /// ```
     /// use task_maker_dag::ExecutionDAG;
     /// use task_maker_store::FileStore;
-    /// use task_maker_exec::{executors::LocalExecutor, ExecutorClient, new_local_channel, ErrorSandboxRunner};
+    /// use task_maker_exec::{executors::LocalExecutor, ExecutorClient, ErrorSandboxRunner};
     /// use std::sync::mpsc::channel;
     /// use std::sync::{Arc, Mutex};
     /// use std::thread;
     /// use std::path::PathBuf;
     /// use task_maker_cache::Cache;
+    /// use ductile::new_local_channel;
     /// # use tempdir::TempDir;
     ///
     /// // make a new, empty, DAG

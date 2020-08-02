@@ -27,13 +27,13 @@
 //! When an actor needs a file a particular series of messages is sent. Let's assume `A` wants a
 //! file from `B`:
 //! - `A` sends a `AskFile` to `B`
-//! - `B` answers with `ProvideFile` which triggers a protocol switch, into FileProtocol
-//! - `B` sends [`FileProtocol::Data`](enum.FileProtocol.html#variant.Data) zero or more times
-//! - `B` sends [`FileProtocol::End`](enum.FileProtocol.html#variant.End) which triggers a protocol
-//!   switch, back into normal mode
+//! - `B` answers with `ProvideFile` which triggers a protocol switch for sending the file
+//! - `B` sends raw data (`send_raw`) zero or more times
+//! - `B` sends empty raw data which triggers a protocol switch, back into normal mode
 
 use crate::executor::{ExecutionDAGWatchSet, ExecutorStatus, WorkerJob};
 use crate::*;
+use ductile::{ChannelReceiver, ChannelSender};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -126,19 +126,7 @@ pub enum WorkerServerMessage {
     Exit,
 }
 
-/// Messages sent during the FileProtocol operation, during the transfer of a file.
-///
-/// In this mode a series of `Data` messages is sent, ended by an `End` message. After this message
-/// the protocol switches back to normal mode.
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub enum FileProtocol {
-    /// A chunk of data.
-    Data(Vec<u8>),
-    /// The end of the stream.
-    End,
-}
-
-/// An iterator over the byte chunks sent during the FileProtocol mode in a channel.
+/// An iterator over the byte chunks sent during the file transfer mode in a channel.
 pub struct ChannelFileIterator<'a, T>
 where
     T: Send + Sync + DeserializeOwned,
@@ -164,36 +152,38 @@ where
     type Item = Vec<u8>;
     fn next(&mut self) -> Option<Self::Item> {
         // errors cannot be handled in this iterator yet
-        match self.reader.recv_file().expect("deserialize error") {
-            FileProtocol::Data(d) => Some(d),
-            FileProtocol::End => None,
+        let data = self.reader.recv_raw().expect("deserialize error");
+        if data.is_empty() {
+            None
+        } else {
+            Some(data)
         }
     }
 }
 
-/// Utility function to send a file to a channel using [`FileProtocol`](enum.FileProtocol.html).
+/// Utility function to send a file to a channel using [`send_raw`](https://docs.rs/ductile/0.1.0/ductile/struct.ChannelSender.html#method.send_raw).
 pub struct ChannelFileSender;
 
 impl ChannelFileSender {
-    /// Send a local file to a channel using [`FileProtocol`](enum.FileProtocol.html).
+    /// Send a local file to a channel using `send_raw`.
     pub fn send<P: AsRef<Path>, T>(path: P, sender: &ChannelSender<T>) -> Result<(), Error>
     where
         T: 'static + Send + Sync + Serialize,
     {
         for buf in ReadFileIterator::new(path.as_ref())? {
-            sender.send_file(FileProtocol::Data(buf))?;
+            sender.send_raw(&buf)?;
         }
-        sender.send_file(FileProtocol::End)?;
+        sender.send_raw(&[])?;
         Ok(())
     }
 
-    /// Send a file's data to a channel using [`FileProtocol`](enum.FileProtocol.html).
+    /// Send the file content to a channel using `send_raw`.
     pub fn send_data<T>(data: Vec<u8>, sender: &ChannelSender<T>) -> Result<(), Error>
     where
         T: 'static + Send + Sync + Serialize,
     {
-        sender.send_file(FileProtocol::Data(data))?;
-        sender.send_file(FileProtocol::End)?;
+        sender.send_raw(&data)?;
+        sender.send_raw(&[])?;
         Ok(())
     }
 }

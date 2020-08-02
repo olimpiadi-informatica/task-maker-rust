@@ -3,6 +3,7 @@ use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::thread;
 
+use ductile::{ChannelReceiver, ChannelSender};
 use failure::{format_err, Error};
 use uuid::Uuid;
 
@@ -13,7 +14,7 @@ use crate::executor::{Executor, ExecutorInMessage};
 use crate::proto::{ExecutorClientMessage, ExecutorServerMessage};
 use crate::sandbox_runner::SandboxRunner;
 use crate::scheduler::ClientInfo;
-use crate::{ChannelReceiver, ChannelSender, Worker};
+use crate::Worker;
 
 /// An Executor that runs locally by spawning a number of threads with the workers inside.
 pub struct LocalExecutor {

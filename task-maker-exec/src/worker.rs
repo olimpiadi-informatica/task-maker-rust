@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 
+use ductile::{new_local_channel, ChannelReceiver, ChannelSender};
 use failure::{format_err, Error, Fail};
 use tempdir::TempDir;
 use uuid::Uuid;
@@ -19,7 +20,6 @@ use crate::executor::WorkerJob;
 use crate::proto::*;
 use crate::sandbox::{Sandbox, SandboxResult};
 use crate::sandbox_runner::SandboxRunner;
-use crate::{new_local_channel, ChannelReceiver, ChannelSender};
 
 /// The information about the current job the worker is doing.
 struct WorkerCurrentJob {
