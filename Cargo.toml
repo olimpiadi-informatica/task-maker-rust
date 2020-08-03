@@ -38,25 +38,38 @@ task-maker-store = { path = "./task-maker-store" }
 task-maker-cache = { path = "./task-maker-cache" }
 task-maker-exec = { path = "./task-maker-exec" }
 task-maker-format = { path = "./task-maker-format" }
+
+# Logging and setting up the global logger
 log = "0.4"
 env_logger = "0.6"
-tempdir = "0.3"
+# Argument parsing
 structopt = "0.3"
 num_cpus = "1.10"
+# Better stacktraces for panics
 better-panic = "0.1"
+# Worker and client name
 whoami = "0.6"
+# Cross-platform cache directory
 directories = "3.0"
+# Generic error utilities
 failure = "0.1"
+# Message serialization for UI/sandbox/...
 serde = "1.0"
 serde_json = "1.0"
+# Sandbox implementation for --sandbox
 tabox = "0.1"
+# Signal handler for ^C
 ctrlc = "3.1"
+# Global constants
 lazy_static = "1.4"
+# General iterator utilities
 itertools = "0.8"
+# Iterate recursively the files in a directory (used for --dont-panic)
 walkdir = "2.3"
+# defer! macro
 scopeguard = "1.0"
+# URL parsing for connecting to a remote server
 url = "2.1"
-ductile = "0.1"
 
 [[bin]]
 name = "task-maker"

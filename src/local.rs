@@ -1,10 +1,10 @@
 use std::sync::{Arc, Mutex};
 
-use ductile::new_local_channel;
 use failure::{bail, format_err, Error};
 
 use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
+use task_maker_exec::ductile::new_local_channel;
 use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage, RemoteEntityMessageResponse};
 use task_maker_exec::proto::ExecutorClientMessage;
 use task_maker_exec::ExecutorClient;

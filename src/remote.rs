@@ -1,5 +1,7 @@
-use ductile::{connect_channel, connect_channel_with_enc, ChannelReceiver, ChannelSender};
 use failure::{bail, Error};
+use task_maker_exec::ductile::{
+    connect_channel, connect_channel_with_enc, ChannelReceiver, ChannelSender,
+};
 use url::{ParseError, Url};
 
 use task_maker_exec::derive_key_from_password;

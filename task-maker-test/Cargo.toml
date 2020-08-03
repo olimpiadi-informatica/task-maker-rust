@@ -10,14 +10,24 @@ task-maker-format = { path = "../task-maker-format" }
 task-maker-dag = { path = "../task-maker-dag" }
 task-maker-exec = { path = "../task-maker-exec" }
 task-maker-rust = { path = ".." }
+
+# Command line creation for spawning task-maker
 structopt = "0.3"
+# Better stacktraces for panics
 better-panic = "0.1"
-serde = { version = "1.0", features = ["derive", "rc"] }
+# Serialization/Deserialization
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+# Checking equalness between floats
 approx = "0.3"
+# General iterator utilities
 itertools = "0.8"
+# Find a free port to use for the server
 port_scanner = "0.1"
+# Temporary directory creation
 tempdir = "0.3"
+# Generic error utilities
 failure = "0.1"
+# Logging
 log = "0.4"
 env_logger = "0.6"

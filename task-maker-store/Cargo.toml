@@ -5,14 +5,20 @@ authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+# Hashing function
 blake2 = "0.8"
-chrono = { version = "0.4", features = ["serde"] }
+# Generic error utilities
 failure = "0.1"
+# File locking
 fs2 = "0.4"
-serde = { version = "1.0", features = ["derive", "rc"] }
+# Serialization/Deserialization
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+# Converting bytes into hex strings
 hex = "0.3"
+# Logging
 log = "0.4"
+# Temporary directory creation
 tempdir = "0.3"
 
 [dev-dependencies]
