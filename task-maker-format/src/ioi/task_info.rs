@@ -114,20 +114,23 @@ impl TaskInfo {
             attachments: task
                 .path
                 .join("att")
-                .read_dir()?
-                .filter(|entry| entry.as_ref().unwrap().file_type().unwrap().is_file())
-                .map(|entry| {
-                    let entry = entry.unwrap();
-                    let path = entry.path();
-                    TaskInfoAttachment {
-                        name: entry.file_name().to_str().unwrap().into(),
-                        content_type: mime_guess::from_path(path)
-                            .first()
-                            .map_or("UNKNOWN".into(), |t| t.to_string()),
-                        path: entry.path().strip_prefix(&task.path).unwrap().into(),
-                    }
+                .read_dir()
+                .map(|dir| {
+                    dir.filter(|entry| entry.as_ref().unwrap().file_type().unwrap().is_file())
+                        .map(|entry| {
+                            let entry = entry.unwrap();
+                            let path = entry.path();
+                            TaskInfoAttachment {
+                                name: entry.file_name().to_str().unwrap().into(),
+                                content_type: mime_guess::from_path(path)
+                                    .first()
+                                    .map_or("UNKNOWN".into(), |t| t.to_string()),
+                                path: entry.path().strip_prefix(&task.path).unwrap().into(),
+                            }
+                        })
+                        .collect()
                 })
-                .collect(),
+                .unwrap_or_default(),
         })
     }
 }
