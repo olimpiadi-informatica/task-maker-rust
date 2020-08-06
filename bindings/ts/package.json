@@ -1,0 +1,20 @@
+{
+  "name": "task_maker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "author": "Edoardo Morassutto <edoardo.morassutto@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^14.0.27",
+    "ts-node": "^8.10.2",
+    "typescript": "^3.9.7"
+  },
+  "dependencies": {
+    "promisify-child-process": "^4.1.1",
+    "rxjs": "^6.6.2"
+  }
+}
