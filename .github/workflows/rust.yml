@@ -49,6 +49,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -yy libseccomp-dev
       - name: Rebuild bindings
         working-directory: ./bindings/ts
         run: ./rebuild.sh
