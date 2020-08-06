@@ -1,6 +1,9 @@
-use serde::{Deserialize, Serialize};
 use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
+
+use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
+
 use task_maker_dag::*;
 
 pub(crate) mod c;
@@ -10,7 +13,7 @@ pub(crate) mod python;
 pub(crate) mod shell;
 
 /// A dependency of an execution, all the sandbox paths must be relative and inside of the sandbox.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TypeScriptify)]
 pub struct Dependency {
     /// The handle of the file.
     pub file: File,

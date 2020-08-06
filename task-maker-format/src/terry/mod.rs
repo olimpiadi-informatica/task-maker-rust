@@ -6,6 +6,9 @@ use std::sync::Arc;
 use failure::Error;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
+
+pub use task_info::*;
 
 use crate::sanity_checks::SanityChecks;
 use crate::terry::curses_ui::CursesUI;
@@ -29,8 +32,8 @@ pub(crate) mod ui_state;
 pub type Seed = u64;
 
 /// Information about a generic Terry task.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Task {
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+pub struct TerryTask {
     /// Path of the directory of the task.
     pub path: PathBuf,
     /// The name of the task (the short one).
@@ -57,11 +60,11 @@ pub struct Task {
     /// It's also not `Serialize` nor `Deserialize`, all the sanity checks will be lost on
     /// serialization.
     #[serde(skip_serializing, skip_deserializing)]
-    pub sanity_checks: Arc<SanityChecks<Task>>,
+    pub sanity_checks: Arc<SanityChecks<TerryTask>>,
 }
 
 /// The output of the checker for a solution.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct SolutionOutcome {
     /// The score normalized from 0.0 to 1.0.
     pub score: f64,
@@ -72,7 +75,7 @@ pub struct SolutionOutcome {
 }
 
 /// The validation part of the outcome of a solution.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct SolutionValidation {
     /// The validation of the test cases, in the same order as the input.
     pub cases: Vec<SolutionValidationCase>,
@@ -81,7 +84,7 @@ pub struct SolutionValidation {
 }
 
 /// The validation outcome of a test case.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct SolutionValidationCase {
     /// The status of the testcase.
     pub status: CaseStatus,
@@ -90,7 +93,7 @@ pub struct SolutionValidationCase {
 }
 
 /// The possible statuses of the validation of a test case.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 #[serde(rename_all = "lowercase")]
 pub enum CaseStatus {
     /// The testcase is not present in the output file.
@@ -102,7 +105,7 @@ pub enum CaseStatus {
 }
 
 /// The feedback part of the outcome.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct SolutionFeedback {
     /// The feedback of each testcase, in the same order as the input.
     pub cases: Vec<SolutionFeedbackCase>,
@@ -111,7 +114,7 @@ pub struct SolutionFeedback {
 }
 
 /// The feedback of a test case.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct SolutionFeedbackCase {
     /// Whether this testcase is correct.
     pub correct: bool,
@@ -120,7 +123,7 @@ pub struct SolutionFeedbackCase {
 }
 
 /// A message with an associated severity.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct SolutionAlert {
     /// The severity of the alert message.
     pub severity: String,
@@ -128,10 +131,13 @@ pub struct SolutionAlert {
     pub message: String,
 }
 
-impl Task {
+impl TerryTask {
     /// Try to make a `Task` from the specified path. Will return `Err` if the format of the task
     /// is not Terry or if the task is corrupted and cannot be parsed.
-    pub fn new<P: AsRef<Path>>(path: P, eval_config: &EvaluationConfig) -> Result<Task, Error> {
+    pub fn new<P: AsRef<Path>>(
+        path: P,
+        eval_config: &EvaluationConfig,
+    ) -> Result<TerryTask, Error> {
         parse_task(path.as_ref(), eval_config)
     }
 
@@ -141,7 +147,7 @@ impl Task {
     }
 }
 
-impl TaskFormat for Task {
+impl TaskFormat for TerryTask {
     fn path(&self) -> &Path {
         &self.path
     }
@@ -237,6 +243,6 @@ impl TaskFormat for Task {
     }
 
     fn task_info(&self) -> Result<TaskInfo, Error> {
-        Ok(TaskInfo::Terry(task_info::TaskInfo::new(self)?))
+        Ok(TaskInfo::Terry(task_info::TerryTaskInfo::new(self)?))
     }
 }

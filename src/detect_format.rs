@@ -17,8 +17,8 @@ pub fn find_task<P: Into<PathBuf>>(
     let mut possible_ioi = false;
     let mut possible_terry = false;
     for _ in 0..max_depth {
-        possible_ioi = ioi::Task::is_valid(&base);
-        possible_terry = terry::Task::is_valid(&base);
+        possible_ioi = ioi::IOITask::is_valid(&base);
+        possible_terry = terry::TerryTask::is_valid(&base);
         if possible_ioi || possible_terry {
             break;
         }
@@ -30,7 +30,7 @@ pub fn find_task<P: Into<PathBuf>>(
     match (possible_ioi, possible_terry) {
         (true, true) => bail!("Ambiguous task directory, can be either IOI and terry"),
         (false, false) => bail!("No task directory found!"),
-        (true, false) => match ioi::Task::new(&base, eval_config) {
+        (true, false) => match ioi::IOITask::new(&base, eval_config) {
             Ok(task) => {
                 trace!("The task is IOI: {:#?}", task);
                 Ok(Box::new(task))
@@ -40,7 +40,7 @@ pub fn find_task<P: Into<PathBuf>>(
                 Err(e)
             }
         },
-        (false, true) => match terry::Task::new(&base, eval_config) {
+        (false, true) => match terry::TerryTask::new(&base, eval_config) {
             Ok(task) => {
                 trace!("The task is Terry: {:#?}", task);
                 Ok(Box::new(task))

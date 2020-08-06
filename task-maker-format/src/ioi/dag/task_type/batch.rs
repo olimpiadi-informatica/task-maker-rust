@@ -2,18 +2,19 @@ use std::sync::{Arc, Mutex};
 
 use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{ExecutionStatus, FileUuid, Priority};
 
 use crate::ioi::{
-    Checker, OutputGenerator, ScoreManager, SubtaskId, Task, TestcaseId, EVALUATION_PRIORITY,
+    Checker, IOITask, OutputGenerator, ScoreManager, SubtaskId, TestcaseId, EVALUATION_PRIORITY,
 };
 use crate::ui::UIMessage;
 use crate::{bind_exec_callbacks, bind_exec_io};
 use crate::{EvaluationData, SourceFile, Tag};
 
 /// The internal data of a task of type `Batch`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct BatchTypeData {
     /// The default output generator for this task, if any.
     #[serde(skip_serializing)]
@@ -25,7 +26,7 @@ pub struct BatchTypeData {
 /// Evaluate a solution in a task of Batch type.
 #[allow(clippy::too_many_arguments)]
 pub fn evaluate(
-    task: &Task,
+    task: &IOITask,
     eval: &mut EvaluationData,
     subtask_id: SubtaskId,
     testcase_id: TestcaseId,

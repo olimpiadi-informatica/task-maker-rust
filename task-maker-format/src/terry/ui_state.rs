@@ -5,14 +5,14 @@ use std::time::SystemTime;
 use task_maker_dag::{ExecutionResult, ExecutionStatus};
 use task_maker_exec::ExecutorStatus;
 
-use crate::terry::{Seed, SolutionOutcome, Task};
+use crate::terry::{Seed, SolutionOutcome, TerryTask};
 use crate::ui::{CompilationStatus, UIExecutionStatus, UIMessage, UIStateT};
 
 /// The state of a Terry task, all the information for the UI are stored here.
 #[derive(Debug, Clone)]
 pub struct UIState {
     /// The task.
-    pub task: Task,
+    pub task: TerryTask,
     /// The status of the compilations.
     pub compilations: HashMap<PathBuf, CompilationStatus>,
     /// The state of the solutions known.
@@ -77,7 +77,7 @@ impl Default for SolutionStatus {
 
 impl UIState {
     /// Make a new `UIState`.
-    pub fn new(task: &Task) -> UIState {
+    pub fn new(task: &TerryTask) -> UIState {
         UIState {
             task: task.clone(),
             compilations: HashMap::new(),

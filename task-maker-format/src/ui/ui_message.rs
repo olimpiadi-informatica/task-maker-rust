@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
 
 use task_maker_exec::ExecutorStatus;
 
@@ -11,7 +12,7 @@ use crate::ui::UIExecutionStatus;
 use crate::{ioi, terry};
 
 /// A message sent to the UI.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, TypeScriptify)]
 pub enum UIMessage {
     /// A message asking the UI to exit.
     StopUI,
@@ -33,7 +34,7 @@ pub enum UIMessage {
     /// The information about the task which is being run.
     IOITask {
         /// The task information.
-        task: Box<ioi::Task>,
+        task: Box<ioi::IOITask>,
     },
 
     /// The generation of a testcase in a IOI task.
@@ -155,7 +156,7 @@ pub enum UIMessage {
     /// The information about the task which is being run.
     TerryTask {
         /// The task information.
-        task: Box<terry::Task>,
+        task: Box<terry::TerryTask>,
     },
 
     /// The generation of a testcase in a Terry task.

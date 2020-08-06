@@ -22,13 +22,18 @@ use std::sync::{Arc, Mutex};
 
 use failure::{bail, format_err, Error};
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
 
 use curses_ui::CursesUI;
 pub use dag::*;
+pub use format::italian_yaml;
 pub use statement::*;
+pub use task_info::*;
 use task_maker_lang::GraderMap;
 pub use ui_state::*;
 
+use crate::ioi::format::italian_yaml::TM_ALLOW_DELETE_COOKIE;
+use crate::ioi::italian_yaml::is_gen_gen_deletable;
 use crate::sanity_checks::SanityChecks;
 use crate::ui::*;
 use crate::{EvaluationConfig, EvaluationData, TaskFormat, TaskInfo, UISender};
@@ -41,10 +46,6 @@ pub mod sanity_checks;
 mod statement;
 pub(crate) mod task_info;
 pub(crate) mod ui_state;
-
-use crate::ioi::format::italian_yaml::TM_ALLOW_DELETE_COOKIE;
-use crate::ioi::italian_yaml::is_gen_gen_deletable;
-pub use format::italian_yaml;
 
 /// In IOI tasks the subtask numbers are non-negative 0-based integers.
 pub type SubtaskId = u32;
@@ -66,8 +67,8 @@ pub struct ScoreManager {
 }
 
 /// Information about a generic IOI task.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Task {
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+pub struct IOITask {
     /// Path of the directory of the task.
     pub path: PathBuf,
     /// The type of the task.
@@ -105,11 +106,11 @@ pub struct Task {
     /// It's also not `Serialize` nor `Deserialize`, all the sanity checks will be lost on
     /// serialization.
     #[serde(skip_serializing, skip_deserializing)]
-    pub sanity_checks: Arc<SanityChecks<Task>>,
+    pub sanity_checks: Arc<SanityChecks<IOITask>>,
 }
 
 /// A subtask of a IOI task.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct SubtaskInfo {
     /// The id of the subtask.
     pub id: SubtaskId,
@@ -125,7 +126,7 @@ pub struct SubtaskInfo {
 ///
 /// Every testcase has an input and an output that will be put in the input/ and output/ folders.
 /// The files are written there only if it's not a dry-run and if the files are not static.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct TestcaseInfo {
     /// The id of the testcase.
     pub id: TestcaseId,
@@ -137,10 +138,10 @@ pub struct TestcaseInfo {
     pub output_generator: OutputGenerator,
 }
 
-impl Task {
+impl IOITask {
     /// Try to make a `Task` from the specified path. Will return `Err` if the format of the task
     /// is not IOI or if the task is corrupted and cannot be parsed.
-    pub fn new<P: AsRef<Path>>(path: P, eval_config: &EvaluationConfig) -> Result<Task, Error> {
+    pub fn new<P: AsRef<Path>>(path: P, eval_config: &EvaluationConfig) -> Result<IOITask, Error> {
         format::italian_yaml::parse_task(path, eval_config)
     }
 
@@ -154,7 +155,7 @@ impl Task {
     }
 }
 
-impl TaskFormat for Task {
+impl TaskFormat for IOITask {
     fn path(&self) -> &Path {
         &self.path
     }
@@ -317,7 +318,7 @@ impl TaskFormat for Task {
     }
 
     fn task_info(&self) -> Result<TaskInfo, Error> {
-        Ok(TaskInfo::IOI(task_info::TaskInfo::new(self)?))
+        Ok(TaskInfo::IOI(task_info::IOITaskInfo::new(self)?))
     }
 }
 
@@ -335,7 +336,7 @@ impl FromStr for TestcaseScoreAggregator {
 
 impl ScoreManager {
     /// Make a new `ScoreManager` based on the subtasks and testcases of the specified task.
-    pub fn new(task: &Task) -> ScoreManager {
+    pub fn new(task: &IOITask) -> ScoreManager {
         ScoreManager {
             subtask_scores: task.subtasks.keys().map(|st| (*st, None)).collect(),
             max_subtask_scores: task

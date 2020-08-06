@@ -117,7 +117,7 @@ pub struct SolutionEvaluationState {
 
 impl SolutionEvaluationState {
     /// Make a new, empty, `SolutionEvaluationState`.
-    pub fn new(task: &Task) -> SolutionEvaluationState {
+    pub fn new(task: &IOITask) -> SolutionEvaluationState {
         SolutionEvaluationState {
             score: None,
             subtasks: task
@@ -172,7 +172,7 @@ pub struct BookletState {
 #[derive(Debug, Clone)]
 pub struct UIState {
     /// The task.
-    pub task: Task,
+    pub task: IOITask,
     /// The maximum score of this task.
     pub max_score: f64,
     /// The status of the compilations.
@@ -258,7 +258,7 @@ impl TestcaseEvaluationStatus {
 
 impl UIState {
     /// Make a new `UIState`.
-    pub fn new(task: &Task) -> UIState {
+    pub fn new(task: &IOITask) -> UIState {
         let generations = task
             .subtasks
             .iter()

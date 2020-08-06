@@ -1,18 +1,19 @@
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{ExecutionGroup, FileUuid, Priority};
 
-use crate::ioi::{ScoreManager, SubtaskId, Task, TestcaseId, EVALUATION_PRIORITY};
+use crate::ioi::{IOITask, ScoreManager, SubtaskId, TestcaseId, EVALUATION_PRIORITY};
 use crate::ui::{UIMessage, UIMessageSender};
 use crate::{bind_exec_callbacks, bind_exec_io};
 use crate::{EvaluationData, SourceFile, Tag};
-use std::path::PathBuf;
 
 /// The internal data of a task of type `Batch`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct CommunicationTypeData {
     /// The source file of the manager that communicates with the solutions.
     pub manager: Arc<SourceFile>,
@@ -51,7 +52,7 @@ struct ScoreSender {
 /// Evaluate a solution in a task of Batch type.
 #[allow(clippy::too_many_arguments)]
 pub fn evaluate(
-    task: &Task,
+    task: &IOITask,
     eval: &mut EvaluationData,
     subtask_id: SubtaskId,
     testcase_id: TestcaseId,

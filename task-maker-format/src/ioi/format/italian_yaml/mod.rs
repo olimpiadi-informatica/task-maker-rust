@@ -271,7 +271,7 @@ use task_maker_lang::GraderMap;
 use crate::ioi::sanity_checks::get_sanity_checks;
 use crate::ioi::TM_VALIDATION_FILE_NAME;
 use crate::ioi::{
-    make_booklets, Checker, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo, Task,
+    make_booklets, Checker, IOITask, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo,
     TaskType, TestcaseId, TestcaseInfo, TestcaseScoreAggregator,
 };
 use crate::ioi::{BatchTypeData, CommunicationTypeData};
@@ -355,7 +355,7 @@ pub(crate) enum TaskInputEntry {
 pub fn parse_task<P: AsRef<Path>>(
     task_dir: P,
     eval_config: &EvaluationConfig,
-) -> Result<Task, Error> {
+) -> Result<IOITask, Error> {
     let task_dir = task_dir.as_ref();
     let yaml: TaskYAML = serde_yaml::from_reader(fs::File::open(&task_dir.join("task.yaml"))?)?;
     debug!("The yaml is {:#?}", yaml);
@@ -439,7 +439,7 @@ pub fn parse_task<P: AsRef<Path>>(
         subtasks.insert(subtask.id, subtask);
     }
 
-    let mut task = Task {
+    let mut task = IOITask {
         path: task_dir.into(),
         task_type,
         name: yaml.name,

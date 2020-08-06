@@ -37,6 +37,8 @@ nix = "0.17"
 ductile = "0.1"
 # Key Derivation Function from a password
 scrypt = "0.3"
+# Typescript definition generation
+typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs"}
 
 [dev-dependencies]
 pretty_assertions = "0.6"

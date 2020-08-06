@@ -10,7 +10,7 @@ use tempdir::TempDir;
 
 use task_maker_dag::ExecutionStatus;
 use task_maker_format::ioi::{
-    SubtaskId, Task, TestcaseEvaluationStatus, TestcaseGenerationStatus, UIState,
+    IOITask, SubtaskId, TestcaseEvaluationStatus, TestcaseGenerationStatus, UIState,
 };
 use task_maker_format::ui::CompilationStatus;
 use task_maker_format::ui::UIStateT;
@@ -130,7 +130,7 @@ impl TestInterface {
         );
         let opt = Opt::from_iter(&args);
 
-        let task = Task::new(
+        let task = IOITask::new(
             &task_dir,
             &EvaluationConfig {
                 solution_filter: vec![],

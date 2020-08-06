@@ -11,13 +11,13 @@
 #[macro_use]
 extern crate approx;
 #[macro_use]
+extern crate derivative;
+#[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
 #[macro_use]
 extern crate pest_derive;
-#[macro_use]
-extern crate derivative;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -26,6 +26,7 @@ use std::sync::{Arc, Mutex};
 use failure::Error;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
 
 pub use sanity_checks::get_sanity_check_names;
 pub use source_file::SourceFile;
@@ -33,6 +34,7 @@ pub use tag::{Tag, VALID_TAGS};
 use task_maker_dag::ExecutionDAG;
 use task_maker_lang::{GraderMap, LanguageManager};
 
+use crate::ioi::task_info::IOITaskInfo;
 use crate::terry::Seed;
 use crate::ui::UI;
 
@@ -82,12 +84,12 @@ pub trait TaskFormat {
 }
 
 /// Information about a parsed task, returned with the `--task-info` option.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub enum TaskInfo {
     /// The task is IOI-like.
-    IOI(ioi::task_info::TaskInfo),
+    IOI(IOITaskInfo),
     /// The task is Terry-like.
-    Terry(terry::task_info::TaskInfo),
+    Terry(terry::task_info::TerryTaskInfo),
 }
 
 /// Configuration of the evaluation of a task.

@@ -9,16 +9,16 @@ use task_maker_format::ioi::sanity_checks::get_sanity_checks;
 use task_maker_format::ioi::*;
 use task_maker_lang::GraderMap;
 
-pub fn new_task() -> Task {
+pub fn new_task() -> IOITask {
     new_task_with_context(Path::new(""))
 }
 
-pub fn new_task_with_context(path: &Path) -> Task {
+pub fn new_task_with_context(path: &Path) -> IOITask {
     let p = path.join("x");
     if path.as_os_str() != "" {
         std::fs::write(&p, "xxx").unwrap();
     }
-    let mut task = Task {
+    let mut task = IOITask {
         path: path.into(),
         task_type: TaskType::Batch(BatchTypeData {
             output_generator: None,

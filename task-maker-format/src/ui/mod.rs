@@ -7,6 +7,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use failure::Error;
 use serde::{Deserialize, Serialize};
 use termcolor::{Color, ColorSpec, StandardStream};
+use typescript_definitions::TypeScriptify;
 
 pub use json::JsonUI;
 pub use print::PrintUI;
@@ -75,7 +76,7 @@ lazy_static! {
 }
 
 /// The status of an execution.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, TypeScriptify)]
 pub enum UIExecutionStatus {
     /// The `Execution` is known to the DAG and when all its dependencies are ready it will
     /// started.

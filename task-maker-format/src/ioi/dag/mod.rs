@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
 
 pub use checker::Checker;
 pub use input_generator::InputGenerator;
@@ -22,7 +23,7 @@ pub(crate) const EVALUATION_PRIORITY: Priority = 1_000;
 pub const STDERR_CONTENT_LENGTH: usize = 10 * 1024;
 
 /// The aggregator of testcase scores for computing the subtask score.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub enum TestcaseScoreAggregator {
     /// Take the minimum of all the testcases, formally:
     ///
@@ -92,13 +93,13 @@ mod tests {
     use task_maker_dag::{ExecutionResourcesUsage, ExecutionResult, ExecutionStatus, File};
     use task_maker_lang::GraderMap;
 
-    use crate::ioi::Task;
+    use crate::ioi::IOITask;
     use crate::{EvaluationData, SourceFile, Tag};
 
     use super::*;
 
-    fn make_task<P: Into<PathBuf>>(path: P) -> Task {
-        Task {
+    fn make_task<P: Into<PathBuf>>(path: P) -> IOITask {
+        IOITask {
             path: path.into(),
             task_type: TaskType::Batch(BatchTypeData {
                 output_generator: None,

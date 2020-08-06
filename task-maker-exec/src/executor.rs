@@ -9,6 +9,7 @@ use chashmap::CHashMap;
 use ductile::{ChannelReceiver, ChannelSender};
 use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
 
 use task_maker_cache::Cache;
 use task_maker_dag::{ExecutionGroup, ExecutionUuid, FileUuid, ProvidedFile, WorkerUuid};
@@ -50,7 +51,7 @@ pub struct WorkerJob {
 }
 
 /// Information about the job the worker is currently doing.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TypeScriptify)]
 pub struct WorkerCurrentJobStatus<T> {
     /// The name of the job the worker is currently doing.
     pub job: String,
@@ -73,7 +74,7 @@ impl WorkerCurrentJobStatus<Duration> {
 }
 
 /// Status of a worker of an `Executor`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TypeScriptify)]
 pub struct ExecutorWorkerStatus<T> {
     /// UUID of the worker.
     pub uuid: WorkerUuid,
@@ -87,7 +88,7 @@ pub struct ExecutorWorkerStatus<T> {
 ///
 /// The type parameter `T` is either `SystemTime` for local usage or `Duration` for serialization.
 /// Unfortunately since `Instant` is not serializable by design, it cannot be used.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TypeScriptify)]
 pub struct ExecutorStatus<T> {
     /// List of the connected workers with their uuid, name and if they have some work.
     pub connected_workers: Vec<ExecutorWorkerStatus<T>>,

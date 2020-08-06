@@ -3,6 +3,7 @@ import * as readline from "readline";
 import {fromEvent, Observable} from "rxjs";
 import {map, reduce, takeUntil} from "rxjs/operators";
 import {Readable} from "stream";
+import {TaskInfo, UIMessage} from "./task_maker";
 
 export type RemoteAddr = {
     host: string;
@@ -48,7 +49,7 @@ export type CleanConfig = {
 };
 
 export type EvaluationResult = {
-    lines: Observable<any>;
+    lines: Observable<UIMessage>;
     stderr: Promise<string>;
     child: Promise<Output>;
 };
@@ -59,7 +60,7 @@ export type CleanResult = {
 };
 
 export type TaskInfoResult = {
-    taskInfo: Promise<any>;
+    taskInfo: Promise<TaskInfo>;
     stderr: Promise<string>;
     child: Promise<Output>;
 };
@@ -101,7 +102,7 @@ export class TaskMaker {
         const stdoutReader = readline.createInterface(child.stdout);
         const lines = fromEvent<string>(stdoutReader, "line").pipe(
             takeUntil(fromEvent(stdoutReader, "close")),
-            map((json) => JSON.parse(json))
+            map((json) => JSON.parse(json) as UIMessage)
         );
         const stderr = capture(child.stderr);
         return {
@@ -121,7 +122,7 @@ export class TaskMaker {
         const stdout = capture(child.stdout);
         const stderr = capture(child.stderr);
         return {
-            taskInfo: stdout.then((stdout) => JSON.parse(stdout)),
+            taskInfo: stdout.then((stdout) => JSON.parse(stdout) as TaskInfo),
             stderr,
             child,
         };

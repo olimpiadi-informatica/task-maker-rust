@@ -48,6 +48,8 @@ shell-words = "0.1"
 derivative = "2.1"
 # For sending ^C to the process
 nix = "0.17"
+# Typescript definition generation
+typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs"}
 
 [dev-dependencies]
 tempdir = "0.3"

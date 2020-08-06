@@ -1,17 +1,17 @@
 use crate::sanity_checks::{SanityCheck, SanityChecks};
-use crate::terry::Task;
+use crate::terry::TerryTask;
 
 mod checker;
 mod statement;
 mod task;
 
 /// Make a new `SanityChecks` for a IOI task skipping the checks with the provided names.
-pub fn get_sanity_checks(skip: &[String]) -> SanityChecks<Task> {
+pub fn get_sanity_checks(skip: &[String]) -> SanityChecks<TerryTask> {
     SanityChecks::new(get_sanity_check_list(skip))
 }
 
 /// Return the list of sanity checks excluding the ones with their name in the provided list.
-fn get_sanity_check_list(skip: &[String]) -> Vec<Box<dyn SanityCheck<Task>>> {
+fn get_sanity_check_list(skip: &[String]) -> Vec<Box<dyn SanityCheck<TerryTask>>> {
     let all: Vec<Box<dyn SanityCheck<_>>> = vec![
         Box::new(task::ValidatorPresent::default()),
         Box::new(statement::StatementPresent::default()),
