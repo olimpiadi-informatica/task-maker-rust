@@ -1,12 +1,13 @@
 {
   "name": "task_maker",
   "version": "1.0.0",
-  "description": "",
+  "description": "Bindings and types for task-maker-rust",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc"
   },
   "author": "Edoardo Morassutto <edoardo.morassutto@gmail.com>",
+  "homepage": "https://github.com/edomora97/task-maker-rust",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^14.0.27",
