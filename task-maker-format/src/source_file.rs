@@ -17,6 +17,7 @@ use crate::EvaluationData;
 /// transparent to the `SourceFile`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceFile {
+    #[serde(flatten)]
     base: task_maker_lang::SourceFile,
 }
 

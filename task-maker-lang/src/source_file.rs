@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use failure::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::*;
 
@@ -17,7 +18,7 @@ const COMPILATION_PRIORITY: Priority = 1_000_000_000;
 ///
 /// After creating a `SourceFile` using `new` you can add start using it via the `execute` method.
 /// Note that it may add to the DAG an extra execution for compiling the source file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct SourceFile {
     /// Path to the source file.
     pub path: PathBuf,

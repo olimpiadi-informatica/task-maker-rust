@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{Execution, ExecutionCommand, ExecutionStatus, FileUuid, Priority};
 
@@ -13,7 +14,7 @@ use crate::{EvaluationData, SourceFile, Tag};
 
 /// Which tool to use to compute the score on a testcase given the input file, the _correct_ output
 /// file and the output file to evaluate.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub enum Checker {
     /// Use a built-in white diff checker that scores 1.0 if the two output files are identical
     /// except for white spaces. It internally uses `diff --ignore-all-spaces`

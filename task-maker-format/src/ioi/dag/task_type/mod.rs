@@ -2,19 +2,20 @@ use std::sync::{Arc, Mutex};
 
 use failure::Error;
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
 
 pub use batch::BatchTypeData;
 pub use communication::CommunicationTypeData;
 use task_maker_dag::FileUuid;
 
-use crate::ioi::{ScoreManager, SubtaskId, Task, TestcaseId};
+use crate::ioi::{IOITask, ScoreManager, SubtaskId, TestcaseId};
 use crate::{EvaluationData, SourceFile};
 
 mod batch;
 mod communication;
 
 /// The type of the task. This changes the behavior of the solutions.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub enum TaskType {
     /// The solution is a single file that will be executed once per testcase, feeding in the input
     /// file and reading the output file. The solution may be compiled with additional graders
@@ -31,7 +32,7 @@ impl TaskType {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn evaluate(
         &self,
-        task: &Task,
+        task: &IOITask,
         eval: &mut EvaluationData,
         subtask_id: SubtaskId,
         testcase_id: TestcaseId,

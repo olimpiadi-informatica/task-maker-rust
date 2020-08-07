@@ -7,6 +7,7 @@ use failure::{format_err, Error};
 use itertools::Itertools;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{Execution, ExecutionCommand, File};
 
@@ -15,7 +16,7 @@ use crate::ui::UIMessageSender;
 use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, Tag, UISender, DATA_DIR};
 
 /// Configuration of a `Booklet`, including the setting from the contest configuration.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, TypeScriptify)]
 pub struct BookletConfig {
     /// The language to use for this booklet, e.g. `"english"`.
     pub language: String,
@@ -56,7 +57,7 @@ pub struct BookletTemplate {
 
 /// A `Booklet` is a pdf file containing the statements of some tasks. It is compiled from a series
 /// of `.tex` files defined by `Statement` objects. The compiled pdf file is then copied somewhere.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct Booklet {
     /// Configuration of the booklet.
     pub config: BookletConfig,

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::terry::dag::{Checker, InputGenerator, InputValidator};
 use crate::terry::sanity_checks::get_sanity_checks;
-use crate::terry::Task;
+use crate::terry::TerryTask;
 use crate::{find_source_file, EvaluationConfig, SourceFile};
 use std::sync::Arc;
 
@@ -31,7 +31,7 @@ struct TaskYAML {
 pub fn parse_task<P: AsRef<Path>>(
     task_dir: P,
     eval_config: &EvaluationConfig,
-) -> Result<Task, Error> {
+) -> Result<TerryTask, Error> {
     let task_dir = task_dir.as_ref();
     let yaml: TaskYAML = serde_yaml::from_reader(fs::File::open(&task_dir.join("task.yaml"))?)?;
 
@@ -44,7 +44,7 @@ pub fn parse_task<P: AsRef<Path>>(
         .ok_or_else(|| format_err!("No checker found in managers/"))?;
     let official_solution = get_manager(task_dir, "solution");
 
-    Ok(Task {
+    Ok(TerryTask {
         path: task_dir.into(),
         name: yaml.name,
         description: yaml.description,

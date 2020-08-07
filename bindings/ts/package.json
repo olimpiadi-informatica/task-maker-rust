@@ -1,0 +1,30 @@
+{
+  "name": "@edomora97/task-maker",
+  "version": "1.0.1",
+  "description": "Bindings and types for task-maker-rust",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepublish": "tsc"
+  },
+  "author": "Edoardo Morassutto <edoardo.morassutto@gmail.com>",
+  "homepage": "https://github.com/edomora97/task-maker-rust",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "ssh://git@github.com:edomora97/task-maker-rust.git",
+    "directory": "bindings/ts"
+  },
+  "devDependencies": {
+    "@types/node": "^14.0.27",
+    "prettier": "^2.0.5",
+    "ts-node": "^8.10.2",
+    "typescript": "^3.9.7",
+    "typescript-json-schema": "^0.42.0"
+  },
+  "dependencies": {
+    "promisify-child-process": "^4.1.1",
+    "rxjs": "^6.6.2"
+  }
+}

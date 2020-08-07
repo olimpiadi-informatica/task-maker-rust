@@ -19,6 +19,8 @@ lazy_static = "1.3"
 which = "2.0"
 # Split command line arguments
 shell-words = "0.1"
+# Typescript definition generation
+typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs"}
 
 [dev-dependencies]
 task-maker-exec = { path = "../task-maker-exec" }

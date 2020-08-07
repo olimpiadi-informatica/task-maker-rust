@@ -1,16 +1,20 @@
-use crate::languages::{Dependency, Language};
-use crate::LanguageManager;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+
+use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
+
 use task_maker_dag::*;
+
+use crate::languages::{Dependency, Language};
+use crate::LanguageManager;
 
 /// The storage of the compilation/runtime dependencies for the source files.
 ///
 /// A source file may need some extra dependencies in order to be compiled and/or executed. For
 /// example a C++ file may need a second C++ file to be linked together, or a Python file may need
 /// a second Python file to be run.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, TypeScriptify)]
 pub struct GraderMap {
     /// The map from the name of the language to the file handle of the grader.
     graders: HashMap<String, Dependency>,
@@ -103,11 +107,13 @@ impl GraderMap {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use spectral::prelude::*;
+
     use crate::languages::c::{LanguageC, LanguageCConfiguration};
     use crate::languages::cpp::{LanguageCpp, LanguageCppConfiguration};
     use crate::languages::python::{LanguagePython, LanguagePythonVersion};
-    use spectral::prelude::*;
+
+    use super::*;
 
     #[test]
     fn test_new() {

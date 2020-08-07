@@ -1,12 +1,15 @@
-use crate::file::*;
-use crate::ExecutionDAGConfig;
+use std::collections::HashMap;
+use std::path::PathBuf;
+
 use boxfnonce::BoxFnOnce;
 use failure::Error;
 use failure::_core::fmt::Formatter;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::path::PathBuf;
+use typescript_definitions::TypeScriptify;
 use uuid::Uuid;
+
+use crate::file::*;
+use crate::ExecutionDAGConfig;
 
 /// The identifier of an execution, it's globally unique and it identifies an execution only during
 /// a single evaluation.
@@ -15,6 +18,7 @@ pub type ExecutionUuid = Uuid;
 /// The identifier of a worker, it's globally unique and identifies the worker during a single
 /// connection. It is used to associate the jobs to the workers which runs the executions. The
 /// underlying executor may provide more information about a worker using this id.
+
 pub type WorkerUuid = Uuid;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) starts.
@@ -192,7 +196,7 @@ pub struct ExecutionLimits {
 }
 
 /// Status of a completed [`Execution`](struct.Execution.html).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TypeScriptify)]
 pub enum ExecutionStatus {
     /// The program exited with status 0 within the limits.
     Success,
@@ -214,7 +218,7 @@ pub enum ExecutionStatus {
 
 /// Resources used during the execution, note that on some platform these values may not be
 /// accurate.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, TypeScriptify)]
 pub struct ExecutionResourcesUsage {
     /// Number of seconds the process used in user space.
     pub cpu_time: f64,
@@ -227,7 +231,7 @@ pub struct ExecutionResourcesUsage {
 }
 
 /// The result of an [`Execution`](struct.Execution.html).
-#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, TypeScriptify)]
 pub struct ExecutionResult {
     /// Status of the completed execution.
     pub status: ExecutionStatus,

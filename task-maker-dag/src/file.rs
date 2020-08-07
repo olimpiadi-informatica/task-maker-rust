@@ -1,7 +1,9 @@
+use std::path::PathBuf;
+
 use boxfnonce::BoxFnOnce;
 use failure::Error;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use typescript_definitions::TypeScriptify;
 use uuid::Uuid;
 
 /// The identifier of a file, it's globally unique and it identifies a file
@@ -31,7 +33,7 @@ pub struct FileCallbacks {
 }
 
 /// An handle to a file in the evaluation, this only tracks dependencies between executions.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd, TypeScriptify)]
 pub struct File {
     /// Uuid of the file.
     pub uuid: FileUuid,

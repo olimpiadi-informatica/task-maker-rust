@@ -3,12 +3,13 @@ use std::path::PathBuf;
 use failure::Error;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
 
-use crate::ioi::Task;
+use crate::ioi::IOITask;
 
 /// Task information structure.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TaskInfo {
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+pub struct IOITaskInfo {
     /// Version of this task-info structure.
     version: u64,
     /// Short name of the task.
@@ -26,7 +27,7 @@ pub struct TaskInfo {
 }
 
 /// Limits of the task.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct TaskInfoLimits {
     /// Time limit in seconds.
     time: Option<f64>,
@@ -35,7 +36,7 @@ pub struct TaskInfoLimits {
 }
 
 /// Attachment of the task.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct TaskInfoAttachment {
     /// Name of this attachment.
     name: String,
@@ -46,7 +47,7 @@ pub struct TaskInfoAttachment {
 }
 
 /// Info of the subtasks.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct TaskInfoSubtask {
     /// Maximum score for this subtask.
     max_score: f64,
@@ -55,7 +56,7 @@ pub struct TaskInfoSubtask {
 }
 
 /// Scoring for the task.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct TaskInfoScoring {
     /// Maximum score for the task.
     max_score: f64,
@@ -64,7 +65,7 @@ pub struct TaskInfoScoring {
 }
 
 /// Statement of the task.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct TaskInfoStatement {
     /// Language of the statement.
     language: String,
@@ -74,10 +75,10 @@ pub struct TaskInfoStatement {
     path: PathBuf,
 }
 
-impl TaskInfo {
+impl IOITaskInfo {
     /// Generate the task information from the provided `Task`.
-    pub fn new(task: &Task) -> Result<TaskInfo, Error> {
-        Ok(TaskInfo {
+    pub fn new(task: &IOITask) -> Result<IOITaskInfo, Error> {
+        Ok(IOITaskInfo {
             version: 1,
             name: task.name.clone(),
             title: task.title.clone(),

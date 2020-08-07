@@ -6,7 +6,7 @@ use failure::Error;
 
 use task_maker_lang::LanguageManager;
 
-use crate::ioi::Task;
+use crate::ioi::IOITask;
 use crate::sanity_checks::{SanityCheck, SanityChecks};
 use crate::ui::UIMessage;
 use crate::{list_files, EvaluationData, UISender};
@@ -18,12 +18,12 @@ mod statement;
 mod task;
 
 /// Make a new `SanityChecks` for a IOI task skipping the checks with the provided names.
-pub fn get_sanity_checks(skip: &[String]) -> SanityChecks<Task> {
+pub fn get_sanity_checks(skip: &[String]) -> SanityChecks<IOITask> {
     SanityChecks::new(get_sanity_check_list(skip))
 }
 
 /// Return the list of sanity checks excluding the ones with their name in the provided list.
-fn get_sanity_check_list(skip: &[String]) -> Vec<Box<dyn SanityCheck<Task>>> {
+fn get_sanity_check_list(skip: &[String]) -> Vec<Box<dyn SanityCheck<IOITask>>> {
     let all: Vec<Box<dyn SanityCheck<_>>> = vec![
         Box::new(task::TaskMaxScore::default()),
         Box::new(task::BrokenSymlinks::default()),
@@ -54,7 +54,7 @@ pub fn get_sanity_check_names() -> Vec<&'static str> {
 /// Check that all the source file inside `folder` have the corresponding grader, if at least one
 /// grader is present in the grader map.
 fn check_missing_graders<P: AsRef<Path>>(
-    task: &Task,
+    task: &IOITask,
     eval: &mut EvaluationData,
     folder: P,
 ) -> Result<(), Error> {
@@ -103,6 +103,6 @@ fn check_missing_graders<P: AsRef<Path>>(
 }
 
 /// Check if the task uses the graders.
-fn has_grader(task: &Task) -> bool {
+fn has_grader(task: &IOITask) -> bool {
     task.grader_map.all_paths().count() != 0
 }

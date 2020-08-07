@@ -7,7 +7,7 @@ use regex::Regex;
 use task_maker_dag::File;
 
 use crate::ioi::sanity_checks::check_missing_graders;
-use crate::ioi::{Task, TaskType, TestcaseId};
+use crate::ioi::{IOITask, TaskType, TestcaseId};
 use crate::sanity_checks::SanityCheck;
 use crate::ui::UIMessage;
 use crate::{list_files, EvaluationData, UISender};
@@ -16,12 +16,12 @@ use crate::{list_files, EvaluationData, UISender};
 #[derive(Debug, Default)]
 pub struct AttGraders;
 
-impl SanityCheck<Task> for AttGraders {
+impl SanityCheck<IOITask> for AttGraders {
     fn name(&self) -> &'static str {
         "AttGraders"
     }
 
-    fn pre_hook(&mut self, task: &Task, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         check_missing_graders(task, eval, "att")
     }
 }
@@ -30,12 +30,12 @@ impl SanityCheck<Task> for AttGraders {
 #[derive(Debug, Default)]
 pub struct AttTemplates;
 
-impl SanityCheck<Task> for AttTemplates {
+impl SanityCheck<IOITask> for AttTemplates {
     fn name(&self) -> &'static str {
         "AttTemplates"
     }
 
-    fn pre_hook(&mut self, task: &Task, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         for grader in task.grader_map.all_paths() {
             let ext = grader
                 .extension()
@@ -56,12 +56,12 @@ impl SanityCheck<Task> for AttTemplates {
 #[derive(Debug, Default)]
 pub struct AttSampleFiles;
 
-impl SanityCheck<Task> for AttSampleFiles {
+impl SanityCheck<IOITask> for AttSampleFiles {
     fn name(&self) -> &'static str {
         "AttSampleFiles"
     }
 
-    fn pre_hook(&mut self, task: &Task, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         let mut no_sample = true;
         for sample in list_files(&task.path, vec!["att/*input*.txt", "att/*output*.txt"]) {
             no_sample = false;
@@ -99,12 +99,12 @@ impl SanityCheck<Task> for AttSampleFiles {
 #[derive(Debug, Default)]
 pub struct AttSampleFilesValid;
 
-impl SanityCheck<Task> for AttSampleFilesValid {
+impl SanityCheck<IOITask> for AttSampleFilesValid {
     fn name(&self) -> &'static str {
         "AttSampleFilesValid"
     }
 
-    fn pre_hook(&mut self, task: &Task, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         let validator = &task.input_validator;
         let task_type = if let TaskType::Batch(data) = &task.task_type {
             data
@@ -216,7 +216,7 @@ impl SanityCheck<Task> for AttSampleFilesValid {
 /// Search the input-output sample pairs inside the att folder. Returns a list of (input,output)
 /// pairs with their numbers matching.
 fn get_sample_files(
-    task: &Task,
+    task: &IOITask,
     eval: &mut EvaluationData,
 ) -> Result<Vec<(PathBuf, PathBuf)>, Error> {
     let regex = Regex::new(r"(in|out)put(\d+)\.txt$").unwrap();

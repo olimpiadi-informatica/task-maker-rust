@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use failure::{bail, Error};
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{Execution, File, FileUuid, Priority};
 
@@ -13,7 +14,7 @@ use crate::{EvaluationData, SourceFile, Tag};
 
 /// The source of the input files. It can either be a statically provided input file or a custom
 /// command that will generate an input file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub enum InputGenerator {
     /// Use the static file as input. The file will be copied without transformations.
     StaticFile(PathBuf),

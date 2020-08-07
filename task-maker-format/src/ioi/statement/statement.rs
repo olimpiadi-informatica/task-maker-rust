@@ -4,11 +4,12 @@ use askama::Template;
 use failure::Error;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::File;
 
 use crate::ioi::statement::asy::AsyFile;
-use crate::ioi::{BookletConfig, Task};
+use crate::ioi::{BookletConfig, IOITask};
 use crate::EvaluationData;
 
 lazy_static! {
@@ -17,7 +18,7 @@ lazy_static! {
 }
 
 /// The configuration of a `Statement`.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, TypeScriptify)]
 pub struct StatementConfig {
     /// The name of the task.
     pub name: String,
@@ -38,7 +39,7 @@ pub struct StatementConfig {
 }
 
 /// A statement is a `.tex` file with all the other assets included in its directory.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct Statement {
     /// The configuration of the statement.
     config: StatementConfig,
@@ -224,7 +225,7 @@ impl Statement {
 
 impl StatementConfig {
     /// Make a new `StatementConfig` from an instace of a `ioi::Task`.
-    pub fn from_task(task: &Task) -> Self {
+    pub fn from_task(task: &IOITask) -> Self {
         StatementConfig {
             name: task.name.clone(),
             title: task.title.clone(),
@@ -248,10 +249,12 @@ impl StatementConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
+    use tempdir::TempDir;
+
     use crate::ioi::{Statement, StatementConfig};
     use crate::EvaluationData;
-    use std::path::Path;
-    use tempdir::TempDir;
 
     #[test]
     fn test_is_valid_pdf_dependency_valid() {

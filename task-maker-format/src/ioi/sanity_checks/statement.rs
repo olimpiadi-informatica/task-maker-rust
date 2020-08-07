@@ -6,7 +6,7 @@ use failure::Error;
 use itertools::Itertools;
 use regex::Regex;
 
-use crate::ioi::{SubtaskId, Task};
+use crate::ioi::{IOITask, SubtaskId};
 use crate::sanity_checks::SanityCheck;
 use crate::ui::{UIMessage, UIMessageSender};
 use crate::{EvaluationData, UISender};
@@ -15,12 +15,12 @@ use crate::{EvaluationData, UISender};
 #[derive(Debug, Default)]
 pub struct StatementSubtasks;
 
-impl SanityCheck<Task> for StatementSubtasks {
+impl SanityCheck<IOITask> for StatementSubtasks {
     fn name(&self) -> &'static str {
         "StatementSubtasks"
     }
 
-    fn pre_hook(&mut self, task: &Task, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         let expected_subtasks = task
             .subtasks
             .iter()
@@ -76,12 +76,12 @@ impl SanityCheck<Task> for StatementSubtasks {
 #[derive(Debug, Default)]
 pub struct StatementValid;
 
-impl SanityCheck<Task> for StatementValid {
+impl SanityCheck<IOITask> for StatementValid {
     fn name(&self) -> &'static str {
         "StatementValid"
     }
 
-    fn post_hook(&mut self, task: &Task, ui: &mut UIMessageSender) -> Result<(), Error> {
+    fn post_hook(&mut self, task: &IOITask, ui: &mut UIMessageSender) -> Result<(), Error> {
         match find_statement_pdf(task) {
             None => {
                 return ui.send(UIMessage::Warning {
@@ -131,12 +131,12 @@ impl SanityCheck<Task> for StatementValid {
 #[derive(Debug, Default)]
 pub struct StatementGit;
 
-impl SanityCheck<Task> for StatementGit {
+impl SanityCheck<IOITask> for StatementGit {
     fn name(&self) -> &'static str {
         "StatementGit"
     }
 
-    fn post_hook(&mut self, task: &Task, ui: &mut UIMessageSender) -> Result<(), Error> {
+    fn post_hook(&mut self, task: &IOITask, ui: &mut UIMessageSender) -> Result<(), Error> {
         match find_statement_pdf(task) {
             None => return Ok(()),
             Some(path) => {
@@ -244,7 +244,7 @@ fn extract_subtasks(tex: String) -> Option<Vec<(SubtaskId, f64)>> {
 /// Search for the statement file, returning its path or None if it doesn't exists.
 ///
 /// Will return the path even in case of broken links.
-fn find_statement_pdf(task: &Task) -> Option<PathBuf> {
+fn find_statement_pdf(task: &IOITask) -> Option<PathBuf> {
     for path in &["statement/statement.pdf", "testo/testo.pdf"] {
         let path = task.path.join(path);
         if path.exists() || path.read_link().is_ok() {

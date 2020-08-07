@@ -3,7 +3,7 @@ use failure::{format_err, Error};
 pub use booklet::*;
 pub use statement::*;
 
-use crate::ioi::Task;
+use crate::ioi::IOITask;
 use crate::{list_files, EvaluationConfig};
 
 mod asy;
@@ -12,7 +12,10 @@ mod booklet;
 mod statement;
 
 /// Find all the `Booklet` it makes sense to build.
-pub fn make_booklets(task: &Task, eval_config: &EvaluationConfig) -> Result<Vec<Booklet>, Error> {
+pub fn make_booklets(
+    task: &IOITask,
+    eval_config: &EvaluationConfig,
+) -> Result<Vec<Booklet>, Error> {
     let statements = list_files(&task.path, vec!["statement/*.tex", "testo/*.tex"]);
     let mut booklets = vec![];
     let config = StatementConfig::from_task(task);
