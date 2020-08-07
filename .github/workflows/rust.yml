@@ -57,32 +57,35 @@ jobs:
         working-directory: ./bindings/ts
         run: ./rebuild.sh
       - name: Check diff
+        working-directory: ./bindings/ts
         run: git diff --exit-code src/ schema/
 
-  coverage:
-    name: Coverage
-    if: ${{ github.event_name != 'pull_request' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v1
-        with:
-          submodules: recursive
-      - name: Coverage
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        run: |
-          set -xe
-          sudo apt update
-          sudo apt install -yy curl build-essential python libseccomp-dev fpc
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          rustup default nightly
-          source $HOME/.cargo/env
-          curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-linux-x86_64.tar.bz2 | tar jxf -
-          export CARGO_INCREMENTAL=0
-          export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
-          export RUSTDOCFLAGS="-Cpanic=abort"
-          cargo build
-          cargo test --all
-          zip -0 ccov.zip `find . \( -name "task_maker*.gc*" \) -print`
-          ./grcov ccov.zip -s . -t lcov --llvm --branch --ignore-not-existing --ignore "/*" -o lcov.info
-          bash <(curl -s https://codecov.io/bash) -f lcov.info
+  # Those checks are nice, but they take a bit too much time and they're not that useful since the line detection is
+  # pretty broken.
+  #coverage:
+  #  name: Coverage
+  #  if: ${{ github.event_name != 'pull_request' }}
+  #  runs-on: ubuntu-latest
+  #  steps:
+  #    - uses: actions/checkout@v1
+  #      with:
+  #        submodules: recursive
+  #    - name: Coverage
+  #      env:
+  #        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  #      run: |
+  #        set -xe
+  #        sudo apt update
+  #        sudo apt install -yy curl build-essential python libseccomp-dev fpc
+  #        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  #        rustup default nightly
+  #        source $HOME/.cargo/env
+  #        curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-linux-x86_64.tar.bz2 | tar jxf -
+  #        export CARGO_INCREMENTAL=0
+  #        export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
+  #        export RUSTDOCFLAGS="-Cpanic=abort"
+  #        cargo build
+  #        cargo test --all
+  #        zip -0 ccov.zip `find . \( -name "task_maker*.gc*" \) -print`
+  #        ./grcov ccov.zip -s . -t lcov --llvm --branch --ignore-not-existing --ignore "/*" -o lcov.info
+  #        bash <(curl -s https://codecov.io/bash) -f lcov.info
