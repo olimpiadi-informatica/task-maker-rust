@@ -4,7 +4,8 @@
     "lib": [
       "ES2016"
     ],
-    "sourceMap": true
+    "sourceMap": true,
+    "declaration": true
   },
   "include": [
     "src/**/*.ts"
