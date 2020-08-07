@@ -4,6 +4,7 @@ import {fromEvent, Observable} from "rxjs";
 import {map, reduce, takeUntil} from "rxjs/operators";
 import {Readable} from "stream";
 import {TaskInfo, UIMessage} from "./task_maker";
+export * from "./task_maker";
 
 export type RemoteAddr = {
     host: string;

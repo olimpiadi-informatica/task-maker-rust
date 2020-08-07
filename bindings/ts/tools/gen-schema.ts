@@ -4,7 +4,7 @@ import {writeFileSync} from "fs";
 
 const basePath = "./src";
 const program = TJS.getProgramFromFiles(
-    [resolve("./src/task_maker.d.ts")],
+    [resolve("./src/task_maker.ts")],
     basePath
 );
 
