@@ -57,7 +57,7 @@ jobs:
         working-directory: ./bindings/ts
         run: ./rebuild.sh
       - name: Check diff
-        run: git diff --exit-code
+        run: git diff --exit-code src/ schema/
 
   coverage:
     name: Coverage
