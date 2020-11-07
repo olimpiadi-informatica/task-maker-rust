@@ -30,6 +30,8 @@ const READABLE_DIRS: &[&str] = &[
     // update-alternatives stuff, sometimes the executables are symlinked here
     "/etc/alternatives/",
     "/var/lib/dpkg/alternatives/",
+    // required by texlive on Ubuntu
+    "/var/lib/texmf/",
 ];
 
 /// Result of the execution of the sandbox.
