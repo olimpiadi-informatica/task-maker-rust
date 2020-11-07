@@ -365,18 +365,12 @@ impl std::default::Default for ExecutionLimits {
 impl ExecutionStatus {
     /// Returns true only if it is `ExecutionStatus::Success`.
     pub fn is_success(&self) -> bool {
-        match self {
-            ExecutionStatus::Success => true,
-            _ => false,
-        }
+        matches!(self, ExecutionStatus::Success)
     }
 
     /// Returns true only if it is `ExecutionStatus::InternalError(_)`.
     pub fn is_internal_error(&self) -> bool {
-        match self {
-            ExecutionStatus::InternalError(_) => true,
-            _ => false,
-        }
+        matches!(self, ExecutionStatus::InternalError(_))
     }
 }
 

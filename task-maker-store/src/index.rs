@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{FileStore, FileStoreKey, LockedFiles};
 
 /// An entry of a file inside the file store.
-#[derive(Clone, Debug, Serialize, Deserialize, Ord, Eq, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 struct FileStoreIndexItem {
     /// Size of the file.
     size: u64,
@@ -18,14 +18,14 @@ struct FileStoreIndexItem {
     last_access: SystemTime,
 }
 
+impl Ord for FileStoreIndexItem {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.last_access.cmp(&other.last_access)
+    }
+}
 impl PartialOrd for FileStoreIndexItem {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (self.last_access, other.last_access) {
-            (a, b) if a < b => Some(Ordering::Less),
-            (a, b) if a == b => Some(Ordering::Equal),
-            (a, b) if a > b => Some(Ordering::Greater),
-            _ => unreachable!(),
-        }
+        Some(self.cmp(other))
     }
 }
 

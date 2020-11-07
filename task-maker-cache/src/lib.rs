@@ -213,11 +213,7 @@ impl Cache {
 
     /// Checks whether a result is allowed in the cache.
     pub fn is_cacheable(result: &ExecutionResult) -> bool {
-        if let ExecutionStatus::InternalError(_) = result.status {
-            false
-        } else {
-            true
-        }
+        !matches!(result.status, ExecutionStatus::InternalError(_))
     }
 }
 

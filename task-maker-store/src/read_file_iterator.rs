@@ -104,10 +104,7 @@ mod tests {
     fn test_read_file_iterator_chunk_file() {
         let cwd = get_cwd();
         let path = cwd.path().join("file.txt");
-        let mut content = Vec::new();
-        for _ in 0..READ_FILE_BUFFER_SIZE {
-            content.push(123);
-        }
+        let content = vec![123; READ_FILE_BUFFER_SIZE];
         fake_file(&path, content.clone());
         let mut iter = ReadFileIterator::new(&path).unwrap();
         let chunk = iter.next();
@@ -119,10 +116,7 @@ mod tests {
     fn test_read_file_iterator_chunk_and_a_half_file() {
         let cwd = get_cwd();
         let path = cwd.path().join("file.txt");
-        let mut content = Vec::new();
-        for _ in 0..=READ_FILE_BUFFER_SIZE {
-            content.push(123);
-        }
+        let content = vec![123; READ_FILE_BUFFER_SIZE + 1];
         fake_file(&path, content.clone());
         let mut iter = ReadFileIterator::new(&path).unwrap();
         assert_eq!(
@@ -137,11 +131,8 @@ mod tests {
     fn test_read_file_iterator_many_chunks_file() {
         let cwd = get_cwd();
         let path = cwd.path().join("file.txt");
-        let mut content = Vec::new();
         let num_chunks = 3;
-        for _ in 0..READ_FILE_BUFFER_SIZE * num_chunks {
-            content.push(123);
-        }
+        let content = vec![123; READ_FILE_BUFFER_SIZE * num_chunks];
         fake_file(&path, content);
         let mut iter = ReadFileIterator::new(&path).unwrap();
         for _ in 0..num_chunks {

@@ -192,29 +192,23 @@ pub struct UIState {
 impl TestcaseEvaluationStatus {
     /// Whether the testcase evaluation has completed, either successfully or not.
     pub fn has_completed(&self) -> bool {
-        match self {
+        !matches!(
+            self,
             TestcaseEvaluationStatus::Pending
-            | TestcaseEvaluationStatus::Solving
-            | TestcaseEvaluationStatus::Solved
-            | TestcaseEvaluationStatus::Checking => false,
-            _ => true,
-        }
+                | TestcaseEvaluationStatus::Solving
+                | TestcaseEvaluationStatus::Solved
+                | TestcaseEvaluationStatus::Checking
+        )
     }
 
     /// Whether the testcase evaluation has completed successfully.
     pub fn is_success(&self) -> bool {
-        match self {
-            TestcaseEvaluationStatus::Accepted(_) => true,
-            _ => false,
-        }
+        matches!(self, TestcaseEvaluationStatus::Accepted(_))
     }
 
     /// Whether the testcase evaluation has completed with a partial score.
     pub fn is_partial(&self) -> bool {
-        match self {
-            TestcaseEvaluationStatus::Partial(_) => true,
-            _ => false,
-        }
+        matches!(self, TestcaseEvaluationStatus::Partial(_))
     }
 
     /// A message representing this status.
