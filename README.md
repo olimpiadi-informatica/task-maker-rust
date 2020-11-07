@@ -106,4 +106,14 @@ For running a remote computation on your machine just add the `--evaluate-on` op
 task-maker-rust --evaluate-on ip_of_the_server:27182
 ```
 
+#### Using docker
+
+You can easily spawn a task-maker server and a set of workers in your local machine without having to install all the compilers.
+
+```bash
+docker run --name task-maker --rm -it -p 27183:27183 -p 27182:27182 --privileged edomora97/task-maker-rust:latest
+```
+
+Then you can use task-maker locally adding `--evaluate-on localhost`.
+
 License: MPL-2.0

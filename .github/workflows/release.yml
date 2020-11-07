@@ -15,8 +15,6 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -yy curl build-essential python libseccomp-dev
-          # dirty trick to get the correct libgcc1 version of ubuntu16.04
-          sudo apt install -y --allow-downgrades libgcc1=1:6.0.1-0ubuntu1
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source $HOME/.cargo/env
           cargo install cargo-deb

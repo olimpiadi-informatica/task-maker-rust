@@ -10,7 +10,7 @@ class TaskMakerRust < Formula
   def install
     ENV["TM_DATA_DIR"] = share
 
-    system "cargo", "build", "--release"
+    system "cargo", "build", "--release", "--bin", "task-maker"
     system "cargo", "run", "--release", "--bin", "task-maker-gen-autocompletion"
 
     mv "target/release/task-maker", "target/release/task-maker-rust"
