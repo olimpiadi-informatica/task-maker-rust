@@ -4,6 +4,7 @@ ROOT="$(realpath "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pw
 
 if [[ $# -ne 1 ]]; then
   echo "Usage: $0 version" >&2
+  echo "Example: $0 0.1.2" >&2
   exit 1
 fi
 
