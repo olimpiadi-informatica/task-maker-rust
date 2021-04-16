@@ -305,10 +305,7 @@ where
 {
     use serde::de::Error;
     let lang_name = String::deserialize(deser)?;
-    Ok(
-        LanguageManager::from_name(lang_name)
-            .ok_or_else(|| D::Error::custom("unknown language"))?,
-    )
+    LanguageManager::from_name(lang_name).ok_or_else(|| D::Error::custom("unknown language"))
 }
 
 #[cfg(test)]

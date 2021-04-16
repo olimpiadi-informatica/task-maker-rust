@@ -126,7 +126,7 @@ impl Booklet {
         let output = exec.output("booklet.pdf");
 
         let source = File::new("Source of the booklet");
-        let tex = self.make_tex()?;
+        let tex = self.make_tex();
         exec.input(&source, "booklet.tex", false);
         eval.dag.provide_content(source, tex.into_bytes());
 
@@ -189,7 +189,7 @@ impl Booklet {
 
     /// Build the main booklet.tex source file by combining the info from all the statements and
     /// expanding the template.
-    fn make_tex(&self) -> Result<String, Error> {
+    fn make_tex(&self) -> String {
         let mut packages = HashSet::new();
         let mut tasks = Vec::new();
         for statement in self.statements.iter() {
@@ -201,7 +201,7 @@ impl Booklet {
                 statement.config().name
             ));
         }
-        Ok(BookletTemplate {
+        BookletTemplate {
             language: self.config.language.clone(),
             show_solutions: Booklet::bool_to_tpl_string(
                 self.config.show_solutions,
@@ -217,7 +217,7 @@ impl Booklet {
             packages: packages.iter().sorted().join("\n"),
             tasks: tasks.join("\n"),
         }
-        .to_string())
+        .to_string()
     }
 
     /// Return a string which is `if_true` if `b` is true, otherwise an empty string.
