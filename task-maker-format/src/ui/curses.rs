@@ -336,10 +336,12 @@ fn draw_server_status(
     if rect.height == 0 {
         return;
     }
+    let num_workers = workers.len();
     let chunks = workers
         .into_iter()
         .cycle()
         .skip(rotation_index)
+        .take(num_workers)
         .chunks(rect.height as usize);
     for (rect, chunk) in rects.into_iter().zip(&chunks) {
         draw_workers_chunk(frame, rect, &chunk.collect_vec(), loading);
