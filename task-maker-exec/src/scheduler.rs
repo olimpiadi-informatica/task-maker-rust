@@ -222,6 +222,7 @@ pub(crate) struct Scheduler {
     connected_workers: HashMap<WorkerUuid, ConnectedWorker>,
 }
 
+#[allow(clippy::unnecessary_wraps)]
 impl Scheduler {
     /// Make a new `Scheduler` based on the specified file store and cache. It will receive the
     /// messages using the provided channel and sends messages to the executor and worker manager

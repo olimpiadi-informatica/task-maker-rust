@@ -24,6 +24,7 @@
 //! ```
 
 #![deny(missing_docs)]
+#![allow(clippy::upper_case_acronyms)]
 
 #[macro_use]
 extern crate lazy_static;

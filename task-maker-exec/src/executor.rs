@@ -249,6 +249,7 @@ impl Executor {
     }
 
     /// Handle the messages from the scheduler, sending the notifications to the client involved.
+    #[allow(clippy::unnecessary_wraps)]
     fn handle_scheduler_messages(
         receiver: Receiver<SchedulerExecutorMessage>,
         clients: Arc<CHashMap<ClientUuid, ChannelSender<ExecutorServerMessage>>>,
