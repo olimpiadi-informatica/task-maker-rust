@@ -38,6 +38,7 @@
 //! ```
 
 #![deny(missing_docs)]
+#![allow(clippy::upper_case_acronyms)]
 
 #[cfg(test)]
 #[macro_use]

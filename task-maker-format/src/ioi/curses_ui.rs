@@ -229,15 +229,14 @@ fn draw_evaluations(frame: &mut FrameType, rect: Rect, state: &UIState, loading:
         .keys()
         .sorted()
         .flat_map(|solution| {
-            let mut texts = vec![];
-            texts.push(Text::raw(format!(
+            let mut texts = vec![Text::raw(format!(
                 "{:<max_len$} ",
                 solution
                     .file_name()
                     .expect("Invalid file name")
                     .to_string_lossy(),
                 max_len = max_len
-            )));
+            ))];
             if let Some(comp_status) = state.compilations.get(solution) {
                 texts.push(compilation_status_text(comp_status, loading));
             } else {

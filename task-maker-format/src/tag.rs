@@ -26,9 +26,9 @@ pub enum Tag {
     Booklet,
 }
 
-impl Into<ExecutionTag> for Tag {
-    fn into(self) -> ExecutionTag {
-        match self {
+impl From<Tag> for ExecutionTag {
+    fn from(tag: Tag) -> Self {
+        match tag {
             Tag::Generation => ExecutionTag::from("generation"),
             Tag::Evaluation => ExecutionTag::from("evaluation"),
             Tag::Checking => ExecutionTag::from("checking"),

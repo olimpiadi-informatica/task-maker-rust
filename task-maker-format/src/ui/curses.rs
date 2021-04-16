@@ -351,12 +351,11 @@ fn draw_workers_chunk(
     let text: Vec<Text> = workers
         .iter()
         .flat_map(|worker| {
-            let mut texts = vec![];
-            texts.push(Text::raw(format!(
+            let mut texts = vec![Text::raw(format!(
                 "- {:<max_len$} ",
                 worker.name,
                 max_len = max_len
-            )));
+            ))];
             if let Some(job) = &worker.current_job {
                 let duration =
                     (job.duration.elapsed().map(|d| d.as_millis()).unwrap_or(0) as f64) / 1000.0;

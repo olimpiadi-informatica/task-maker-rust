@@ -548,8 +548,8 @@ where
                     for arg in &validator.args {
                         // variables may (and should!) start with `$`, remove it before accessing
                         // the `variables` map.
-                        let arg = if arg.starts_with('$') {
-                            &arg[1..]
+                        let arg = if let Some(rest) = arg.strip_prefix('$') {
+                            rest
                         } else {
                             &arg[..]
                         };
