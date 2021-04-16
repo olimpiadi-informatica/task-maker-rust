@@ -251,10 +251,16 @@ pub(crate) fn render_server_status(
     loading: char,
     frame_index: usize,
 ) {
-    render_block(frame, rect, " Server status ");
+    let title = " Server status ";
+    render_block(frame, rect, title);
     draw_server_status_summary(
         frame,
-        Rect::new(rect.x + 17, rect.y, rect.width - 17, 1),
+        Rect::new(
+            rect.x + title.len() as u16 + 2,
+            rect.y,
+            rect.width.saturating_sub(title.len() as u16 + 2),
+            1,
+        ),
         status,
     );
     draw_server_status(
@@ -326,6 +332,10 @@ fn draw_server_status(
     if rect.height as usize * rects.len() >= workers.len() {
         rotation_index = 0;
     }
+    // avoid drawing if the screen is too small
+    if rect.height == 0 {
+        return;
+    }
     let chunks = workers
         .into_iter()
         .cycle()
@@ -351,19 +361,23 @@ fn draw_workers_chunk(
     let text: Vec<Text> = workers
         .iter()
         .flat_map(|worker| {
-            let mut texts = vec![Text::raw(format!(
-                "- {:<max_len$} ",
-                worker.name,
-                max_len = max_len
-            ))];
+            let worker_name = format!("- {:<max_len$} ", worker.name, max_len = max_len);
+            let worker_name_len = worker_name.len();
+            let mut texts = vec![Text::raw(worker_name)];
+
             if let Some(job) = &worker.current_job {
                 let duration =
                     (job.duration.elapsed().map(|d| d.as_millis()).unwrap_or(0) as f64) / 1000.0;
                 let mut line = format!("{} {} ({:.2}s)", loading, job.job, duration);
-                if 2 + max_len + 1 + line.len() > rect.width as usize {
-                    let extra_len = 2 + max_len + 1 + line.len() - rect.width as usize;
-                    let job_name = &job.job[0..job.job.len() - extra_len - 3];
-                    line = format!("{} {}... ({:.2}s)", loading, job_name, duration);
+                if worker_name_len + line.len() > rect.width as usize {
+                    let extra_len = worker_name_len + line.len() - rect.width as usize;
+                    // there is not enough space for the job name, even with the ellipsis
+                    if extra_len + 3 > job.job.len() {
+                        line = (&line[0..rect.width as usize]).into();
+                    } else {
+                        let job_name = &job.job[0..job.job.len() - extra_len - 3];
+                        line = format!("{} {}... ({:.2}s)", loading, job_name, duration);
+                    }
                 }
                 texts.push(Text::raw(line));
             }

@@ -29,6 +29,14 @@ impl CursesDrawer<UIState> for Drawer {
 
 /// Draw a frame of interface to the provided `Frame`.
 fn draw_frame(state: &UIState, mut f: FrameType, loading: char, frame_index: usize) {
+    let size = f.size();
+    if size.width < 16 || size.height < 16 {
+        let error = Text::styled("Too small", Style::default().modifier(Modifier::BOLD));
+        Paragraph::new([error].iter())
+            .wrap(false)
+            .render(&mut f, size);
+        return;
+    }
     let header = [
         Text::styled(
             state.task.title.clone(),
