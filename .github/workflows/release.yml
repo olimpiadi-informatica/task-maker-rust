@@ -7,22 +7,12 @@ on:
 jobs:
   Linux:
     name: Build & Publish (Linux)
-    # Ubuntu 16.04 to keep the library versions backward-compatible
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
-      - name: Install & Build
+      - name: Build deb file
         run: |
-          sudo apt update
-          sudo apt install -yy curl build-essential python libseccomp-dev
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          source $HOME/.cargo/env
-          cargo install cargo-deb
-
-          export TM_DATA_DIR=/usr/share/task-maker-rust
-          cargo build --bin task-maker --release
-          cargo run --release --bin task-maker-gen-autocompletion
-          cargo deb --no-build
+          docker run --rm -it -v $(pwd):/source ghcr.io/edomora97/task-maker-rust-release-linux
       - name: Upload the artifacts
         uses: skx/github-action-publish-binaries@master
         env:

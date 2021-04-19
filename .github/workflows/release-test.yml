@@ -1,0 +1,51 @@
+# Testing the release process is a nasty process since release.yml is triggered
+# when a release is created. Creating a release will send an email to all the
+# users watching the repo. To avoid spamming those uses with "test releases" we
+# can manually trigger the build process and simply avoid publishing the
+# release.
+
+name: Manual Release Test
+
+on: workflow_dispatch
+
+jobs:
+  Linux:
+    name: Build & Publish (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build deb file
+        run: |
+          docker run --rm -it -v $(pwd):/source ghcr.io/edomora97/task-maker-rust-release-linux
+      - name: Upload the artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: Ubuntu deb
+          path: "target/debian/*.deb"
+      - name: Publish docker container
+        run: |
+          export TM_VERSION=$(grep version Cargo.toml | cut -d'"' -f 2)
+          cd tools/docker
+          docker build --build-arg TM_VERSION=$TM_VERSION -t edomora97/task-maker-rust:latest -t edomora97/task-maker-rust:$TM_VERSION .
+
+  macOS:
+    name: Build & Publish (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build
+        run: |
+          export version=$(grep version Cargo.toml | cut -d'"' -f 2)
+          sed -i "" "s/ARCHIVE_VERSION/v$version/g" ./tools/homebrew/task-maker-rust.rb
+          curl -L -o archive.tar.gz "https://github.com/edomora97/task-maker-rust/archive/v$version.tar.gz"
+          export hash=$(shasum -a 256 archive.tar.gz | grep -o "[0-9a-f]*" | head -n 1)
+          sed -i "" "s/ARCHIVE_SHA256/$hash/g" ./tools/homebrew/task-maker-rust.rb
+
+          brew update
+          brew install --verbose --build-bottle ./tools/homebrew/task-maker-rust.rb
+          brew bottle --force-core-tap ./tools/homebrew/task-maker-rust.rb
+      - name: Upload the artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: MacOS bottle
+          path: "*.bottle.tar.gz"
