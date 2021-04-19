@@ -22,11 +22,6 @@ jobs:
         with:
           name: Ubuntu deb
           path: "target/debian/*.deb"
-      - name: Publish docker container
-        run: |
-          export TM_VERSION=$(grep version Cargo.toml | cut -d'"' -f 2)
-          cd tools/docker
-          docker build --build-arg TM_VERSION=$TM_VERSION -t edomora97/task-maker-rust:latest -t edomora97/task-maker-rust:$TM_VERSION .
 
   macOS:
     name: Build & Publish (macOS)
