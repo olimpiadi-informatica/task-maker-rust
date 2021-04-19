@@ -37,6 +37,8 @@ jobs:
       - uses: actions/checkout@v1
       - name: Build
         run: |
+          set -ex
+
           export version=$(grep version Cargo.toml | cut -d'"' -f 2)
           sed -i "" "s/ARCHIVE_VERSION/v$version/g" ./tools/homebrew/task-maker-rust.rb
           curl -L -o archive.tar.gz "https://github.com/edomora97/task-maker-rust/archive/v$version.tar.gz"
@@ -44,8 +46,10 @@ jobs:
           sed -i "" "s/ARCHIVE_SHA256/$hash/g" ./tools/homebrew/task-maker-rust.rb
 
           brew update
-          brew install --verbose --build-bottle ./tools/homebrew/task-maker-rust.rb
-          brew bottle --force-core-tap ./tools/homebrew/task-maker-rust.rb
+          mkdir -p $(brew --prefix)/Homebrew/Library/Taps/homebrew/homebrew-core/Formula/
+          cp ./tools/homebrew/task-maker-rust.rb $(brew --prefix)/Homebrew/Library/Taps/homebrew/homebrew-core/Formula/
+          brew install --verbose --build-bottle --formula task-maker-rust
+          brew bottle --force-core-tap task-maker-rust
       - name: Upload the artifacts
         run: |
           export filename=$(ls *.bottle.tar.gz)
