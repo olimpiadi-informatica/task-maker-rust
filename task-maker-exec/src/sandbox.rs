@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -17,8 +18,8 @@ use tempdir::TempDir;
 use task_maker_dag::*;
 use task_maker_store::*;
 
+use crate::detect_exe::detect_exe;
 use crate::sandbox_runner::SandboxRunner;
-use std::fs::Permissions;
 
 /// The list of all the system-wide readable directories inside the sandbox.
 const READABLE_DIRS: &[&str] = &[
@@ -355,6 +356,7 @@ impl Sandbox {
                 }
             }
             ExecutionCommand::Local(cmd) => {
+                self.validate_local_executable(boxdir.join("box").join(cmd))?;
                 config.executable(box_root.join(cmd));
             }
         };
@@ -449,6 +451,22 @@ impl Sandbox {
         std::fs::set_permissions(dest, permissions)?;
         Ok(())
     }
+
+    /// Check that a path is a valid local executable.
+    ///
+    /// To be a valid executable the file must be _a file_ and should be in a recognized executable
+    /// format.
+    fn validate_local_executable<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
+        let path = path.as_ref();
+        if !path.is_file() {
+            bail!("Executable is not a file");
+        }
+        let exe = detect_exe(path)?;
+        if exe.is_none() {
+            bail!("Invalid executable, missing shebang?");
+        }
+        Ok(())
+    }
 }
 
 impl SandboxData {
@@ -507,7 +525,7 @@ mod tests {
     #[test]
     fn test_command_args() {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
-        let mut exec = Execution::new("test", ExecutionCommand::local("foo"));
+        let mut exec = Execution::new("test", ExecutionCommand::system("/bin/sh"));
         exec.args(vec!["bar", "baz"]);
         exec.limits_mut()
             .sys_time(1.0)
@@ -545,7 +563,7 @@ mod tests {
         assert_eq!(config.stdin, Some("/dev/null".into()));
         assert_eq!(config.stdout, Some("/dev/null".into()));
         assert_eq!(config.stderr, Some("/dev/null".into()));
-        assert_eq!(config.executable, Path::new("/box/foo"));
+        assert_eq!(config.executable, Path::new("/bin/sh"));
         assert_eq!(config.args, vec!["bar", "baz"]);
     }
 }

@@ -96,6 +96,7 @@ pub use worker::{Worker, WorkerConn};
 
 mod check_dag;
 mod client;
+mod detect_exe;
 mod executor;
 pub mod executors;
 pub mod proto;
