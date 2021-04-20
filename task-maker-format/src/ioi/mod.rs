@@ -182,6 +182,8 @@ impl TaskFormat for IOITask {
             .map(|source| (source, Arc::new(Mutex::new(empty_score_manager.clone()))))
             .collect();
 
+        self.task_type.prepare_dag(eval)?;
+
         for subtask in self.subtasks.values() {
             trace!("Executing the generation of subtask {}", subtask.id);
 

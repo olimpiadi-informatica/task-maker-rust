@@ -8,7 +8,7 @@ pub use batch::BatchTypeData;
 pub use communication::CommunicationTypeData;
 use task_maker_dag::FileUuid;
 
-use crate::ioi::{IOITask, ScoreManager, SubtaskId, TestcaseId};
+use crate::ioi::{Checker, IOITask, ScoreManager, SubtaskId, TestcaseId};
 use crate::{EvaluationData, SourceFile};
 
 mod batch;
@@ -68,5 +68,23 @@ impl TaskType {
                 data,
             ),
         }
+    }
+
+    /// Add to the DAG more, executions based on the current task type.
+    ///
+    /// For example this will force the compilation of the checker in a batch task.
+    pub(crate) fn prepare_dag(&self, eval: &mut EvaluationData) -> Result<(), Error> {
+        match self {
+            TaskType::Batch(batch) => match &batch.checker {
+                Checker::Custom(checker) => {
+                    checker.prepare(eval)?;
+                }
+                Checker::WhiteDiff => {}
+            },
+            TaskType::Communication(communication) => {
+                communication.manager.prepare(eval)?;
+            }
+        }
+        Ok(())
     }
 }

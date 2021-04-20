@@ -233,7 +233,7 @@ impl SourceFile {
     }
 
     /// Prepare the source file setting the `executable` and eventually compiling the source file.
-    fn prepare(&self, dag: &mut ExecutionDAG) -> Result<Option<ExecutionUuid>, Error> {
+    pub fn prepare(&self, dag: &mut ExecutionDAG) -> Result<Option<ExecutionUuid>, Error> {
         if self.executable.lock().unwrap().is_some() {
             return Ok(None);
         }

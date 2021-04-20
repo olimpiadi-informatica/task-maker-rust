@@ -38,6 +38,8 @@ impl SourceFile {
     /// Prepare an execution of the source file, eventually adding the compilation to the DAG.
     /// The compilation messages are sent to the UI.
     ///
+    /// After the preparation the binary is executed with the specified arguments.
+    ///
     /// See [`task_maker_lang::SourceFile`](../task_maker_lang/struct.SourceFile.html) for the
     /// details. Note that the return value is different because the compilation uuid is handled by
     /// this method.
@@ -54,6 +56,14 @@ impl SourceFile {
         )?;
         self.bind_compilation_exe(eval, comp)?;
         Ok(exec)
+    }
+
+    /// Prepare an execution of the source file, eventually adding the compilation to the DAG.
+    /// The compilation messages are sent to the UI.
+    pub fn prepare(&self, eval: &mut EvaluationData) -> Result<(), Error> {
+        let comp = self.base.prepare(&mut eval.dag)?;
+        self.bind_compilation_exe(eval, comp)?;
+        Ok(())
     }
 
     /// Prepare the source file if needed and return the executable file.
