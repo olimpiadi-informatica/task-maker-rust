@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   clippy:
-    name: Clippy
+    name: Test and Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
@@ -13,14 +13,21 @@ jobs:
       - name: Install Deps
         run: |
           sudo apt update
-          sudo apt install -yy libseccomp-dev
+          sudo apt install -yy libseccomp-dev build-essential fpc
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           components: clippy
           override: true
-      - name: Cargo clippy
+      - name: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --color=always --all --no-fail-fast
+        env:
+          RUST_BACKTRACE: 1
+      - name: cargo clippy
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -38,7 +45,7 @@ jobs:
           toolchain: stable
           components: rustfmt
           override: true
-      - name: Run cargo fmt
+      - name: cargo fmt
         uses: actions-rs/cargo@v1
         with:
           command: fmt
@@ -60,32 +67,31 @@ jobs:
         working-directory: ./bindings/ts
         run: git diff --exit-code src/ schema/
 
-  # Those checks are nice, but they take a bit too much time and they're not that useful since the line detection is
-  # pretty broken.
-  #coverage:
-  #  name: Coverage
-  #  if: ${{ github.event_name != 'pull_request' }}
-  #  runs-on: ubuntu-latest
-  #  steps:
-  #    - uses: actions/checkout@v1
-  #      with:
-  #        submodules: recursive
-  #    - name: Coverage
-  #      env:
-  #        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-  #      run: |
-  #        set -xe
-  #        sudo apt update
-  #        sudo apt install -yy curl build-essential python libseccomp-dev fpc
-  #        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-  #        rustup default nightly
-  #        source $HOME/.cargo/env
-  #        curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-linux-x86_64.tar.bz2 | tar jxf -
-  #        export CARGO_INCREMENTAL=0
-  #        export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
-  #        export RUSTDOCFLAGS="-Cpanic=abort"
-  #        cargo build
-  #        cargo test --all
-  #        zip -0 ccov.zip `find . \( -name "task_maker*.gc*" \) -print`
-  #        ./grcov ccov.zip -s . -t lcov --llvm --branch --ignore-not-existing --ignore "/*" -o lcov.info
-  #        bash <(curl -s https://codecov.io/bash) -f lcov.info
+  docs:
+    name: Build documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Install Deps
+        run: |
+          sudo apt update
+          sudo apt install -yy libseccomp-dev build-essential
+      - name: Install Rust
+        id: component
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: cargo doc
+        uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --color=always --no-deps --all
+      - name: Make index.html
+        run: |
+          echo '<meta http-equiv="Refresh" content="0; url=./task_maker/index.html">' > target/doc/index.html
+      - name: Publish
+        uses: JamesIves/github-pages-deploy-action@4.1.1
+        with:
+          branch: gh-pages
+          folder: target/doc
