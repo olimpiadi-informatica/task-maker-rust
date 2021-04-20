@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/edomora97/task-maker-rust.svg?branch=master)](https://travis-ci.org/edomora97/task-maker-rust)
+[![Workflow Status](https://github.com/edomora97/task-maker-rust/workflows/Rust/badge.svg)](https://github.com/edomora97/task-maker-rust/actions?query=workflow%3A%22Rust%22)
 
 # task-maker-rust
 

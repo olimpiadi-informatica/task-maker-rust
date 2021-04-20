@@ -30,7 +30,7 @@ assets = [
 ]
 
 [badges]
-travis-ci = { repository = "edomora97/task-maker-rust" }
+github = { repository = "edomora97/task-maker-rust", workflow = "Rust" }
 
 [dependencies]
 task-maker-dag = { path = "./task-maker-dag" }
