@@ -99,6 +99,7 @@ impl Checker {
                         .parse()
                         .map_err(|e| format_err!("Invalid score from checker: {:?}", e))?;
                     let message = String::from_utf8_lossy(&stderr).trim().to_string();
+                    let message = Self::translate_checker_message(message);
                     callback(score, message)
                 });
                 Ok(exec)
@@ -151,5 +152,16 @@ impl Checker {
         )?;
         eval.dag.add_execution(exec);
         Ok(())
+    }
+
+    /// The checker may return a message to be translated. This function maps the message
+    /// placeholders to actual messages.
+    fn translate_checker_message(message: String) -> String {
+        match message.as_str() {
+            "translate:success" => "Output is correct".into(),
+            "translate:partial" => "Output is partially correct".into(),
+            "translate:wrong" => "Output is incorrect".into(),
+            _ => message,
+        }
     }
 }
