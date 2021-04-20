@@ -37,6 +37,8 @@ pub struct SourceFile {
     copy_exe: bool,
     /// Where to write the compiled executable.
     write_bin_to: Option<PathBuf>,
+    /// Whether this source file should be statically linked.
+    link_static: bool,
 }
 
 impl SourceFile {
@@ -66,6 +68,7 @@ impl SourceFile {
             grader_map,
             write_bin_to: write_bin_to.map(|p| p.into()),
             copy_exe: false,
+            link_static: false,
         })
     }
 
@@ -182,6 +185,11 @@ impl SourceFile {
         self.copy_exe = true;
     }
 
+    /// Compile the source file to a statically-linked binary.
+    pub fn link_static(&mut self) {
+        self.link_static = true;
+    }
+
     /// Prepare the source file if needed and return the executable file. If the compilation step
     /// was not executed yet the handle to the compilation execution is also returned.
     pub fn executable(
@@ -239,7 +247,9 @@ impl SourceFile {
                 .priority(COMPILATION_PRIORITY)
                 .capture_stdout(COMPILATION_CONTENT_LENGTH)
                 .capture_stderr(COMPILATION_CONTENT_LENGTH);
-            comp.args = self.language.compilation_args(&self.path, write_to);
+            comp.args = self
+                .language
+                .compilation_args(&self.path, write_to, self.link_static);
             let source = File::new(&format!("Source file of {:?}", self.path));
             comp.input(
                 &source,

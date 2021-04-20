@@ -64,7 +64,12 @@ pub trait Language: std::fmt::Debug + Send + Sync {
     /// languages.
     ///
     /// Will panic if this language does not support compilation.
-    fn compilation_args(&self, _path: &Path, _write_to: Option<&Path>) -> Vec<String> {
+    fn compilation_args(
+        &self,
+        _path: &Path,
+        _write_to: Option<&Path>,
+        _link_static: bool,
+    ) -> Vec<String> {
         panic!("Language {} cannot be compiled!", self.name())
     }
 

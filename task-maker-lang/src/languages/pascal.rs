@@ -31,7 +31,12 @@ impl Language for LanguagePascal {
         ExecutionCommand::system("fpc")
     }
 
-    fn compilation_args(&self, path: &Path, write_to: Option<&Path>) -> Vec<String> {
+    fn compilation_args(
+        &self,
+        path: &Path,
+        write_to: Option<&Path>,
+        _link_static: bool,
+    ) -> Vec<String> {
         let exe_name = self.compiled_file_name(path, write_to);
         let exe_name = exe_name.to_string_lossy();
         let args = vec!["-dEVAL", "-Fe/dev/stderr", "-O2", "-XS"];
@@ -105,7 +110,7 @@ mod tests {
     #[test]
     fn test_compilation_args() {
         let lang = LanguagePascal::new();
-        let args = lang.compilation_args(Path::new("foo.pas"), None);
+        let args = lang.compilation_args(Path::new("foo.pas"), None, true);
         assert_that!(args).contains("foo.pas".to_string());
         assert_that!(args).contains("-ocompiled".to_string());
     }
@@ -113,7 +118,7 @@ mod tests {
     #[test]
     fn test_compilation_add_file() {
         let lang = LanguagePascal::new();
-        let args = lang.compilation_args(Path::new("foo.pas"), None);
+        let args = lang.compilation_args(Path::new("foo.pas"), None, true);
         let new_args = lang.compilation_add_file(args.clone(), Path::new("bar.pas"));
         assert_that!(new_args.iter()).contains_all_of(&args.iter());
         assert_that!(new_args.iter()).contains("bar.pas".to_string());

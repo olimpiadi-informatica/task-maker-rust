@@ -62,10 +62,18 @@ impl Language for LanguageC {
         self.config.compiler.clone()
     }
 
-    fn compilation_args(&self, path: &Path, write_to: Option<&Path>) -> Vec<String> {
+    fn compilation_args(
+        &self,
+        path: &Path,
+        write_to: Option<&Path>,
+        link_static: bool,
+    ) -> Vec<String> {
         let exe_name = self.compiled_file_name(path, write_to);
         let exe_name = exe_name.to_string_lossy();
-        let args = vec!["-O2", "-Wall", "-ggdb3", "-DEVAL", "-o", exe_name.as_ref()];
+        let mut args = vec!["-O2", "-Wall", "-ggdb3", "-DEVAL", "-o", exe_name.as_ref()];
+        if link_static {
+            args.push("-static");
+        }
         let mut args: Vec<_> = args.into_iter().map(|s| s.to_string()).collect();
         args.push(format!("-std={}", self.config.std_version));
         for arg in &self.config.extra_flags {
@@ -106,18 +114,35 @@ mod tests {
             std_version: "c11".to_string(),
             extra_flags: vec!["-lfoobar".into()],
         });
-        let args = lang.compilation_args(Path::new("foo.c"), None);
+        let args = lang.compilation_args(Path::new("foo.c"), None, false);
         assert_that!(args).contains("foo.c".to_string());
         assert_that!(args).contains("-std=c11".to_string());
         assert_that!(args).contains("-lfoobar".to_string());
         assert_that!(args).contains("-o".to_string());
         assert_that!(args).contains("compiled".to_string());
+        assert_that!(args).does_not_contain("-static".to_string());
+    }
+
+    #[test]
+    fn test_compilation_args_static() {
+        let lang = LanguageC::new(LanguageCConfiguration {
+            compiler: ExecutionCommand::System("gcc".into()),
+            std_version: "c11".to_string(),
+            extra_flags: vec!["-lfoobar".into()],
+        });
+        let args = lang.compilation_args(Path::new("foo.c"), None, true);
+        assert_that!(args).contains("foo.c".to_string());
+        assert_that!(args).contains("-std=c11".to_string());
+        assert_that!(args).contains("-lfoobar".to_string());
+        assert_that!(args).contains("-o".to_string());
+        assert_that!(args).contains("compiled".to_string());
+        assert_that!(args).contains("-static".to_string());
     }
 
     #[test]
     fn test_compilation_add_file() {
         let lang = LanguageC::new(LanguageCConfiguration::from_env());
-        let args = lang.compilation_args(Path::new("foo.c"), None);
+        let args = lang.compilation_args(Path::new("foo.c"), None, false);
         let new_args = lang.compilation_add_file(args.clone(), Path::new("bar.c"));
         assert_that!(new_args.iter()).contains_all_of(&args.iter());
         assert_that!(new_args.iter()).contains("bar.c".to_string());

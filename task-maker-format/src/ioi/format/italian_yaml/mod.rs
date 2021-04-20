@@ -553,6 +553,8 @@ fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> TaskTyp
     .map(|mut c| {
         // always copy the custom checker
         c.copy_exe();
+        // Link the checker statically. This makes sure that it will work also outside this machine.
+        c.link_static();
         c
     })
     .map(Arc::new)
@@ -571,16 +573,18 @@ fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> TaskTyp
 
 /// Parse the task components relative to the communication task type.
 fn parse_communication_task_data(task_dir: &Path, yaml: &TaskYAML) -> Option<TaskType> {
-    let manager = Arc::new(find_source_file(
+    let mut manager = find_source_file(
         task_dir,
         vec!["check/manager.*", "cor/manager.*"],
         task_dir,
         None,
         Some(task_dir.join("bin").join("manager")),
-    )?);
+    )?;
+    // Link the manager statically. This makes sure that it will work also outside this machine.
+    manager.link_static();
 
     Some(TaskType::Communication(CommunicationTypeData {
-        manager,
+        manager: Arc::new(manager),
         num_processes: yaml.num_processes.unwrap_or(1),
     }))
 }
