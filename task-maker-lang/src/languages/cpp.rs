@@ -28,7 +28,7 @@ impl LanguageCppConfiguration {
     /// Get the configuration of C++ from the environment variables.
     pub fn from_env() -> LanguageCppConfiguration {
         let compiler = std::env::var_os("TM_CXX").unwrap_or_else(|| "g++".into());
-        let std_version = std::env::var("TM_CXX_STD_VERSION").unwrap_or_else(|_| "c++11".into());
+        let std_version = std::env::var("TM_CXX_STD_VERSION").unwrap_or_else(|_| "c++17".into());
         let extra_flags = std::env::var("TM_CXXFLAGS").unwrap_or_else(|_| String::new());
         let extra_flags = shell_words::split(&extra_flags).expect("Invalid $TM_CXXFLAGS");
         LanguageCppConfiguration {
