@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use failure::{format_err, Error};
+use failure::{bail, format_err, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
@@ -93,13 +93,24 @@ impl Checker {
                     let stderr = res
                         .stderr
                         .ok_or_else(|| format_err!("Checker stderr not captured"))?;
-                    let score = String::from_utf8_lossy(&stdout);
-                    let score: f64 = score
-                        .trim()
-                        .parse()
-                        .map_err(|e| format_err!("Invalid score from checker: {:?}", e))?;
                     let message = String::from_utf8_lossy(&stderr).trim().to_string();
                     let message = Self::translate_checker_message(message);
+                    if !res.status.is_success() {
+                        bail!(
+                            "Checker failed exiting with {:?}, stderr: {}",
+                            res.status,
+                            message
+                        );
+                    }
+                    let score = String::from_utf8_lossy(&stdout);
+                    let score: f64 = score.trim().parse().map_err(|e| {
+                        format_err!(
+                            "Invalid score {:?} from checker: {:?} (stderr: {})",
+                            score,
+                            e,
+                            message
+                        )
+                    })?;
                     callback(score, message)
                 });
                 Ok(exec)
