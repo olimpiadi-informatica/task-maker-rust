@@ -242,8 +242,8 @@ pub(crate) fn list_files<P: AsRef<Path>, S: AsRef<str>>(cwd: P, patterns: Vec<S>
     results
 }
 
-/// Make a `SourceFile` with the first file that matches the patterns provided that is in a
-/// recognised language. Returns `None` if no valid source file can be found.
+/// Make a `SourceFile` with each file that match the patterns provided, that is in a recognised
+/// language.
 pub(crate) fn find_source_file<
     P: AsRef<Path>,
     S: AsRef<str>,
@@ -255,14 +255,20 @@ pub(crate) fn find_source_file<
     base_path: P3,
     grader_map: Option<Arc<GraderMap>>,
     write_bin_to: Option<P2>,
-) -> Option<SourceFile> {
+) -> Vec<SourceFile> {
+    let mut result = vec![];
+    let base_path = base_path.into();
+    let write_bin_to = write_bin_to.map(|p| p.into());
     for path in list_files(cwd, patterns) {
         if path.exists() && LanguageManager::detect_language(&path).is_some() {
             // SourceFile::new may fail if the language is unknown
-            return Some(SourceFile::new(&path, base_path, grader_map, write_bin_to).unwrap());
+            result.push(
+                SourceFile::new(&path, &base_path, grader_map.clone(), write_bin_to.clone())
+                    .unwrap(),
+            );
         }
     }
-    None
+    result
 }
 
 /// Bind the start/done/skip callbacks of an execution to a ui message sender which sends to the UI
@@ -356,16 +362,26 @@ mod tests {
         std::fs::create_dir_all(tmpdir.path().join("foo/bar")).unwrap();
         std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
         std::fs::write(tmpdir.path().join("foo/bar/zzz.py"), "x").unwrap();
-        let source = find_source_file(
+        let mut source = find_source_file(
             tmpdir.path(),
             vec!["foo/bar/*.py"],
             "",
             None,
             None::<PathBuf>,
         );
-        assert!(source.is_some());
-        let source = source.unwrap();
+        assert_eq!(source.len(), 1);
+        let source = source.pop().unwrap();
         assert_eq!(source.path, tmpdir.path().join("foo/bar/zzz.py"));
+    }
+
+    #[test]
+    fn test_find_source_file_multiple() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        std::fs::create_dir_all(tmpdir.path().join("foo")).unwrap();
+        std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
+        std::fs::write(tmpdir.path().join("foo/zzz.py"), "x").unwrap();
+        let source = find_source_file(tmpdir.path(), vec!["foo/*.py"], "", None, None::<PathBuf>);
+        assert_eq!(source.len(), 2);
     }
 
     #[test]
@@ -380,6 +396,6 @@ mod tests {
             None,
             None::<PathBuf>,
         );
-        assert!(source.is_none());
+        assert!(source.is_empty());
     }
 }

@@ -1,14 +1,14 @@
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 
-use failure::{format_err, Error};
+use failure::{bail, format_err, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::terry::dag::{Checker, InputGenerator, InputValidator};
 use crate::terry::sanity_checks::get_sanity_checks;
 use crate::terry::TerryTask;
 use crate::{find_source_file, EvaluationConfig, SourceFile};
-use std::sync::Arc;
 
 lazy_static! {
     /// The extension suffix for the current platform.
@@ -35,14 +35,14 @@ pub fn parse_task<P: AsRef<Path>>(
     let task_dir = task_dir.as_ref();
     let yaml: TaskYAML = serde_yaml::from_reader(fs::File::open(&task_dir.join("task.yaml"))?)?;
 
-    let generator = get_manager(task_dir, "generator")
+    let generator = get_manager(task_dir, "generator")?
         .map(InputGenerator::new)
         .ok_or_else(|| format_err!("No generator found in managers/"))?;
-    let validator = get_manager(task_dir, "validator").map(InputValidator::new);
-    let checker = get_manager(task_dir, "checker")
+    let validator = get_manager(task_dir, "validator")?.map(InputValidator::new);
+    let checker = get_manager(task_dir, "checker")?
         .map(Checker::new)
         .ok_or_else(|| format_err!("No checker found in managers/"))?;
-    let official_solution = get_manager(task_dir, "solution");
+    let official_solution = get_manager(task_dir, "solution")?;
 
     Ok(TerryTask {
         path: task_dir.into(),
@@ -59,17 +59,20 @@ pub fn parse_task<P: AsRef<Path>>(
 
 /// Search the specified manager in the managers/ folder of the task, returning the `SourceFile` if
 /// found, `None` otherwise.
-fn get_manager(task_dir: &Path, manager: &str) -> Option<Arc<SourceFile>> {
-    find_source_file(
+fn get_manager(task_dir: &Path, manager: &str) -> Result<Option<Arc<SourceFile>>, Error> {
+    let mut managers = find_source_file(
         task_dir,
         vec![&format!("managers/{}.*", manager)],
         task_dir,
         None,
         Some(task_dir.join(format!("managers/{}.{}", manager, *EXE_EXTENSION))),
-    )
-    .map(|mut s| {
+    );
+    if managers.len() > 1 {
+        let paths = managers.iter().map(|s| s.name()).collect::<Vec<_>>();
+        bail!("Multiple managers found: {:?}", paths);
+    }
+    Ok(managers.pop().map(|mut s| {
         s.copy_exe(); // the managers are always copied
-        s
-    })
-    .map(Arc::new)
+        Arc::new(s)
+    }))
 }

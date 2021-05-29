@@ -42,6 +42,14 @@ fn has_warning(warnings: &[String], warning: &str) {
     panic!("{:?} does not contain {:?}", warnings, warning);
 }
 
+fn does_not_have_warning(warnings: &[String], warning: &str) {
+    for warn in warnings {
+        if warn.contains(warning) {
+            panic!("{:?} contains {:?}", warnings, warning);
+        }
+    }
+}
+
 #[test]
 fn test_sanity_checks_max_score() {
     let mut task = utils::new_task();
@@ -83,7 +91,7 @@ fn test_sanity_checks_att_sample_files_nothing() {
     let task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
 
-    let warnings = get_warnings(&task);
+    let warnings = get_post_warnings(&task);
     has_warning(&warnings, "No sample file in att/");
 }
 
@@ -93,7 +101,7 @@ fn test_sanity_checks_att_sample_files_broken_link() {
     let task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
     std::os::unix::fs::symlink("lololol", tmpdir.path().join("att/input0.txt")).unwrap();
-    let warnings = get_warnings(&task);
+    let warnings = get_post_warnings(&task);
     has_warning(&warnings, "Sample case att/input0.txt is a broken link");
 }
 
@@ -103,7 +111,7 @@ fn test_sanity_checks_att_sample_files_not_link() {
     let task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
     std::fs::write(tmpdir.path().join("att/input0.txt"), "x").unwrap();
-    let warnings = get_warnings(&task);
+    let warnings = get_post_warnings(&task);
     has_warning(&warnings, "Sample case att/input0.txt is not a symlink");
 }
 
@@ -178,18 +186,6 @@ fn test_sanity_checks_sol_symlink() {
 
     let warnings = get_warnings(&task);
     has_warning(&warnings, "Solution sol/solution.cpp is not a symlink");
-}
-
-#[test]
-fn test_sanity_checks_sol_unique() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
-    let task = utils::new_task_with_context(tmpdir.path());
-    std::fs::create_dir(tmpdir.path().join("sol")).unwrap();
-    std::fs::write(tmpdir.path().join("sol/solution.cpp"), "x").unwrap();
-    std::fs::write(tmpdir.path().join("sol/solution.c"), "x").unwrap();
-
-    let warnings = get_warnings(&task);
-    has_warning(&warnings, "More than an official solution found");
 }
 
 #[test]
@@ -367,6 +363,7 @@ fn test_sanity_checks_statement_git_known() {
         .success());
     assert!(Command::new("git")
         .arg("add")
+        .arg("-f")
         .arg("statement/statement.pdf")
         .current_dir(tmpdir.path())
         .stdout(std::process::Stdio::null())
@@ -374,5 +371,5 @@ fn test_sanity_checks_statement_git_known() {
         .unwrap()
         .success());
     let warnings = get_post_warnings(&task);
-    assert!(warnings.is_empty());
+    does_not_have_warning(&warnings, "git");
 }

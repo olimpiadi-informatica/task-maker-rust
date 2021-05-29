@@ -43,26 +43,3 @@ impl SanityCheck<IOITask> for SolSymlink {
         Ok(())
     }
 }
-
-/// Check that the official solution is unique.
-#[derive(Debug, Default)]
-pub struct SolUnique;
-
-impl SanityCheck<IOITask> for SolUnique {
-    fn name(&self) -> &'static str {
-        "SolUnique"
-    }
-
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
-        let solutions: Vec<_> = list_files(&task.path, vec!["sol/solution.*", "sol/soluzione.*"])
-            .into_iter()
-            .map(|s| s.file_name().unwrap().to_string_lossy().to_string())
-            .collect();
-        if solutions.len() > 1 {
-            eval.sender.send(UIMessage::Warning {
-                message: format!("More than an official solution found: {:?}", solutions),
-            })?;
-        }
-        Ok(())
-    }
-}

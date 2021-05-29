@@ -262,7 +262,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use failure::Error;
+use failure::{bail, Error};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub(crate) use cases_gen::{is_gen_gen_deletable, TM_ALLOW_DELETE_COOKIE};
@@ -373,10 +373,10 @@ pub fn parse_task<P: AsRef<Path>>(
     let grader_map = Arc::new(GraderMap::new(graders));
     debug!("The graders are: {:#?}", grader_map);
 
-    let task_type = if let Some(comm) = parse_communication_task_data(task_dir, &yaml) {
+    let task_type = if let Some(comm) = parse_communication_task_data(task_dir, &yaml)? {
         comm
     } else {
-        parse_batch_task_data(task_dir, grader_map.clone())
+        parse_batch_task_data(task_dir, grader_map.clone())?
     };
 
     let gen_gen = task_dir.join("gen").join("GEN");
@@ -386,7 +386,7 @@ pub fn parse_task<P: AsRef<Path>>(
             Box::new(detect_output_generator(
                 task_dir.to_path_buf(),
                 grader_map.clone(),
-            ))
+            )?)
         } else {
             Box::new(|_| OutputGenerator::NotAvailable)
         };
@@ -402,14 +402,14 @@ pub fn parse_task<P: AsRef<Path>>(
         debug!("Parsing testcases from gen/GEN");
         gen_gen::parse_gen_gen(
             &gen_gen,
-            detect_validator(task_dir.to_path_buf()),
+            detect_validator(task_dir.to_path_buf())?,
             output_generator,
         )?
     } else {
         debug!("Using testcases inside input/");
         static_inputs::static_inputs(
             task_dir,
-            detect_validator(task_dir.to_path_buf()),
+            detect_validator(task_dir.to_path_buf())?,
             output_generator,
         )
         .collect()
@@ -465,7 +465,7 @@ pub fn parse_task<P: AsRef<Path>>(
         difficulty: yaml.difficulty,
         syllabus_level: yaml.syllabuslevel,
         sanity_checks: Arc::new(get_sanity_checks(&eval_config.disabled_sanity_checks)),
-        input_validator: detect_validator(task_dir.to_path_buf())(0),
+        input_validator: detect_validator(task_dir.to_path_buf())?(0),
     };
     // split the creation of the task because make_booklets need an instance of Task
     if !eval_config.no_statement {
@@ -477,8 +477,8 @@ pub fn parse_task<P: AsRef<Path>>(
 /// Search for a valid input validator inside the task directory. Will return a function that, given
 /// a subtask id, returns an `InputValidator` using that validator. If no validator is found,
 /// `InputValidator::AssumeValid` is used.
-fn detect_validator(task_dir: PathBuf) -> impl Fn(SubtaskId) -> InputValidator {
-    let validator = find_source_file(
+fn detect_validator(task_dir: PathBuf) -> Result<impl Fn(SubtaskId) -> InputValidator, Error> {
+    let mut validators = find_source_file(
         &task_dir,
         vec![
             "gen/validator.*",
@@ -489,10 +489,14 @@ fn detect_validator(task_dir: PathBuf) -> impl Fn(SubtaskId) -> InputValidator {
         &task_dir,
         None,
         Some(task_dir.join("bin").join("validator")),
-    )
-    .map(Arc::new);
+    );
+    if validators.len() > 1 {
+        let paths = validators.iter().map(|s| s.name()).collect::<Vec<_>>();
+        bail!("Multiple validators found: {:?}", paths);
+    }
+    let validator = validators.pop().map(Arc::new);
     debug!("Detected input validator: {:?}", validator);
-    move |st: SubtaskId| -> InputValidator {
+    Ok(move |st: SubtaskId| -> InputValidator {
         if let Some(validator) = validator.as_ref() {
             InputValidator::Custom(
                 validator.clone(),
@@ -502,7 +506,7 @@ fn detect_validator(task_dir: PathBuf) -> impl Fn(SubtaskId) -> InputValidator {
         } else {
             InputValidator::AssumeValid
         }
-    }
+    })
 }
 
 /// Search for a valid output generator (aka official solution) inside the task directory. Will
@@ -511,8 +515,8 @@ fn detect_validator(task_dir: PathBuf) -> impl Fn(SubtaskId) -> InputValidator {
 fn detect_output_generator(
     task_dir: PathBuf,
     grader_map: Arc<GraderMap>,
-) -> impl Fn(TestcaseId) -> OutputGenerator {
-    let official_solution = find_source_file(
+) -> Result<impl Fn(TestcaseId) -> OutputGenerator, Error> {
+    let mut official_solutions = find_source_file(
         &task_dir,
         vec![
             "sol/solution.*",
@@ -523,70 +527,88 @@ fn detect_output_generator(
         &task_dir,
         Some(grader_map),
         Some(task_dir.join("bin").join("official_solution")),
-    )
-    .map(Arc::new);
+    );
+    if official_solutions.len() > 1 {
+        let paths = official_solutions
+            .iter()
+            .map(|s| s.name())
+            .collect::<Vec<_>>();
+        bail!("Multiple official solutions found: {:?}", paths);
+    }
+    let official_solution = official_solutions.pop().map(Arc::new);
     debug!("Detected output generator: {:?}", official_solution);
     let output_directory = task_dir.join("output");
-    move |tc: TestcaseId| -> OutputGenerator {
+    Ok(move |tc: TestcaseId| -> OutputGenerator {
         if let Some(solution) = official_solution.as_ref() {
             OutputGenerator::Custom(solution.clone(), vec![])
         } else {
             OutputGenerator::StaticFile(output_directory.join(format!("output{}.txt", tc)))
         }
-    }
+    })
 }
 
 /// Parse the task components relative to the batch task type.
-fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> TaskType {
-    let checker = find_source_file(
+fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> Result<TaskType, Error> {
+    let mut checkers = find_source_file(
         task_dir,
-        vec![
-            "check/checker.*",
-            "cor/correttore.*",
-            "check/checker",
-            "cor/correttore",
-        ],
+        vec!["check/checker.*", "cor/correttore.*"],
         task_dir,
         None,
         Some(task_dir.join("check").join("checker")),
-    )
-    .map(|mut c| {
-        // always copy the custom checker
-        c.copy_exe();
-        // Link the checker statically. This makes sure that it will work also outside this machine.
-        c.link_static();
-        c
-    })
-    .map(Arc::new)
-    .map(Checker::Custom)
-    .unwrap_or(Checker::WhiteDiff);
+    );
+    if checkers.len() > 1 {
+        let paths = checkers.iter().map(|s| s.name()).collect::<Vec<_>>();
+        bail!("Multiple checkers found: {:?}", paths)
+    }
+    let checker = checkers
+        .pop()
+        .map(|mut c| {
+            // always copy the custom checker
+            c.copy_exe();
+            // Link the checker statically. This makes sure that it will work also outside this machine.
+            c.link_static();
+            Checker::Custom(Arc::new(c))
+        })
+        .unwrap_or(Checker::WhiteDiff);
 
-    let official_solution = match detect_output_generator(task_dir.to_path_buf(), grader_map)(0) {
+    let official_solution = match detect_output_generator(task_dir.to_path_buf(), grader_map)?(0) {
         gen @ OutputGenerator::Custom(_, _) => Some(gen),
         _ => None,
     };
-    TaskType::Batch(BatchTypeData {
+    Ok(TaskType::Batch(BatchTypeData {
         output_generator: official_solution,
         checker,
-    })
+    }))
 }
 
 /// Parse the task components relative to the communication task type.
-fn parse_communication_task_data(task_dir: &Path, yaml: &TaskYAML) -> Option<TaskType> {
-    let mut manager = find_source_file(
+fn parse_communication_task_data(
+    task_dir: &Path,
+    yaml: &TaskYAML,
+) -> Result<Option<TaskType>, Error> {
+    let mut managers = find_source_file(
         task_dir,
         vec!["check/manager.*", "cor/manager.*"],
         task_dir,
         None,
         Some(task_dir.join("bin").join("manager")),
-    )?;
+    );
+    if managers.len() > 1 {
+        let paths = managers.iter().map(|s| s.name()).collect::<Vec<_>>();
+        bail!("Multiple managers found: {:?}", paths);
+    }
+    let mut manager = if let Some(manager) = managers.pop() {
+        manager
+    } else {
+        return Ok(None);
+    };
     // Link the manager statically. This makes sure that it will work also outside this machine.
     manager.link_static();
 
-    Some(TaskType::Communication(CommunicationTypeData {
+    Ok(Some(TaskType::Communication(CommunicationTypeData {
         manager: Arc::new(manager),
         num_processes: yaml.num_processes.unwrap_or(1),
-    }))
+    })))
 }
 
 /// Serializer of a boolean using the python syntax:

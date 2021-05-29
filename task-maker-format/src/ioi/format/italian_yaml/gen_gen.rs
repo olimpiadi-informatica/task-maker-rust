@@ -51,7 +51,7 @@ where
         testcases: HashMap::new(),
     });
 
-    let generator = find_source_file(
+    let mut generators = find_source_file(
         task_dir,
         vec![
             "gen/generator.*",
@@ -62,9 +62,14 @@ where
         task_dir,
         None,
         Some(task_dir.join("bin").join("generator")),
-    )
-    .map(Arc::new)
-    .ok_or_else(|| format_err!("No generator found"))?;
+    );
+    if generators.len() > 1 {
+        let paths = generators.iter().map(|s| s.name()).collect::<Vec<_>>();
+        bail!("Multiple generators found: {:?}", paths);
+    } else if generators.is_empty() {
+        bail!("No generator found");
+    }
+    let generator = generators.pop().map(Arc::new).unwrap();
     debug!("Detected input generator: {:?}", generator);
 
     for line in file.into_inner() {
