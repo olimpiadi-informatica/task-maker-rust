@@ -427,7 +427,13 @@ impl Sandbox {
     /// - `r-x------` (0o500) if executable.
     fn write_sandbox_file(dest: &Path, source: &Path, executable: bool) -> Result<(), Error> {
         std::fs::create_dir_all(dest.parent().expect("Invalid destination path"))?;
-        std::fs::copy(source, dest)?;
+        // First try to hardlink the file to the destination, this is faster and less prone to race
+        // conditions. If another thread forks while copying the executable (for example spawning a
+        // sandbox of another worker) the file descriptor won't be closed while this sandbox tries
+        // to exec the process, failing with "Text file busy".
+        if std::fs::hard_link(source, dest).is_err() {
+            std::fs::copy(source, dest)?;
+        }
         if executable {
             Sandbox::set_permissions(dest, 0o500)?;
         } else {
