@@ -1868,7 +1868,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-cache"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "bincode",
  "failure",
@@ -1883,7 +1883,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-dag"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "approx",
  "boxfnonce",
@@ -1897,7 +1897,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-exec"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "bincode",
  "chashmap",
@@ -1924,7 +1924,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-format"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "approx",
  "askama",
@@ -1959,7 +1959,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-lang"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "failure",
  "lazy_static",
@@ -1977,7 +1977,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-rust"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "better-panic",
  "ctrlc",
@@ -2008,7 +2008,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-store"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "blake2",
  "failure",
@@ -2023,7 +2023,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-test"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "approx",
  "better-panic",

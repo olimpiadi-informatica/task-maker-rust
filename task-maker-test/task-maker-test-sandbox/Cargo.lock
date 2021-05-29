@@ -1093,7 +1093,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-cache"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "bincode",
  "failure",
@@ -1107,7 +1107,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-dag"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "boxfnonce",
  "failure",
@@ -1119,7 +1119,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-exec"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "bincode",
  "chashmap",
@@ -1144,7 +1144,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-store"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "blake2",
  "failure",
@@ -1158,7 +1158,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-test-sandbox"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "env_logger",
  "serde",
