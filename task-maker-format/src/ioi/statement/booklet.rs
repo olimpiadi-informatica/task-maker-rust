@@ -301,7 +301,7 @@ mod tests {
             .file_callbacks
             .values()
             .map(|f| f.write_to.as_ref())
-            .filter_map(|f| f)
+            .flatten()
             .map(|f| f.dest.clone())
             .collect()
     }

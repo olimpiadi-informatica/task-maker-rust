@@ -231,11 +231,11 @@ pub(crate) fn list_files<P: AsRef<Path>, S: AsRef<str>>(cwd: P, patterns: Vec<S>
     let mut results = Vec::new();
     for pattern in patterns.into_iter() {
         let pattern = cwd.as_ref().join(pattern.as_ref());
-        for file in glob::glob(&pattern.to_string_lossy()).expect("Invalid pattern for list_files")
+        for path in glob::glob(&pattern.to_string_lossy())
+            .expect("Invalid pattern for list_files")
+            .flatten()
         {
-            if let Ok(path) = file {
-                results.push(path);
-            }
+            results.push(path);
         }
     }
     results

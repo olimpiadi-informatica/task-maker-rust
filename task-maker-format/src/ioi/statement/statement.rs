@@ -70,8 +70,8 @@ impl Statement {
         let path = path.into();
         let content = std::fs::read_to_string(&path)?;
         Ok(Statement {
-            path,
             config,
+            path,
             content,
         })
     }

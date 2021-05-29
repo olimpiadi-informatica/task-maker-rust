@@ -282,20 +282,16 @@ impl FinishUI {
         print!(" {}", testcase.status.message());
         let mut was_killed = false;
         let mut was_cached = true;
-        for res in &testcase.results {
-            if let Some(res) = res {
-                was_killed |= res.was_killed;
-                was_cached &= res.was_cached;
-            }
+        for res in testcase.results.iter().flatten() {
+            was_killed |= res.was_killed;
+            was_cached &= res.was_cached;
         }
-        for result in &testcase.results {
-            if let Some(result) = result {
-                match &result.status {
-                    ExecutionStatus::ReturnCode(code) => print!(": Exited with {}", code),
-                    ExecutionStatus::Signal(sig, name) => print!(": Signal {} ({})", sig, name),
-                    ExecutionStatus::InternalError(err) => print!(": Internal error: {}", err),
-                    _ => {}
-                }
+        for result in testcase.results.iter().flatten() {
+            match &result.status {
+                ExecutionStatus::ReturnCode(code) => print!(": Exited with {}", code),
+                ExecutionStatus::Signal(sig, name) => print!(": Signal {} ({})", sig, name),
+                ExecutionStatus::InternalError(err) => print!(": Internal error: {}", err),
+                _ => {}
             }
         }
         if was_killed {
