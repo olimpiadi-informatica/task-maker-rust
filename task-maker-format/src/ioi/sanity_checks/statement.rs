@@ -177,7 +177,7 @@ impl SanityCheck<IOITask> for StatementGit {
 fn check_subtasks_oii(text: &str) -> Option<Vec<(SubtaskId, f64)>> {
     lazy_static! {
         static ref FIND_SUBTASKS: Regex =
-            Regex::new(r".*\{Subtask ([0-9]+)\} *\[(?:\\phantom\{.\})?([0-9]+).*\].*")
+            Regex::new(r".*\{Subtask ([0-9]+)\} *\[(?:\\phantom\{[^\}]+\})?([0-9]+).*\].*")
                 .expect("Invalid regex");
     }
     let mut result = Vec::new();
