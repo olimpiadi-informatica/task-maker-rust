@@ -4,12 +4,12 @@ use task_maker_test::*;
 fn with_bugged_checker_local() {
     better_panic::install();
 
-    TestInterface::run_local("with_bugged_checker").fail("Invalid score from checker");
+    TestInterface::run_local("with_bugged_checker").fail("Invalid score");
 }
 
 #[test]
 fn with_bugged_checker_remote() {
     better_panic::install();
 
-    TestInterface::run_remote("with_bugged_checker").fail("Invalid score from checker");
+    TestInterface::run_remote("with_bugged_checker").fail("Invalid score");
 }

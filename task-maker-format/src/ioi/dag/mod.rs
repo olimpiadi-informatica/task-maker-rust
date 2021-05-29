@@ -551,6 +551,6 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        assert!(err.contains("Invalid score from checker"));
+        assert!(err.contains("Invalid score"), "Wrong error: {}", err);
     }
 }

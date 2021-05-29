@@ -8,5 +8,6 @@ int main(int argc, char** argv) {
               << std::endl;
     return 1;
   }
-  assert(false);  // NOLINT
+  std::cout << "not a number" << std::endl;
+  std::cerr << "oh no!" << std::endl;
 }
