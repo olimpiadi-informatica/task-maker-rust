@@ -203,6 +203,7 @@ impl EvaluationConfig {
         solutions_paths
             .into_iter()
             .filter(|p| !graders.contains(p)) // the graders are not solutions
+            .filter(|p| p.exists())
             .filter(|p| {
                 if self.solution_filter.is_empty() {
                     return true;

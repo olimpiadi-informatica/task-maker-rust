@@ -372,16 +372,20 @@ impl FileStoreKey {
     /// Get the suffix of the path of this `FileStoreKey`. For example, if the key is
     /// `aabbccddeeff...` this method will return `aa/bb/aabbccddeeff...`
     fn suffix(&self) -> PathBuf {
-        let first = hex::encode(vec![self.hash[0]]);
-        let second = hex::encode(vec![self.hash[1]]);
+        let first = hex::encode([self.hash[0]]);
+        let second = hex::encode([self.hash[1]]);
         let full = hex::encode(&self.hash);
         PathBuf::from(first).join(second).join(full)
     }
 
     /// Make a new `FileStoreKey` from a file on disk. The file must exist and be readable.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<FileStoreKey, Error> {
+        let path = path.as_ref();
         let mut hasher = Blake2b::new();
-        let file_reader = ReadFileIterator::new(path.as_ref())?;
+        if !path.exists() {
+            bail!("Cannot read {}, maybe broken symlink?", path.display())
+        }
+        let file_reader = ReadFileIterator::new(path)?;
         file_reader.map(|buf| hasher.input(&buf)).last();
         Ok(FileStoreKey {
             hash: hasher.result().to_vec(),
