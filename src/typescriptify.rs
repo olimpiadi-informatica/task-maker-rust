@@ -1,3 +1,6 @@
+// These warnings show up in release mode, but they are not important
+#![cfg_attr(not(debug_assertions), allow(dead_code, unused_macros, unused_imports))]
+
 use std::time::SystemTime;
 
 use regex::Regex;
@@ -36,6 +39,7 @@ fn fix_bug_1<S: AsRef<str>>(def: S) -> String {
     regex.replace_all(def.as_ref(), substitution).to_string()
 }
 
+#[cfg(debug_assertions)]
 fn main() {
     println!("// Type aliases");
     println!("export type SubtaskId = number;");
@@ -90,4 +94,9 @@ fn main() {
     export_ts!(TaskInfoScoring);
     export_ts!(TaskInfoStatement);
     export_ts!(TerryTaskInfo);
+}
+
+#[cfg(not(debug_assertions))]
+fn main() {
+    panic!("This program should be compiled in debug mode");
 }
