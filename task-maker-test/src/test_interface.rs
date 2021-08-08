@@ -66,7 +66,7 @@ impl TestInterface {
             state: TestInterface::run_task_maker(
                 path,
                 false,
-                &tempdir.path(),
+                tempdir.path(),
                 &["--evaluate-on", "tcp://127.0.0.1:27182"],
             ),
             tempdir,
@@ -433,7 +433,7 @@ impl TestInterfaceSuccessful {
                             .stderr
                             .as_ref()
                             .unwrap();
-                        let stderr = String::from_utf8_lossy(&stderr);
+                        let stderr = String::from_utf8_lossy(stderr);
                         assert!(
                             stderr.contains(expected),
                             "Generation stderr of subtask {}, testcase {} does not contain '{}'. It is '{:?}'",
@@ -491,7 +491,7 @@ impl TestInterfaceSuccessful {
                             .stderr
                             .as_ref()
                             .unwrap();
-                        let stderr = String::from_utf8_lossy(&stderr);
+                        let stderr = String::from_utf8_lossy(stderr);
                         assert!(
                             stderr.contains(expected),
                             "Validation stderr of subtask {}, testcase {} does not contain '{}'. It is '{:?}'",

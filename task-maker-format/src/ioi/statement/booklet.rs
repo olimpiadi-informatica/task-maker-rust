@@ -176,7 +176,7 @@ impl Booklet {
         exec.capture_stdout(1024 * 1024 * 1024);
         eval.dag.on_execution_done(&exec.uuid, |res| {
             if let Some(content) = &res.stdout {
-                Booklet::emit_warnings(&content, sender)?;
+                Booklet::emit_warnings(content, sender)?;
             }
             Ok(())
         });

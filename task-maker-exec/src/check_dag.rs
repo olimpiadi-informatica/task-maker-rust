@@ -148,7 +148,7 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
             }
             for group_uuid in dependencies[&file].iter() {
                 let num_deps = num_dependencies
-                    .get_mut(&group_uuid)
+                    .get_mut(group_uuid)
                     .expect("num_dependencies of an unknown execution group");
                 assert_ne!(
                     *num_deps, 0,
@@ -178,7 +178,7 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
         if *count == 0 {
             continue;
         }
-        let group = &dag.execution_groups[&group_uuid];
+        let group = &dag.execution_groups[group_uuid];
         for exec in &group.executions {
             for dep in exec.dependencies().iter() {
                 if !known_files.contains(dep) {
@@ -195,7 +195,7 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
     }
     // check the file callbacks
     for file in callbacks.files.iter() {
-        if !known_files.contains(&file) {
+        if !known_files.contains(file) {
             return Err(DAGError::MissingFile {
                 uuid: *file,
                 description: "File required by a callback".to_owned(),
@@ -204,7 +204,7 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
     }
     // check the execution callbacks
     for exec in callbacks.executions.iter() {
-        if !known_execs.contains(&exec) {
+        if !known_execs.contains(exec) {
             return Err(DAGError::MissingExecution { uuid: *exec });
         }
     }

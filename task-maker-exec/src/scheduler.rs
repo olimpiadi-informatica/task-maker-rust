@@ -494,7 +494,7 @@ impl Scheduler {
                     name: worker.name.clone(),
                     current_job: worker.current_job.as_ref().and_then(
                         |(client_uuid, exec_uuid, start)| {
-                            let client = self.clients.get(&client_uuid)?;
+                            let client = self.clients.get(client_uuid)?;
                             let exec = &client.dag.execution_groups[exec_uuid];
                             Some(WorkerCurrentJobStatus {
                                 job: exec.description.clone(),
@@ -595,7 +595,7 @@ impl Scheduler {
             return Ok(());
         }
         for group_uuid in &client.input_of[&file] {
-            let group = &client.dag.execution_groups[&group_uuid];
+            let group = &client.dag.execution_groups[group_uuid];
             if let Some(files) = client.missing_deps.get_mut(group_uuid) {
                 files.remove(&file);
                 if files.is_empty() {
@@ -680,7 +680,7 @@ impl Scheduler {
         let successful = result.iter().all(|r| r.status.is_success());
         let internal_error = result.iter().any(|r| r.status.is_internal_error());
         if !internal_error {
-            self.cache_execution(client_uuid, &group, outputs, result);
+            self.cache_execution(client_uuid, group, outputs, result);
         }
         if successful {
             for exec in &group.executions {
@@ -732,7 +732,7 @@ impl Scheduler {
         let mut cached = Vec::new();
 
         for (priority, group_uuid, client_uuid) in self.ready_execs.iter() {
-            let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
+            let client = if let Some(client) = self.clients.get_mut(client_uuid) {
                 client
             } else {
                 // client is gone, dont worry to much about it
@@ -746,7 +746,7 @@ impl Scheduler {
                 continue;
             }
             let group = dag.execution_groups[group_uuid].clone();
-            if !Scheduler::is_cacheable(&group, &cache_mode) {
+            if !Scheduler::is_cacheable(&group, cache_mode) {
                 not_cached.push((*priority, group.uuid, *client_uuid));
                 continue;
             }

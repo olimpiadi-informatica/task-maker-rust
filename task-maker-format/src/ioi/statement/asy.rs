@@ -63,7 +63,7 @@ impl AsyFile {
         )?;
         for (sandbox, local) in AsyFile::find_asy_deps(
             &source_path,
-            &source_path.parent().expect("Invalid asy file"),
+            source_path.parent().expect("Invalid asy file"),
         )? {
             if local.exists() {
                 let file = File::new(format!("Dependency {:?} of {}", sandbox, name));

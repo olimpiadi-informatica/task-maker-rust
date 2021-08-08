@@ -206,7 +206,7 @@ impl FileStore {
         let path = self.key_to_path(key);
         trace!("Storing {:?}", path);
         // make the key to avoid racing while writing
-        let handle = FileStoreHandle::new(&self, key);
+        let handle = FileStoreHandle::new(self, key);
         if path.exists() {
             trace!("File {:?} already exists", path);
             content.into_iter().last(); // consume all the iterator
@@ -280,9 +280,9 @@ impl FileStore {
         }
         {
             let mut index = self.index.lock().unwrap();
-            index.touch(&key);
+            index.touch(key);
         }
-        Some(FileStoreHandle::new(&self, key))
+        Some(FileStoreHandle::new(self, key))
     }
 
     /// Path of the file to disk.
@@ -335,7 +335,7 @@ impl FileStore {
     fn maybe_flush(&self, index: &mut FileStoreIndex) -> Result<(), Error> {
         if index.need_flush(self.max_store_size) {
             let locked = self.locked_files.lock().unwrap();
-            index.flush(&self, &locked, self.min_store_size)?;
+            index.flush(self, &locked, self.min_store_size)?;
         }
         Ok(())
     }
@@ -353,7 +353,7 @@ impl Drop for FileStore {
                     }
                 };
                 if index.need_flush(self.max_store_size) {
-                    if let Err(e) = index.flush(&self, &locked, self.min_store_size) {
+                    if let Err(e) = index.flush(self, &locked, self.min_store_size) {
                         warn!("Cannot flush the index: {}", e.to_string());
                     }
                 }
@@ -524,7 +524,7 @@ mod tests {
     fn fake_file<P: AsRef<Path>>(path: P, content: &str) -> FileStoreKey {
         File::create(path.as_ref())
             .unwrap()
-            .write_all(&content.as_bytes())
+            .write_all(content.as_bytes())
             .unwrap();
         FileStoreKey::from_file(path.as_ref()).unwrap()
     }

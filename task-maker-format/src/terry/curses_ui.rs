@@ -93,7 +93,7 @@ fn draw_frame(state: &UIState, mut f: FrameType, loading: char, frame_index: usi
         );
     }
     render_block(&mut f, chunks[2], " Evaluations ");
-    draw_evaluations(&mut f, inner_block(chunks[2]), &state, loading);
+    draw_evaluations(&mut f, inner_block(chunks[2]), state, loading);
     render_server_status(
         &mut f,
         chunks[3],

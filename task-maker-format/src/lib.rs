@@ -220,8 +220,7 @@ impl EvaluationConfig {
                     .join(p.file_name().unwrap());
                 SourceFile::new(p, base_dir, grader_map.clone(), Some(write_to))
             })
-            .filter(Option::is_some) // ignore the unknown languages
-            .map(Option::unwrap)
+            .flatten()
             .collect()
     }
 }

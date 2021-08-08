@@ -174,8 +174,8 @@ impl TaskFormat for IOITask {
         eval.sender.send(UIMessage::IOITask {
             task: Box::new(self.clone()),
         })?;
-        self.sanity_checks.pre_hook(&self, eval)?;
-        let empty_score_manager = ScoreManager::new(&self);
+        self.sanity_checks.pre_hook(self, eval)?;
+        let empty_score_manager = ScoreManager::new(self);
         let solutions: Vec<_> = config
             .filter_solutions(&self.path, vec!["sol/*"], Some(self.grader_map.clone()))
             .into_iter()
@@ -205,7 +205,7 @@ impl TaskFormat for IOITask {
                     input,
                 )?;
                 let output = testcase.output_generator.generate_and_bind(
-                    &self,
+                    self,
                     eval,
                     subtask.id,
                     testcase.id,
@@ -222,7 +222,7 @@ impl TaskFormat for IOITask {
                     );
 
                     self.task_type.evaluate(
-                        &self,
+                        self,
                         eval,
                         subtask.id,
                         testcase.id,
@@ -242,7 +242,7 @@ impl TaskFormat for IOITask {
     }
 
     fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
-        self.sanity_checks.post_hook(&self, ui)
+        self.sanity_checks.post_hook(self, ui)
     }
 
     fn clean(&self) -> Result<(), Error> {

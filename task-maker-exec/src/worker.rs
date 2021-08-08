@@ -190,9 +190,9 @@ impl Worker {
                         for input in exec.dependencies().iter() {
                             let key = job
                                 .dep_keys
-                                .get(&input)
+                                .get(input)
                                 .ok_or(WorkerError::MissingDependencyKey { uuid: *input })?;
-                            match self.file_store.get(&key) {
+                            match self.file_store.get(key) {
                                 None => {
                                     // ask the file only once
                                     if !missing_deps.contains_key(key) {
@@ -427,7 +427,7 @@ fn sandbox_group_manager(
                     let exec = &job.group.executions[index];
                     let sandbox = &sandboxes[index];
 
-                    let result = compute_execution_result(exec, result, &sandbox)
+                    let result = compute_execution_result(exec, result, sandbox)
                         .expect("Cannot compute execution result");
                     // if the process didn't exit successfully, kill the remaining sandboxes
                     if !result.status.is_success() {

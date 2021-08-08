@@ -115,7 +115,7 @@ impl ExecutorClient {
                     if let Some(missing) = missing_files {
                         missing_files = Some(missing - 1);
                     }
-                    let iterator = ChannelFileIterator::new(&receiver);
+                    let iterator = ChannelFileIterator::new(receiver);
                     process_provided_file(&mut dag.file_callbacks, uuid, success, iterator, None)?;
                 }
                 Ok(ExecutorServerMessage::NotifyStart(uuid, worker)) => {
@@ -215,7 +215,7 @@ impl ExecutorClient {
                         *uuid,
                         true,
                         iterator,
-                        Some(&local_path),
+                        Some(local_path),
                     )?;
                 }
                 ProvidedFile::Content { content, .. } => {
@@ -274,11 +274,11 @@ fn handle_server_ask_file(
             local_path, key, ..
         } => {
             sender.send(ExecutorClientMessage::ProvideFile(uuid, key.clone()))?;
-            ChannelFileSender::send(&local_path, &sender)?;
+            ChannelFileSender::send(&local_path, sender)?;
         }
         ProvidedFile::Content { content, key, .. } => {
             sender.send(ExecutorClientMessage::ProvideFile(uuid, key.clone()))?;
-            ChannelFileSender::send_data(content.clone(), &sender)?;
+            ChannelFileSender::send_data(content.clone(), sender)?;
         }
     }
     Ok(())

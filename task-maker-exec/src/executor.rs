@@ -287,14 +287,13 @@ impl Executor {
                         } else if let Err(e) = ChannelFileSender::send(handle.path(), &client) {
                             warn!("Failed to send urgent file content: {:?}", e);
                         }
-                        continue;
                     } else {
                         ready_files
                             .entry(client_uuid)
                             .or_default()
                             .push((file, handle, successful));
-                        continue;
                     }
+                    continue;
                 }
                 SchedulerExecutorMessageData::Status { status } => {
                     ExecutorServerMessage::Status(status)
@@ -343,7 +342,7 @@ impl Executor {
                             ProvidedFile::Content { key, .. } => key,
                             ProvidedFile::LocalFile { key, .. } => key,
                         };
-                        let handle = file_store.get(&key);
+                        let handle = file_store.get(key);
                         if let Some(handle) = handle {
                             ready_files.push((*uuid, handle));
                         } else {

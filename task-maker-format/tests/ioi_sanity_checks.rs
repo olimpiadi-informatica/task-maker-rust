@@ -9,7 +9,7 @@ mod utils;
 
 fn get_warnings(task: &IOITask) -> Vec<String> {
     let (mut eval, recv) = EvaluationData::new("");
-    task.sanity_checks.pre_hook(&task, &mut eval).unwrap();
+    task.sanity_checks.pre_hook(task, &mut eval).unwrap();
     let mut res = vec![];
     while let Ok(mex) = recv.try_recv() {
         if let UIMessage::Warning { message } = mex {
@@ -22,7 +22,7 @@ fn get_warnings(task: &IOITask) -> Vec<String> {
 fn get_post_warnings(task: &IOITask) -> Vec<String> {
     let (eval, recv) = EvaluationData::new("");
     task.sanity_checks
-        .post_hook(&task, &mut eval.sender.lock().unwrap())
+        .post_hook(task, &mut eval.sender.lock().unwrap())
         .unwrap();
     let mut res = vec![];
     while let Ok(mex) = recv.try_recv() {

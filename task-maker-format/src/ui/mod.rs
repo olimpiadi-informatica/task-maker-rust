@@ -134,11 +134,11 @@ impl CompilationStatus {
                 let stdout = result
                     .stdout
                     .as_ref()
-                    .map(|s| String::from_utf8_lossy(&s).into());
+                    .map(|s| String::from_utf8_lossy(s).into());
                 let stderr = result
                     .stderr
                     .as_ref()
-                    .map(|s| String::from_utf8_lossy(&s).into());
+                    .map(|s| String::from_utf8_lossy(s).into());
                 if let ExecutionStatus::Success = result.status {
                     *self = CompilationStatus::Done {
                         result,

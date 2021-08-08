@@ -398,7 +398,7 @@ mod tests {
         assert_eq!("exec", &dag.data.execution_groups[group_uuid].description);
         assert_abs_diff_eq!(
             &42.0,
-            &dag.data.execution_groups[&group_uuid].config().extra_time
+            &dag.data.execution_groups[group_uuid].config().extra_time
         );
     }
 
@@ -409,8 +409,8 @@ mod tests {
         dag.write_file_to(file.clone(), "foo", false);
         let write_to = dag.file_callbacks[&file.uuid].write_to.as_ref().unwrap();
         assert_eq!(Path::new("foo"), write_to.dest);
-        assert_eq!(false, write_to.allow_failure);
-        assert_eq!(false, write_to.executable);
+        assert!(!write_to.allow_failure);
+        assert!(!write_to.executable);
     }
 
     #[test]
@@ -420,8 +420,8 @@ mod tests {
         dag.write_file_to(file.clone(), "foo", true);
         let write_to = dag.file_callbacks[&file.uuid].write_to.as_ref().unwrap();
         assert_eq!(Path::new("foo"), write_to.dest);
-        assert_eq!(false, write_to.allow_failure);
-        assert_eq!(true, write_to.executable);
+        assert!(!write_to.allow_failure);
+        assert!(write_to.executable);
     }
 
     #[test]
@@ -431,8 +431,8 @@ mod tests {
         dag.write_file_to_allow_fail(file.clone(), "foo", false);
         let write_to = dag.file_callbacks[&file.uuid].write_to.as_ref().unwrap();
         assert_eq!(Path::new("foo"), write_to.dest);
-        assert_eq!(true, write_to.allow_failure);
-        assert_eq!(false, write_to.executable);
+        assert!(write_to.allow_failure);
+        assert!(!write_to.executable);
     }
 
     #[test]
@@ -442,8 +442,8 @@ mod tests {
         dag.write_file_to_allow_fail(file.clone(), "foo", true);
         let write_to = dag.file_callbacks[&file.uuid].write_to.as_ref().unwrap();
         assert_eq!(Path::new("foo"), write_to.dest);
-        assert_eq!(true, write_to.allow_failure);
-        assert_eq!(true, write_to.executable);
+        assert!(write_to.allow_failure);
+        assert!(write_to.executable);
     }
 
     #[test]

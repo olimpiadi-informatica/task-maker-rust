@@ -105,10 +105,10 @@ impl FinishUI {
         cwriteln!(self, BLUE, "Generations");
         for (st_num, subtask) in state.generations.iter().sorted_by_key(|(n, _)| *n) {
             cwrite!(self, BOLD, "Subtask {}", st_num);
-            if let Some(description) = &state.task.subtasks[&st_num].description {
+            if let Some(description) = &state.task.subtasks[st_num].description {
                 print!(" [{}]", description);
             }
-            println!(": {} points", state.task.subtasks[&st_num].max_score);
+            println!(": {} points", state.task.subtasks[st_num].max_score);
             for (tc_num, testcase) in subtask.testcases.iter().sorted_by_key(|(n, _)| *n) {
                 print!("#{:<3} ", tc_num);
 
@@ -150,7 +150,7 @@ impl FinishUI {
                 if gen_failed {
                     let stderr = testcase.generation.as_ref().and_then(|g| g.stderr.as_ref());
                     if let Some(stderr) = stderr {
-                        let stderr = String::from_utf8_lossy(&stderr);
+                        let stderr = String::from_utf8_lossy(stderr);
                         if !stderr.trim().is_empty() {
                             cwriteln!(self, BOLD, "Generation stderr:");
                             println!("{}", stderr.trim());
@@ -160,7 +160,7 @@ impl FinishUI {
                 if val_failed {
                     let stderr = testcase.validation.as_ref().and_then(|g| g.stderr.as_ref());
                     if let Some(stderr) = stderr {
-                        let stderr = String::from_utf8_lossy(&stderr);
+                        let stderr = String::from_utf8_lossy(stderr);
                         if !stderr.trim().is_empty() {
                             cwriteln!(self, BOLD, "Validation stderr:");
                             println!("{}", stderr.trim());
@@ -217,11 +217,11 @@ impl FinishUI {
 
         for (st_num, subtask) in eval.subtasks.iter().sorted_by_key(|(n, _)| *n) {
             cwrite!(self, BOLD, "Subtask #{}", st_num);
-            if let Some(description) = &state.task.subtasks[&st_num].description {
+            if let Some(description) = &state.task.subtasks[st_num].description {
                 print!(" [{}]", description);
             }
             print!(": ");
-            let max_score = state.task.subtasks[&st_num].max_score;
+            let max_score = state.task.subtasks[st_num].max_score;
             let score = subtask.score.unwrap_or(0.0);
             self.print_score_frac(score, max_score);
             println!();
@@ -327,7 +327,7 @@ impl FinishUI {
             );
             print!("{:^5.0}| ", eval.score.unwrap_or(0.0));
             for st_num in eval.subtasks.keys().sorted() {
-                let subtask = &eval.subtasks[&st_num];
+                let subtask = &eval.subtasks[st_num];
                 let score = subtask.score.unwrap_or(0.0);
                 let normalized_score = subtask.normalized_score.unwrap_or(0.0);
                 let color = self.score_color(normalized_score);
@@ -335,7 +335,7 @@ impl FinishUI {
             }
             print!("  ");
             for st_num in eval.subtasks.keys().sorted() {
-                let subtask = &eval.subtasks[&st_num];
+                let subtask = &eval.subtasks[st_num];
                 let normalized_score = subtask.normalized_score.unwrap_or(0.0);
                 let color = self.score_color(normalized_score);
                 cwrite!(self, color, "[");

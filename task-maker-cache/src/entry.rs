@@ -225,7 +225,7 @@ mod tests {
     fn fake_file<P: AsRef<Path>>(path: P, content: &str, store: &FileStore) -> FileStoreHandle {
         File::create(path.as_ref())
             .unwrap()
-            .write_all(&content.as_bytes())
+            .write_all(content.as_bytes())
             .unwrap();
         let key = FileStoreKey::from_file(path.as_ref()).unwrap();
         let iter = ReadFileIterator::new(path).unwrap();

@@ -113,11 +113,11 @@ fn draw_frame(state: &UIState, mut f: FrameType, loading: char, frame_index: usi
         );
     }
     render_block(&mut f, chunks[2], " Statements ");
-    draw_booklets(&mut f, inner_block(chunks[2]), &state, loading);
+    draw_booklets(&mut f, inner_block(chunks[2]), state, loading);
     render_block(&mut f, chunks[3], " Generation ");
-    draw_generations(&mut f, inner_block(chunks[3]), &state, loading);
+    draw_generations(&mut f, inner_block(chunks[3]), state, loading);
     render_block(&mut f, chunks[4], " Evaluations ");
-    draw_evaluations(&mut f, inner_block(chunks[4]), &state, loading);
+    draw_evaluations(&mut f, inner_block(chunks[4]), state, loading);
     render_server_status(
         &mut f,
         chunks[5],
