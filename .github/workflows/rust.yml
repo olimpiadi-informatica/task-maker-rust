@@ -29,9 +29,16 @@ jobs:
           RUST_BACKTRACE: 1
       - name: cargo clippy
         uses: actions-rs/clippy-check@v1
+        if: ${{ github.event_name != 'pull_request' }}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-targets --all-features --tests --all -- -D warnings
+      - name: cargo clippy (for pull requests)
+        uses: actions-rs/cargo@v1
+        if: ${{ github.event_name == 'pull_request' }}
+        with:
+          command: clippy
+          args: --color=always --all-targets --all-features --tests --all -- -D warnings
 
   rustfmt:
     name: Format
@@ -70,6 +77,7 @@ jobs:
   docs:
     name: Build documentation
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v1
       - name: Install Deps
