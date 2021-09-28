@@ -1,4 +1,4 @@
-use failure::{format_err, Error};
+use anyhow::{anyhow, Error};
 use std::fmt::Display;
 
 /// Adds methods for failing without panic. Like `expect` but without panic.
@@ -17,10 +17,11 @@ pub trait NiceError<T, E> {
 
 fn print_error(error: Error) {
     debug!("{:?}", error);
-    let fail = error.as_fail();
+    let mut fail: &dyn std::error::Error = error.as_ref();
     eprintln!("Error: {}", fail);
-    for fail in fail.iter_causes() {
-        eprintln!("Caused by: {}", fail);
+    while let Some(cause) = fail.source() {
+        eprintln!("\nCaused by:\n    {}", cause);
+        fail = cause;
     }
 }
 
@@ -39,7 +40,7 @@ impl<T> NiceError<T, Error> for Result<T, Error> {
         match self {
             Ok(x) => x,
             Err(e) => {
-                print_error(e.context(mex).into());
+                print_error(e.context(mex));
                 std::process::exit(1);
             }
         }
@@ -49,7 +50,7 @@ impl<T> NiceError<T, Error> for Result<T, Error> {
         match self {
             Ok(x) => x,
             Err(e) => {
-                print_error(e.context(f()).into());
+                print_error(e.context(f()));
                 std::process::exit(1);
             }
         }
@@ -61,7 +62,7 @@ impl<T> NiceError<T, ()> for Option<T> {
         match self {
             Some(x) => x,
             None => {
-                print_error(format_err!("Option is None"));
+                print_error(anyhow!("Option is None"));
                 std::process::exit(1);
             }
         }
@@ -71,7 +72,7 @@ impl<T> NiceError<T, ()> for Option<T> {
         match self {
             Some(x) => x,
             None => {
-                print_error(format_err!("{}", mex));
+                print_error(anyhow!("{}", mex));
                 std::process::exit(1);
             }
         }
@@ -81,7 +82,7 @@ impl<T> NiceError<T, ()> for Option<T> {
         match self {
             Some(x) => x,
             None => {
-                print_error(format_err!("{}", f()));
+                print_error(anyhow!("{}", f()));
                 std::process::exit(1);
             }
         }

@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+use anyhow::{bail, Error};
 use boxfnonce::BoxFnOnce;
-use failure::{bail, Error};
 use serde::{Deserialize, Serialize};
 
 use task_maker_store::*;

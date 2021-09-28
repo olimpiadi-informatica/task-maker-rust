@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use failure::Error;
+use anyhow::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use typescript_definitions::TypeScriptify;
 

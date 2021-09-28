@@ -262,7 +262,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use failure::{bail, Error};
+use anyhow::{bail, Error};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub(crate) use cases_gen::{is_gen_gen_deletable, TM_ALLOW_DELETE_COOKIE};

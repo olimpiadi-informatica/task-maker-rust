@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use failure::Error;
+use anyhow::Error;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;

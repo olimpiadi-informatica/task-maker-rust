@@ -1,4 +1,4 @@
-use failure::Error;
+use anyhow::Error;
 
 use crate::ioi::IOITask;
 use crate::sanity_checks::SanityCheck;

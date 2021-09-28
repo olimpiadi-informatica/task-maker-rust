@@ -89,7 +89,7 @@ use key::CacheKey;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use failure::Error;
+use anyhow::Error;
 use itertools::Itertools;
 
 use task_maker_dag::{ExecutionGroup, ExecutionResult, ExecutionStatus, FileUuid};

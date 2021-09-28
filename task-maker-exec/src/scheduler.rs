@@ -4,7 +4,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use failure::{bail, format_err, Error};
+use anyhow::{anyhow, bail, Error};
 use typescript_definitions::TypeScriptify;
 use uuid::Uuid;
 
@@ -470,7 +470,7 @@ impl Scheduler {
                             worker: *uuid,
                             job: exec,
                         })
-                        .map_err(|e| format_err!("Failed to send job to worker: {:?}", e))?;
+                        .map_err(|e| anyhow!("Failed to send job to worker: {:?}", e))?;
                 }
             }
         }
@@ -825,7 +825,7 @@ impl Scheduler {
                     worker: *worker_uuid,
                     job,
                 })
-                .map_err(|e| format_err!("Failed to send job to worker: {:?}", e))?;
+                .map_err(|e| anyhow!("Failed to send job to worker: {:?}", e))?;
             for exec in &group.executions {
                 if client.callbacks.executions.contains(&exec.uuid) {
                     if let Err(e) = self.executor.send((

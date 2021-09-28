@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use failure::_core::fmt::Formatter;
-use failure::{bail, format_err, Error};
 use pest::Parser;
+
+use anyhow::{anyhow, bail, Error};
 
 use crate::ioi::format::italian_yaml::TaskInputEntry;
 use crate::ioi::{
@@ -14,7 +16,6 @@ use crate::ioi::{
     TestcaseInfo, TM_VALIDATION_FILE_NAME,
 };
 use crate::SourceFile;
-use std::io::Read;
 
 /// String placed in the auto-generated gen/GEN marking it as safely deletable.
 pub(crate) const TM_ALLOW_DELETE_COOKIE: &str = "tm-allow-delete";
@@ -137,7 +138,7 @@ where
             .expect("Invalid gen/cases.gen path");
         let content = std::fs::read_to_string(&path)?;
         let mut file = parser::CasesGenParser::parse(parser::Rule::file, &content)?;
-        let file = file.next().ok_or_else(|| format_err!("Corrupted parser"))?; // extract the real file
+        let file = file.next().ok_or_else(|| anyhow!("Corrupted parser"))?; // extract the real file
 
         let mut cases = CasesGen {
             task_dir: task_dir.into(),
@@ -162,13 +163,13 @@ where
                     let line = line
                         .into_inner()
                         .next()
-                        .ok_or_else(|| format_err!("Corrupted parser"))?;
+                        .ok_or_else(|| anyhow!("Corrupted parser"))?;
                     match line.as_rule() {
                         parser::Rule::command => {
                             let command = line
                                 .into_inner()
                                 .next()
-                                .ok_or_else(|| format_err!("Corrupted parser"))?;
+                                .ok_or_else(|| anyhow!("Corrupted parser"))?;
                             cases.parse_command(command)?;
                         }
                         parser::Rule::testcase => {
@@ -287,7 +288,7 @@ where
             bail!("Cannot generate testcase: no default generator set");
         };
         let args = shell_words::split(line)
-            .map_err(|e| format_err!("Invalid command arguments for testcase '{}': {}", line, e))?;
+            .map_err(|e| anyhow!("Invalid command arguments for testcase '{}': {}", line, e))?;
         let generator = &self
             .generators
             .get(&current_generator)
@@ -375,11 +376,9 @@ where
                 ),
             )
             .map(Arc::new)
-            .ok_or_else(|| {
-                format_err!("Cannot use {} '{}': unknown language", kind, path.display())
-            })?;
+            .ok_or_else(|| anyhow!("Cannot use {} '{}': unknown language", kind, path.display()))?;
             let args = shell_words::split(line[2].as_str())
-                .map_err(|e| format_err!("Invalid arguments of '{}': {}", name, e))?;
+                .map_err(|e| anyhow!("Invalid arguments of '{}': {}", name, e))?;
             if managers.contains_key(name) {
                 bail!("Duplicate {} with name {}", kind, name);
             }
@@ -432,7 +431,7 @@ where
                 parser::Rule::number => {
                     constraint.operands.push(ConstraintOperand::Constant(
                         i64::from_str(item.as_str()).map_err(|e| {
-                            format_err!(
+                            anyhow!(
                                 "Invalid integer constant '{}' in constraint '{}': {}",
                                 item.as_str(),
                                 line_str,
@@ -491,7 +490,7 @@ where
         self.current_validator = self.default_validator.clone();
         self.subtask_constraints.push(vec![]);
         let score = f64::from_str(line[0].as_str()).map_err(|e| {
-            format_err!(
+            anyhow!(
                 "Invalid subtask score for subtask {}: {}",
                 self.subtask_id,
                 e
@@ -724,10 +723,11 @@ impl Debug for Constraint {
 mod tests {
     use std::path::Path;
 
-    use failure::Error;
     use spectral::assert_that;
     use spectral::prelude::*;
     use tempdir::TempDir;
+
+    use anyhow::Error;
 
     use crate::ioi::format::italian_yaml::cases_gen::{
         CasesGen, ConstraintOperand, ConstraintOperator,

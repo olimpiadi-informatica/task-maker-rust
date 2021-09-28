@@ -5,9 +5,9 @@ use std::thread;
 use std::time::Duration;
 use std::time::SystemTime;
 
+use anyhow::{anyhow, Error};
 use chashmap::CHashMap;
 use ductile::{ChannelReceiver, ChannelSender};
-use failure::{format_err, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
@@ -356,7 +356,7 @@ impl Executor {
                             dag,
                             callbacks,
                         })
-                        .map_err(|e| format_err!("Failed to send message to scheduler: {:?}", e))?;
+                        .map_err(|e| anyhow!("Failed to send message to scheduler: {:?}", e))?;
                     // tell the scheduler the files that are already locally ready. The others will
                     // be ready when the client will send them.
                     for (uuid, handle) in ready_files.into_iter() {
@@ -366,9 +366,7 @@ impl Executor {
                                 uuid,
                                 handle,
                             })
-                            .map_err(|e| {
-                                format_err!("Failed to send message to scheduler: {:?}", e)
-                            })?;
+                            .map_err(|e| anyhow!("Failed to send message to scheduler: {:?}", e))?;
                     }
                 }
                 ExecutorClientMessage::ProvideFile(uuid, key) => {
@@ -382,7 +380,7 @@ impl Executor {
                             uuid,
                             handle,
                         })
-                        .map_err(|e| format_err!("Failed to send message to scheduler: {:?}", e))?;
+                        .map_err(|e| anyhow!("Failed to send message to scheduler: {:?}", e))?;
                 }
                 ExecutorClientMessage::AskFile(uuid, key, success) => {
                     info!("Client asking file {:?}", key);

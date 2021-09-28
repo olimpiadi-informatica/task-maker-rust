@@ -2,7 +2,7 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::process::Command;
 
-use failure::Error;
+use anyhow::Error;
 use itertools::Itertools;
 use regex::Regex;
 

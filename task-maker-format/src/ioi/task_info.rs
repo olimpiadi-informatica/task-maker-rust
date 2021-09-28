@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use failure::Error;
+use anyhow::Error;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;

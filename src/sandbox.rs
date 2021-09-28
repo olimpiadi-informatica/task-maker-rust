@@ -4,7 +4,7 @@ use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
-use failure::{bail, Error, ResultExt};
+use anyhow::{anyhow, bail, Context, Error};
 use tabox::configuration::SandboxConfiguration;
 use tabox::result::SandboxExecutionResult;
 use tabox::{Sandbox, SandboxImplementation};
@@ -15,8 +15,13 @@ use task_maker_exec::{RawSandboxResult, SandboxRunner};
 fn run_sandbox() -> Result<SandboxExecutionResult, Error> {
     let config =
         serde_json::from_reader(stdin()).context("Cannot read configuration from stdin")?;
-    let sandbox = SandboxImplementation::run(config).context("Failed to create sandbox")?;
-    let res = sandbox.wait().context("Failed to wait sandbox")?;
+    let sandbox = SandboxImplementation::run(config)
+        .map_err(|e| anyhow!("{}", e))
+        .context("Failed to create sandbox")?;
+    let res = sandbox
+        .wait()
+        .map_err(|e| anyhow!("{}", e))
+        .context("Failed to wait sandbox")?;
     Ok(res)
 }
 
@@ -81,5 +86,5 @@ fn self_exec_sandbox_internal(
             String::from_utf8_lossy(&output.stderr)
         );
     }
-    Ok(serde_json::from_slice(&output.stdout).context("Invalid output from sandbox")?)
+    serde_json::from_slice(&output.stdout).context("Invalid output from sandbox")
 }

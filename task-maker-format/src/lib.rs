@@ -24,7 +24,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use failure::Error;
+use anyhow::Error;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;

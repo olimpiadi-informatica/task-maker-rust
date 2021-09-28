@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use failure::{format_err, Error};
+use anyhow::{anyhow, Error};
 use regex::Regex;
 
 use task_maker_dag::File;
@@ -39,7 +39,7 @@ impl SanityCheck<IOITask> for AttTemplates {
         for grader in task.grader_map.all_paths() {
             let ext = grader
                 .extension()
-                .ok_or_else(|| format_err!("Grader has no extension"))?
+                .ok_or_else(|| anyhow!("Grader has no extension"))?
                 .to_string_lossy();
             let template = task.path.join("att").join(format!("{}.{}", task.name, ext));
             if !template.exists() {
@@ -165,7 +165,7 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
                     val_handle,
                 )?;
                 let correct_output =
-                    correct_output.ok_or_else(|| format_err!("Missing official solution"))?;
+                    correct_output.ok_or_else(|| anyhow!("Missing official solution"))?;
                 if let Some(sol) = sol {
                     let sender = eval.sender.clone();
                     let output_name = output_name.clone();

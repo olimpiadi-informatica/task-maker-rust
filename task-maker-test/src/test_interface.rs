@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use failure::Error;
+use anyhow::Error;
 use itertools::Itertools;
 use structopt::StructOpt;
 use tempdir::TempDir;

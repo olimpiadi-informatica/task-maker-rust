@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use failure::{format_err, Error};
+use anyhow::{anyhow, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
@@ -37,7 +37,7 @@ pub fn evaluate(
     score_manager: Arc<Mutex<ScoreManager>>,
     data: &BatchTypeData,
 ) -> Result<(), Error> {
-    let correct_output = correct_output.ok_or_else(|| format_err!("Missing official solution"))?;
+    let correct_output = correct_output.ok_or_else(|| anyhow!("Missing official solution"))?;
     let mut exec = source_file.execute(
         eval,
         format!(

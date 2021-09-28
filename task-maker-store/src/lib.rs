@@ -13,7 +13,7 @@
 //! ```
 //! use task_maker_store::{FileStore, FileStoreKey, ReadFileIterator};
 //!
-//! # use failure::Error;
+//! # use anyhow::Error;
 //! # use std::fs;
 //! # use tempdir::TempDir;
 //! # fn main() -> Result<(), Error> {
@@ -47,8 +47,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use anyhow::{bail, Error};
 use blake2::{Blake2b, Digest};
-use failure::{bail, Error};
 use fs2::FileExt;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -127,7 +127,7 @@ impl FileStore {
     /// ```
     /// use task_maker_store::FileStore;
     ///
-    /// # use failure::Error;
+    /// # use anyhow::Error;
     /// # use std::fs;
     /// # use tempdir::TempDir;
     /// # fn main() -> Result<(), Error> {
@@ -178,7 +178,7 @@ impl FileStore {
     /// ```
     /// use task_maker_store::{FileStore, FileStoreKey, ReadFileIterator};
     ///
-    /// # use failure::Error;
+    /// # use anyhow::Error;
     /// # use std::fs;
     /// # use tempdir::TempDir;
     /// # fn main() -> Result<(), Error> {
@@ -246,7 +246,7 @@ impl FileStore {
     /// ```
     /// use task_maker_store::{FileStore, FileStoreKey, ReadFileIterator};
     ///
-    /// # use failure::Error;
+    /// # use anyhow::Error;
     /// # use std::fs;
     /// # use tempdir::TempDir;
     /// # fn main() -> Result<(), Error> {

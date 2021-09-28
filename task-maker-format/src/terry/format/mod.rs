@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use failure::{bail, format_err, Error};
+use anyhow::{anyhow, bail, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::terry::dag::{Checker, InputGenerator, InputValidator};
@@ -37,11 +37,11 @@ pub fn parse_task<P: AsRef<Path>>(
 
     let generator = get_manager(task_dir, "generator")?
         .map(InputGenerator::new)
-        .ok_or_else(|| format_err!("No generator found in managers/"))?;
+        .ok_or_else(|| anyhow!("No generator found in managers/"))?;
     let validator = get_manager(task_dir, "validator")?.map(InputValidator::new);
     let checker = get_manager(task_dir, "checker")?
         .map(Checker::new)
-        .ok_or_else(|| format_err!("No checker found in managers/"))?;
+        .ok_or_else(|| anyhow!("No checker found in managers/"))?;
     let official_solution = get_manager(task_dir, "solution")?;
 
     Ok(TerryTask {

@@ -3,8 +3,8 @@ use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::thread;
 
+use anyhow::{anyhow, Error};
 use ductile::{ChannelReceiver, ChannelSender};
-use failure::{format_err, Error};
 use uuid::Uuid;
 
 use task_maker_cache::Cache;
@@ -110,7 +110,7 @@ impl LocalExecutor {
         for worker in workers.into_iter() {
             worker
                 .join()
-                .map_err(|e| format_err!("Worker panicked: {:?}", e))?;
+                .map_err(|e| anyhow!("Worker panicked: {:?}", e))?;
         }
         Ok(())
     }

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use failure::{bail, Error};
+use anyhow::{bail, Result};
 
 use task_maker_format::{ioi, terry, EvaluationConfig, TaskFormat};
 
@@ -9,7 +9,7 @@ pub fn find_task<P: Into<PathBuf>>(
     base: P,
     max_depth: u32,
     eval_config: &EvaluationConfig,
-) -> Result<Box<dyn TaskFormat>, Error> {
+) -> Result<Box<dyn TaskFormat>> {
     let mut base = base.into();
     if !base.is_absolute() {
         base = getcwd().join(base);

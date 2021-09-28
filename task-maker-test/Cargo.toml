@@ -27,7 +27,7 @@ port_scanner = "0.1"
 # Temporary directory creation
 tempdir = "0.3"
 # Generic error utilities
-failure = "0.1"
+anyhow = { version = "1.0", features = ["backtrace"] }
 # Logging
 log = "0.4"
 env_logger = "0.6"

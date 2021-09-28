@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use failure::{bail, format_err, Error, ResultExt};
+use anyhow::{anyhow, bail, Context, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
@@ -280,7 +280,7 @@ impl TaskFormat for IOITask {
                 if let std::io::ErrorKind::Other = e.kind() {
                     warn!("Directory {} not empty!", dir.display());
                 } else {
-                    Err(e).with_context(|_| format!("Cannot remove {}", dir.display()))?;
+                    Err(e).with_context(|| format!("Cannot remove {}", dir.display()))?;
                 }
             }
         }
@@ -368,7 +368,7 @@ impl ScoreManager {
     ) -> Result<(), Error> {
         self.testcase_scores
             .get_mut(&subtask_id)
-            .ok_or_else(|| format_err!("Unknown subtask {}", subtask_id))?
+            .ok_or_else(|| anyhow!("Unknown subtask {}", subtask_id))?
             .insert(testcase_id, Some(score));
         sender.send(UIMessage::IOITestcaseScore {
             subtask: subtask_id,

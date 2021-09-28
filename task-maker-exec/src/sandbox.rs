@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use failure::{bail, Error};
+use anyhow::{bail, Error};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use serde::{Deserialize, Serialize};

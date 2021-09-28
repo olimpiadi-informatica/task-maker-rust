@@ -1,4 +1,4 @@
-use failure::{format_err, Error};
+use anyhow::{anyhow, Error};
 
 pub use booklet::*;
 pub use statement::*;
@@ -30,7 +30,7 @@ pub fn make_booklets(
             language,
             task.path
                 .parent()
-                .ok_or_else(|| format_err!("Task is at the root"))?,
+                .ok_or_else(|| anyhow!("Task is at the root"))?,
             eval_config.booklet_solutions,
         )?;
         let mut booklet = Booklet::new(booklet_config, dest);

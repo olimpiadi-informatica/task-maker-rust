@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use failure::{bail, format_err, Error};
+use anyhow::{anyhow, bail, Error};
 use pest::Parser;
 
 use crate::find_source_file;
@@ -39,7 +39,7 @@ where
         .expect("Invalid gen/GEN path");
     let content = std::fs::read_to_string(&path)?;
     let mut file = parser::GENParser::parse(parser::Rule::file, &content)?;
-    let file = file.next().ok_or_else(|| format_err!("Corrupted parser"))?; // extract the real file
+    let file = file.next().ok_or_else(|| anyhow!("Corrupted parser"))?; // extract the real file
     let mut testcase_count = 0;
     let mut subtask_id: SubtaskId = 0;
     let mut entries = vec![];
@@ -78,14 +78,14 @@ where
                 let line = line
                     .into_inner()
                     .next()
-                    .ok_or_else(|| format_err!("Corrupted parser"))?;
+                    .ok_or_else(|| anyhow!("Corrupted parser"))?;
                 match line.as_rule() {
                     parser::Rule::subtask => {
                         default_subtask.take(); // ignore the default subtask ever
                         let score = line
                             .into_inner()
                             .next()
-                            .ok_or_else(|| format_err!("Corrupted parser"))?
+                            .ok_or_else(|| anyhow!("Corrupted parser"))?
                             .as_str();
                         entries.push(TaskInputEntry::Subtask(SubtaskInfo {
                             id: subtask_id,
@@ -103,7 +103,7 @@ where
                         let what = line
                             .into_inner()
                             .next()
-                            .ok_or_else(|| format_err!("Corrupted parser"))?
+                            .ok_or_else(|| anyhow!("Corrupted parser"))?
                             .as_str();
                         entries.push(TaskInputEntry::Testcase(TestcaseInfo {
                             id: testcase_count,

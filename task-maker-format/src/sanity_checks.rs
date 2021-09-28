@@ -2,7 +2,7 @@
 
 use std::sync::Mutex;
 
-use failure::Error;
+use anyhow::Error;
 use itertools::Itertools;
 
 use crate::ui::{UIMessage, UIMessageSender};

@@ -1,4 +1,4 @@
-use failure::Error;
+use anyhow::Error;
 
 use crate::ioi::sanity_checks::check_missing_graders;
 use crate::ioi::IOITask;

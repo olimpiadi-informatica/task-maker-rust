@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use failure::Error;
+use anyhow::Error;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 

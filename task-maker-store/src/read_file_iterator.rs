@@ -1,4 +1,4 @@
-use failure::Error;
+use anyhow::Error;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
@@ -17,7 +17,7 @@ type ReadFileBuffer = [u8; READ_FILE_BUFFER_SIZE];
 /// use task_maker_store::ReadFileIterator;
 /// # use tempdir::TempDir;
 ///
-/// # use failure::Error;
+/// # use anyhow::Error;
 /// # fn main() -> Result<(), Error> {
 /// # let tmp = TempDir::new("tm-test").unwrap();
 /// # let path = tmp.path().join("file.txt");

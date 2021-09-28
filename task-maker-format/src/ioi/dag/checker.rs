@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use failure::{bail, format_err, Error};
+use anyhow::{anyhow, bail, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
@@ -89,10 +89,10 @@ impl Checker {
                 eval.dag.on_execution_done(&exec.uuid, move |res| {
                     let stdout = res
                         .stdout
-                        .ok_or_else(|| format_err!("Checker stdout not captured"))?;
+                        .ok_or_else(|| anyhow!("Checker stdout not captured"))?;
                     let stderr = res
                         .stderr
-                        .ok_or_else(|| format_err!("Checker stderr not captured"))?;
+                        .ok_or_else(|| anyhow!("Checker stderr not captured"))?;
                     let message = String::from_utf8_lossy(&stderr).trim().to_string();
                     let message = Self::translate_checker_message(message);
                     if !res.status.is_success() {
@@ -104,7 +104,7 @@ impl Checker {
                     }
                     let score = String::from_utf8_lossy(&stdout);
                     let score: f64 = score.trim().parse().map_err(|e| {
-                        format_err!(
+                        anyhow!(
                             "Invalid score {:?} from checker: {:?} (stderr: {})",
                             score,
                             e,

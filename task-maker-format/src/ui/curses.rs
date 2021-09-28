@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
 use std::time::SystemTime;
 
-use failure::Error;
+use anyhow::Error;
 use itertools::Itertools;
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;

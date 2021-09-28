@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use failure::{format_err, Error};
+use anyhow::{anyhow, Error};
 use regex::Regex;
 
 use task_maker_dag::{Execution, ExecutionCommand, File};
@@ -29,7 +29,7 @@ impl AsyFile {
         let booklet = booklet_name.to_string();
         let name = source_path
             .file_name()
-            .ok_or_else(|| format_err!("Invalid path of asy file: {:?}", source_path))?
+            .ok_or_else(|| anyhow!("Invalid path of asy file: {:?}", source_path))?
             .to_string_lossy()
             .to_string();
         let source_file = File::new(format!("Source of {}", name));
@@ -124,7 +124,7 @@ impl AsyFile {
     fn find_asy_deps(path: &Path, prefix: &Path) -> Result<HashMap<PathBuf, PathBuf>, Error> {
         let dir = path
             .parent()
-            .ok_or_else(|| format_err!("File {:?} does not have a parent", path))?;
+            .ok_or_else(|| anyhow!("File {:?} does not have a parent", path))?;
         let content = std::fs::read_to_string(path)?;
         let mut result = HashMap::new();
         for include in ASY_INCLUDE.captures_iter(&content) {

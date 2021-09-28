@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use failure::{format_err, Error};
+use anyhow::{anyhow, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
@@ -187,15 +187,15 @@ pub fn evaluate(
         }
         let stdout = result
             .stdout
-            .ok_or_else(|| format_err!("Checker stdout not captured"))?;
+            .ok_or_else(|| anyhow!("Checker stdout not captured"))?;
         let stderr = result
             .stderr
-            .ok_or_else(|| format_err!("Checker stderr not captured"))?;
+            .ok_or_else(|| anyhow!("Checker stderr not captured"))?;
         let score = String::from_utf8_lossy(&stdout);
         let score: f64 = score
             .trim()
             .parse()
-            .map_err(|e| format_err!("Invalid score from checker: {:?}", e))?;
+            .map_err(|e| anyhow!("Invalid score from checker: {:?}", e))?;
         let message = String::from_utf8_lossy(&stderr).trim().to_string();
         score_sender.send(score, message)?;
         Ok(())

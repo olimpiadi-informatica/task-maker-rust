@@ -4,7 +4,7 @@ use std::fs::{remove_dir, File};
 use std::path::Path;
 use std::time::SystemTime;
 
-use failure::Error;
+use anyhow::Error;
 use serde::{Deserialize, Serialize};
 
 use crate::{FileStore, FileStoreKey, LockedFiles};
@@ -165,8 +165,8 @@ mod tests {
     use std::io::Write;
     use std::path::Path;
 
-    use failure::_core::time::Duration;
     use pretty_assertions::{assert_eq, assert_ne};
+    use std::time::Duration;
     use tempdir::TempDir;
 
     use crate::{FileStore, FileStoreHandle, FileStoreKey, ReadFileIterator};

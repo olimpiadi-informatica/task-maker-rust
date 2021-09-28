@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use anyhow::Error;
 use askama::Template;
-use failure::Error;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;

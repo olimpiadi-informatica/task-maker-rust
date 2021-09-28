@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
-use failure::Error;
+use anyhow::Error;
 use serde::{Deserialize, Serialize};
 use termcolor::{Color, ColorSpec, StandardStream};
 use typescript_definitions::TypeScriptify;

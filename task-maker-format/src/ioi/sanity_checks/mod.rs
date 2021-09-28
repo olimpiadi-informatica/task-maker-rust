@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use failure::Error;
+use anyhow::Error;
 
 use task_maker_lang::LanguageManager;
 

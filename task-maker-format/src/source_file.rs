@@ -1,8 +1,8 @@
+use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use failure::Error;
-use failure::_core::ops::{Deref, DerefMut};
+use anyhow::Error;
 use serde::{Deserialize, Serialize};
 
 use task_maker_dag::*;

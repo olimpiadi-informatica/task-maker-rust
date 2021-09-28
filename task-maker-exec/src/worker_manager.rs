@@ -3,8 +3,8 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 
+use anyhow::Error;
 use ductile::ChannelSender;
-use failure::Error;
 
 use task_maker_dag::{ExecutionGroupUuid, WorkerUuid};
 use task_maker_store::FileStore;

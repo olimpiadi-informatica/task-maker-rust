@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
+use anyhow::Error;
 use boxfnonce::BoxFnOnce;
-use failure::Error;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 use uuid::Uuid;

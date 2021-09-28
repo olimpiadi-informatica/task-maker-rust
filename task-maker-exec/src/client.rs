@@ -8,8 +8,8 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::{Duration, SystemTime};
 
+use anyhow::{anyhow, Error};
 use ductile::{ChannelReceiver, ChannelSender};
-use failure::{format_err, Error};
 
 use task_maker_dag::{ExecutionDAG, FileCallbacks, FileUuid, ProvidedFile, WriteToCallback};
 use task_maker_store::*;
@@ -96,7 +96,7 @@ impl ExecutorClient {
             done.store(true, Ordering::Relaxed);
             status_poller
                 .join()
-                .map_err(|e| format_err!("Failed to join status poller: {:?}", e)).unwrap();
+                .map_err(|e| anyhow!("Failed to join status poller: {:?}", e)).unwrap();
         }}
 
         let mut missing_files = None;
@@ -107,7 +107,7 @@ impl ExecutorClient {
                     // prevent the status poller for sending messages while sending the file
                     let _lock = file_mode
                         .lock()
-                        .map_err(|e| format_err!("Failed to lock: {:?}", e))?;
+                        .map_err(|e| anyhow!("Failed to lock: {:?}", e))?;
                     handle_server_ask_file(uuid, provided_files, &sender)?;
                 }
                 Ok(ExecutorServerMessage::ProvideFile(uuid, success)) => {
@@ -181,7 +181,7 @@ impl ExecutorClient {
                     missing_files = Some(missing);
                 }
                 Err(e) => {
-                    let cause = e.find_root_cause().to_string();
+                    let cause = e.root_cause().to_string();
                     if cause == "receiving on an empty and disconnected channel" {
                         trace!("Connection closed: {}", cause);
                     } else {
@@ -353,7 +353,7 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
                         info!("Writing file {} to {}", uuid, dest.display());
                         std::fs::create_dir_all(
                             dest.parent()
-                                .ok_or_else(|| format_err!("Invalid file destination path"))?,
+                                .ok_or_else(|| anyhow!("Invalid file destination path"))?,
                         )?;
                         Some(std::fs::File::create(dest)?)
                     }

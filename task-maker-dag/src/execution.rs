@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use anyhow::Error;
 use boxfnonce::BoxFnOnce;
-use failure::Error;
-use failure::_core::fmt::Formatter;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 use uuid::Uuid;
@@ -724,7 +723,7 @@ impl std::default::Default for ExecutionCallbacks {
 }
 
 impl std::fmt::Debug for ExecutionResult {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ExecutionResult")
             .field("status", &self.status)
             .field("was_killed", &self.was_killed)

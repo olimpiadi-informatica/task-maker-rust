@@ -76,10 +76,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
 
+use anyhow::Error;
 /// Re-export `ductile` since it's sensible to any version change
 pub use ductile;
 use ductile::new_local_channel;
-use failure::Error;
 use scrypt::ScryptParams;
 
 pub use client::ExecutorClient;

@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use anyhow::{anyhow, Error};
 use askama::Template;
-use failure::{format_err, Error};
 use itertools::Itertools;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -102,7 +102,7 @@ impl Booklet {
         let booklet_name = self
             .dest
             .file_name()
-            .ok_or_else(|| format_err!("Invalid destination file {:?}", self.dest))?
+            .ok_or_else(|| anyhow!("Invalid destination file {:?}", self.dest))?
             .to_string_lossy()
             .to_string();
         let mut task_names = self.statements.iter().map(|s| &s.config().name);

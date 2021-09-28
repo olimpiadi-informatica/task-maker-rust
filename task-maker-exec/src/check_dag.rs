@@ -1,14 +1,14 @@
 use crate::executor::ExecutionDAGWatchSet;
-use failure::Fail;
 use std::collections::{HashMap, HashSet, VecDeque};
 use task_maker_dag::{ExecutionDAGData, ExecutionGroupUuid, ExecutionUuid, FifoUuid, FileUuid};
+use thiserror::Error;
 
 /// An error in the DAG structure.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum DAGError {
     /// A file is used as input in an execution but it's missing, or a callback is registered on a
     /// file but it's missing.
-    #[fail(display = "missing file {} ({})", description, uuid)]
+    #[error("missing file {description} ({uuid})")]
     MissingFile {
         /// The UUID of the missing file.
         uuid: FileUuid,
@@ -16,10 +16,7 @@ pub enum DAGError {
         description: String,
     },
     /// Stdout/Stderr capture is requested, but a UUID for them is missing.
-    #[fail(
-        display = "missing UUID for captured {} on execution {} ({})",
-        stream, uuid, description
-    )]
+    #[error("missing UUID for captured {stream} on execution {uuid} ({description})")]
     InvalidCapture {
         /// Either "stdout" or "stderr".
         stream: String,
@@ -29,40 +26,37 @@ pub enum DAGError {
         description: String,
     },
     /// A callback is registered on an execution but it's missing.
-    #[fail(display = "missing execution {}", uuid)]
+    #[error("missing execution {uuid}")]
     MissingExecution {
         /// The UUID of the missing execution.
         uuid: ExecutionUuid,
     },
     /// There is a dependency cycle in the DAG.
-    #[fail(
-        display = "detected dependency cycle, '{}' is in the cycle",
-        description
-    )]
+    #[error("detected dependency cycle, '{description}' is in the cycle")]
     CycleDetected {
         /// The description of an execution inside the cycle.
         description: String,
     },
     /// There is a duplicate file UUID.
-    #[fail(display = "duplicate file UUID {}", uuid)]
+    #[error("duplicate file UUID {uuid}")]
     DuplicateFileUUID {
         /// The duplicated UUID.
         uuid: FileUuid,
     },
     /// There is a duplicate Fifo UUID.
-    #[fail(display = "duplicate FIFO UUID {}", uuid)]
+    #[error("duplicate FIFO UUID {uuid}")]
     DuplicateFifoUUID {
         /// The duplicated UUID.
         uuid: FifoUuid,
     },
     /// There is a duplicate execution UUID.
-    #[fail(display = "duplicate execution UUID {}", uuid)]
+    #[error("duplicate execution UUID {uuid}")]
     DuplicateExecutionUUID {
         /// The duplicated UUID.
         uuid: FileUuid,
     },
     /// There is an invalid execution group.
-    #[fail(display = "empty execution group {}", uuid)]
+    #[error("empty execution group {uuid}")]
     EmptyGroup {
         /// The UUID of the execution group.
         uuid: ExecutionGroupUuid,

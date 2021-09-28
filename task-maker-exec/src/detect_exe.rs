@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use failure::Error;
+use anyhow::Error;
 
 /// The platform of an executable.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]

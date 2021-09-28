@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use failure::{format_err, Error};
+use anyhow::{anyhow, Error};
 use serde::{Deserialize, Serialize};
 
 use task_maker_dag::{Execution, ExecutionLimits, FileUuid};
@@ -246,7 +246,7 @@ impl Checker {
         eval.dag.on_execution_done(&exec.uuid, move |res| {
             let stdout = res
                 .stdout
-                .ok_or_else(|| format_err!("Checker stdout not captured"))?;
+                .ok_or_else(|| anyhow!("Checker stdout not captured"))?;
             callback(serde_json::from_slice(&stdout).map_err(|e| e.into()))
         });
         Ok(exec)

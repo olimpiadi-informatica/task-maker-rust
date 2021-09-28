@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use failure::{bail, format_err, Error, ResultExt};
+use anyhow::{anyhow, bail, Context, Error};
 
 use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
@@ -204,13 +204,13 @@ where
         if let Some(server) = server {
             server
                 .join()
-                .map_err(|e| format_err!("Executor panicked: {:?}", e))
+                .map_err(|e| anyhow!("Executor panicked: {:?}", e))
                 .unwrap();
         }
         let _ = sender.send(UIMessage::StopUI);
         ui_thread
             .join()
-            .map_err(|e| format_err!("UI panicked: {:?}", e))
+            .map_err(|e| anyhow!("UI panicked: {:?}", e))
             .unwrap();
     }
 
@@ -218,7 +218,7 @@ where
     ExecutorClient::evaluate(dag, tx, &rx, file_store, move |status| {
         ui_sender.send(UIMessage::ServerStatus { status })
     })
-    .with_context(|_| {
+    .with_context(|| {
         if let Some(tx) = client_sender.lock().unwrap().as_ref() {
             let _ = tx.send(ExecutorClientMessage::Stop);
         }

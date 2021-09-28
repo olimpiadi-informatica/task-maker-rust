@@ -1,4 +1,4 @@
-use failure::Error;
+use anyhow::Error;
 
 use crate::sanity_checks::SanityCheck;
 use crate::terry::TerryTask;

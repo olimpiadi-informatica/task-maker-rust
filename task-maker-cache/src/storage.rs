@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::Path;
 
-use failure::{bail, Error};
+use anyhow::{bail, Error};
 use itertools::Itertools;
 
 use crate::entry::CacheEntry;
