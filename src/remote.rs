@@ -1,4 +1,4 @@
-use failure::{bail, Error};
+use failure::{bail, Error, ResultExt};
 use task_maker_exec::ductile::{
     connect_channel, connect_channel_with_enc, ChannelReceiver, ChannelSender,
 };
@@ -14,13 +14,15 @@ pub fn connect_to_remote_server<S, R, Str: AsRef<str>>(
     let url = match Url::parse(server_url.as_ref()) {
         Ok(u) => u,
         Err(ParseError::RelativeUrlWithoutBase) => {
-            Url::parse(&format!("tcp://{}", server_url.as_ref()))?
+            Url::parse(&format!("tcp://{}", server_url.as_ref())).context("Invalid server url")?
         }
         Err(e) => return Err(e.into()),
     };
     let (server_addrs, password) = match url.scheme() {
         "tcp" => {
-            let server_addr = url.socket_addrs(|| Some(default_port))?;
+            let server_addr = url
+                .socket_addrs(|| Some(default_port))
+                .context("Cannot resolve server address")?;
             let password = url.password().map(String::from);
             (server_addr, password)
         }

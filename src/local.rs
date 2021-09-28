@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use failure::{bail, format_err, Error};
+use failure::{bail, format_err, Error, ResultExt};
 
 use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
@@ -56,16 +56,18 @@ where
 
     // setup the task
     let eval_config = opt.to_config();
-    let task: Box<dyn TaskFormat> = find_task(&opt.task_dir, opt.max_depth, &eval_config)
-        .map_err(|e| format_err!("Invalid task directory: {}", e.to_string()))?;
+    let task: Box<dyn TaskFormat> =
+        find_task(&opt.task_dir, opt.max_depth, &eval_config).context("Invalid task directory")?;
 
     if opt.task_info {
+        let info = task.task_info().context("Cannot produce task info")?;
         match opt.ui {
             UIType::Json => {
-                println!("{}", serde_json::to_string(&task.task_info()?)?);
+                let json = serde_json::to_string(&info).context("Non-serializable task info")?;
+                println!("{}", json);
             }
             _ => {
-                println!("{:#?} ", task.task_info()?);
+                println!("{:#?} ", info);
             }
         }
         return Ok(Evaluation::Done);
@@ -73,8 +75,7 @@ where
 
     // clean the task
     if opt.clean {
-        task.clean()
-            .map_err(|e| format_err!("Cannot clear the task directory: {}", e.to_string()))?;
+        task.clean().context("Cannot clear the task directory")?;
         return Ok(Evaluation::Clean);
     }
 
@@ -84,7 +85,7 @@ where
     config
         .keep_sandboxes(opt.keep_sandboxes)
         .dry_run(opt.dry_run)
-        .cache_mode(CacheMode::try_from(&opt.no_cache, &VALID_TAGS)?)
+        .cache_mode(CacheMode::try_from(&opt.no_cache, &VALID_TAGS).context("Invalid cache mode")?)
         .copy_exe(opt.copy_exe)
         .copy_logs(opt.copy_logs);
     if let Some(extra_time) = opt.extra_time {
@@ -102,17 +103,11 @@ where
             opt.max_cache * 1024 * 1024,
             opt.min_cache * 1024 * 1024,
         )
-        .map_err(|e| {
-            format_err!(
-                "Cannot create the file store: {}\nYou can try wiping it with --dont-panic",
-                e.to_string()
-            )
-        })?,
+        .context("Cannot create the file store (You can try wiping it with --dont-panic)")?,
     );
 
     // setup the executor
-    let cache = Cache::new(store_path.join("cache"))
-        .map_err(|e| format_err!("Cannot create the cache: {}", e.to_string()))?;
+    let cache = Cache::new(store_path.join("cache")).context("Cannot create the cache")?;
     let num_cores = opt.num_cores.unwrap_or_else(num_cpus::get);
     let sandbox_path = store_path.join("sandboxes");
     let executor = LocalExecutor::new(file_store.clone(), num_cores, sandbox_path);
@@ -129,7 +124,8 @@ where
     }
 
     let (tx, rx, server) = if let Some(evaluate_on) = opt.evaluate_on {
-        let (tx, rx) = connect_to_remote_server(&evaluate_on, 27182)?;
+        let (tx, rx) = connect_to_remote_server(&evaluate_on, 27182)
+            .context("Cannot connect to the remote server")?;
         let name = opt
             .name
             .unwrap_or_else(|| format!("{}@{}", whoami::username(), whoami::hostname()));
@@ -137,8 +133,10 @@ where
             name,
             version: VERSION.into(),
         })
-        .map_err(|e| format_err!("Cannot send welcome to the server: {}", e.to_string()))?;
-        if let RemoteEntityMessageResponse::Rejected(err) = rx.recv()? {
+        .context("Cannot send welcome to the server")?;
+        if let RemoteEntityMessageResponse::Rejected(err) =
+            rx.recv().context("Failed to receive welcome response")?
+        {
             bail!("The server rejected the client connection: {}", err);
         }
         (tx.change_type(), rx.change_type(), None)
@@ -158,14 +156,14 @@ where
                     )
                     .unwrap();
             })
-            .map_err(|e| format_err!("Failed to spawn the executor thread: {}", e.to_string()))?;
+            .context("Failed to spawn the executor thread")?;
         (tx, rx, Some(server))
     };
 
     // setup the ui thread
     let mut ui = task
         .ui(&opt.ui)
-        .map_err(|_| format_err!("This UI is not supported on this task type."))?;
+        .context("This UI is not supported on this task type")?;
     let ui_thread = std::thread::Builder::new()
         .name("UI".to_owned())
         .spawn(move || {
@@ -177,7 +175,7 @@ where
             }
             ui.finish();
         })
-        .map_err(|e| format_err!("Failed to spawn UI thread: {}", e.to_string()))?;
+        .context("Failed to spawn UI thread")?;
 
     let ui_sender = eval.sender.clone();
     // a shared sender for the ctrl-c handler, it has to be wrapped in Arc-Mutex-Option to be freed
@@ -220,22 +218,21 @@ where
     ExecutorClient::evaluate(dag, tx, &rx, file_store, move |status| {
         ui_sender.send(UIMessage::ServerStatus { status })
     })
-    .map_err(|e| {
+    .with_context(|_| {
         if let Some(tx) = client_sender.lock().unwrap().as_ref() {
             let _ = tx.send(ExecutorClientMessage::Stop);
         }
-        format_err!("Client failed: {:?}", e)
+        "Client failed"
     })?;
     // disable the ctrl-c handler dropping the owned clone of the sender, letting the client exit
     client_sender.lock().unwrap().take();
 
     task.sanity_check_post_hook(&mut sender.lock().unwrap())
-        .map_err(|e| format_err!("Sanity checks failed: {}", e.to_string()))?;
+        .context("Sanity checks failed")?;
     Ok(Evaluation::Done)
 }
 
 /// Entry point of the local execution.
 pub fn main_local(opt: Opt) {
-    run_evaluation(opt, |ui, mex| ui.on_message(mex))
-        .nice_expect_with(|e| format!("Error: {}", e.to_string()));
+    run_evaluation(opt, |ui, mex| ui.on_message(mex)).nice_unwrap();
 }

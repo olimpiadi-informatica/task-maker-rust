@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use failure::{bail, format_err, Error};
+use failure::{bail, format_err, Error, ResultExt};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
@@ -254,8 +254,8 @@ impl TaskFormat for IOITask {
             for file in glob::glob(dir.join("*.txt").to_string_lossy().as_ref()).unwrap() {
                 let file = match file {
                     Ok(file) => file,
-                    _ => {
-                        warn!("Cannot process {:?}", file);
+                    Err(e) => {
+                        warn!("Glob error: {:?}", e);
                         continue;
                     }
                 };
@@ -272,22 +272,22 @@ impl TaskFormat for IOITask {
                 {
                     continue;
                 }
-                info!("Removing {:?}", file);
+                info!("Removing {}", file.display());
                 std::fs::remove_file(file)?;
             }
-            info!("Removing {:?}", dir);
+            info!("Removing {}", dir.display());
             if let Err(e) = std::fs::remove_dir(&dir) {
                 if let std::io::ErrorKind::Other = e.kind() {
-                    warn!("Directory {:?} not empty!", dir);
+                    warn!("Directory {} not empty!", dir.display());
                 } else {
-                    panic!("Cannot remove {:?}: {:?}", dir, e);
+                    Err(e).with_context(|_| format!("Cannot remove {}", dir.display()))?;
                 }
             }
         }
         // remove the bin/ folder
         let bin_path = self.path.join("bin");
         if bin_path.exists() {
-            info!("Removing {:?}", bin_path);
+            info!("Removing {}", bin_path.display());
             std::fs::remove_dir_all(bin_path)?;
         }
         // remove the compiled checkers
@@ -296,7 +296,7 @@ impl TaskFormat for IOITask {
                 for checker in &["check/checker", "cor/correttore"] {
                     let path = self.path.join(checker);
                     if path.exists() {
-                        info!("Removing {:?}", path);
+                        info!("Removing {}", path.display());
                         std::fs::remove_file(path)?;
                     }
                 }
@@ -307,7 +307,7 @@ impl TaskFormat for IOITask {
         let cases_gen_path = self.path.join("gen/cases.gen");
         if cases_gen_path.exists() && gen_gen_path.exists() {
             if is_gen_gen_deletable(&gen_gen_path)? {
-                info!("Removing {:?}", gen_gen_path);
+                info!("Removing {}", gen_gen_path.display());
                 std::fs::remove_file(gen_gen_path)?;
             } else {
                 warn!(
