@@ -77,7 +77,7 @@ impl TestInterface {
     pub fn fail<S: AsRef<str>>(self, err: S) {
         let err = err.as_ref();
         if let Err(e) = self.state {
-            if !e.to_string().contains(err) {
+            if !format!("{:?}", e).contains(err) {
                 panic!(
                     "Expecting task-maker to fail with '{}' but failed with {:?}",
                     err, e
