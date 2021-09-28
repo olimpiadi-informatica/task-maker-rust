@@ -277,7 +277,9 @@ impl TaskFormat for IOITask {
             }
             info!("Removing {}", dir.display());
             if let Err(e) = std::fs::remove_dir(&dir) {
-                if let std::io::ErrorKind::Other = e.kind() {
+                // FIXME: this should be `e.kind() == ErrorKind::DirectoryNotEmpty`, but it is not
+                //        stable yet.
+                if e.to_string().contains("Directory not empty") {
                     warn!("Directory {} not empty!", dir.display());
                 } else {
                     Err(e).with_context(|| format!("Cannot remove {}", dir.display()))?;
