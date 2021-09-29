@@ -402,9 +402,9 @@ impl FileStoreKey {
     }
 }
 
-impl std::string::ToString for FileStoreKey {
-    fn to_string(&self) -> String {
-        hex::encode(&self.hash)
+impl std::fmt::Display for FileStoreKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&hex::encode(&self.hash))
     }
 }
 
@@ -479,6 +479,12 @@ impl Clone for FileStoreHandle {
             locked_files: self.locked_files.clone(),
             key: self.key.clone(),
         }
+    }
+}
+
+impl std::fmt::Display for FileStoreHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.path.display(), f)
     }
 }
 

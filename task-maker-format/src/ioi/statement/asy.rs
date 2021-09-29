@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Context, Error};
 use regex::Regex;
 
 use task_maker_dag::{Execution, ExecutionCommand, File};
@@ -47,7 +47,9 @@ impl AsyFile {
             .mount_tmpfs(true);
         comp.tag(Tag::Booklet.into());
         comp.input(&source_file, "source.asy", false);
-        eval.dag.provide_file(source_file, &source_path)?;
+        eval.dag
+            .provide_file(source_file, &source_path)
+            .context("Failed to provide any source file")?;
         bind_exec_callbacks!(
             eval,
             comp.uuid,
@@ -61,14 +63,23 @@ impl AsyFile {
             booklet,
             name
         )?;
-        for (sandbox, local) in AsyFile::find_asy_deps(
+        let deps = AsyFile::find_asy_deps(
             &source_path,
             source_path.parent().expect("Invalid asy file"),
-        )? {
+        )
+        .with_context(|| {
+            format!(
+                "Failed to find asy dependencies of {}",
+                source_path.display()
+            )
+        })?;
+        for (sandbox, local) in deps {
             if local.exists() {
                 let file = File::new(format!("Dependency {:?} of {}", sandbox, name));
                 comp.input(&file, sandbox, false);
-                eval.dag.provide_file(file, local)?;
+                eval.dag
+                    .provide_file(file, local)
+                    .context("Failed to provide asy dependency")?;
             } else {
                 eval.sender.send(UIMessage::Warning {
                     message: format!("Dependency {:?} of {:?} not found", local, name),
@@ -125,7 +136,8 @@ impl AsyFile {
         let dir = path
             .parent()
             .ok_or_else(|| anyhow!("File {:?} does not have a parent", path))?;
-        let content = std::fs::read_to_string(path)?;
+        let content = std::fs::read_to_string(path)
+            .with_context(|| format!("Failed to read asy content from {}", path.display()))?;
         let mut result = HashMap::new();
         for include in ASY_INCLUDE.captures_iter(&content) {
             let include = &include[1];

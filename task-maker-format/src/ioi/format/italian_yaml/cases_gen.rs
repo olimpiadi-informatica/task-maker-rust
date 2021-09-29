@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use pest::Parser;
 
-use anyhow::{anyhow, bail, Error};
+use anyhow::{anyhow, bail, Context, Error};
 
 use crate::ioi::format::italian_yaml::TaskInputEntry;
 use crate::ioi::{
@@ -124,20 +124,25 @@ where
     testcase_id: TestcaseId,
 }
 
-impl<O> CasesGen<O>
+impl<OutGen> CasesGen<OutGen>
 where
-    O: Fn(TestcaseId) -> OutputGenerator,
+    OutGen: Fn(TestcaseId) -> OutputGenerator,
 {
     /// Parse the `cases.gen` file pointed at the specified path.
-    pub(crate) fn new<P: AsRef<Path>>(path: P, output_gen: O) -> Result<CasesGen<O>, Error> {
+    pub(crate) fn new<P: AsRef<Path>>(
+        path: P,
+        output_gen: OutGen,
+    ) -> Result<CasesGen<OutGen>, Error> {
+        let path = path.as_ref();
         let task_dir = path
-            .as_ref()
             .parent()
             .expect("Invalid gen/cases.gen path")
             .parent()
             .expect("Invalid gen/cases.gen path");
-        let content = std::fs::read_to_string(&path)?;
-        let mut file = parser::CasesGenParser::parse(parser::Rule::file, &content)?;
+        let content = std::fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read {}", path.display()))?;
+        let mut file = parser::CasesGenParser::parse(parser::Rule::file, &content)
+            .context("Cannot parse cases.gen")?;
         let file = file.next().ok_or_else(|| anyhow!("Corrupted parser"))?; // extract the real file
 
         let mut cases = CasesGen {
@@ -243,7 +248,7 @@ where
                 }
             }
         }
-        std::fs::write(self.task_dir.join("gen/GEN"), gen)?;
+        std::fs::write(self.task_dir.join("gen/GEN"), gen).context("Failed to write gen/GEN")?;
         Ok(())
     }
 
@@ -251,22 +256,28 @@ where
     fn parse_command(&mut self, line: Pair) -> Result<(), Error> {
         match line.as_rule() {
             parser::Rule::GEN => {
-                self.parse_gen(line)?;
+                self.parse_gen(line)
+                    .context("Failed to parse GEN command")?;
             }
             parser::Rule::VAL => {
-                self.parse_val(line)?;
+                self.parse_val(line)
+                    .context("Failed to parse VAL command")?;
             }
             parser::Rule::CONSTRAINT => {
-                self.parse_constraint(line)?;
+                self.parse_constraint(line)
+                    .context("Failed to parse CONSTRAINT command")?;
             }
             parser::Rule::SUBTASK => {
-                self.parse_subtask(line)?;
+                self.parse_subtask(line)
+                    .context("Failed to parse SUBTASK command")?;
             }
             parser::Rule::COPY => {
-                self.parse_copy(line)?;
+                self.parse_copy(line)
+                    .context("Failed to parse COPY command")?;
             }
             parser::Rule::RUN => {
-                self.parse_run(line)?;
+                self.parse_run(line)
+                    .context("Failed to parse RUN command")?;
             }
             _ => unreachable!(),
         }
@@ -288,7 +299,7 @@ where
             bail!("Cannot generate testcase: no default generator set");
         };
         let args = shell_words::split(line)
-            .map_err(|e| anyhow!("Invalid command arguments for testcase '{}': {}", line, e))?;
+            .with_context(|| format!("Invalid command arguments for testcase '{}'", line))?;
         let generator = &self
             .generators
             .get(&current_generator)
@@ -314,7 +325,9 @@ where
         self.result.push(TaskInputEntry::Testcase(TestcaseInfo {
             id: self.testcase_id,
             input_generator: generator,
-            input_validator: self.get_validator(&variables)?,
+            input_validator: self
+                .get_validator(&variables)
+                .context("Cannot get testcase validator")?,
             output_generator: (self.get_output_gen)(self.testcase_id),
         }));
         self.testcase_id += 1;
@@ -378,7 +391,7 @@ where
             .map(Arc::new)
             .ok_or_else(|| anyhow!("Cannot use {} '{}': unknown language", kind, path.display()))?;
             let args = shell_words::split(line[2].as_str())
-                .map_err(|e| anyhow!("Invalid arguments of '{}': {}", name, e))?;
+                .with_context(|| format!("Invalid arguments of '{}'", name))?;
             if managers.contains_key(name) {
                 bail!("Duplicate {} with name {}", kind, name);
             }
@@ -393,7 +406,7 @@ where
     /// Parse a `:GEN` command.
     fn parse_gen(&mut self, line: Pair) -> Result<(), Error> {
         let line: Vec<_> = line.into_inner().collect();
-        CasesGen::<O>::process_gen_val(
+        CasesGen::<OutGen>::process_gen_val(
             line,
             &self.task_dir,
             self.subtask_id,
@@ -408,7 +421,7 @@ where
     /// Parse a `:VAL` command.
     fn parse_val(&mut self, line: Pair) -> Result<(), Error> {
         let line: Vec<_> = line.into_inner().collect();
-        CasesGen::<O>::process_gen_val(
+        CasesGen::<OutGen>::process_gen_val(
             line,
             &self.task_dir,
             self.subtask_id,
@@ -430,12 +443,11 @@ where
             match item.as_rule() {
                 parser::Rule::number => {
                     constraint.operands.push(ConstraintOperand::Constant(
-                        i64::from_str(item.as_str()).map_err(|e| {
-                            anyhow!(
-                                "Invalid integer constant '{}' in constraint '{}': {}",
+                        i64::from_str(item.as_str()).with_context(|| {
+                            format!(
+                                "Invalid integer constant '{}' in constraint '{}'",
                                 item.as_str(),
                                 line_str,
-                                e
                             )
                         })?,
                     ));
@@ -446,7 +458,8 @@ where
                         .push(ConstraintOperand::Variable(item.as_str()[1..].to_string()));
                 }
                 parser::Rule::comp_operator => {
-                    let operator = ConstraintOperator::from_str(item.as_str())?;
+                    let operator = ConstraintOperator::from_str(item.as_str())
+                        .context("Failed to parse contraint operator")?;
                     let dir = match operator {
                         ConstraintOperator::Less | ConstraintOperator::LessEqual => Some(true),
                         ConstraintOperator::Greater | ConstraintOperator::GreaterEqual => {
@@ -489,11 +502,11 @@ where
         self.current_generator = self.default_generator.clone();
         self.current_validator = self.default_validator.clone();
         self.subtask_constraints.push(vec![]);
-        let score = f64::from_str(line[0].as_str()).map_err(|e| {
-            anyhow!(
+        let score = line[0].as_str();
+        let score = f64::from_str(score).with_context(|| {
+            format!(
                 "Invalid subtask score for subtask {}: {}",
-                self.subtask_id,
-                e
+                self.subtask_id, score
             )
         })?;
         let description = if line.len() >= 2 {
@@ -528,7 +541,9 @@ where
         self.result.push(TaskInputEntry::Testcase(TestcaseInfo {
             id: self.testcase_id,
             input_generator: InputGenerator::StaticFile(path),
-            input_validator: self.get_validator(&self.get_auto_variables())?,
+            input_validator: self
+                .get_validator(&self.get_auto_variables())
+                .context("Cannot get testcase validator")?,
             output_generator: (self.get_output_gen)(self.testcase_id),
         }));
         self.testcase_id += 1;
@@ -610,8 +625,10 @@ pub(crate) fn is_gen_gen_deletable(path: &Path) -> Result<bool, Error> {
         return Ok(false);
     }
     let mut buffer = vec![];
-    let mut file = std::fs::File::open(path)?;
-    file.read_to_end(&mut buffer)?;
+    let mut file = std::fs::File::open(path)
+        .with_context(|| format!("Cannot open file {}", path.display()))?;
+    file.read_to_end(&mut buffer)
+        .context("Cannot read gen/GEN file")?;
     let content = String::from_utf8_lossy(&buffer);
     // if the gen/GEN is present and it does not contain the cookie, skip all the generation
     if !content.contains(TM_ALLOW_DELETE_COOKIE) {
@@ -723,8 +740,7 @@ impl Debug for Constraint {
 mod tests {
     use std::path::Path;
 
-    use spectral::assert_that;
-    use spectral::prelude::*;
+    use spectral::{assert_that, AssertionFailure, Spec};
     use tempdir::TempDir;
 
     use anyhow::Error;
@@ -738,6 +754,22 @@ mod tests {
     };
 
     struct TestHelper(TempDir);
+
+    trait ErrorAssertion {
+        fn has_error(&mut self, message: &str);
+    }
+
+    impl<'s> ErrorAssertion for Spec<'s, Error> {
+        fn has_error(&mut self, message: &str) {
+            let error = format!("{:?}", self.subject);
+            if !error.contains(message) {
+                AssertionFailure::from_spec(self)
+                    .with_actual(error)
+                    .with_expected(format!("error containing <\"{}\">", message))
+                    .fail();
+            }
+        }
+    }
 
     impl TestHelper {
         fn new() -> TestHelper {
@@ -924,7 +956,7 @@ mod tests {
             .add_file("gen/generator.py")
             .cases_gen(":GEN gen gen/generator.py\n:GEN gen");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("outside a subtask");
+        assert_that!(gen.unwrap_err()).has_error("outside a subtask");
     }
 
     #[test]
@@ -933,7 +965,7 @@ mod tests {
             .add_file("gen/generator.py")
             .cases_gen(":GEN gen gen/generator.py\n:SUBTASK 42\n:GEN lolnope");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("unknown generator");
+        assert_that!(gen.unwrap_err()).has_error("unknown generator");
     }
 
     #[test]
@@ -942,14 +974,14 @@ mod tests {
             .add_file("gen/generator.py")
             .cases_gen(":GEN gen gen/generator.py\n:GEN gen gen/generator.py");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("Duplicate generator");
+        assert_that!(gen.unwrap_err()).has_error("Duplicate generator");
     }
 
     #[test]
     fn test_add_generator_missing_file() {
         let gen = TestHelper::new().cases_gen(":GEN gen gen/generator.py");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("does not exists");
+        assert_that!(gen.unwrap_err()).has_error("does not exists");
     }
 
     #[test]
@@ -958,7 +990,7 @@ mod tests {
             .add_file("gen/gen.lolnope")
             .cases_gen(":GEN gen gen/gen.lolnope");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("unknown language");
+        assert_that!(gen.unwrap_err()).has_error("unknown language");
     }
 
     /**********************
@@ -1021,7 +1053,7 @@ mod tests {
             .add_file("gen/validator.py")
             .cases_gen(":VAL val gen/validator.py\n:VAL val");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("outside a subtask");
+        assert_that!(gen.unwrap_err()).has_error("outside a subtask");
     }
 
     #[test]
@@ -1030,7 +1062,7 @@ mod tests {
             .add_file("gen/validator.py")
             .cases_gen(":VAL val gen/validator.py\n:SUBTASK 42\n:VAL lolnope");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("unknown validator");
+        assert_that!(gen.unwrap_err()).has_error("unknown validator");
     }
 
     #[test]
@@ -1039,14 +1071,14 @@ mod tests {
             .add_file("gen/validator.py")
             .cases_gen(":VAL val gen/validator.py\n:VAL val gen/validator.py");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("Duplicate validator");
+        assert_that!(gen.unwrap_err()).has_error("Duplicate validator");
     }
 
     #[test]
     fn test_add_validator_missing_file() {
         let gen = TestHelper::new().cases_gen(":VAL val gen/validator.py");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("does not exists");
+        assert_that!(gen.unwrap_err()).has_error("does not exists");
     }
 
     #[test]
@@ -1055,7 +1087,7 @@ mod tests {
             .add_file("gen/gen.lolnope")
             .cases_gen(":VAL val gen/gen.lolnope");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("unknown language");
+        assert_that!(gen.unwrap_err()).has_error("unknown language");
     }
 
     /**********************
@@ -1139,8 +1171,7 @@ mod tests {
     fn test_add_constraint_mixed_directions() {
         let gen = TestHelper::new().cases_gen(":CONSTRAINT $K < $N > $M");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string())
-            .contains("inequality direction must be the same");
+        assert_that!(gen.unwrap_err()).has_error("inequality direction must be the same");
     }
 
     #[test]
@@ -1153,7 +1184,7 @@ mod tests {
     fn test_add_constraint_invalid_integer() {
         let gen = TestHelper::new().cases_gen(":CONSTRAINT $N < 100000000000000000000000000000000");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("Invalid integer constant");
+        assert_that!(gen.unwrap_err()).has_error("Invalid integer constant");
     }
 
     /**********************
@@ -1248,14 +1279,14 @@ mod tests {
     fn test_add_copy_missing_file() {
         let gen = TestHelper::new().cases_gen(":SUBTASK 42\n:COPY example.in");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("file not found");
+        assert_that!(gen.unwrap_err()).has_error("file not found");
     }
 
     #[test]
     fn test_add_copy_no_subtask() {
         let gen = TestHelper::new().cases_gen(":COPY example.in");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("outside a subtask");
+        assert_that!(gen.unwrap_err()).has_error("outside a subtask");
     }
 
     /**********************
@@ -1362,14 +1393,14 @@ mod tests {
             .add_file("gen/gen.py")
             .cases_gen(":GEN foo gen/gen.py\n:SUBTASK 42\n:RUN foo good ol' quotes");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("Invalid command arguments");
+        assert_that!(gen.unwrap_err()).has_error("Invalid command arguments");
     }
 
     #[test]
     fn test_add_run_missing_gen() {
         let gen = TestHelper::new().cases_gen(":SUBTASK 42\n:RUN foo 42 42");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("Generator 'foo' not declared");
+        assert_that!(gen.unwrap_err()).has_error("Generator 'foo' not declared");
     }
 
     #[test]
@@ -1378,7 +1409,7 @@ mod tests {
             .add_file("gen/gen.py")
             .cases_gen(":GEN default gen/gen.py\n:RUN default 42 42");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("outside a subtask");
+        assert_that!(gen.unwrap_err()).has_error("outside a subtask");
     }
 
     /**********************
@@ -1561,7 +1592,7 @@ mod tests {
             ":GEN default gen/generator.py N M\n:CONSTRAINT 1 <= $N < $M < 1000\n:SUBTASK 42\n1 1000",
         );
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("violates constraint");
+        assert_that!(gen.unwrap_err()).has_error("violates constraint");
     }
 
     #[test]
@@ -1578,14 +1609,14 @@ mod tests {
             .add_file("gen/gen.py")
             .cases_gen(":GEN gen gen/gen.py\n:SUBTASK 42\ngood ol' quotes");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("Invalid command arguments");
+        assert_that!(gen.unwrap_err()).has_error("Invalid command arguments");
     }
 
     #[test]
     fn test_testcase_missing_gen() {
         let gen = TestHelper::new().cases_gen(":SUBTASK 42\n42 42");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("no default generator set");
+        assert_that!(gen.unwrap_err()).has_error("no default generator set");
     }
 
     #[test]
@@ -1594,6 +1625,6 @@ mod tests {
             .add_file("gen/gen.py")
             .cases_gen(":GEN default gen/gen.py\n42 42");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err().to_string()).contains("outside a subtask");
+        assert_that!(gen.unwrap_err()).has_error("outside a subtask");
     }
 }

@@ -4,7 +4,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::{anyhow, bail, Error};
+use anyhow::{anyhow, bail, Context, Error};
 use typescript_definitions::TypeScriptify;
 use uuid::Uuid;
 
@@ -262,33 +262,40 @@ impl Scheduler {
                     dag,
                     callbacks,
                 } => {
-                    self.handle_evaluate_dag(client, *dag, *callbacks)?;
+                    self.handle_evaluate_dag(client, *dag, *callbacks)
+                        .context("Failed to handle EvaluateDAG")?;
                 }
                 SchedulerInMessage::FileReady {
                     client,
                     uuid,
                     handle,
                 } => {
-                    self.handle_file_ready(client, uuid, handle)?;
+                    self.handle_file_ready(client, uuid, handle)
+                        .context("Failed to handle FileReady")?;
                 }
                 SchedulerInMessage::WorkerResult {
                     worker,
                     result,
                     outputs,
                 } => {
-                    self.handle_worker_result(worker, result, outputs)?;
+                    self.handle_worker_result(worker, result, outputs)
+                        .context("Failed to handle WorkerResult")?;
                 }
                 SchedulerInMessage::WorkerConnected { uuid, name } => {
-                    self.handle_worker_connected(uuid, name)?;
+                    self.handle_worker_connected(uuid, name)
+                        .context("Failed to handle WorkerConnected")?;
                 }
                 SchedulerInMessage::WorkerDisconnected { uuid } => {
-                    self.handle_worker_disconnected(uuid)?;
+                    self.handle_worker_disconnected(uuid)
+                        .context("Failed to handle WorkerDisconnected")?;
                 }
                 SchedulerInMessage::ClientDisconnected { client } => {
-                    self.handle_client_disconnected(client)?;
+                    self.handle_client_disconnected(client)
+                        .context("Failed to handle ClientDisconnected")?;
                 }
                 SchedulerInMessage::Status { client } => {
-                    self.handle_status_request(client)?;
+                    self.handle_status_request(client)
+                        .context("Failed to handle Status")?;
                 }
             }
         }
@@ -396,7 +403,7 @@ impl Scheduler {
             // FIXME: this is a pretty bad way to handle this error, it should never happen but if
             //        the workers are not trusted it can cause a DoS of the server. Maybe just
             //        rescheduling the job or disconnecting the client is a better choice.
-            bail!("Invalid worker result: the number of results does not match the number of executions");
+            bail!("Invalid worker result: the number of results ({}) does not match the number of executions ({})", result.len(), group.executions.len());
         }
         client.running_groups.remove(&group_uuid);
         self.exec_completed(client_uuid, &group, result, outputs)?;
@@ -470,7 +477,7 @@ impl Scheduler {
                             worker: *uuid,
                             job: exec,
                         })
-                        .map_err(|e| anyhow!("Failed to send job to worker: {:?}", e))?;
+                        .map_err(|e| anyhow!("Failed to send StopWorkerJob to worker: {:?}", e))?;
                 }
             }
         }
@@ -532,7 +539,8 @@ impl Scheduler {
         if client.is_done() {
             debug!("Computation completed for client: {}", client_uuid);
             self.executor
-                .send((client_uuid, SchedulerExecutorMessageData::EvaluationDone))?;
+                .send((client_uuid, SchedulerExecutorMessageData::EvaluationDone))
+                .context("Failed to send EvaluationDone to the executor")?;
         }
         Ok(())
     }
@@ -540,7 +548,12 @@ impl Scheduler {
     /// Mark a file as failed, skipping all the executions that depends on it (even transitively).
     /// This will also send the file to the client, if needed.
     fn file_failed(&mut self, client_uuid: ClientUuid, file: FileUuid) -> Result<(), Error> {
-        self.send_file(client_uuid, file, false)?;
+        self.send_file(client_uuid, file, false).with_context(|| {
+            format!(
+                "Failed sending failed file {} to client {}",
+                file, client_uuid
+            )
+        })?;
         let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
             client
         } else {
@@ -584,7 +597,12 @@ impl Scheduler {
     /// Mark a file as successful and schedule all the executions that become ready.
     /// This will also send the file to the client, if needed.
     fn file_success(&mut self, client_uuid: ClientUuid, file: FileUuid) -> Result<(), Error> {
-        self.send_file(client_uuid, file, true)?;
+        self.send_file(client_uuid, file, true).with_context(|| {
+            format!(
+                "Failed sending succeeded file {} to client {}",
+                file, client_uuid
+            )
+        })?;
         let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
             client
         } else {
@@ -630,15 +648,13 @@ impl Scheduler {
         if !client.file_handles.contains_key(&file) {
             return Ok(());
         }
-        if let Err(e) = self.executor.send((
-            client_uuid,
-            SchedulerExecutorMessageData::FileReady {
-                file,
-                handle: client.file_handles[&file].clone(),
-                successful: status,
-                urgent: client.callbacks.urgent_files.contains(&file),
-            },
-        )) {
+        let mex = SchedulerExecutorMessageData::FileReady {
+            file,
+            handle: client.file_handles[&file].clone(),
+            successful: status,
+            urgent: client.callbacks.urgent_files.contains(&file),
+        };
+        if let Err(e) = self.executor.send((client_uuid, mex)) {
             warn!("Cannot send the file to the client: {:?}", e);
         }
         Ok(())
@@ -662,13 +678,11 @@ impl Scheduler {
         };
         for (exec, res) in group.executions.iter().zip(result.iter()) {
             if client.callbacks.executions.contains(&exec.uuid) {
-                if let Err(e) = self.executor.send((
-                    client_uuid,
-                    SchedulerExecutorMessageData::ExecutionDone {
-                        execution: exec.uuid,
-                        result: res.clone(),
-                    },
-                )) {
+                let mex = SchedulerExecutorMessageData::ExecutionDone {
+                    execution: exec.uuid,
+                    result: res.clone(),
+                };
+                if let Err(e) = self.executor.send((client_uuid, mex)) {
                     warn!("Cannot tell the client the execution is done: {:?}", e);
                 }
             }
@@ -685,13 +699,17 @@ impl Scheduler {
         if successful {
             for exec in &group.executions {
                 for output in exec.outputs() {
-                    self.file_success(client_uuid, output)?;
+                    self.file_success(client_uuid, output).with_context(|| {
+                        format!("Failed to mark execution group {} as completed", group.uuid)
+                    })?;
                 }
             }
         } else {
             for exec in &group.executions {
                 for output in exec.outputs() {
-                    self.file_failed(client_uuid, output)?;
+                    self.file_failed(client_uuid, output).with_context(|| {
+                        format!("Failed to mark execution group {} as failed", group.uuid)
+                    })?;
                 }
             }
         }
@@ -825,7 +843,7 @@ impl Scheduler {
                     worker: *worker_uuid,
                     job,
                 })
-                .map_err(|e| anyhow!("Failed to send job to worker: {:?}", e))?;
+                .map_err(|e| anyhow!("Failed to send WorkerJob to worker: {:?}", e))?;
             for exec in &group.executions {
                 if client.callbacks.executions.contains(&exec.uuid) {
                     if let Err(e) = self.executor.send((

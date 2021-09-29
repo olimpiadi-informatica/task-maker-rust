@@ -164,7 +164,9 @@ impl TaskFormat for IOITask {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),
             UIType::Print => Ok(Box::new(PrintUI::new())),
-            UIType::Curses => Ok(Box::new(CursesUI::new(UIState::new(self))?)),
+            UIType::Curses => Ok(Box::new(
+                CursesUI::new(UIState::new(self)).context("Cannot build curses UI")?,
+            )),
             UIType::Json => Ok(Box::new(JsonUI::new())),
             UIType::Silent => Ok(Box::new(SilentUI::new())),
         }
@@ -174,7 +176,9 @@ impl TaskFormat for IOITask {
         eval.sender.send(UIMessage::IOITask {
             task: Box::new(self.clone()),
         })?;
-        self.sanity_checks.pre_hook(self, eval)?;
+        self.sanity_checks
+            .pre_hook(self, eval)
+            .context("Sanity check pre-hooks failed")?;
         let empty_score_manager = ScoreManager::new(self);
         let solutions: Vec<_> = config
             .filter_solutions(&self.path, vec!["sol/*"], Some(self.grader_map.clone()))
@@ -182,7 +186,9 @@ impl TaskFormat for IOITask {
             .map(|source| (source, Arc::new(Mutex::new(empty_score_manager.clone()))))
             .collect();
 
-        self.task_type.prepare_dag(eval)?;
+        self.task_type
+            .prepare_dag(eval)
+            .context("Failed to prepare DAG")?;
 
         for subtask in self.subtasks.values() {
             trace!("Executing the generation of subtask {}", subtask.id);
@@ -194,24 +200,18 @@ impl TaskFormat for IOITask {
                     subtask.id
                 );
 
-                let input =
-                    testcase
-                        .input_generator
-                        .generate_and_bind(eval, subtask.id, testcase.id)?;
-                let val_handle = testcase.input_validator.validate_and_bind(
-                    eval,
-                    subtask.id,
-                    testcase.id,
-                    input,
-                )?;
-                let output = testcase.output_generator.generate_and_bind(
-                    self,
-                    eval,
-                    subtask.id,
-                    testcase.id,
-                    input,
-                    val_handle,
-                )?;
+                let input = testcase
+                    .input_generator
+                    .generate_and_bind(eval, subtask.id, testcase.id)
+                    .context("Failed to bind input generator")?;
+                let val_handle = testcase
+                    .input_validator
+                    .validate_and_bind(eval, subtask.id, testcase.id, input)
+                    .context("Failed to bind validator")?;
+                let output = testcase
+                    .output_generator
+                    .generate_and_bind(self, eval, subtask.id, testcase.id, input, val_handle)
+                    .context("Failed to bind output generator")?;
 
                 for (solution, score_manager) in solutions.iter() {
                     trace!(
@@ -221,22 +221,26 @@ impl TaskFormat for IOITask {
                         testcase.id
                     );
 
-                    self.task_type.evaluate(
-                        self,
-                        eval,
-                        subtask.id,
-                        testcase.id,
-                        solution,
-                        input,
-                        val_handle,
-                        output,
-                        score_manager.clone(),
-                    )?;
+                    self.task_type
+                        .evaluate(
+                            self,
+                            eval,
+                            subtask.id,
+                            testcase.id,
+                            solution,
+                            input,
+                            val_handle,
+                            output,
+                            score_manager.clone(),
+                        )
+                        .context("Failed to bind evaluation")?;
                 }
             }
         }
         for booklet in self.booklets.iter() {
-            booklet.build(eval)?;
+            booklet
+                .build(eval)
+                .context("Failed to bind booklet compilation")?;
         }
         Ok(())
     }
@@ -273,7 +277,8 @@ impl TaskFormat for IOITask {
                     continue;
                 }
                 info!("Removing {}", file.display());
-                std::fs::remove_file(file)?;
+                std::fs::remove_file(&file)
+                    .with_context(|| format!("Failed to clean file {}", file.display()))?;
             }
             info!("Removing {}", dir.display());
             if let Err(e) = std::fs::remove_dir(&dir) {
@@ -290,7 +295,9 @@ impl TaskFormat for IOITask {
         let bin_path = self.path.join("bin");
         if bin_path.exists() {
             info!("Removing {}", bin_path.display());
-            std::fs::remove_dir_all(bin_path)?;
+            std::fs::remove_dir_all(&bin_path).with_context(|| {
+                format!("Failed to remove bin/ directory at {}", bin_path.display())
+            })?;
         }
         // remove the compiled checkers
         if let TaskType::Batch(data) = &self.task_type {
@@ -299,7 +306,9 @@ impl TaskFormat for IOITask {
                     let path = self.path.join(checker);
                     if path.exists() {
                         info!("Removing {}", path.display());
-                        std::fs::remove_file(path)?;
+                        std::fs::remove_file(&path).with_context(|| {
+                            format!("Failed to remove compiled checker at {}", path.display())
+                        })?;
                     }
                 }
             }
@@ -310,7 +319,9 @@ impl TaskFormat for IOITask {
         if cases_gen_path.exists() && gen_gen_path.exists() {
             if is_gen_gen_deletable(&gen_gen_path)? {
                 info!("Removing {}", gen_gen_path.display());
-                std::fs::remove_file(gen_gen_path)?;
+                std::fs::remove_file(&gen_gen_path).with_context(|| {
+                    format!("Failed to remove gen/GEN at {}", gen_gen_path.display())
+                })?;
             } else {
                 warn!(
                     "Won't remove gen/GEN since it doesn't contain {}",
@@ -322,7 +333,9 @@ impl TaskFormat for IOITask {
     }
 
     fn task_info(&self) -> Result<TaskInfo, Error> {
-        Ok(TaskInfo::IOI(task_info::IOITaskInfo::new(self)?))
+        Ok(TaskInfo::IOI(
+            task_info::IOITaskInfo::new(self).context("Cannot produce IOI task info")?,
+        ))
     }
 }
 

@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::Error;
+use anyhow::{Context, Error};
 use askama::Template;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -68,7 +68,8 @@ impl Statement {
     /// Make a new `Statement` from a `.tex` file and its configuration.
     pub fn new<P: Into<PathBuf>>(path: P, config: StatementConfig) -> Result<Self, Error> {
         let path = path.into();
-        let content = std::fs::read_to_string(&path)?;
+        let content = std::fs::read_to_string(&path)
+            .with_context(|| format!("Failed to read statement file from {}", path.display()))?;
         Ok(Statement {
             config,
             path,
@@ -102,14 +103,13 @@ impl Statement {
             if !path.is_file() {
                 continue;
             }
-            self.process_possible_dependency(
-                base_dir,
-                &path,
-                &mut deps,
-                eval,
-                booklet_name,
-                &logo,
-            )?;
+            self.process_possible_dependency(base_dir, &path, &mut deps, eval, booklet_name, &logo)
+                .with_context(|| {
+                    format!(
+                        "Failed to process possible dependency at {}",
+                        path.display()
+                    )
+                })?;
         }
         Ok(deps)
     }
@@ -175,7 +175,8 @@ impl Statement {
         if ext.as_str() == "asy" {
             let dest = suffix.with_extension("pdf");
             if self.content.contains(dest.to_string_lossy().as_ref()) {
-                let file = AsyFile::compile(&path, eval, booklet_name)?;
+                let file = AsyFile::compile(&path, eval, booklet_name)
+                    .context("Failed to compile asy file")?;
                 deps.push((dest, file));
             }
         } else {
@@ -195,7 +196,9 @@ impl Statement {
                 "Dependency of {} at {:?}",
                 self.config.name, suffix
             ));
-            eval.dag.provide_file(file.clone(), &path)?;
+            eval.dag
+                .provide_file(file.clone(), &path)
+                .context("Failed to provide statement dependency")?;
             deps.push((suffix.into(), file));
         }
         Ok(())
@@ -210,7 +213,9 @@ impl Statement {
     ///   will miss every time.
     fn is_valid_pdf_dependency(path: &Path) -> Result<bool, Error> {
         // resolve the symlinks
-        let path = path.canonicalize()?;
+        let path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to get real path of {}", path.display()))?;
         // ignore .pdf files that have the .asy source
         if path.with_extension("asy").exists() {
             return Ok(false);

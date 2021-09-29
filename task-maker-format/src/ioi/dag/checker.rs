@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Error};
+use anyhow::{anyhow, bail, Context, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
@@ -62,10 +62,12 @@ impl Checker {
                 eval.dag.on_execution_done(&exec.uuid, move |result| {
                     match result.status {
                         // diff exits with 0 if the files are equal
-                        ExecutionStatus::Success => callback(1.0, "Output is correct".into())?,
+                        ExecutionStatus::Success => callback(1.0, "Output is correct".into())
+                            .context("Checker callback failed")?,
                         // return code 1 means the files are different
                         ExecutionStatus::ReturnCode(1) => {
-                            callback(0.0, "Output is incorrect".into())?
+                            callback(0.0, "Output is incorrect".into())
+                                .context("Checker callback failed")?
                         }
                         _ => unreachable!("diff died badly? {:?}", result),
                     };
@@ -74,11 +76,13 @@ impl Checker {
                 Ok(exec)
             }
             Checker::Custom(source_file) => {
-                let mut exec = source_file.execute(
-                    eval,
-                    description,
-                    vec!["input", "correct_output", "test_output"],
-                )?;
+                let mut exec = source_file
+                    .execute(
+                        eval,
+                        description,
+                        vec!["input", "correct_output", "test_output"],
+                    )
+                    .context("Failed to execute checker source file")?;
                 exec.input(input, "input", false)
                     .input(correct_output, "correct_output", false)
                     .input(test_output, "test_output", false)
@@ -103,12 +107,10 @@ impl Checker {
                         );
                     }
                     let score = String::from_utf8_lossy(&stdout);
-                    let score: f64 = score.trim().parse().map_err(|e| {
-                        anyhow!(
-                            "Invalid score {:?} from checker: {:?} (stderr: {})",
-                            score,
-                            e,
-                            message
+                    let score: f64 = score.trim().parse().with_context(|| {
+                        format!(
+                            "Invalid score {:?} from checker (stderr: {})",
+                            score, message
                         )
                     })?;
                     callback(score, message)

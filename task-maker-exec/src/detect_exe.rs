@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use anyhow::Error;
+use anyhow::{Context, Error};
 
 /// The platform of an executable.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
@@ -62,12 +62,19 @@ const PATTERNS: [(&[u8], (ExecutablePlatform, ExecutableBits)); 8] = [
 pub fn detect_exe<P: AsRef<Path>>(
     path: P,
 ) -> Result<Option<(ExecutablePlatform, ExecutableBits)>, Error> {
-    let mut file = File::open(path.as_ref())?;
+    let path = path.as_ref();
+    let mut file = File::open(path)
+        .with_context(|| format!("Failed to open file {} for detecting exe", path.display()))?;
     let mut header = vec![];
     for (bytes, res) in &PATTERNS {
         if header.len() < bytes.len() {
             let mut missing = vec![0u8; bytes.len() - header.len()];
-            file.read_exact(&mut missing)?;
+            file.read_exact(&mut missing).with_context(|| {
+                format!(
+                    "Failed to read file content of {} for detecting exe",
+                    path.display()
+                )
+            })?;
             header.append(&mut missing);
         }
         if header.starts_with(bytes) {

@@ -3,7 +3,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
 
-use anyhow::Error;
+use anyhow::{bail, Context, Error};
 use ductile::ChannelSender;
 
 use task_maker_dag::{ExecutionGroupUuid, WorkerUuid};
@@ -98,18 +98,20 @@ impl WorkerManager {
                                 warn!("The manager of a worker failed: {:?}", e);
                             }
                         })
-                        .expect("Failed to spawn manager for a worker");
+                        .context("Failed to spawn manager for a worker")?;
                 }
                 WorkerManagerInMessage::WorkerDisconnected { worker } => {
                     connected_workers
                         .remove(&worker)
-                        .expect("Unknown worker disconnected");
+                        .context("Unknown worker disconnected")?;
                 }
                 WorkerManagerInMessage::WorkerJob { worker, job } => {
                     // if the worker is not present, it means it has just disconnected. The
                     // scheduler should be already informed and should have resheduled the job.
                     if let Some(sender) = connected_workers.get(&worker) {
-                        sender.send(WorkerServerMessage::Work(Box::new(job)))?;
+                        sender
+                            .send(WorkerServerMessage::Work(Box::new(job)))
+                            .context("Failed to send Work to worker")?;
                     }
                 }
                 WorkerManagerInMessage::Exit => {
@@ -118,7 +120,9 @@ impl WorkerManager {
                 }
                 WorkerManagerInMessage::StopWorkerJob { worker, job } => {
                     if let Some(sender) = connected_workers.get(&worker) {
-                        sender.send(WorkerServerMessage::KillJob(job))?;
+                        sender
+                            .send(WorkerServerMessage::KillJob(job))
+                            .context("Failed to send KillJob to worker")?;
                     }
                 }
             }
@@ -158,9 +162,13 @@ impl WorkerManager {
                     // the worker is asking for a file it doesn't have locally stored
                     let handle = file_store
                         .get(&key)
-                        .expect("Worker is asking for an unknown file");
-                    worker.sender.send(WorkerServerMessage::ProvideFile(key))?;
-                    ChannelFileSender::send(handle.path(), &worker.sender)?;
+                        .context("Worker is asking for an unknown file")?;
+                    worker
+                        .sender
+                        .send(WorkerServerMessage::ProvideFile(key))
+                        .context("Failed to send ProvideFile to worker")?;
+                    ChannelFileSender::send(handle.path(), &worker.sender)
+                        .context("Failed to send file to worker")?;
                 }
                 WorkerClientMessage::ProvideFile(_, _) => {
                     // the worker should not provide files unless just after a WorkerDone message is
@@ -185,22 +193,28 @@ impl WorkerManager {
                     );
                     worker
                         .sender
-                        .send(WorkerServerMessage::AskFiles(missing_files))?;
+                        .send(WorkerServerMessage::AskFiles(missing_files))
+                        .context("Failed to send AskFiles to worker")?;
                     for _ in 0..num_missing {
-                        let message = worker.receiver.recv()?;
+                        let message = worker
+                            .receiver
+                            .recv()
+                            .context("Failed to receive file from worker")?;
                         if let WorkerClientMessage::ProvideFile(uuid, key) = message {
                             let handle = file_store
-                                .store(&key, ChannelFileIterator::new(&worker.receiver))?;
+                                .store(&key, ChannelFileIterator::new(&worker.receiver))
+                                .context("Failed to store worker-provided file")?;
                             output_handlers.insert(uuid, handle);
                         } else {
-                            panic!("Unexpected message from worker: {:?}", message);
+                            bail!("Unexpected message from worker: {:?}", message);
                         }
                     }
-                    if let Err(e) = scheduler.send(SchedulerInMessage::WorkerResult {
+                    let mex = SchedulerInMessage::WorkerResult {
                         worker: worker.uuid,
                         result,
                         outputs: output_handlers,
-                    }) {
+                    };
+                    if let Err(e) = scheduler.send(mex) {
                         warn!("Failed to send message to scheduler: {:?}", e);
                         break;
                     }

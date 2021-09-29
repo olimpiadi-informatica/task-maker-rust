@@ -70,7 +70,7 @@ impl TaskType {
         }
     }
 
-    /// Add to the DAG more, executions based on the current task type.
+    /// Add to the DAG more executions based on the current task type.
     ///
     /// For example this will force the compilation of the checker in a batch task.
     pub(crate) fn prepare_dag(&self, eval: &mut EvaluationData) -> Result<(), Error> {

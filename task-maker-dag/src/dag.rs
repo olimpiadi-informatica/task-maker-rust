@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-use anyhow::{bail, Error};
+use anyhow::{bail, Context, Error};
 use boxfnonce::BoxFnOnce;
 use serde::{Deserialize, Serialize};
 
@@ -114,7 +114,8 @@ impl ExecutionDAG {
             file.uuid,
             ProvidedFile::LocalFile {
                 file,
-                key: FileStoreKey::from_file(&path)?,
+                key: FileStoreKey::from_file(&path)
+                    .with_context(|| format!("Failed to compute file key of {}", path.display()))?,
                 local_path: path,
             },
         );

@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, bail, Context, Error};
 use ductile::{new_local_channel, ChannelReceiver, ChannelSender};
 use tempdir::TempDir;
 use uuid::Uuid;
@@ -53,6 +53,8 @@ pub struct Worker {
     sandbox_path: PathBuf,
     /// The function that spawns an actual sandbox.
     sandbox_runner: Arc<dyn SandboxRunner>,
+    /// The join handle of the currently running sandbox, if any.
+    current_sandbox_thread: Option<JoinHandle<Result<(), Error>>>,
 }
 
 /// An handle of the connection to the worker.
@@ -146,44 +148,46 @@ impl Worker {
             current_job: Arc::new(Mutex::new(WorkerCurrentJob::new())),
             sandbox_path,
             sandbox_runner: Arc::new(runner),
+            current_sandbox_thread: None,
         }
+    }
+
+    /// Start the sandbox thread for the current job.
+    fn start_job(&mut self) -> Result<(), Error> {
+        self.current_sandbox_thread = Some(execute_job(
+            self.current_job.clone(),
+            &self.sender,
+            &self.sandbox_path,
+            self.sandbox_runner.clone(),
+        )?);
+        Ok(())
+    }
+
+    /// Wait for the sandbox thread to exit.
+    fn wait_sandbox(&mut self) -> Result<(), Error> {
+        if let Some(join_handle) = self.current_sandbox_thread.take() {
+            join_handle
+                .join()
+                .map_err(|e| anyhow!("Sandbox thread panicked: {:?}", e))?
+                .context("Sandbox thread failed")?;
+        }
+        Ok(())
     }
 
     /// The worker body, this function will block until the worker disconnects.
     #[allow(clippy::cognitive_complexity)]
-    pub fn work(self) -> Result<(), Error> {
+    pub fn work(mut self) -> Result<(), Error> {
         trace!("Worker {} ready, asking for work", self);
-        self.sender.send(WorkerClientMessage::GetWork)?;
-
-        // the join handle of the currently running sandbox, if any.
-        let mut current_sandbox_thread: Option<JoinHandle<()>> = None;
-        macro_rules! start_job {
-            ($self:expr, $current_sandbox_thread:expr) => {{
-                let thread = execute_job(
-                    $self.current_job.clone(),
-                    &$self.sender,
-                    &$self.sandbox_path,
-                    $self.sandbox_runner.clone(),
-                )?;
-                $current_sandbox_thread = Some(thread);
-            }};
-        }
-        macro_rules! wait_sandbox {
-            ($current_sandbox_thread:expr) => {
-                if let Some(join_handle) = $current_sandbox_thread.take() {
-                    join_handle
-                        .join()
-                        .map_err(|e| anyhow!("Sandbox thread failed: {:?}", e))?;
-                }
-            };
-        }
+        self.sender
+            .send(WorkerClientMessage::GetWork)
+            .context("Failed to send GetWork")?;
 
         loop {
             match self.receiver.recv() {
                 Ok(WorkerServerMessage::Work(job)) => {
                     trace!("Worker {} got job: {:?}", self, job);
                     assert!(self.current_job.lock().unwrap().current_job.is_none());
-                    wait_sandbox!(current_sandbox_thread);
+                    self.wait_sandbox()?;
                     let mut missing_deps: HashMap<FileStoreKey, Vec<FileUuid>> = HashMap::new();
                     let mut handles = HashMap::new();
                     for exec in &job.group.executions {
@@ -197,7 +201,8 @@ impl Worker {
                                     // ask the file only once
                                     if !missing_deps.contains_key(key) {
                                         self.sender
-                                            .send(WorkerClientMessage::AskFile(key.clone()))?;
+                                            .send(WorkerClientMessage::AskFile(key.clone()))
+                                            .context("Failed to send AskFile to server")?;
                                     }
                                     missing_deps.entry(key.clone()).or_default().push(*input);
                                 }
@@ -214,30 +219,33 @@ impl Worker {
                         current_job.current_job = Some((job, handles));
                     }
                     if job_ready {
-                        start_job!(self, current_sandbox_thread);
+                        self.start_job()?;
                     }
                 }
                 Ok(WorkerServerMessage::ProvideFile(key)) => {
                     info!("Server sent file {:?}", key);
                     let reader = ChannelFileIterator::new(&self.receiver);
-                    let handle = self.file_store.store(&key, reader)?;
+                    let handle = self
+                        .file_store
+                        .store(&key, reader)
+                        .with_context(|| format!("Failed to store server-provided file {}", key))?;
                     let should_start = {
                         let mut job = self.current_job.lock().unwrap();
                         let uuids = job
                             .missing_deps
                             .remove(&key)
-                            .expect("Server sent a not required dependency");
+                            .ok_or_else(|| anyhow!("Server sent a not required dependency"))?;
                         for uuid in uuids {
                             job.current_job
                                 .as_mut()
-                                .expect("Received file while doing nothing")
+                                .ok_or_else(|| anyhow!("Received file while doing nothing"))?
                                 .1
                                 .insert(uuid, handle.clone());
                         }
                         job.missing_deps.is_empty()
                     };
                     if should_start {
-                        start_job!(self, current_sandbox_thread);
+                        self.start_job()?;
                     }
                 }
                 Ok(WorkerServerMessage::Exit) => {
@@ -291,7 +299,7 @@ impl Worker {
             let mut current_job = self.current_job.lock().unwrap();
             current_job.server_asked_files.take();
         }
-        wait_sandbox!(current_sandbox_thread);
+        self.wait_sandbox()?;
         Ok(())
     }
 }
@@ -302,7 +310,7 @@ fn execute_job(
     sender: &ChannelSender<WorkerClientMessage>,
     sandbox_path: &Path,
     runner: Arc<dyn SandboxRunner>,
-) -> Result<JoinHandle<()>, Error> {
+) -> Result<JoinHandle<Result<(), Error>>, Error> {
     let (job, sandboxes, fifo_dir, server_asked_files) = {
         let mut current_job = current_job.lock().unwrap();
         let job = current_job
@@ -314,12 +322,18 @@ fn execute_job(
         let fifo_dir = if group.fifo.is_empty() {
             None
         } else {
-            let fifo_dir = TempDir::new_in(sandbox_path, "pipes")?;
+            let fifo_dir = TempDir::new_in(sandbox_path, "pipes").with_context(|| {
+                format!(
+                    "Failed to create temporary directory in {}",
+                    sandbox_path.display()
+                )
+            })?;
             for fifo in &group.fifo {
                 let path = fifo_dir
                     .path()
                     .join(fifo.sandbox_path().file_name().unwrap());
-                nix::unistd::mkfifo(&path, nix::sys::stat::Mode::S_IRWXU)?;
+                nix::unistd::mkfifo(&path, nix::sys::stat::Mode::S_IRWXU)
+                    .with_context(|| format!("Failed to create FIFO at {}", path.display()))?;
             }
             Some(fifo_dir)
         };
@@ -376,7 +390,7 @@ fn sandbox_group_manager(
     mut sandboxes: Vec<Sandbox>,
     runner: Arc<dyn SandboxRunner>,
     fifo_dir: Option<TempDir>,
-) {
+) -> Result<(), Error> {
     assert_eq!(sandboxes.len(), job.group.executions.len());
     let mut results = vec![None; job.group.executions.len()];
     let mut outputs = HashMap::new();
@@ -394,8 +408,9 @@ fn sandbox_group_manager(
         };
         let exec = &job.group.executions[0];
         let result = compute_execution_result(exec, result, &sandbox)
-            .expect("Cannot compute execution result");
-        get_result_outputs(exec, &sandbox, &mut outputs, &mut output_paths);
+            .context("Cannot compute execution result")?;
+        get_result_outputs(exec, &sandbox, &mut outputs, &mut output_paths)
+            .context("Cannot get result outputs")?;
 
         results[0] = Some(result);
     // this is the complex case: more than an execution (therefore more than a sandbox)
@@ -415,7 +430,7 @@ fn sandbox_group_manager(
                     index,
                     group_sender.clone(),
                 )
-                .unwrap(),
+                .context("Failed to spawn sandbox thread")?,
             );
         }
 
@@ -428,7 +443,7 @@ fn sandbox_group_manager(
                     let sandbox = &sandboxes[index];
 
                     let result = compute_execution_result(exec, result, sandbox)
-                        .expect("Cannot compute execution result");
+                        .context("Cannot compute execution result")?;
                     // if the process didn't exit successfully, kill the remaining sandboxes
                     if !result.status.is_success() {
                         for (i, (res, sandbox)) in results.iter().zip(sandboxes.iter()).enumerate()
@@ -440,16 +455,20 @@ fn sandbox_group_manager(
                         }
                     }
 
-                    get_result_outputs(exec, sandbox, &mut outputs, &mut output_paths);
+                    get_result_outputs(exec, sandbox, &mut outputs, &mut output_paths)
+                        .context("Cannot get result outputs")?;
 
                     results[index] = Some(result);
                     missing -= 1;
                 }
-                _ => panic!("The sandboxes didn't exit well"),
+                _ => bail!("The sandboxes didn't exit well"),
             }
         }
         for handle in handles {
-            handle.join().expect("Sandbox thread failed");
+            handle
+                .join()
+                .expect("Sandbox thread panicked")
+                .context("Sandbox thread failed")?;
         }
     }
     // tell the server the results and the list of produced files
@@ -458,7 +477,7 @@ fn sandbox_group_manager(
             results.into_iter().map(Option::unwrap).collect(),
             outputs.clone(),
         ))
-        .unwrap();
+        .context("Failed to send WorkerDone")?;
     // wait for the list of files to send
     match server_asked_files_receiver.recv() {
         Ok(missing_files) => {
@@ -466,8 +485,9 @@ fn sandbox_group_manager(
                 if let Some(key) = outputs.get(&uuid) {
                     sender
                         .send(WorkerClientMessage::ProvideFile(uuid, key.clone()))
-                        .unwrap();
-                    ChannelFileSender::send(&output_paths[&uuid], &sender).unwrap();
+                        .context("Failed to send ProvideFile")?;
+                    ChannelFileSender::send(&output_paths[&uuid], &sender)
+                        .context("Failed to send missing file")?;
                 } else {
                     error!(
                         "Server asked for file {}, which is not known to the worker",
@@ -487,7 +507,7 @@ fn sandbox_group_manager(
             let mut job = current_job.lock().unwrap();
             job.current_job = None;
             job.current_sandboxes = None;
-            return;
+            return Ok(());
         }
     }
     // this job is completed, reset the worker and ask for more work
@@ -499,6 +519,7 @@ fn sandbox_group_manager(
     if let Some(fifo_dir) = fifo_dir {
         let _ = std::fs::set_permissions(fifo_dir.path(), Permissions::from_mode(0o755));
     }
+    Ok(())
 }
 
 /// Spawn the sandbox of an execution in a different thread and send to the group manager the
@@ -509,7 +530,7 @@ fn spawn_sandbox(
     runner: Arc<dyn SandboxRunner>,
     index: usize,
     group_sender: Sender<(usize, SandboxResult)>,
-) -> Result<JoinHandle<()>, Error> {
+) -> Result<JoinHandle<Result<(), Error>>, Error> {
     Ok(thread::Builder::new()
         .name(format!("Sandbox of {}", description))
         .spawn(move || {
@@ -519,7 +540,8 @@ fn spawn_sandbox(
                     error: e.to_string(),
                 },
             };
-            group_sender.send((index, res)).unwrap();
+            group_sender.send((index, res))?;
+            Ok(())
         })?)
 }
 
@@ -561,29 +583,45 @@ fn get_result_outputs(
     sandbox: &Sandbox,
     outputs: &mut HashMap<FileUuid, FileStoreKey>,
     output_paths: &mut HashMap<FileUuid, PathBuf>,
-) {
+) -> Result<(), Error> {
     if let Some(stdout) = &exec.stdout {
         let path = sandbox.stdout_path();
-        outputs.insert(stdout.uuid, FileStoreKey::from_file(&path).unwrap());
+        outputs.insert(
+            stdout.uuid,
+            FileStoreKey::from_file(&path).context("Failed to get store key for stdout")?,
+        );
         output_paths.insert(stdout.uuid, path);
     }
     if let Some(stderr) = &exec.stderr {
         let path = sandbox.stderr_path();
-        outputs.insert(stderr.uuid, FileStoreKey::from_file(&path).unwrap());
+        outputs.insert(
+            stderr.uuid,
+            FileStoreKey::from_file(&path).context("Failed to get store key for stderr")?,
+        );
         output_paths.insert(stderr.uuid, path);
     }
     for (path, file) in exec.outputs.iter() {
         let path = sandbox.output_path(path);
         // the sandbox process may want to remove a file, consider missing files as empty
         if path.exists() {
-            outputs.insert(file.uuid, FileStoreKey::from_file(&path).unwrap());
+            outputs.insert(
+                file.uuid,
+                FileStoreKey::from_file(&path).with_context(|| {
+                    format!("Failed to get store key for output file {}", path.display())
+                })?,
+            );
             output_paths.insert(file.uuid, path.clone());
         } else {
             // FIXME: /dev/null may not be used
-            outputs.insert(file.uuid, FileStoreKey::from_file("/dev/null").unwrap());
+            outputs.insert(
+                file.uuid,
+                FileStoreKey::from_file("/dev/null")
+                    .context("Failed to get store key of /dev/null")?,
+            );
             output_paths.insert(file.uuid, "/dev/null".into());
         }
     }
+    Ok(())
 }
 
 /// If `count` is `None` do not read anything, otherwise read at most that number of bytes from the

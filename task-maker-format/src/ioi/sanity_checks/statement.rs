@@ -2,7 +2,7 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::process::Command;
 
-use anyhow::Error;
+use anyhow::{Context, Error};
 use itertools::Itertools;
 use regex::Regex;
 
@@ -92,7 +92,9 @@ impl SanityCheck<IOITask> for StatementValid {
             Some(path) => {
                 // normal file or valid symlink
                 if path.exists() {
-                    let mut file = std::fs::File::open(&path)?;
+                    let mut file = std::fs::File::open(&path).with_context(|| {
+                        format!("Failed to open statement file at {}", path.display())
+                    })?;
                     let mut buf = [0u8; 4];
                     let invalid = match file.read_exact(&mut buf) {
                         Err(_) => true,

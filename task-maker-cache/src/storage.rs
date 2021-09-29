@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::Path;
 
-use anyhow::{bail, Error};
+use anyhow::{bail, Context, Error};
 use itertools::Itertools;
 
 use crate::entry::CacheEntry;
@@ -23,9 +23,11 @@ static_assertions::const_assert!(VERSION.len() <= VERSION_MAX_LEN);
 
 /// Read the cache file, check the magic string and deserialize all the entries in it.
 pub fn load<P: AsRef<Path>>(path: P) -> Result<HashMap<CacheKey, Vec<CacheEntry>>, Error> {
-    let mut file = std::fs::File::open(&path)?;
+    let mut file = std::fs::File::open(&path)
+        .with_context(|| format!("Cannot open cache file at {}", path.as_ref().display()))?;
     let mut magic = [0u8; MAGIC.len() + VERSION_MAX_LEN];
-    file.read_exact(&mut magic)?;
+    file.read_exact(&mut magic)
+        .context("Failed to read magic number")?;
     if &magic[..MAGIC.len()] != MAGIC {
         bail!(
             "Cache magic mismatch:\nExpected: {:?}\nFound: {:?}",
@@ -42,7 +44,8 @@ pub fn load<P: AsRef<Path>>(path: P) -> Result<HashMap<CacheKey, Vec<CacheEntry>
     }
 
     Ok(
-        bincode::deserialize_from::<_, Vec<(CacheKey, Vec<CacheEntry>)>>(file)?
+        bincode::deserialize_from::<_, Vec<(CacheKey, Vec<CacheEntry>)>>(file)
+            .context("Failed to deserialize cache content")?
             .into_iter()
             .collect(),
     )
@@ -50,17 +53,22 @@ pub fn load<P: AsRef<Path>>(path: P) -> Result<HashMap<CacheKey, Vec<CacheEntry>
 
 /// Store the content of the cache to the cache file, including the magic string.
 pub fn store(cache: &Cache) -> Result<(), Error> {
-    std::fs::create_dir_all(cache.cache_file.parent().expect("Invalid cache file"))?;
-    let mut file = std::fs::File::create(&cache.cache_file)?;
+    std::fs::create_dir_all(cache.cache_file.parent().expect("Invalid cache file"))
+        .context("Failed to create cache directory")?;
+    let mut file =
+        std::fs::File::create(&cache.cache_file).context("Failed to create cache file")?;
 
     let mut magic = [0u8; MAGIC.len() + VERSION_MAX_LEN];
     magic[..MAGIC.len()].clone_from_slice(MAGIC);
     magic[MAGIC.len()..MAGIC.len() + VERSION.as_bytes().len()].clone_from_slice(VERSION.as_bytes());
 
-    file.write_all(&magic)?;
+    file.write_all(&magic)
+        .context("Failed to write cache magic number")?;
 
-    let serialized = bincode::serialize(&cache.entries.iter().collect_vec())?;
-    file.write_all(&serialized)?;
+    let serialized = bincode::serialize(&cache.entries.iter().collect_vec())
+        .context("Failed to serialize cache content")?;
+    file.write_all(&serialized)
+        .context("Failed to write cache content")?;
     Ok(())
 }
 

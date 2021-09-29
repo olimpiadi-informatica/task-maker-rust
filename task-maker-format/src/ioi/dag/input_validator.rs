@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Error;
+use anyhow::{Context, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
@@ -41,7 +41,9 @@ impl InputValidator {
         match self {
             InputValidator::AssumeValid => Ok((None, None)),
             InputValidator::Custom(source_file, args) => {
-                let mut exec = source_file.execute(eval, description, args.clone())?;
+                let mut exec = source_file
+                    .execute(eval, description, args.clone())
+                    .context("Failed to execute validator source file")?;
                 exec.input(input, TM_VALIDATION_FILE_NAME, false)
                     .tag(Tag::Generation.into())
                     .priority(GENERATION_PRIORITY - testcase_id as Priority)

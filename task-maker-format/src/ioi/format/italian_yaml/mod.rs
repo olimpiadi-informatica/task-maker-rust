@@ -262,7 +262,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::{bail, Error};
+use anyhow::{bail, Context, Error};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub(crate) use cases_gen::{is_gen_gen_deletable, TM_ALLOW_DELETE_COOKIE};
@@ -357,7 +357,11 @@ pub fn parse_task<P: AsRef<Path>>(
     eval_config: &EvaluationConfig,
 ) -> Result<IOITask, Error> {
     let task_dir = task_dir.as_ref();
-    let yaml: TaskYAML = serde_yaml::from_reader(fs::File::open(&task_dir.join("task.yaml"))?)?;
+    let path = task_dir.join("task.yaml");
+    let file = fs::File::open(&path)
+        .with_context(|| format!("Cannot open task.yaml from {}", path.display()))?;
+    let yaml: TaskYAML =
+        serde_yaml::from_reader(file).context("Failed to deserialize task.yaml")?;
     debug!("The yaml is {:#?}", yaml);
 
     let map_file = |file: String| -> Option<PathBuf> {
@@ -383,10 +387,10 @@ pub fn parse_task<P: AsRef<Path>>(
     let cases_gen = task_dir.join("gen").join("cases.gen");
     let output_generator: Box<dyn Fn(TestcaseId) -> OutputGenerator> =
         if let TaskType::Batch(_) = &task_type {
-            Box::new(detect_output_generator(
-                task_dir.to_path_buf(),
-                grader_map.clone(),
-            )?)
+            Box::new(
+                detect_output_generator(task_dir.to_path_buf(), grader_map.clone())
+                    .context("Failed to detect output generator")?,
+            )
         } else {
             Box::new(|_| OutputGenerator::NotAvailable)
         };
@@ -395,21 +399,21 @@ pub fn parse_task<P: AsRef<Path>>(
         debug!("Parsing testcases from gen/cases.gen");
         let gen = cases_gen::CasesGen::new(&cases_gen, output_generator)?;
         if !eval_config.dry_run {
-            gen.write_gen_gen()?;
+            gen.write_gen_gen().context("Failed to write gen/GEN")?;
         }
         gen.get_task_entries()
     } else if gen_gen.exists() {
         debug!("Parsing testcases from gen/GEN");
         gen_gen::parse_gen_gen(
             &gen_gen,
-            detect_validator(task_dir.to_path_buf())?,
+            detect_validator(task_dir.into()).context("Failed to detect validator")?,
             output_generator,
         )?
     } else {
         debug!("Using testcases inside input/");
         static_inputs::static_inputs(
             task_dir,
-            detect_validator(task_dir.to_path_buf())?,
+            detect_validator(task_dir.into()).context("Failed to detect validator")?,
             output_generator,
         )
         .collect()
@@ -465,11 +469,12 @@ pub fn parse_task<P: AsRef<Path>>(
         difficulty: yaml.difficulty,
         syllabus_level: yaml.syllabuslevel,
         sanity_checks: Arc::new(get_sanity_checks(&eval_config.disabled_sanity_checks)),
-        input_validator: detect_validator(task_dir.to_path_buf())?(0),
+        input_validator: detect_validator(task_dir.to_path_buf())
+            .context("Failed to detect validator")?(0),
     };
     // split the creation of the task because make_booklets need an instance of Task
     if !eval_config.no_statement {
-        task.booklets = make_booklets(&task, eval_config)?;
+        task.booklets = make_booklets(&task, eval_config).context("Failed to make booklets")?;
     }
     Ok(task)
 }
@@ -571,7 +576,9 @@ fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> Result<
         })
         .unwrap_or(Checker::WhiteDiff);
 
-    let official_solution = match detect_output_generator(task_dir.to_path_buf(), grader_map)?(0) {
+    let official_solution = detect_output_generator(task_dir.to_path_buf(), grader_map)
+        .context("Failed to detect output generator")?;
+    let official_solution = match official_solution(0) {
         gen @ OutputGenerator::Custom(_, _) => Some(gen),
         _ => None,
     };

@@ -33,6 +33,7 @@
 
 use crate::executor::{ExecutionDAGWatchSet, ExecutorStatus, WorkerJob};
 use crate::*;
+use anyhow::Context;
 use ductile::{ChannelReceiver, ChannelSender};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -170,10 +171,15 @@ impl ChannelFileSender {
     where
         T: 'static + Send + Sync + Serialize,
     {
-        for buf in ReadFileIterator::new(path.as_ref())? {
-            sender.send_raw(&buf)?;
+        let path = path.as_ref();
+        let iterator = ReadFileIterator::new(path)
+            .with_context(|| format!("Failed to read file to send: {}", path.display()))?;
+        for buf in iterator {
+            sender.send_raw(&buf).context("Failed to send file chunk")?;
         }
-        sender.send_raw(&[])?;
+        sender
+            .send_raw(&[])
+            .context("Failed to send file terminator")?;
         Ok(())
     }
 
@@ -182,8 +188,12 @@ impl ChannelFileSender {
     where
         T: 'static + Send + Sync + Serialize,
     {
-        sender.send_raw(&data)?;
-        sender.send_raw(&[])?;
+        sender
+            .send_raw(&data)
+            .context("Failed to send file chunk")?;
+        sender
+            .send_raw(&[])
+            .context("Failed to send file terminator")?;
         Ok(())
     }
 }

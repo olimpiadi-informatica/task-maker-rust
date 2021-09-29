@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{bail, Error};
+use anyhow::{bail, Context, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
@@ -51,11 +51,18 @@ impl OutputGenerator {
                     subtask_id, testcase_id, path
                 ));
                 let uuid = file.uuid;
-                eval.dag.provide_file(file, &path)?;
+                eval.dag.provide_file(file, &path).with_context(|| {
+                    format!(
+                        "Failed to provide static output file from {}",
+                        path.display()
+                    )
+                })?;
                 Ok((Some(uuid), None))
             }
             OutputGenerator::Custom(source_file, args) => {
-                let mut exec = source_file.execute(eval, description, args.clone())?;
+                let mut exec = source_file
+                    .execute(eval, description, args.clone())
+                    .context("Failed to execute output generator source file")?;
                 exec.tag(Tag::Generation.into());
                 exec.priority(GENERATION_PRIORITY - testcase_id as Priority);
                 let output = bind_exec_io!(exec, task, input, validation_handle);

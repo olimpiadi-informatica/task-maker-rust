@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Context, Error};
 
 pub use booklet::*;
 pub use statement::*;
@@ -25,14 +25,16 @@ pub fn make_booklets(
             Some(language) => language.to_string_lossy().to_string(),
             None => continue,
         };
-        let statement = Statement::new(path, config.clone())?;
+        let statement = Statement::new(path, config.clone())
+            .with_context(|| format!("Failed to build statement for language {}", language))?;
         let booklet_config = BookletConfig::from_contest(
             language,
             task.path
                 .parent()
                 .ok_or_else(|| anyhow!("Task is at the root"))?,
             eval_config.booklet_solutions,
-        )?;
+        )
+        .context("Failed to build booklet")?;
         let mut booklet = Booklet::new(booklet_config, dest);
         booklet.add_statement(statement);
         booklets.push(booklet);

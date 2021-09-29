@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Context, Error};
 use regex::Regex;
 
 use task_maker_dag::File;
@@ -112,21 +112,25 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
             return Ok(());
         };
         let official_solution = &task_type.output_generator;
-        let samples = get_sample_files(task, eval)?;
+        let samples = get_sample_files(task, eval).context("Failed to get sample files")?;
         for (input, output) in samples {
             let input_name = input.strip_prefix(&task.path).unwrap().to_owned();
             let input_handle = File::new(format!("Sample input file at {}", input_name.display()));
             let input_uuid = input_handle.uuid;
-            eval.dag.provide_file(input_handle, input)?;
+            eval.dag
+                .provide_file(input_handle, input)
+                .context("Failed to provide sample input file")?;
 
             // validate the input file
-            let (val_handle, val) = validator.validate(
-                eval,
-                format!("Validation of sample case {}", input_name.display()),
-                0,
-                0,
-                input_uuid,
-            )?;
+            let (val_handle, val) = validator
+                .validate(
+                    eval,
+                    format!("Validation of sample case {}", input_name.display()),
+                    0,
+                    0,
+                    input_uuid,
+                )
+                .context("Failed to validate sample input file")?;
             if let Some(val) = val {
                 let input_name = input_name.clone();
                 let sender = eval.sender.clone();
@@ -149,21 +153,25 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
                 let output_handle =
                     File::new(format!("Sample output file at {}", output_name.display()));
                 let output_uuid = output_handle.uuid;
-                eval.dag.provide_file(output_handle, output)?;
+                eval.dag
+                    .provide_file(output_handle, output)
+                    .context("Failed to provide sample output file")?;
 
                 // generate the output file
-                let (correct_output, sol) = solution.generate(
-                    task,
-                    eval,
-                    format!(
-                        "Generation of output file relative to {}",
-                        input_name.display()
-                    ),
-                    0,
-                    0,
-                    input_uuid,
-                    val_handle,
-                )?;
+                let (correct_output, sol) = solution
+                    .generate(
+                        task,
+                        eval,
+                        format!(
+                            "Generation of output file relative to {}",
+                            input_name.display()
+                        ),
+                        0,
+                        0,
+                        input_uuid,
+                        val_handle,
+                    )
+                    .context("Failed to generate correct sample output file")?;
                 let correct_output =
                     correct_output.ok_or_else(|| anyhow!("Missing official solution"))?;
                 if let Some(sol) = sol {
@@ -185,27 +193,30 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
 
                 // validate the output with the correct one
                 let sender = eval.sender.clone();
-                let chk = task_type.checker.check(
-                    eval,
-                    0,
-                    format!("Checking sample output {}", output_name.display()),
-                    input_uuid,
-                    correct_output,
-                    output_uuid,
-                    move |score, message| {
-                        if abs_diff_ne!(score, 1.0) {
-                            sender.send(UIMessage::Warning {
-                                message: format!(
-                                    "Sample output file {} scores {}: {}",
-                                    output_name.display(),
-                                    score,
-                                    message
-                                ),
-                            })?;
-                        }
-                        Ok(())
-                    },
-                )?;
+                let chk = task_type
+                    .checker
+                    .check(
+                        eval,
+                        0,
+                        format!("Checking sample output {}", output_name.display()),
+                        input_uuid,
+                        correct_output,
+                        output_uuid,
+                        move |score, message| {
+                            if abs_diff_ne!(score, 1.0) {
+                                sender.send(UIMessage::Warning {
+                                    message: format!(
+                                        "Sample output file {} scores {}: {}",
+                                        output_name.display(),
+                                        score,
+                                        message
+                                    ),
+                                })?;
+                            }
+                            Ok(())
+                        },
+                    )
+                    .context("Failed to check sample files")?;
                 eval.dag.add_execution(chk);
             }
         }

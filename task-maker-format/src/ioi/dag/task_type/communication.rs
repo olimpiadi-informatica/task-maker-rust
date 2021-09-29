@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Context, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
@@ -96,18 +96,20 @@ pub fn evaluate(
         if num_processes > 1 {
             args.push(process_index.to_string());
         }
-        let mut exec = source_file.execute(
-            eval,
-            format!(
-                "Evaluation of {} (process {}/{}) on testcase {}, subtask {}",
-                source_file.name(),
-                process_index + 1,
-                num_processes,
-                testcase_id,
-                subtask_id
-            ),
-            args,
-        )?;
+        let mut exec = source_file
+            .execute(
+                eval,
+                format!(
+                    "Evaluation of {} (process {}/{}) on testcase {}, subtask {}",
+                    source_file.name(),
+                    process_index + 1,
+                    num_processes,
+                    testcase_id,
+                    subtask_id
+                ),
+                args,
+            )
+            .context("Failed to execute solution source file")?;
         exec.tag(Tag::Evaluation.into());
         exec.priority(EVALUATION_PRIORITY - testcase_id as Priority);
         let limits = exec.limits_mut();
@@ -146,16 +148,19 @@ pub fn evaluate(
         args.push(&fifo_man2sol[process_index]);
         args.push(&fifo_sol2man[process_index]);
     }
-    let mut exec = data.manager.execute(
-        eval,
-        format!(
-            "Manager of {} on testcase {}, subtask {}",
-            source_file.name(),
-            testcase_id,
-            subtask_id
-        ),
-        args,
-    )?;
+    let mut exec = data
+        .manager
+        .execute(
+            eval,
+            format!(
+                "Manager of {} on testcase {}, subtask {}",
+                source_file.name(),
+                testcase_id,
+                subtask_id
+            ),
+            args,
+        )
+        .context("Failed to execute manager source file")?;
     exec.tag(Tag::Evaluation.into())
         .priority(EVALUATION_PRIORITY - testcase_id as Priority)
         .capture_stdout(128)
@@ -192,10 +197,7 @@ pub fn evaluate(
             .stderr
             .ok_or_else(|| anyhow!("Checker stderr not captured"))?;
         let score = String::from_utf8_lossy(&stdout);
-        let score: f64 = score
-            .trim()
-            .parse()
-            .map_err(|e| anyhow!("Invalid score from checker: {:?}", e))?;
+        let score: f64 = score.trim().parse().context("Invalid score from checker")?;
         let message = String::from_utf8_lossy(&stderr).trim().to_string();
         score_sender.send(score, message)?;
         Ok(())
@@ -233,14 +235,23 @@ impl ScoreSender {
         if data.done {
             return Ok(());
         }
-        data.score_manager.lock().unwrap().score(
-            data.subtask_id,
-            data.testcase_id,
-            score,
-            message,
-            data.sender.clone(),
-            data.path.clone(),
-        )?;
+        data.score_manager
+            .lock()
+            .unwrap()
+            .score(
+                data.subtask_id,
+                data.testcase_id,
+                score,
+                message.clone(),
+                data.sender.clone(),
+                data.path.clone(),
+            )
+            .with_context(|| {
+                format!(
+                    "Failed to store testcase score (score: {}, message: {})",
+                    score, message
+                )
+            })?;
         Ok(())
     }
 }

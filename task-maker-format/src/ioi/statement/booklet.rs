@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Context, Error};
 use askama::Template;
 use itertools::Itertools;
 use regex::Regex;
@@ -102,7 +102,7 @@ impl Booklet {
         let booklet_name = self
             .dest
             .file_name()
-            .ok_or_else(|| anyhow!("Invalid destination file {:?}", self.dest))?
+            .ok_or_else(|| anyhow!("Invalid destination file {}", self.dest.display()))?
             .to_string_lossy()
             .to_string();
         let mut task_names = self.statements.iter().map(|s| &s.config().name);
@@ -136,7 +136,10 @@ impl Booklet {
             exec.input(&tex, Path::new(&name).join("statement.tex"), false);
             eval.dag.provide_content(tex, statement.tex().into_bytes());
             let base_dir = PathBuf::from(&name);
-            for (path, file) in statement.build_deps(eval, &booklet_name, &self.config)? {
+            let deps = statement
+                .build_deps(eval, &booklet_name, &self.config)
+                .context("Failed to build booklet dependencies")?;
+            for (path, file) in deps {
                 exec.input(file, base_dir.join(path), false);
             }
         }
@@ -144,8 +147,8 @@ impl Booklet {
         // copy all the files from the data/statements directory
         let data_dir = DATA_DIR.join("statements");
         let glob_pattern = data_dir.to_string_lossy().to_string() + "/**/*";
-        for path in glob::glob(&glob_pattern)? {
-            let path = path?;
+        for path in glob::glob(&glob_pattern).context("Invalid glob pattern")? {
+            let path = path.context("Failed to iterate with glob")?;
             if !path.is_file() {
                 continue;
             }
@@ -153,7 +156,9 @@ impl Booklet {
                 "Booklet template file {:?}",
                 path.file_name().expect("Invalid template file")
             ));
-            eval.dag.provide_file(file.clone(), &path)?;
+            eval.dag
+                .provide_file(file.clone(), &path)
+                .context("Failed to provide statement file")?;
             exec.input(file, path.strip_prefix(&data_dir)?, false);
         }
 
@@ -253,8 +258,14 @@ impl BookletConfig {
     ) -> Result<BookletConfig, Error> {
         let contest_yaml_path = contest_dir.into().join("contest.yaml");
         if contest_yaml_path.exists() {
+            let file = std::fs::File::open(&contest_yaml_path).with_context(|| {
+                format!(
+                    "Failed to open contest.yaml at {}",
+                    contest_yaml_path.display()
+                )
+            })?;
             let contest_yaml: ContestYAML =
-                serde_yaml::from_reader(std::fs::File::open(contest_yaml_path)?)?;
+                serde_yaml::from_reader(file).context("Failed to deserialize contest.yaml")?;
             Ok(BookletConfig {
                 language: language.into(),
                 show_solutions: booklet_solutions,

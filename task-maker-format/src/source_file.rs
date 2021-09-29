@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Error;
+use anyhow::{Context, Error};
 use serde::{Deserialize, Serialize};
 
 use task_maker_dag::*;
@@ -87,7 +87,8 @@ impl SourceFile {
                 comp_uuid,
                 |status, file| UIMessage::Compilation { file, status },
                 path
-            )?;
+            )
+            .context("Failed to bind exec callbacks")?;
         }
         Ok(())
     }

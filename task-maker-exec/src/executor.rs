@@ -5,7 +5,7 @@ use std::thread;
 use std::time::Duration;
 use std::time::SystemTime;
 
-use anyhow::{anyhow, Error};
+use anyhow::{Context, Error};
 use chashmap::CHashMap;
 use ductile::{ChannelReceiver, ChannelSender};
 use serde::{Deserialize, Serialize};
@@ -329,7 +329,9 @@ impl Executor {
                 ExecutorClientMessage::Evaluate { dag, callbacks } => {
                     if let Err(e) = check_dag(&dag, &callbacks) {
                         warn!("Invalid DAG: {:?}", e);
-                        sender.send(ExecutorServerMessage::Error(e.to_string()))?;
+                        sender
+                            .send(ExecutorServerMessage::Error(e.to_string()))
+                            .context("Failed to send Error message to client")?;
                         break;
                     } else {
                         trace!("DAG looks valid!");
@@ -346,7 +348,9 @@ impl Executor {
                         if let Some(handle) = handle {
                             ready_files.push((*uuid, handle));
                         } else {
-                            sender.send(ExecutorServerMessage::AskFile(*uuid))?;
+                            sender
+                                .send(ExecutorServerMessage::AskFile(*uuid))
+                                .with_context(|| format!("Failed to send AskFile({})", uuid))?;
                         }
                     }
                     // tell the scheduler that a new DAG is ready to be executed.
@@ -356,7 +360,7 @@ impl Executor {
                             dag,
                             callbacks,
                         })
-                        .map_err(|e| anyhow!("Failed to send message to scheduler: {:?}", e))?;
+                        .context("Failed to send EvaluateDAG to the scheduler")?;
                     // tell the scheduler the files that are already locally ready. The others will
                     // be ready when the client will send them.
                     for (uuid, handle) in ready_files.into_iter() {
@@ -366,34 +370,44 @@ impl Executor {
                                 uuid,
                                 handle,
                             })
-                            .map_err(|e| anyhow!("Failed to send message to scheduler: {:?}", e))?;
+                            .context("Failed to send FileReady to the scheduler")?;
                     }
                 }
                 ExecutorClientMessage::ProvideFile(uuid, key) => {
                     info!("Client provided file {}", uuid);
                     // the client provided a file that was not present locally, store it and tell
                     // the scheduler that it's now ready.
-                    let handle = file_store.store(&key, ChannelFileIterator::new(&receiver))?;
+                    let handle = file_store
+                        .store(&key, ChannelFileIterator::new(&receiver))
+                        .with_context(|| {
+                            format!("Failed to store client provided file {} ({})", uuid, key)
+                        })?;
                     scheduler
                         .send(SchedulerInMessage::FileReady {
                             client: client.uuid,
                             uuid,
                             handle,
                         })
-                        .map_err(|e| anyhow!("Failed to send message to scheduler: {:?}", e))?;
+                        .context("Failed to send FileReady to the scheduler")?;
                 }
                 ExecutorClientMessage::AskFile(uuid, key, success) => {
                     info!("Client asking file {:?}", key);
                     // the client wants to know a file that was produced by the computation, send it
                     // if it exists.
                     if let Some(handle) = file_store.get(&key) {
-                        sender.send(ExecutorServerMessage::ProvideFile(uuid, success))?;
-                        ChannelFileSender::send(handle.path(), &sender)?;
+                        sender
+                            .send(ExecutorServerMessage::ProvideFile(uuid, success))
+                            .context("Failed to send ProvideFile to the client")?;
+                        ChannelFileSender::send(handle.path(), &sender).with_context(|| {
+                            format!("Failed to send file {} to the client", handle)
+                        })?;
                     } else {
-                        sender.send(ExecutorServerMessage::Error(format!(
-                            "Unknown file {:?}",
-                            key
-                        )))?;
+                        sender
+                            .send(ExecutorServerMessage::Error(format!(
+                                "Unknown file {:?}",
+                                key
+                            )))
+                            .context("Failed to send Error to the client")?;
                     }
                 }
                 ExecutorClientMessage::Status => {
@@ -409,9 +423,11 @@ impl Executor {
                 }
             }
         }
-        scheduler.send(SchedulerInMessage::ClientDisconnected {
-            client: client.uuid,
-        })?;
+        scheduler
+            .send(SchedulerInMessage::ClientDisconnected {
+                client: client.uuid,
+            })
+            .context("Failed to send ClientDisconnected to the scheduler")?;
         Ok(())
     }
 }

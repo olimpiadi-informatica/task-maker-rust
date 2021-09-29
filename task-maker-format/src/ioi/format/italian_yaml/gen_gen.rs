@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Error};
+use anyhow::{anyhow, bail, Context, Error};
 use pest::Parser;
 
 use crate::find_source_file;
@@ -31,14 +31,16 @@ where
     V: Fn(SubtaskId) -> InputValidator,
     O: Fn(TestcaseId) -> OutputGenerator,
 {
+    let path = path.as_ref();
     let task_dir = path
-        .as_ref()
         .parent()
         .expect("Invalid gen/GEN path")
         .parent()
         .expect("Invalid gen/GEN path");
-    let content = std::fs::read_to_string(&path)?;
-    let mut file = parser::GENParser::parse(parser::Rule::file, &content)?;
+    let content = std::fs::read_to_string(&path)
+        .with_context(|| format!("Cannot read gen/GEN from {}", path.display()))?;
+    let mut file =
+        parser::GENParser::parse(parser::Rule::file, &content).context("Cannot parse gen/GEN")?;
     let file = file.next().ok_or_else(|| anyhow!("Corrupted parser"))?; // extract the real file
     let mut testcase_count = 0;
     let mut subtask_id: SubtaskId = 0;

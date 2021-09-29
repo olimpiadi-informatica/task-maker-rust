@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Context, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
@@ -38,16 +38,18 @@ pub fn evaluate(
     data: &BatchTypeData,
 ) -> Result<(), Error> {
     let correct_output = correct_output.ok_or_else(|| anyhow!("Missing official solution"))?;
-    let mut exec = source_file.execute(
-        eval,
-        format!(
-            "Evaluation of {} on testcase {}, subtask {}",
-            source_file.name(),
-            testcase_id,
-            subtask_id
-        ),
-        Vec::<String>::new(),
-    )?;
+    let mut exec = source_file
+        .execute(
+            eval,
+            format!(
+                "Evaluation of {} on testcase {}, subtask {}",
+                source_file.name(),
+                testcase_id,
+                subtask_id
+            ),
+            Vec::<String>::new(),
+        )
+        .context("Failed to execute solution source file")?;
     exec.tag(Tag::Evaluation.into());
     exec.priority(EVALUATION_PRIORITY - testcase_id as Priority);
     let output = bind_exec_io!(exec, task, input, validation_handle);

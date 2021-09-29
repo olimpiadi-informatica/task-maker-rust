@@ -8,7 +8,7 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::{Duration, SystemTime};
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Context, Error};
 use ductile::{ChannelReceiver, ChannelSender};
 
 use task_maker_dag::{ExecutionDAG, FileCallbacks, FileUuid, ProvidedFile, WriteToCallback};
@@ -107,8 +107,10 @@ impl ExecutorClient {
                     // prevent the status poller for sending messages while sending the file
                     let _lock = file_mode
                         .lock()
-                        .map_err(|e| anyhow!("Failed to lock: {:?}", e))?;
-                    handle_server_ask_file(uuid, provided_files, &sender)?;
+                        .map_err(|_| anyhow!("Failed to obtain file_mode lock"))?;
+                    handle_server_ask_file(uuid, provided_files, &sender).with_context(|| {
+                        format!("Failed to process AskFile({}) from the server", uuid)
+                    })?;
                 }
                 Ok(ExecutorServerMessage::ProvideFile(uuid, success)) => {
                     info!("Server sent the file {}, success: {}", uuid, success);
@@ -116,7 +118,13 @@ impl ExecutorClient {
                         missing_files = Some(missing - 1);
                     }
                     let iterator = ChannelFileIterator::new(receiver);
-                    process_provided_file(&mut dag.file_callbacks, uuid, success, iterator, None)?;
+                    process_provided_file(&mut dag.file_callbacks, uuid, success, iterator, None)
+                        .with_context(|| {
+                        format!(
+                            "Failed to process ProvideFile({}, {}) from the server",
+                            uuid, success
+                        )
+                    })?;
                 }
                 Ok(ExecutorServerMessage::NotifyStart(uuid, worker)) => {
                     info!("Execution {} started on {}", uuid, worker);
@@ -153,28 +161,47 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::Error(error)) => {
                     error!("Error occurred: {}", error);
-                    sender.send(ExecutorClientMessage::Stop)?;
+                    sender
+                        .send(ExecutorClientMessage::Stop)
+                        .context("Failed to send Stop message to the server after an error")?;
                     break;
                 }
                 Ok(ExecutorServerMessage::Status(status)) => {
                     info!("Server status: {:#?}", status);
-                    handle_server_status(status, &mut status_callback)?;
+                    handle_server_status(status, &mut status_callback)
+                        .context("Failed to process Status() from the server")?;
                 }
                 Ok(ExecutorServerMessage::Done(result)) => {
                     info!("Execution completed producing {} files!", result.len());
                     let mut missing = 0;
                     for (uuid, key, success) in result {
                         if let Some(handle) = file_store.get(&key) {
-                            let iterator = ReadFileIterator::new(handle.path())?;
+                            let iterator =
+                                ReadFileIterator::new(handle.path()).with_context(|| {
+                                    format!(
+                                        "Failed to read produced file ({}) from the local storage",
+                                        handle
+                                    )
+                                })?;
                             process_provided_file(
                                 &mut dag.file_callbacks,
                                 uuid,
                                 success,
                                 iterator,
                                 None,
-                            )?;
+                            )
+                            .with_context(|| {
+                                format!(
+                                    "Failed to process produced file ({}) from the local storage",
+                                    handle
+                                )
+                            })?;
                         } else {
-                            sender.send(ExecutorClientMessage::AskFile(uuid, key, success))?;
+                            sender
+                                .send(ExecutorClientMessage::AskFile(uuid, key, success))
+                                .with_context(|| {
+                                    format!("Failed to ask for a completed file ({})", uuid)
+                                })?;
                             missing += 1;
                         }
                     }
@@ -209,14 +236,17 @@ impl ExecutorClient {
         for (uuid, file) in dag.data.provided_files.iter() {
             match file {
                 ProvidedFile::LocalFile { local_path, .. } => {
-                    let iterator = ReadFileIterator::new(&local_path)?;
+                    let iterator = ReadFileIterator::new(&local_path).with_context(|| {
+                        format!("Failed to read local file: {}", local_path.display())
+                    })?;
                     process_provided_file(
                         &mut dag.file_callbacks,
                         *uuid,
                         true,
                         iterator,
                         Some(local_path),
-                    )?;
+                    )
+                    .context("Failed to process local file")?;
                 }
                 ProvidedFile::Content { content, .. } => {
                     process_provided_file(
@@ -225,7 +255,8 @@ impl ExecutorClient {
                         true,
                         vec![content.clone()],
                         None,
-                    )?;
+                    )
+                    .context("Failed to process file content")?;
                 }
             }
         }
@@ -273,12 +304,19 @@ fn handle_server_ask_file(
         ProvidedFile::LocalFile {
             local_path, key, ..
         } => {
-            sender.send(ExecutorClientMessage::ProvideFile(uuid, key.clone()))?;
-            ChannelFileSender::send(&local_path, sender)?;
+            sender
+                .send(ExecutorClientMessage::ProvideFile(uuid, key.clone()))
+                .context("Failed to send ExecutorClientMessage::ProvideFile")?;
+            ChannelFileSender::send(&local_path, sender).with_context(|| {
+                format!("Failed to send local file from {}", local_path.display())
+            })?;
         }
         ProvidedFile::Content { content, key, .. } => {
-            sender.send(ExecutorClientMessage::ProvideFile(uuid, key.clone()))?;
-            ChannelFileSender::send_data(content.clone(), sender)?;
+            sender
+                .send(ExecutorClientMessage::ProvideFile(uuid, key.clone()))
+                .context("Failed to send ExecutorClientMessage::ProvideFile")?;
+            ChannelFileSender::send_data(content.clone(), sender)
+                .context("Failed to send file content")?;
         }
     }
     Ok(())
@@ -328,14 +366,14 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
             .map(|(limit, _)| *limit)
             .unwrap_or(0);
         let mut buffer: Vec<u8> = Vec::new();
-        let mut file = match &callback.write_to {
+        let (mut file, dest) = match &callback.write_to {
             Some(WriteToCallback {
                 dest,
                 allow_failure,
                 ..
             }) => {
                 if !success && !*allow_failure {
-                    None
+                    (None, None)
                 } else {
                     let mut skip = false;
                     if let Some(source) = source_path_hint {
@@ -348,22 +386,32 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
                         }
                     }
                     if skip {
-                        None
+                        (None, None)
                     } else {
                         info!("Writing file {} to {}", uuid, dest.display());
-                        std::fs::create_dir_all(
-                            dest.parent()
-                                .ok_or_else(|| anyhow!("Invalid file destination path"))?,
-                        )?;
-                        Some(std::fs::File::create(dest)?)
+                        let parent = dest.parent().ok_or_else(|| {
+                            anyhow!("Invalid file destination path: {}", dest.display())
+                        })?;
+                        std::fs::create_dir_all(parent).with_context(|| {
+                            format!(
+                                "Failed to create parent directory ({}) for {}",
+                                parent.display(),
+                                dest.display()
+                            )
+                        })?;
+                        let file = std::fs::File::create(&dest).with_context(|| {
+                            format!("Failed to create file: {}", dest.display())
+                        })?;
+                        (Some(file), Some(dest.clone()))
                     }
                 }
             }
-            _ => None,
+            _ => (None, None),
         };
         for chunk in iterator {
-            if let Some(file) = &mut file {
-                file.write_all(&chunk)?;
+            if let (Some(file), Some(dest)) = (&mut file, &dest) {
+                file.write_all(&chunk)
+                    .with_context(|| format!("Failed to write chunk to {}", dest.display()))?;
             }
             if buffer.len() < limit {
                 let len = std::cmp::min(chunk.len(), limit - buffer.len());
@@ -373,14 +421,22 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
         drop(file);
         if let Some(write_to) = &callback.write_to {
             if write_to.executable && write_to.dest.exists() {
-                let mut perm = std::fs::metadata(&write_to.dest)?.permissions();
+                let mut perm = std::fs::metadata(&write_to.dest)
+                    .with_context(|| {
+                        format!("Failed to get file metadata of {}", write_to.dest.display())
+                    })?
+                    .permissions();
                 perm.set_mode(0o755);
-                std::fs::set_permissions(&write_to.dest, perm)?;
+                std::fs::set_permissions(&write_to.dest, perm).with_context(|| {
+                    format!("Failed to make {} executable", write_to.dest.display())
+                })?;
             }
         }
 
         if let Some(get_content) = callback.get_content.take().map(|(_, f)| f) {
-            get_content.call(buffer)?;
+            get_content
+                .call(buffer)
+                .with_context(|| format!("get_content callback for file {} failed", uuid))?;
         }
     } else {
         iterator.into_iter().last();

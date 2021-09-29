@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use anyhow::{bail, Error};
+use anyhow::{bail, Context, Error};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use serde::{Deserialize, Serialize};
@@ -102,9 +102,15 @@ impl Sandbox {
         dep_keys: &HashMap<FileUuid, FileStoreHandle>,
         fifo_dir: Option<PathBuf>,
     ) -> Result<Sandbox, Error> {
-        std::fs::create_dir_all(sandboxes_dir)?;
-        let boxdir = TempDir::new_in(sandboxes_dir, "box")?;
-        Sandbox::setup(boxdir.path(), execution, dep_keys)?;
+        std::fs::create_dir_all(sandboxes_dir).with_context(|| {
+            format!(
+                "Failed to create sandbox directory at {}",
+                sandboxes_dir.display()
+            )
+        })?;
+        let boxdir = TempDir::new_in(sandboxes_dir, "box")
+            .context("Failed to create sandbox temporary directory")?;
+        Sandbox::setup(boxdir.path(), execution, dep_keys).context("Sandbox setup failed")?;
         Ok(Sandbox {
             data: Arc::new(Mutex::new(SandboxData {
                 boxdir: Some(boxdir),
@@ -144,7 +150,9 @@ impl Sandbox {
 
         let raw_result = runner.run(config.build(), pid);
         if keep {
-            std::fs::write(boxdir.join("result.txt"), format!("{:#?}", raw_result))?;
+            let target = boxdir.join("result.txt");
+            std::fs::write(&target, format!("{:#?}", raw_result))
+                .with_context(|| format!("Failed to write {}", target.display()))?;
         }
 
         let res = match raw_result {
@@ -331,7 +339,8 @@ impl Sandbox {
         config.mount(boxdir.join("etc"), "/etc", true);
         if let Some(path) = fifo_dir {
             // allow access knowing the path but prevent listing the dir content
-            Sandbox::set_permissions(&path, 0o111)?;
+            Sandbox::set_permissions(&path, 0o111)
+                .with_context(|| format!("Failed to chmod 111 {}", path.display()))?;
             config.mount(path, box_root.join(FIFO_SANDBOX_DIR), false);
         }
         for dir in READABLE_DIRS {
@@ -356,7 +365,13 @@ impl Sandbox {
                 }
             }
             ExecutionCommand::Local(cmd) => {
-                self.validate_local_executable(boxdir.join("box").join(cmd))?;
+                let host_cmd = boxdir.join("box").join(cmd);
+                self.validate_local_executable(&host_cmd).with_context(|| {
+                    format!(
+                        "Local sandbox executable validation failed: {}",
+                        &host_cmd.display()
+                    )
+                })?;
                 config.executable(box_root.join(cmd));
             }
         };
@@ -375,48 +390,63 @@ impl Sandbox {
         execution: &Execution,
         dep_keys: &HashMap<FileUuid, FileStoreHandle>,
     ) -> Result<(), Error> {
+        let box_dir = box_dir.as_ref();
         trace!(
             "Setting up sandbox at {:?} for '{}'",
-            box_dir.as_ref(),
+            box_dir,
             execution.description
         );
-        std::fs::create_dir_all(box_dir.as_ref().join("box"))?;
+        Self::create_sandbox_dir(box_dir, "box")?;
         // put /etc/passwd inside the sandbox
-        std::fs::create_dir_all(box_dir.as_ref().join("etc"))?;
+        Self::create_sandbox_dir(box_dir, "etc")?;
         std::fs::write(
-            box_dir.as_ref().join("etc").join("passwd"),
+            box_dir.join("etc").join("passwd"),
             "root::0:0::/:/bin/sh\n\
             nobody::1000:1000::/:/bin/sh\n",
-        )?;
+        )
+        .with_context(|| {
+            format!(
+                "Failed to write /etc/passwd in the sandbox {}",
+                box_dir.display()
+            )
+        })?;
+
         if let Some(stdin) = execution.stdin {
             Sandbox::write_sandbox_file(
-                &box_dir.as_ref().join("stdin"),
+                &box_dir.join("stdin"),
                 dep_keys.get(&stdin).expect("stdin not provided").path(),
                 false,
             )?;
         }
         if execution.stdout.is_some() {
-            Sandbox::touch_file(&box_dir.as_ref().join("stdout"), 0o600)?;
+            Sandbox::touch_file(&box_dir.join("stdout"), 0o600)?;
         }
         if execution.stderr.is_some() {
-            Sandbox::touch_file(&box_dir.as_ref().join("stderr"), 0o600)?;
+            Sandbox::touch_file(&box_dir.join("stderr"), 0o600)?;
         }
         for (path, input) in execution.inputs.iter() {
             Sandbox::write_sandbox_file(
-                &box_dir.as_ref().join("box").join(&path),
+                &box_dir.join("box").join(&path),
                 dep_keys.get(&input.file).expect("file not provided").path(),
                 input.executable,
             )?;
         }
         for path in execution.outputs.keys() {
-            Sandbox::touch_file(&box_dir.as_ref().join("box").join(&path), 0o600)?;
+            Sandbox::touch_file(&box_dir.join("box").join(&path), 0o600)?;
         }
         // remove the write bit on the box folder
         if execution.limits.read_only {
-            Sandbox::set_permissions(&box_dir.as_ref().join("box"), 0o500)?;
+            Sandbox::set_permissions(&box_dir.join("box"), 0o500)?;
         }
-        trace!("Sandbox at {:?} ready!", box_dir.as_ref());
+        trace!("Sandbox at {:?} ready!", box_dir);
         Ok(())
+    }
+
+    /// Create a directory inside the sandbox.
+    fn create_sandbox_dir<P: AsRef<Path>>(box_dir: &Path, path: P) -> Result<(), Error> {
+        let target = box_dir.join(path.as_ref());
+        std::fs::create_dir_all(&target)
+            .with_context(|| format!("Failed to create sandbox directory: {}", target.display()))
     }
 
     /// Put a file inside the sandbox, creating the directories if needed and making it executable
@@ -426,13 +456,16 @@ impl Sandbox {
     /// - `r--------` (0o400) if not executable.
     /// - `r-x------` (0o500) if executable.
     fn write_sandbox_file(dest: &Path, source: &Path, executable: bool) -> Result<(), Error> {
-        std::fs::create_dir_all(dest.parent().expect("Invalid destination path"))?;
+        std::fs::create_dir_all(dest.parent().expect("Invalid destination path"))
+            .with_context(|| format!("Failed to create parent directory of {}", dest.display()))?;
         // First try to hardlink the file to the destination, this is faster and less prone to race
         // conditions. If another thread forks while copying the executable (for example spawning a
         // sandbox of another worker) the file descriptor won't be closed while this sandbox tries
         // to exec the process, failing with "Text file busy".
         if std::fs::hard_link(source, dest).is_err() {
-            std::fs::copy(source, dest)?;
+            std::fs::copy(source, dest).with_context(|| {
+                format!("Failed to copy {} -> {}", source.display(), dest.display())
+            })?;
         }
         if executable {
             Sandbox::set_permissions(dest, 0o500)?;
@@ -444,17 +477,18 @@ impl Sandbox {
 
     /// Create an empty file inside the sandbox and chmod-it.
     fn touch_file(dest: &Path, mode: u32) -> Result<(), Error> {
-        std::fs::create_dir_all(dest.parent().expect("Invalid file path"))?;
-        std::fs::File::create(dest)?;
-        let mut permisions = std::fs::metadata(&dest)?.permissions();
-        permisions.set_mode(mode);
-        std::fs::set_permissions(dest, permisions)?;
+        std::fs::create_dir_all(dest.parent().expect("Invalid file path"))
+            .with_context(|| format!("Failed to create parent directory of {}", dest.display()))?;
+        std::fs::File::create(dest)
+            .with_context(|| format!("Failed to create {}", dest.display()))?;
+        Self::set_permissions(dest, mode)?;
         Ok(())
     }
 
     fn set_permissions(dest: &Path, perm: u32) -> Result<(), Error> {
         let permissions = Permissions::from_mode(perm);
-        std::fs::set_permissions(dest, permissions)?;
+        std::fs::set_permissions(dest, permissions)
+            .with_context(|| format!("Failed to chmod {:03o} {}", perm, dest.display()))?;
         Ok(())
     }
 
@@ -467,7 +501,7 @@ impl Sandbox {
         if !path.is_file() {
             bail!("Executable is not a file");
         }
-        let exe = detect_exe(path)?;
+        let exe = detect_exe(path).context("Failed to detect sandbox executable")?;
         if exe.is_none() {
             bail!("Invalid executable, missing shebang?");
         }

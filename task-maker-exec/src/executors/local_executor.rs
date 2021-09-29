@@ -3,7 +3,7 @@ use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::thread;
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Context, Error};
 use ductile::{ChannelReceiver, ChannelSender};
 use uuid::Uuid;
 
@@ -79,11 +79,13 @@ impl LocalExecutor {
             executor_tx
                 .send(ExecutorInMessage::WorkerConnected { worker: conn })
                 .unwrap();
+            let worker_name = format!("Worker {}", worker);
             workers.push(
                 thread::Builder::new()
-                    .name(format!("Worker {}", worker))
-                    .spawn(move || {
-                        worker.work().expect("Worker failed");
+                    .name(worker_name.clone())
+                    .spawn(move || worker.work())
+                    .with_context(|| {
+                        format!("Failed to start worker thread named '{}'", &worker_name)
                     })?,
             );
         }
@@ -104,13 +106,16 @@ impl LocalExecutor {
         // no new client/worker can connect, make the executor stop accepting connections
         drop(executor_tx);
         // this method will block until all the operations are done
-        executor.run()?;
+        executor
+            .run()
+            .context("Local executor failed to evaluate")?;
 
         // since the executor is going down the worker are disconnecting
         for worker in workers.into_iter() {
             worker
                 .join()
-                .map_err(|e| anyhow!("Worker panicked: {:?}", e))?;
+                .map_err(|e| anyhow!("Worker panicked: {:?}", e))?
+                .context("Worker failed")?;
         }
         Ok(())
     }
