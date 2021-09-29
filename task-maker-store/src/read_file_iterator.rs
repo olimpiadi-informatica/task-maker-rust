@@ -1,4 +1,4 @@
-use anyhow::Error;
+use anyhow::{Context, Error};
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
@@ -38,7 +38,9 @@ pub struct ReadFileIterator {
 impl ReadFileIterator {
     /// Make a new iterator reading the file at that path
     pub fn new<P: AsRef<Path>>(path: P) -> Result<ReadFileIterator, Error> {
-        let file = std::fs::File::open(path.as_ref())?;
+        let path = path.as_ref();
+        let file = std::fs::File::open(path)
+            .with_context(|| format!("Failed to open {}", path.display()))?;
         Ok(ReadFileIterator {
             buf_reader: BufReader::new(file),
             buf: [0; READ_FILE_BUFFER_SIZE],

@@ -4,7 +4,7 @@ use std::fs::{remove_dir, File};
 use std::path::Path;
 use std::time::SystemTime;
 
-use anyhow::Error;
+use anyhow::{Context, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::{FileStore, FileStoreKey, LockedFiles};
@@ -44,7 +44,9 @@ impl FileStoreIndex {
         let path = path.as_ref();
         if path.exists() {
             debug!("Loading index from {:?}", path);
-            Ok(serde_json::from_reader(File::open(path)?)?)
+            let file = File::open(path)
+                .with_context(|| format!("Failed to open index file from {}", path.display()))?;
+            Ok(serde_json::from_reader(file).context("Failed to deserialize index file")?)
         } else {
             debug!("Index at {:?} not found, creating new one", path);
             Ok(FileStoreIndex {
@@ -56,8 +58,11 @@ impl FileStoreIndex {
 
     /// Store a dump of this index to the path provided.
     pub(crate) fn store<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
-        debug!("Saving index file at {:?}", path.as_ref());
-        Ok(serde_json::to_writer(File::create(path.as_ref())?, self)?)
+        let path = path.as_ref();
+        debug!("Saving index file at {}", path.display());
+        let file = File::create(path)
+            .with_context(|| format!("Failed to create index file at {}", path.display()))?;
+        serde_json::to_writer(file, self).context("Failed to write index file")
     }
 
     /// Mark a file as accessed, bumping its position in the LRU.
@@ -70,8 +75,10 @@ impl FileStoreIndex {
     /// Add a file in the index if not already present.
     #[allow(clippy::map_entry)]
     pub(crate) fn add<P: AsRef<Path>>(&mut self, key: FileStoreKey, path: P) -> Result<(), Error> {
+        let path = path.as_ref();
         if !self.known_files.contains_key(&key) {
-            let metadata = std::fs::metadata(path.as_ref())?;
+            let metadata = std::fs::metadata(path)
+                .with_context(|| format!("Cannot get file metadata of {}", path.display()))?;
             self.known_files.insert(
                 key,
                 FileStoreIndexItem {
@@ -130,7 +137,12 @@ impl FileStoreIndex {
                 if let Err(e) = FileStore::remove_file(&path) {
                     warn!("Cannot flush file {:?}: {}", path, e.to_string());
                 }
-                let base_path = file_store.base_path.canonicalize()?;
+                let base_path = file_store.base_path.canonicalize().with_context(|| {
+                    format!(
+                        "Invalid file store base path: {}",
+                        file_store.base_path.display()
+                    )
+                })?;
                 let mut path = path.parent();
                 // remove empty directories until the root of the store is reached
                 while let Some(p) = path {

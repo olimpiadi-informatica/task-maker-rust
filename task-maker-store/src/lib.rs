@@ -47,7 +47,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use anyhow::{bail, Error};
+use anyhow::{bail, Context, Error};
 use blake2::{Blake2b, Digest};
 use fs2::FileExt;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -146,17 +146,25 @@ impl FileStore {
         min_store_size: u64,
     ) -> Result<FileStore, Error> {
         let base_path = base_path.into();
-        std::fs::create_dir_all(&base_path)?;
+        std::fs::create_dir_all(&base_path).with_context(|| {
+            format!(
+                "Failed to create storage directory at {}",
+                base_path.display()
+            )
+        })?;
         let lock = base_path.join(STORE_LOCK_FILE);
-        let file = File::create(lock)?;
+        let file = File::create(&lock)
+            .with_context(|| format!("Failed to create lock file at {}", lock.display()))?;
         if let Err(e) = file.try_lock_exclusive() {
             if e.to_string() != fs2::lock_contended_error().to_string() {
                 return Err(e.into());
             }
             warn!("Store locked... waiting");
-            file.lock_exclusive()?;
+            file.lock_exclusive()
+                .context("Failed to obtain exclusive lock on storage")?;
         }
-        let index = FileStoreIndex::load(base_path.join(STORE_INDEX_FILE))?;
+        let index = FileStoreIndex::load(base_path.join(STORE_INDEX_FILE))
+            .context("Failed to load storage index")?;
         Ok(FileStore {
             base_path,
             file,
@@ -212,10 +220,14 @@ impl FileStore {
             content.into_iter().last(); // consume all the iterator
         } else {
             // assuming moving files is atomic this should be MT-safe
-            std::fs::create_dir_all(path.parent().unwrap())?;
-            let tmpdir = tempdir::TempDir::new_in(path.parent().unwrap(), "temp")?;
+            let dir = path.parent().unwrap();
+            std::fs::create_dir_all(&dir)
+                .with_context(|| format!("Cannot create directory at {}", dir.display()))?;
+            let tmpdir = tempdir::TempDir::new_in(path.parent().unwrap(), "temp")
+                .context("Failed to create temporary directory for storing the file")?;
             let tmpfile_path = tmpdir.path().join("file");
-            let mut tmpfile = std::fs::File::create(&tmpfile_path)?;
+            let mut tmpfile =
+                std::fs::File::create(&tmpfile_path).context("Failed to create temporary file")?;
             if !content
                 .into_iter()
                 .map(|data| tmpfile.write_all(&data))
@@ -223,13 +235,24 @@ impl FileStore {
             {
                 bail!("Failed to store file");
             }
-            std::fs::rename(tmpfile_path, &path)?;
-            FileStore::mark_readonly(&path)?;
+            std::fs::rename(&tmpfile_path, &path).with_context(|| {
+                format!(
+                    "Failed to rename {} -> {}",
+                    tmpfile_path.display(),
+                    path.display()
+                )
+            })?;
+            FileStore::mark_readonly(&path).context("Failed to mark file as readonly")?;
             {
                 let mut index = self.index.lock().unwrap();
-                index.add(key.clone(), path)?;
+                index
+                    .add(key.clone(), path)
+                    .context("Failed to add file to index")?;
                 self.maybe_flush(&mut index)?;
-                index.store(self.base_path.join(STORE_INDEX_FILE))?;
+                // FIXME: maybe this can be done less frequently
+                index
+                    .store(self.base_path.join(STORE_INDEX_FILE))
+                    .context("Failed to store the index to file")?;
             }
         }
         Ok(handle)
@@ -292,18 +315,25 @@ impl FileStore {
 
     /// Mark a file as readonly.
     fn mark_readonly(path: &Path) -> Result<(), Error> {
-        let mut perms = std::fs::metadata(path)?.permissions();
+        let mut perms = std::fs::metadata(path)
+            .with_context(|| format!("Failed to get file metadata of {}", path.display()))?
+            .permissions();
         perms.set_readonly(true);
-        std::fs::set_permissions(path, perms)?;
+        std::fs::set_permissions(path, perms)
+            .with_context(|| format!("Failed to set permission of {}", path.display()))?;
         Ok(())
     }
 
     /// Remove a file from disk.
     fn remove_file(path: &Path) -> Result<(), Error> {
-        let mut perms = std::fs::metadata(path)?.permissions();
+        let mut perms = std::fs::metadata(path)
+            .with_context(|| format!("Failed to get file metadata of {}", path.display()))?
+            .permissions();
         perms.set_readonly(false);
-        std::fs::set_permissions(path, perms)?;
-        std::fs::remove_file(path)?;
+        std::fs::set_permissions(path, perms)
+            .with_context(|| format!("Failed to set permission of {}", path.display()))?;
+        std::fs::remove_file(path)
+            .with_context(|| format!("Failed to remove {}", path.display()))?;
         Ok(())
     }
 
@@ -335,7 +365,9 @@ impl FileStore {
     fn maybe_flush(&self, index: &mut FileStoreIndex) -> Result<(), Error> {
         if index.need_flush(self.max_store_size) {
             let locked = self.locked_files.lock().unwrap();
-            index.flush(self, &locked, self.min_store_size)?;
+            index
+                .flush(self, &locked, self.min_store_size)
+                .context("Failed to flush index")?;
         }
         Ok(())
     }
@@ -385,7 +417,8 @@ impl FileStoreKey {
         if !path.exists() {
             bail!("Cannot read {}, maybe broken symlink?", path.display())
         }
-        let file_reader = ReadFileIterator::new(path)?;
+        let file_reader = ReadFileIterator::new(path)
+            .with_context(|| format!("Cannot make file iterator of {}", path.display()))?;
         file_reader.map(|buf| hasher.input(&buf)).last();
         Ok(FileStoreKey {
             hash: hasher.result().to_vec(),

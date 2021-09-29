@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use anyhow::Error;
+use anyhow::{Context, Error};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use typescript_definitions::TypeScriptify;
 
@@ -59,11 +59,10 @@ impl SourceFile {
         let path = path.into();
         let base_path = base_path.into();
         let lang = LanguageManager::detect_language(&path);
-        lang.as_ref()?;
         Some(SourceFile {
             path,
             base_path,
-            language: lang.unwrap(),
+            language: lang?,
             executable: Arc::new(Mutex::new(None)),
             grader_map,
             write_bin_to: write_bin_to.map(|p| p.into()),
@@ -142,7 +141,7 @@ impl SourceFile {
         description: S,
         args: Vec<String>,
     ) -> Result<(Option<ExecutionUuid>, Execution), Error> {
-        let comp = self.prepare(dag)?;
+        let comp = self.prepare(dag).context("Failed to prepare source file")?;
         let write_to = self.write_bin_to.as_deref();
         let mut exec = Execution::new(
             description.as_ref(),
@@ -156,7 +155,8 @@ impl SourceFile {
                     path, self.path
                 ));
                 exec.input(&file, arg, false);
-                dag.provide_file(file, path)?;
+                dag.provide_file(file, path)
+                    .context("Failed to provide input file from arg")?;
             }
         }
         exec.args(self.language.runtime_args(&self.path, write_to, args));
@@ -167,13 +167,15 @@ impl SourceFile {
         );
         for dep in self.language.runtime_dependencies(&self.path) {
             exec.input(&dep.file, &dep.sandbox_path, dep.executable);
-            dag.provide_file(dep.file, &dep.local_path)?;
+            dag.provide_file(dep.file, &dep.local_path)
+                .context("Failed to provide dependency")?;
         }
         if let Some(grader_map) = self.grader_map.as_ref() {
             for dep in grader_map.get_runtime_deps(self.language.as_ref()) {
                 exec.input(&dep.file, &dep.sandbox_path, dep.executable);
                 exec.args = self.language.runtime_add_file(exec.args, &dep.sandbox_path);
-                dag.provide_file(dep.file, &dep.local_path)?;
+                dag.provide_file(dep.file, &dep.local_path)
+                    .context("Failed to provide grader dependency")?;
             }
         }
         self.language.custom_limits(exec.limits_mut());
@@ -196,7 +198,7 @@ impl SourceFile {
         &self,
         dag: &mut ExecutionDAG,
     ) -> Result<(FileUuid, Option<ExecutionUuid>), Error> {
-        let comp = self.prepare(dag)?;
+        let comp = self.prepare(dag).context("Failed to prepare source file")?;
         let exe = self.executable.lock().unwrap().as_ref().unwrap().uuid;
         Ok((exe, comp))
     }
@@ -262,7 +264,8 @@ impl SourceFile {
             comp.limits.mount_tmpfs(true);
             for dep in self.language.compilation_dependencies(&self.path) {
                 comp.input(&dep.file, &dep.sandbox_path, dep.executable);
-                dag.provide_file(dep.file, &dep.local_path)?;
+                dag.provide_file(dep.file, &dep.local_path)
+                    .context("Failed to provide compilation dependency")?;
             }
             if let Some(grader_map) = self.grader_map.as_ref() {
                 for dep in grader_map.get_compilation_deps(self.language.as_ref()) {
@@ -270,13 +273,15 @@ impl SourceFile {
                     comp.args = self
                         .language
                         .compilation_add_file(comp.args, &dep.sandbox_path);
-                    dag.provide_file(dep.file, &dep.local_path)?;
+                    dag.provide_file(dep.file, &dep.local_path)
+                        .context("Failed to provide grader dependency")?;
                 }
             }
             let exec = comp.output(&self.language.compiled_file_name(&self.path, write_to));
             let comp_uuid = comp.uuid;
             dag.add_execution(comp);
-            dag.provide_file(source, &self.path)?;
+            dag.provide_file(source, &self.path)
+                .context("Failed to provide source file")?;
             if dag.config_mut().copy_exe || self.copy_exe {
                 if let Some(write_bin_to) = &self.write_bin_to {
                     dag.write_file_to(&exec, write_bin_to, true);
@@ -292,7 +297,8 @@ impl SourceFile {
                 }
             }
             *self.executable.lock().unwrap() = Some(executable.clone());
-            dag.provide_file(executable, &self.path)?;
+            dag.provide_file(executable, &self.path)
+                .context("Failed to provide executable")?;
             Ok(None)
         }
     }
