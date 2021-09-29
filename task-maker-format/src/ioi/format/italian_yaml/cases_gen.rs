@@ -136,9 +136,9 @@ where
         let path = path.as_ref();
         let task_dir = path
             .parent()
-            .expect("Invalid gen/cases.gen path")
+            .context("Invalid gen/cases.gen path")?
             .parent()
-            .expect("Invalid gen/cases.gen path");
+            .context("Invalid gen/cases.gen path")?;
         let content = std::fs::read_to_string(&path)
             .with_context(|| format!("Failed to read {}", path.display()))?;
         let mut file = parser::CasesGenParser::parse(parser::Rule::file, &content)
@@ -303,7 +303,7 @@ where
         let generator = &self
             .generators
             .get(&current_generator)
-            .expect("invalid current generator");
+            .context("invalid current generator")?;
         let variables = self.get_variables(&generator.args, &args);
         for constr in self
             .constraints
@@ -385,7 +385,7 @@ where
                 Some(
                     task_dir
                         .join("bin")
-                        .join(path.file_name().expect("invalid file name")),
+                        .join(path.file_name().context("invalid file name")?),
                 ),
             )
             .map(Arc::new)
@@ -530,7 +530,11 @@ where
         if self.subtask_id == 0 {
             bail!("Cannot add a COPY testcase outside a subtask");
         }
-        let path = line.into_inner().next().expect("corrupted parser").as_str();
+        let path = line
+            .into_inner()
+            .next()
+            .context("corrupted parser")?
+            .as_str();
         let path = self.task_dir.join(path);
         if !path.exists() {
             bail!(

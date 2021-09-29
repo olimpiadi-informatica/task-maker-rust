@@ -59,5 +59,5 @@ pub fn find_task<P: Into<PathBuf>>(
 fn getcwd() -> PathBuf {
     std::env::var("PWD")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::current_dir().unwrap())
+        .unwrap_or_else(|_| std::env::current_dir().expect("Cannot get current working directory"))
 }

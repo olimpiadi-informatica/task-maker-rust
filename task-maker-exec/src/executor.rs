@@ -5,7 +5,7 @@ use std::thread;
 use std::time::Duration;
 use std::time::SystemTime;
 
-use anyhow::{Context, Error};
+use anyhow::{anyhow, Context, Error};
 use chashmap::CHashMap;
 use ductile::{ChannelReceiver, ChannelSender};
 use serde::{Deserialize, Serialize};
@@ -181,19 +181,16 @@ impl Executor {
         );
         let scheduler_thread = thread::Builder::new()
             .name("Scheduler thread".to_string())
-            .spawn(move || scheduler.run().expect("Scheduler failed"))
+            .spawn(move || scheduler.run())
             .expect("Failed to spawn scheduler");
         let worker_manager_thread = thread::Builder::new()
             .name("Worker Manager thread".to_string())
-            .spawn(move || worker_manager.run().expect("Worker manager failed"))
+            .spawn(move || worker_manager.run())
             .expect("Failed to spawn worker manager");
         let clients2 = clients.clone();
         let scheduler_binder_thread = thread::Builder::new()
             .name("Scheduler binder".to_string())
-            .spawn(move || {
-                Executor::handle_scheduler_messages(sched_executor_rx, clients2)
-                    .expect("Scheduler binder failed")
-            })
+            .spawn(move || Executor::handle_scheduler_messages(sched_executor_rx, clients2))
             .expect("Failed to spawn scheduler binder");
 
         while let Ok(message) = self.receiver.recv() {
@@ -208,43 +205,53 @@ impl Executor {
                     let file_store = self.file_store.clone();
                     let long_running = self.long_running;
                     // handle the new client in a new thread called "Client Manager"
+                    // FIXME: this thread is leaked, maybe we can join it as well
                     thread::Builder::new()
                         .name(format!(
                             "Client manager for {} ({})",
                             client.name, client.uuid
                         ))
-                        .spawn(move || {
+                        .spawn(move || -> Result<(), Error> {
                             Executor::handle_client_messages(
                                 file_store,
                                 client,
                                 sender,
                                 receiver,
                                 scheduler.clone(),
-                            )
-                            .expect("Client manager failed");
+                            )?;
                             // if not in long running mode, the first client should tear down the
                             // executor. To do so it's just required to tell the scheduler to exit,
                             // it will bring down the WorkerManager and all should exit.
                             if !long_running {
                                 scheduler
                                     .send(SchedulerInMessage::Exit)
-                                    .expect("Cannot stop the scheduler");
+                                    .map_err(|e| anyhow!("Cannot stop the scheduler: {:?}", e))?;
                             }
+                            Ok(())
                         })
                         .expect("Failed to spawn client manager");
                 }
                 ExecutorInMessage::WorkerConnected { worker } => {
                     worker_manager_tx
                         .send(WorkerManagerInMessage::WorkerConnected { worker })
-                        .expect("WorkerManager died");
+                        .map_err(|e| anyhow!("Cannot send WorkerConnected: {:?}", e))?;
                 }
             }
         }
         debug!("Executor no longer waits for clients/workers");
 
-        scheduler_thread.join().unwrap();
-        worker_manager_thread.join().unwrap();
-        scheduler_binder_thread.join().unwrap();
+        scheduler_thread
+            .join()
+            .map_err(|e| anyhow!("Scheduler thread panicked: {:?}", e))?
+            .context("Scheduler thread failed")?;
+        worker_manager_thread
+            .join()
+            .map_err(|e| anyhow!("Worker manager panicked: {:?}", e))?
+            .context("Worker manager thread failed")?;
+        scheduler_binder_thread
+            .join()
+            .map_err(|e| anyhow!("Scheduler binder panicked: {:?}", e))?
+            .context("Scheduler binder thread failed")?;
         Ok(())
     }
 

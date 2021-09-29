@@ -63,7 +63,7 @@ fn self_exec_sandbox_internal(
 ) -> Result<RawSandboxResult, Error> {
     let command = std::env::var_os("TASK_MAKER_SANDBOX_BIN")
         .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::current_exe().unwrap());
+        .unwrap_or_else(|| std::env::current_exe().expect("Cannot get current executable"));
     let mut cmd = Command::new(command)
         .arg("--sandbox")
         .stdin(Stdio::piped())
@@ -73,7 +73,7 @@ fn self_exec_sandbox_internal(
         .context("Cannot spawn the sandbox")?;
     pid.store(cmd.id(), Ordering::SeqCst);
     {
-        let stdin = cmd.stdin.as_mut().expect("Failed to open stdin");
+        let stdin = cmd.stdin.as_mut().context("Failed to open stdin")?;
         serde_json::to_writer(stdin, &config.build()).context("Failed to write config to stdin")?;
     }
     let output = cmd

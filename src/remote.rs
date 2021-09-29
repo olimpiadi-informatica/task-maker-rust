@@ -62,5 +62,8 @@ pub fn connect_to_remote_server<S, R, Str: AsRef<str>>(
             }
         }
     }
-    bail!("Failed to connect to the server: {:?}", err.unwrap())
+    if let Some(err) = err {
+        return Err(err.context("Failed to connect to the server"));
+    }
+    bail!("Unknown error while connecting to the remote server")
 }

@@ -316,7 +316,7 @@ fn execute_job(
         let job = current_job
             .current_job
             .as_ref()
-            .expect("Worker job is gone");
+            .ok_or_else(|| anyhow!("Worker job is gone"))?;
         let mut boxes = Vec::new();
         let group = &job.0.group;
         let fifo_dir = if group.fifo.is_empty() {
@@ -346,7 +346,7 @@ fn execute_job(
                 fifo_dir.as_ref().map(|d| d.path().to_owned()),
             )?;
             if keep_sandboxes {
-                sandbox.keep();
+                sandbox.keep()?;
             }
             boxes.push(sandbox);
         }
@@ -467,7 +467,7 @@ fn sandbox_group_manager(
         for handle in handles {
             handle
                 .join()
-                .expect("Sandbox thread panicked")
+                .map_err(|e| anyhow!("Sandbox thread panicked: {:?}", e))?
                 .context("Sandbox thread failed")?;
         }
     }

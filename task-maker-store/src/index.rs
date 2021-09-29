@@ -8,6 +8,7 @@ use anyhow::{Context, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::{FileStore, FileStoreKey, LockedFiles};
+use std::collections::hash_map::Entry;
 
 /// An entry of a file inside the file store.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -73,22 +74,21 @@ impl FileStoreIndex {
     }
 
     /// Add a file in the index if not already present.
-    #[allow(clippy::map_entry)]
     pub(crate) fn add<P: AsRef<Path>>(&mut self, key: FileStoreKey, path: P) -> Result<(), Error> {
         let path = path.as_ref();
-        if !self.known_files.contains_key(&key) {
-            let metadata = std::fs::metadata(path)
-                .with_context(|| format!("Cannot get file metadata of {}", path.display()))?;
-            self.known_files.insert(
-                key,
-                FileStoreIndexItem {
+        match self.known_files.entry(key) {
+            Entry::Occupied(mut entry) => {
+                entry.get_mut().last_access = SystemTime::now();
+            }
+            Entry::Vacant(entry) => {
+                let metadata = std::fs::metadata(path)
+                    .with_context(|| format!("Cannot get file metadata of {}", path.display()))?;
+                entry.insert(FileStoreIndexItem {
                     size: metadata.len(),
                     last_access: SystemTime::now(),
-                },
-            );
-            self.total_size += metadata.len();
-        } else {
-            self.known_files.get_mut(&key).unwrap().last_access = SystemTime::now();
+                });
+                self.total_size += metadata.len();
+            }
         }
         Ok(())
     }

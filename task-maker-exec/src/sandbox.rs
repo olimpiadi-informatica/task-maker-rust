@@ -228,27 +228,28 @@ impl Sandbox {
     }
 
     /// Make the sandbox persistent, the sandbox directory won't be deleted after the execution.
-    pub fn keep(&mut self) {
+    pub fn keep(&mut self) -> Result<(), Error> {
         let mut data = self.data.lock().unwrap();
         let path = data
             .boxdir
             .as_ref()
-            .expect("Box dir has gone?!?")
+            .context("Box dir has gone")?
             .path()
             .to_owned();
         debug!("Keeping sandbox at {:?}", path);
         data.keep_sandbox = true;
-        let serialized =
-            serde_json::to_string_pretty(&data.execution).expect("Cannot serialize execution");
+        let serialized = serde_json::to_string_pretty(&data.execution)
+            .context("Failed to serialize execution")?;
         std::fs::write(path.join("info.json"), serialized)
-            .expect("Cannot write execution info inside sandbox");
+            .context("Cannot write execution info inside sandbox")?;
         let mut config = SandboxConfiguration::default();
         if let Ok(()) =
             self.build_command(&path, &data.execution, &mut config, data.fifo_dir.clone())
         {
             std::fs::write(path.join("tabox.txt"), format!("{:#?}\n", config))
-                .expect("Cannot write command info inside sandbox");
+                .context("Cannot write command info inside sandbox")?;
         }
+        Ok(())
     }
 
     /// Path of the file where the standard output is written to.
@@ -414,7 +415,7 @@ impl Sandbox {
         if let Some(stdin) = execution.stdin {
             Sandbox::write_sandbox_file(
                 &box_dir.join("stdin"),
-                dep_keys.get(&stdin).expect("stdin not provided").path(),
+                dep_keys.get(&stdin).context("stdin not provided")?.path(),
                 false,
             )?;
         }
@@ -427,7 +428,10 @@ impl Sandbox {
         for (path, input) in execution.inputs.iter() {
             Sandbox::write_sandbox_file(
                 &box_dir.join("box").join(&path),
-                dep_keys.get(&input.file).expect("file not provided").path(),
+                dep_keys
+                    .get(&input.file)
+                    .context("file not provided")?
+                    .path(),
                 input.executable,
             )?;
         }
@@ -456,7 +460,7 @@ impl Sandbox {
     /// - `r--------` (0o400) if not executable.
     /// - `r-x------` (0o500) if executable.
     fn write_sandbox_file(dest: &Path, source: &Path, executable: bool) -> Result<(), Error> {
-        std::fs::create_dir_all(dest.parent().expect("Invalid destination path"))
+        std::fs::create_dir_all(dest.parent().context("Invalid destination path")?)
             .with_context(|| format!("Failed to create parent directory of {}", dest.display()))?;
         // First try to hardlink the file to the destination, this is faster and less prone to race
         // conditions. If another thread forks while copying the executable (for example spawning a
@@ -477,7 +481,7 @@ impl Sandbox {
 
     /// Create an empty file inside the sandbox and chmod-it.
     fn touch_file(dest: &Path, mode: u32) -> Result<(), Error> {
-        std::fs::create_dir_all(dest.parent().expect("Invalid file path"))
+        std::fs::create_dir_all(dest.parent().context("Invalid file path")?)
             .with_context(|| format!("Failed to create parent directory of {}", dest.display()))?;
         std::fs::File::create(dest)
             .with_context(|| format!("Failed to create {}", dest.display()))?;
@@ -512,7 +516,7 @@ impl Sandbox {
 impl SandboxData {
     fn path(&self) -> &Path {
         // this unwrap is safe since only `Drop` will remove the boxdir
-        self.boxdir.as_ref().unwrap().path()
+        self.boxdir.as_ref().expect("boxdir is gone").path()
     }
 }
 
@@ -521,9 +525,7 @@ impl Drop for SandboxData {
         if self.keep_sandbox {
             // this will unwrap the directory, dropping the `TempDir` without deleting the directory
             self.boxdir.take().map(TempDir::into_path);
-        } else if Sandbox::set_permissions(&self.boxdir.as_ref().unwrap().path().join("box"), 0o700)
-            .is_err()
-        {
+        } else if Sandbox::set_permissions(&self.path().join("box"), 0o700).is_err() {
             warn!("Cannot 'chmod 700' the sandbox directory");
         }
     }

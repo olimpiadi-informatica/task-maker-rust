@@ -255,7 +255,7 @@ impl SourceFile {
             let source = File::new(&format!("Source file of {:?}", self.path));
             comp.input(
                 &source,
-                Path::new(self.path.file_name().expect("Invalid file name")),
+                Path::new(self.path.file_name().context("Invalid file name")?),
                 false,
             );
             comp.limits.nproc = None;

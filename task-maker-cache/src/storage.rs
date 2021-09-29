@@ -53,7 +53,7 @@ pub fn load<P: AsRef<Path>>(path: P) -> Result<HashMap<CacheKey, Vec<CacheEntry>
 
 /// Store the content of the cache to the cache file, including the magic string.
 pub fn store(cache: &Cache) -> Result<(), Error> {
-    std::fs::create_dir_all(cache.cache_file.parent().expect("Invalid cache file"))
+    std::fs::create_dir_all(cache.cache_file.parent().context("Invalid cache file")?)
         .context("Failed to create cache directory")?;
     let mut file =
         std::fs::File::create(&cache.cache_file).context("Failed to create cache file")?;

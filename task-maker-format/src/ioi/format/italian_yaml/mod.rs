@@ -432,7 +432,7 @@ pub fn parse_task<P: AsRef<Path>>(
             TaskInputEntry::Testcase(testcase) => {
                 last_subtask
                     .as_mut()
-                    .expect("Testcase before Subtask")
+                    .context("Testcase before Subtask")?
                     .testcases
                     .insert(testcase.id, testcase);
             }

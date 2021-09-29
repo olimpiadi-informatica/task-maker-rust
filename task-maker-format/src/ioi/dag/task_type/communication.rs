@@ -74,9 +74,19 @@ pub fn evaluate(
     let mut fifo_sol2man = Vec::new();
     for _ in 0..data.num_processes {
         let fifo1 = group.new_fifo().sandbox_path();
-        fifo_man2sol.push(fifo1.to_str().unwrap().to_string());
+        fifo_man2sol.push(
+            fifo1
+                .to_str()
+                .ok_or_else(|| anyhow!("Non-UTF8 fifo path"))?
+                .to_string(),
+        );
         let fifo2 = group.new_fifo().sandbox_path();
-        fifo_sol2man.push(fifo2.to_str().unwrap().to_string());
+        fifo_sol2man.push(
+            fifo2
+                .to_str()
+                .ok_or_else(|| anyhow!("Non-UTF8 fifo path"))?
+                .to_string(),
+        );
     }
 
     let path = source_file.path.clone();
@@ -168,8 +178,10 @@ pub fn evaluate(
     bind_exec_io!(exec, task, input, validation_handle);
     let limits = exec.limits_mut();
     if let Some(time_limit) = task.time_limit {
-        limits.cpu_time((time_limit + 1.0) * num_processes as f64);
-        limits.wall_time(limits.cpu_time.unwrap() * 1.5 + 1.0); // some margin
+        let cpu_time = (time_limit + 1.0) * num_processes as f64;
+        let wall_time = cpu_time * 1.5 + 1.0; // some margin
+        limits.cpu_time(cpu_time);
+        limits.wall_time(wall_time);
     }
     if let Some(memory_limit) = task.memory_limit {
         limits.memory(memory_limit * 1024); // MiB -> KiB

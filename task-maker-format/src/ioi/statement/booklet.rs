@@ -154,7 +154,7 @@ impl Booklet {
             }
             let file = File::new(format!(
                 "Booklet template file {:?}",
-                path.file_name().expect("Invalid template file")
+                path.file_name().context("Invalid template file")?
             ));
             eval.dag
                 .provide_file(file.clone(), &path)

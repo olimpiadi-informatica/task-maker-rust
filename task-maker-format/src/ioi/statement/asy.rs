@@ -65,7 +65,7 @@ impl AsyFile {
         )?;
         let deps = AsyFile::find_asy_deps(
             &source_path,
-            source_path.parent().expect("Invalid asy file"),
+            source_path.parent().context("Invalid asy file")?,
         )
         .with_context(|| {
             format!(

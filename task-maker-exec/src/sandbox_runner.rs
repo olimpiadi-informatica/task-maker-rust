@@ -2,11 +2,9 @@ use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 
 use tabox::configuration::SandboxConfiguration;
+use tabox::result::{ExitStatus, ResourceUsage, SandboxExecutionResult};
 
 use crate::RawSandboxResult;
-use std::fs::{File, OpenOptions};
-use std::process::Stdio;
-use tabox::result::{ExitStatus, ResourceUsage, SandboxExecutionResult};
 
 /// Something able to spawn a sandbox, wait for it to exit and return the results.
 pub trait SandboxRunner: Send + Sync {
@@ -46,11 +44,16 @@ impl SandboxRunner for SuccessSandboxRunner {
 
 /// A fake sandbox that simply spawns the process and does not measure anything. No actual
 /// sandboxing is performed, so the process may do bad things.
+#[cfg(test)]
 #[derive(Default, Debug)]
 pub struct UnsafeSandboxRunner;
 
+#[cfg(test)]
 impl SandboxRunner for UnsafeSandboxRunner {
     fn run(&self, config: SandboxConfiguration, _pid: Arc<AtomicU32>) -> RawSandboxResult {
+        use std::fs::{File, OpenOptions};
+        use std::process::Stdio;
+
         let mut child = std::process::Command::new(config.executable);
         child.args(config.args);
         if let Some(path) = config.stdout {

@@ -255,7 +255,9 @@ impl TaskFormat for IOITask {
             if !dir.exists() {
                 continue;
             }
-            for file in glob::glob(dir.join("*.txt").to_string_lossy().as_ref()).unwrap() {
+            for file in glob::glob(dir.join("*.txt").to_string_lossy().as_ref())
+                .context("Invalid glob pattern")?
+            {
                 let file = match file {
                     Ok(file) => file,
                     Err(e) => {

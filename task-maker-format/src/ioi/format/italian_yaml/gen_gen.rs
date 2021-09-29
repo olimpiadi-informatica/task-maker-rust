@@ -34,9 +34,9 @@ where
     let path = path.as_ref();
     let task_dir = path
         .parent()
-        .expect("Invalid gen/GEN path")
+        .context("Invalid gen/GEN path")?
         .parent()
-        .expect("Invalid gen/GEN path");
+        .context("Invalid gen/GEN path")?;
     let content = std::fs::read_to_string(&path)
         .with_context(|| format!("Cannot read gen/GEN from {}", path.display()))?;
     let mut file =
@@ -92,7 +92,7 @@ where
                         entries.push(TaskInputEntry::Subtask(SubtaskInfo {
                             id: subtask_id,
                             description: None,
-                            max_score: score.parse::<f64>().expect("Invalid subtask score"),
+                            max_score: score.parse::<f64>().context("Invalid subtask score")?,
                             testcases: HashMap::new(),
                         }));
                         subtask_id += 1;

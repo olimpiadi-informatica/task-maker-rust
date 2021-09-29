@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::{anyhow, Error};
+use anyhow::{anyhow, Context, Error};
 use serde::{Deserialize, Serialize};
 
 use task_maker_dag::{Execution, ExecutionLimits, FileUuid};
@@ -297,9 +297,9 @@ fn include_official_solution(
             solution.executable(eval)?,
             solution
                 .write_bin_to()
-                .expect("managers should always be copied")
+                .context("managers should always be copied")?
                 .file_name()
-                .unwrap(),
+                .context("Invalid solution path")?,
             true,
         );
     }

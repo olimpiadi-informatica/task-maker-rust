@@ -514,7 +514,7 @@ impl Execution {
             let file = File::new(&format!("Stdout of '{}'", self.description));
             self.stdout = Some(file);
         }
-        self.stdout.as_ref().unwrap().clone()
+        self.stdout.clone().unwrap()
     }
 
     /// Handle to the standard error of the execution. This should be called at least once before
@@ -533,7 +533,7 @@ impl Execution {
             let file = File::new(&format!("Stderr of '{}'", self.description));
             self.stderr = Some(file);
         }
-        self.stderr.as_ref().unwrap().clone()
+        self.stderr.clone().unwrap()
     }
 
     /// Tell the executor to include the first `count` bytes of the standard output in the result.

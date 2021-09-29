@@ -78,7 +78,7 @@ impl LocalExecutor {
             );
             executor_tx
                 .send(ExecutorInMessage::WorkerConnected { worker: conn })
-                .unwrap();
+                .map_err(|e| anyhow!("Failed to send WorkerConnected: {:?}", e))?;
             let worker_name = format!("Worker {}", worker);
             workers.push(
                 thread::Builder::new()
@@ -101,7 +101,7 @@ impl LocalExecutor {
                 sender,
                 receiver,
             })
-            .unwrap();
+            .map_err(|e| anyhow!("Failed to send ClientConnected: {:?}", e))?;
 
         // no new client/worker can connect, make the executor stop accepting connections
         drop(executor_tx);

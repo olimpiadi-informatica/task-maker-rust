@@ -85,9 +85,7 @@ use scrypt::ScryptParams;
 pub use client::ExecutorClient;
 pub use executor::{ExecutorStatus, ExecutorWorkerStatus, WorkerCurrentJobStatus};
 pub use sandbox::RawSandboxResult;
-pub use sandbox_runner::{
-    ErrorSandboxRunner, SandboxRunner, SuccessSandboxRunner, UnsafeSandboxRunner,
-};
+pub use sandbox_runner::{ErrorSandboxRunner, SandboxRunner, SuccessSandboxRunner};
 pub use scheduler::ClientInfo;
 use task_maker_cache::Cache;
 use task_maker_dag::ExecutionDAG;
@@ -132,6 +130,7 @@ pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>, R>(
 ) where
     R: SandboxRunner + 'static,
 {
+    // FIXME: this function may return Result<(), Error>
     let (tx, rx_remote) = new_local_channel();
     let (tx_remote, rx) = new_local_channel();
     let store_dir = store_dir.into();
@@ -148,7 +147,7 @@ pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>, R>(
                 executors::LocalExecutor::new(server_file_store, num_cores, sandbox_path);
             executor
                 .evaluate(tx_remote, rx_remote, cache, sandbox_runner)
-                .unwrap();
+                .expect("Executor failed");
         })
         .expect("Failed to spawn local executor thread");
     ExecutorClient::evaluate(dag, tx, &rx, file_store, |_| Ok(())).expect("Client failed");
@@ -166,6 +165,8 @@ mod tests {
     use tempdir::TempDir;
 
     use task_maker_dag::*;
+
+    use crate::sandbox_runner::UnsafeSandboxRunner;
 
     use super::*;
 

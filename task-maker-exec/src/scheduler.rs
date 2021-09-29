@@ -302,7 +302,7 @@ impl Scheduler {
         debug!("Scheduler exiting");
         self.worker_manager
             .send(WorkerManagerInMessage::Exit)
-            .expect("Cannot tell the worker manager to exit");
+            .map_err(|e| anyhow!("Cannot tell the worker manager to exit: {:?}", e))?;
         Ok(())
     }
 

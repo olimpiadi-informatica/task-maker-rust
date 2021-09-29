@@ -225,9 +225,9 @@ impl TaskFormat for TerryTask {
             let name = Path::new(maybe_generated.file_stem().unwrap());
             let name = Path::new(name.file_stem().unwrap());
             // if there is a file.X associated to file.Y.Z, remove file.Y.Z, e.g.:
-            // in managers/ there is validator.py => all_managers includes validator
-            // maybe_generated = validator.linux.x86_64
-            // name = validator
+            // in managers/ there is validator.py => all_managers includes "validator"
+            //   maybe_generated == "validator.linux.x86_64"
+            //   name == "validator"
             if all_managers.contains(name) {
                 info!("Removing {}", maybe_generated.display());
                 std::fs::remove_file(maybe_generated)?;

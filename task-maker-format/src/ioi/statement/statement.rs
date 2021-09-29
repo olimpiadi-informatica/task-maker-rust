@@ -90,7 +90,7 @@ impl Statement {
         booklet_name: &str,
         booklet_config: &BookletConfig,
     ) -> Result<Vec<(PathBuf, File)>, Error> {
-        let base_dir = self.path.parent().expect("Invalid statement path");
+        let base_dir = self.path.parent().context("Invalid statement path")?;
         let glob_pattern = base_dir.to_string_lossy().to_string() + "/**/*";
         let logo = booklet_config
             .logo
@@ -98,8 +98,8 @@ impl Statement {
             .and_then(|p| Path::new(p).file_name())
             .map(PathBuf::from);
         let mut deps = vec![];
-        for path in glob::glob(&glob_pattern).unwrap() {
-            let path = path.unwrap();
+        for path in glob::glob(&glob_pattern).context("Invalid glob pattern")? {
+            let path = path.context("Failed to iterate statement files")?;
             if !path.is_file() {
                 continue;
             }

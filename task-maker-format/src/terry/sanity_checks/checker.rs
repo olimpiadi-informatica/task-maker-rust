@@ -1,4 +1,4 @@
-use anyhow::{bail, Error};
+use anyhow::{bail, Context, Error};
 
 use task_maker_dag::File;
 
@@ -46,7 +46,7 @@ impl SanityCheck<TerryTask> for FuzzChecker {
         });
         eval.dag.add_execution(gen);
         for output in outputs {
-            let name = Path::new(output.file_name().expect("invalid file name"));
+            let name = Path::new(output.file_name().context("invalid file name")?);
             let output_file = File::new(format!("Bad output {}", name.display()));
             let output_uuid = output_file.uuid;
             eval.dag.provide_file(output_file, &output)?;

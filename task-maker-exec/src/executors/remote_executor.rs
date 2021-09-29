@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
 
 use ductile::{ChannelSender, ChannelServer};
@@ -12,6 +12,7 @@ use task_maker_store::FileStore;
 use crate::executor::{Executor, ExecutorInMessage};
 use crate::scheduler::ClientInfo;
 use crate::{derive_key_from_password, WorkerConn};
+use anyhow::{anyhow, Context, Error};
 
 /// Version of task-maker
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -56,7 +57,7 @@ impl RemoteExecutor {
         client_password: Option<String>,
         worker_password: Option<String>,
         cache: Cache,
-    ) {
+    ) -> Result<(), Error> {
         let file_store = self.file_store;
         let bind_client_addr = bind_client_addr.into();
         let bind_worker_addr = bind_worker_addr.into();
@@ -68,101 +69,122 @@ impl RemoteExecutor {
         let client_listener_thread = std::thread::Builder::new()
             .name("Client listener".to_string())
             .spawn(move || {
-                let server = match client_password {
-                    Some(password) => {
-                        let key = derive_key_from_password(password);
-                        ChannelServer::bind_with_enc(&bind_client_addr, key)
-                            .expect("Failed to bind client address")
-                    }
-                    None => ChannelServer::bind(&bind_client_addr)
-                        .expect("Failed to bind client address"),
-                };
-                info!(
-                    "Accepting client connections at tcp://{}",
-                    server.local_addr().unwrap()
-                );
-                for (sender, receiver, addr) in server {
-                    info!("Client connected from {}", addr);
-                    let uuid = Uuid::new_v4();
-                    let name = if let Ok(RemoteEntityMessage::Welcome { name, version }) =
-                        receiver.recv()
-                    {
-                        if !validate_welcome(addr, &name, version, &sender, "Client") {
-                            continue;
-                        }
-                        name
-                    } else {
-                        warn!(
-                            "Client at {} has not sent the correct welcome message!",
-                            addr
-                        );
-                        continue;
-                    };
-                    let client = ClientInfo { uuid, name };
-                    client_executor_tx
-                        .send(ExecutorInMessage::ClientConnected {
-                            client,
-                            sender: sender.change_type(),
-                            receiver: receiver.change_type(),
-                        })
-                        .expect("Executor is gone");
-                }
+                Self::client_listener(client_password, bind_client_addr, client_executor_tx)
             })
-            .expect("Cannot spawn client listener thread");
+            .context("Cannot spawn client listener thread")?;
         let worker_listener_thread = std::thread::Builder::new()
             .name("Worker listener".to_string())
-            .spawn(move || {
-                let server = match worker_password {
-                    Some(password) => {
-                        let key = derive_key_from_password(password);
-                        ChannelServer::bind_with_enc(&bind_worker_addr, key)
-                            .expect("Failed to bind worker address")
-                    }
-                    None => ChannelServer::bind(&bind_worker_addr)
-                        .expect("Failed to bind worker address"),
-                };
-                info!(
-                    "Accepting worker connections at tcp://{}",
-                    server.local_addr().unwrap()
-                );
-                for (sender, receiver, addr) in server {
-                    info!("Worker connected from {}", addr);
-                    let uuid = Uuid::new_v4();
-                    let name = if let Ok(RemoteEntityMessage::Welcome { name, version }) =
-                        receiver.recv()
-                    {
-                        if !validate_welcome(addr, &name, version, &sender, "Worker") {
-                            continue;
-                        }
-                        name
-                    } else {
-                        warn!(
-                            "Worker at {} has not sent the correct welcome message!",
-                            addr
-                        );
-                        continue;
-                    };
-                    let worker = WorkerConn {
-                        uuid,
-                        name,
-                        sender: sender.change_type(),
-                        receiver: receiver.change_type(),
-                    };
-                    executor_tx
-                        .send(ExecutorInMessage::WorkerConnected { worker })
-                        .expect("Executor is dead");
-                }
-            })
-            .expect("Cannot spawn worker listener thread");
+            .spawn(move || Self::worker_listener(worker_password, bind_worker_addr, executor_tx))
+            .context("Cannot spawn worker listener thread")?;
 
-        executor.run().expect("Executor failed");
+        executor.run()?;
 
         client_listener_thread
             .join()
-            .expect("Client listener failed");
+            .map_err(|e| anyhow!("Client listener panicked: {:?}", e))?
+            .context("Client listener failed")?;
         worker_listener_thread
             .join()
-            .expect("Worker listener failed");
+            .map_err(|e| anyhow!("Worker listener panicked: {:?}", e))?
+            .context("Worker listener failed")?;
+        Ok(())
+    }
+
+    fn client_listener(
+        client_password: Option<String>,
+        bind_client_addr: String,
+        client_executor_tx: Sender<ExecutorInMessage>,
+    ) -> Result<(), Error> {
+        let server = match client_password {
+            Some(password) => {
+                let key = derive_key_from_password(password);
+                ChannelServer::bind_with_enc(&bind_client_addr, key)
+                    .context("Failed to bind client address")?
+            }
+            None => {
+                ChannelServer::bind(&bind_client_addr).context("Failed to bind client address")?
+            }
+        };
+        info!(
+            "Accepting client connections at tcp://{}",
+            server
+                .local_addr()
+                .context("Failed to get client address")?
+        );
+        for (sender, receiver, addr) in server {
+            info!("Client connected from {}", addr);
+            let uuid = Uuid::new_v4();
+            let name = if let Ok(RemoteEntityMessage::Welcome { name, version }) = receiver.recv() {
+                if !validate_welcome(addr, &name, version, &sender, "Client") {
+                    continue;
+                }
+                name
+            } else {
+                warn!(
+                    "Client at {} has not sent the correct welcome message!",
+                    addr
+                );
+                continue;
+            };
+            let client = ClientInfo { uuid, name };
+            client_executor_tx
+                .send(ExecutorInMessage::ClientConnected {
+                    client,
+                    sender: sender.change_type(),
+                    receiver: receiver.change_type(),
+                })
+                .map_err(|e| anyhow!("Executor is gone: {:?}", e))?;
+        }
+        Ok(())
+    }
+
+    fn worker_listener(
+        worker_password: Option<String>,
+        bind_worker_addr: String,
+        executor_tx: Sender<ExecutorInMessage>,
+    ) -> Result<(), Error> {
+        let server = match worker_password {
+            Some(password) => {
+                let key = derive_key_from_password(password);
+                ChannelServer::bind_with_enc(&bind_worker_addr, key)
+                    .context("Failed to bind worker address")?
+            }
+            None => {
+                ChannelServer::bind(&bind_worker_addr).context("Failed to bind worker address")?
+            }
+        };
+        info!(
+            "Accepting worker connections at tcp://{}",
+            server
+                .local_addr()
+                .context("Failed to get worker remote address")?
+        );
+        for (sender, receiver, addr) in server {
+            info!("Worker connected from {}", addr);
+            let uuid = Uuid::new_v4();
+            let name = if let Ok(RemoteEntityMessage::Welcome { name, version }) = receiver.recv() {
+                if !validate_welcome(addr, &name, version, &sender, "Worker") {
+                    continue;
+                }
+                name
+            } else {
+                warn!(
+                    "Worker at {} has not sent the correct welcome message!",
+                    addr
+                );
+                continue;
+            };
+            let worker = WorkerConn {
+                uuid,
+                name,
+                sender: sender.change_type(),
+                receiver: receiver.change_type(),
+            };
+            executor_tx
+                .send(ExecutorInMessage::WorkerConnected { worker })
+                .map_err(|e| anyhow!("Executor is gone: {:?}", e))?;
+        }
+        Ok(())
     }
 }
 

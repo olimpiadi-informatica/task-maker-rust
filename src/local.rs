@@ -147,14 +147,12 @@ where
         let server = std::thread::Builder::new()
             .name("Executor thread".into())
             .spawn(move || {
-                executor
-                    .evaluate(
-                        tx_remote,
-                        rx_remote,
-                        cache,
-                        SelfExecSandboxRunner::default(),
-                    )
-                    .unwrap();
+                executor.evaluate(
+                    tx_remote,
+                    rx_remote,
+                    cache,
+                    SelfExecSandboxRunner::default(),
+                )
             })
             .context("Failed to spawn the executor thread")?;
         (tx, rx, Some(server))
@@ -205,7 +203,8 @@ where
             server
                 .join()
                 .map_err(|e| anyhow!("Executor panicked: {:?}", e))
-                .unwrap();
+                .unwrap()
+                .expect("Server failed");
         }
         let _ = sender.send(UIMessage::StopUI);
         ui_thread
