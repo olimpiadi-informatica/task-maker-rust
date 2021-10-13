@@ -100,9 +100,8 @@ where
     let executor = LocalExecutor::new(file_store.clone(), num_cores, sandbox_path);
 
     // build the DAG for the task
-    if let Err(e) = task.build_dag(&mut eval, &eval_config) {
-        bail!("Cannot build task DAG! {:?}", e);
-    }
+    task.build_dag(&mut eval, &eval_config)
+        .context("Cannot build the task DAG")?;
 
     trace!("The DAG is: {:#?}", eval.dag);
     if opt.copy_dag {
