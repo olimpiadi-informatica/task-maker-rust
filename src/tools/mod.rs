@@ -4,5 +4,6 @@ pub mod opt;
 pub mod reset;
 pub mod sandbox;
 pub mod server;
+pub mod task_info;
 pub mod typescriptify;
 pub mod worker;

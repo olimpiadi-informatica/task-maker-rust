@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 
+use anyhow::{Context, Error};
+use itertools::Itertools;
 use structopt::StructOpt;
 
-use itertools::Itertools;
-use task_maker_format::get_sanity_check_names;
 use task_maker_format::terry::Seed;
+use task_maker_format::{find_task, get_sanity_check_names, TaskFormat};
 use task_maker_format::{EvaluationConfig, VALID_TAGS};
 
 #[derive(StructOpt, Debug)]
@@ -13,9 +14,8 @@ use task_maker_format::{EvaluationConfig, VALID_TAGS};
     setting = structopt::clap::AppSettings::ColoredHelp,
 )]
 pub struct Opt {
-    /// Directory of the task to evaluate
-    #[structopt(short = "t", long = "task-dir", default_value = "")]
-    pub task_dir: PathBuf,
+    #[structopt(flatten)]
+    pub find_task: FindTaskOpt,
 
     /// Which UI to use, available UIS are: print, raw, curses, json.
     ///
@@ -72,10 +72,6 @@ pub struct Opt {
     #[structopt(long)]
     pub seed: Option<Seed>,
 
-    /// Look at most for this number of parents for searching the task
-    #[structopt(long = "max-depth", default_value = "3")]
-    pub max_depth: u32,
-
     /// Clear the task directory and exit
     ///
     /// Deprecated: Use `task-maker-tools clear`
@@ -106,10 +102,6 @@ pub struct Opt {
     #[structopt(long)]
     pub name: Option<String>,
 
-    /// Show task information
-    #[structopt(long)]
-    pub task_info: bool,
-
     /// Run the sandbox instead of the normal task-maker.
     ///
     /// This option is left as undocumented as it's not part of the public API.
@@ -128,6 +120,17 @@ pub struct LoggerOpt {
     /// Verbose mode (-v, -vv, -vvv, etc.). Note that it does not play well with curses ui.
     #[structopt(short, long, parse(from_occurrences))]
     pub verbose: u8,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct FindTaskOpt {
+    /// Directory of the task
+    #[structopt(short = "t", long = "task-dir", default_value = "")]
+    pub task_dir: PathBuf,
+
+    /// Look at most for this number of parents for searching the task
+    #[structopt(long = "max-depth", default_value = "3")]
+    pub max_depth: u32,
 }
 
 #[derive(StructOpt, Debug, Clone)]
@@ -217,6 +220,7 @@ impl StorageOpt {
 }
 
 impl LoggerOpt {
+    /// Enable the logs according to the specified configuration.
     pub fn enable_log(&self) {
         if self.verbose > 0 {
             std::env::set_var("RUST_BACKTRACE", "1");
@@ -232,5 +236,12 @@ impl LoggerOpt {
             .default_format_timestamp_nanos(true)
             .init();
         better_panic::install();
+    }
+}
+
+impl FindTaskOpt {
+    /// Use the specified options to find a task.
+    pub fn find_task(&self, eval_config: &EvaluationConfig) -> Result<Box<dyn TaskFormat>, Error> {
+        find_task(&self.task_dir, self.max_depth, eval_config).context("Invalid task directory")
     }
 }

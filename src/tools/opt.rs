@@ -1,6 +1,8 @@
-use crate::{LoggerOpt, StorageOpt};
 use std::path::PathBuf;
+
 use structopt::StructOpt;
+
+use crate::{FindTaskOpt, LoggerOpt, StorageOpt};
 
 #[derive(StructOpt, Debug)]
 #[structopt(
@@ -34,17 +36,14 @@ pub enum Tool {
     Reset(ResetOpt),
     /// Run a command inside a sandbox similar to the one used by task-maker
     Sandbox(SandboxOpt),
+    /// Obtain the information about a task.
+    TaskInfo(TaskInfoOpt),
 }
 
 #[derive(StructOpt, Debug)]
 pub struct ClearOpt {
-    /// Directory of the task to clear
-    #[structopt(short = "t", long = "task-dir", default_value = "")]
-    pub task_dir: PathBuf,
-
-    /// Look at most for this number of parents for searching the task
-    #[structopt(long = "max-depth", default_value = "3")]
-    pub max_depth: u32,
+    #[structopt(flatten)]
+    pub find_task: FindTaskOpt,
 }
 
 #[derive(StructOpt, Debug)]
@@ -136,4 +135,13 @@ pub struct SandboxOpt {
 
     /// Command to execute inside the sandbox. If not specified, bash is executed.
     pub command: Vec<String>,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct TaskInfoOpt {
+    #[structopt(flatten)]
+    pub find_task: FindTaskOpt,
+    /// Produce JSON output.
+    #[structopt(long, short)]
+    pub json: bool,
 }

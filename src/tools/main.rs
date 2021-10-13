@@ -7,6 +7,7 @@ use task_maker_rust::tools::opt::{Opt, Tool};
 use task_maker_rust::tools::reset::main_reset;
 use task_maker_rust::tools::sandbox::main_sandbox;
 use task_maker_rust::tools::server::main_server;
+use task_maker_rust::tools::task_info::main_task_info;
 use task_maker_rust::tools::typescriptify::main_typescriptify;
 use task_maker_rust::tools::worker::main_worker;
 
@@ -21,6 +22,7 @@ fn main() {
         Tool::Typescriptify => main_typescriptify(),
         Tool::Reset(opt) => main_reset(opt),
         Tool::Sandbox(opt) => main_sandbox(opt),
+        Tool::TaskInfo(opt) => main_task_info(opt),
     }
     .nice_unwrap()
 }

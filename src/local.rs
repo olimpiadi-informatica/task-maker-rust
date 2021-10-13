@@ -8,8 +8,7 @@ use task_maker_exec::ductile::new_local_channel;
 use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage, RemoteEntityMessageResponse};
 use task_maker_exec::proto::ExecutorClientMessage;
 use task_maker_exec::ExecutorClient;
-use task_maker_format::find_task;
-use task_maker_format::ui::{UIMessage, UIType, UI};
+use task_maker_format::ui::{UIMessage, UI};
 use task_maker_format::{EvaluationData, TaskFormat, UISender, VALID_TAGS};
 use task_maker_store::FileStore;
 
@@ -56,22 +55,7 @@ where
 
     // setup the task
     let eval_config = opt.to_config();
-    let task: Box<dyn TaskFormat> =
-        find_task(&opt.task_dir, opt.max_depth, &eval_config).context("Invalid task directory")?;
-
-    if opt.task_info {
-        let info = task.task_info().context("Cannot produce task info")?;
-        match opt.ui {
-            UIType::Json => {
-                let json = serde_json::to_string(&info).context("Non-serializable task info")?;
-                println!("{}", json);
-            }
-            _ => {
-                println!("{:#?} ", info);
-            }
-        }
-        return Ok(Evaluation::Done);
-    }
+    let task: Box<dyn TaskFormat> = opt.find_task.find_task(&eval_config)?;
 
     // clean the task
     if opt.clean {
