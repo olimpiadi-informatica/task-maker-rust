@@ -334,6 +334,9 @@ impl Sandbox {
         if let Some(mem) = execution.limits.memory {
             config.memory_limit(mem * 1024);
         }
+        if let Some(stack) = execution.limits.stack {
+            config.stack_limit(stack * 1024);
+        }
         let multiproc = Some(1) != execution.limits.nproc;
         config.syscall_filter(SyscallFilter::build(multiproc, !execution.limits.read_only));
         // has to be writable for mounting stuff in it

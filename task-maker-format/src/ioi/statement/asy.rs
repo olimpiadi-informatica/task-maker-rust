@@ -42,6 +42,7 @@ impl AsyFile {
         comp.limits_mut()
             .read_only(false)
             .wall_time(10.0) // asy tends to deadlock on failure
+            .stack(8192 * 1024) // due to a libgc bug, asy may crash with unlimited stack
             .nproc(1000)
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true);
