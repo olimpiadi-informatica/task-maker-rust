@@ -99,6 +99,6 @@ pub fn main_typescriptify() -> Result<(), Error> {
 }
 
 #[cfg(not(debug_assertions))]
-fn main_typescriptify() -> Result<(), Error> {
+pub fn main_typescriptify() -> Result<(), Error> {
     panic!("This program should be compiled in debug mode");
 }
