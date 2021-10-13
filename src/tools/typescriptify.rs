@@ -100,5 +100,5 @@ pub fn main_typescriptify() -> Result<(), Error> {
 
 #[cfg(not(debug_assertions))]
 pub fn main_typescriptify() -> Result<(), Error> {
-    panic!("This program should be compiled in debug mode");
+    anyhow::bail!("This program should be compiled in debug mode");
 }
