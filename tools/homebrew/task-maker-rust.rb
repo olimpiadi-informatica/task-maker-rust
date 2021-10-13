@@ -15,6 +15,7 @@ class TaskMakerRust < Formula
 
     mv "target/release/task-maker", "target/release/task-maker-rust"
     bin.install "target/release/task-maker-rust"
+    bin.install "target/release/task-maker-tools"
     share.install Dir["data/*"]
 
     bash_completion.install "target/autocompletion/task-maker-rust.bash"
