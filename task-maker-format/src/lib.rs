@@ -29,6 +29,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
+pub use detect_format::find_task;
 pub use sanity_checks::get_sanity_check_names;
 pub use source_file::SourceFile;
 pub use tag::{Tag, VALID_TAGS};
@@ -39,6 +40,7 @@ use crate::ioi::task_info::IOITaskInfo;
 use crate::terry::Seed;
 use crate::ui::UI;
 
+mod detect_format;
 pub mod ioi;
 mod sanity_checks;
 mod source_file;

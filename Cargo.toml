@@ -65,7 +65,7 @@ ctrlc = "3.1"
 lazy_static = "1.4"
 # General iterator utilities
 itertools = "0.8"
-# Iterate recursively the files in a directory (used for --dont-panic)
+# Iterate recursively the files in a directory (used for `task-maker-tools reset`)
 walkdir = "2.3"
 # defer! macro
 scopeguard = "1.0"
@@ -81,9 +81,5 @@ name = "task-maker"
 path = "src/main.rs"
 
 [[bin]]
-name = "task-maker-gen-autocompletion"
-path = "src/gen_autocompletion.rs"
-
-[[bin]]
-name = "task-maker-typescriptify"
-path = "src/typescriptify.rs"
+name = "task-maker-tools"
+path = "src/tools/main.rs"

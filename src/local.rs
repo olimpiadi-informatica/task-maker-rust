@@ -8,11 +8,11 @@ use task_maker_exec::ductile::new_local_channel;
 use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage, RemoteEntityMessageResponse};
 use task_maker_exec::proto::ExecutorClientMessage;
 use task_maker_exec::ExecutorClient;
+use task_maker_format::find_task;
 use task_maker_format::ui::{UIMessage, UIType, UI};
 use task_maker_format::{EvaluationData, TaskFormat, UISender, VALID_TAGS};
 use task_maker_store::FileStore;
 
-use crate::detect_format::find_task;
 use crate::error::NiceError;
 use crate::opt::Opt;
 use crate::print_dag;
@@ -75,6 +75,7 @@ where
 
     // clean the task
     if opt.clean {
+        warn!("--clean is deprecated: use `task-maker-tools clear`");
         task.clean().context("Cannot clear the task directory")?;
         return Ok(Evaluation::Clean);
     }
@@ -96,14 +97,16 @@ where
     }
 
     // setup the file store
-    let store_path = opt.store_dir();
+    let store_path = opt.storage.store_dir();
     let file_store = Arc::new(
         FileStore::new(
             store_path.join("store"),
-            opt.max_cache * 1024 * 1024,
-            opt.min_cache * 1024 * 1024,
+            opt.storage.max_cache * 1024 * 1024,
+            opt.storage.min_cache * 1024 * 1024,
         )
-        .context("Cannot create the file store (You can try wiping it with --dont-panic)")?,
+        .context(
+            "Cannot create the file store (You can try wiping it with task-maker-tools reset)",
+        )?,
     );
 
     // setup the executor

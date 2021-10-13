@@ -3,6 +3,7 @@
 
 use std::time::SystemTime;
 
+use anyhow::Error;
 use regex::Regex;
 use typescript_definitions::TypeScriptifyTrait;
 
@@ -40,7 +41,7 @@ fn fix_bug_1<S: AsRef<str>>(def: S) -> String {
 }
 
 #[cfg(debug_assertions)]
-fn main() {
+pub fn main_typescriptify() -> Result<(), Error> {
     println!("// Type aliases");
     println!("export type SubtaskId = number;");
     println!("export type TestcaseId = number;");
@@ -94,9 +95,10 @@ fn main() {
     export_ts!(TaskInfoScoring);
     export_ts!(TaskInfoStatement);
     export_ts!(TerryTaskInfo);
+    Ok(())
 }
 
 #[cfg(not(debug_assertions))]
-fn main() {
+fn main_typescriptify() -> Result<(), Error> {
     panic!("This program should be compiled in debug mode");
 }

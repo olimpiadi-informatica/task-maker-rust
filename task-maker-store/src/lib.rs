@@ -146,6 +146,7 @@ impl FileStore {
         min_store_size: u64,
     ) -> Result<FileStore, Error> {
         let base_path = base_path.into();
+        debug!("Opening file store at {}", base_path.display());
         std::fs::create_dir_all(&base_path).with_context(|| {
             format!(
                 "Failed to create storage directory at {}",

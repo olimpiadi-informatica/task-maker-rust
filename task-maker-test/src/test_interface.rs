@@ -15,7 +15,10 @@ use task_maker_format::ioi::{
 use task_maker_format::ui::CompilationStatus;
 use task_maker_format::ui::UIStateT;
 use task_maker_format::EvaluationConfig;
-use task_maker_rust::{main_server, main_worker, run_evaluation, Evaluation, Opt, Remote};
+use task_maker_rust::tools::opt::{ServerOpt, WorkerOpt};
+use task_maker_rust::tools::server::main_server;
+use task_maker_rust::tools::worker::main_worker;
+use task_maker_rust::{run_evaluation, Evaluation, Opt};
 
 /// Interface for testing a task.
 #[derive(Debug)]
@@ -177,18 +180,15 @@ impl TestInterface {
             .spawn(|| {
                 let tmpdir = tempdir::TempDir::new("tm-test-remote-server").unwrap();
                 let store = tmpdir.path().to_string_lossy().to_string();
-                let opt = Opt::from_iter(&[
-                    "task-maker",
+                let opt = ServerOpt::from_iter(&[
+                    "server",
                     "--store-dir",
                     &store,
-                    "--server",
                     "0.0.0.0:27182",
                     "0.0.0.0:27183",
                 ]);
-                if let Remote::Server(server_opt) = &opt.remote.as_ref().unwrap() {
-                    let server_opt = server_opt.clone();
-                    main_server(opt, server_opt);
-                }
+                eprintln!("Server opts {:?}", opt);
+                main_server(opt).unwrap();
             })
             .unwrap();
         std::thread::Builder::new()
@@ -197,21 +197,18 @@ impl TestInterface {
                 TestInterface::wait_port(27183);
                 let tmpdir = tempdir::TempDir::new("tm-test-remote-worker").unwrap();
                 let store = tmpdir.path().to_string_lossy().to_string();
-                let opt = Opt::from_iter(&[
-                    "task-maker",
+                let opt = WorkerOpt::from_iter(&[
+                    "worker",
                     "--store-dir",
                     &store,
-                    "--worker",
                     "tcp://127.0.0.1:27183",
                 ]);
+                eprintln!("Worker opts {:?}", opt);
                 std::env::set_var(
                     "TASK_MAKER_SANDBOX_BIN",
                     PathBuf::from(env!("OUT_DIR")).join("sandbox"),
                 );
-                if let Remote::Worker(worker_opt) = &opt.remote.as_ref().unwrap() {
-                    let worker_opt = worker_opt.clone();
-                    main_worker(opt, worker_opt);
-                }
+                main_worker(opt).unwrap();
             })
             .unwrap();
     }

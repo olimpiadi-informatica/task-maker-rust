@@ -77,20 +77,10 @@ pub struct Opt {
     pub max_depth: u32,
 
     /// Clear the task directory and exit
+    ///
+    /// Deprecated: Use `task-maker-tools clear`
     #[structopt(long = "clean")]
     pub clean: bool,
-
-    /// Where to store the storage files, including the cache
-    #[structopt(long = "store-dir")]
-    pub store_dir: Option<PathBuf>,
-
-    /// Maximum size of the storage directory, in MiB
-    #[structopt(long = "max-cache", default_value = "3072")]
-    pub max_cache: u64,
-
-    /// When the storage is flushed, this is the new maximum size, in MiB.
-    #[structopt(long = "min-cache", default_value = "2048")]
-    pub min_cache: u64,
 
     /// The number of CPU cores to use. Ignored for workers.
     #[structopt(long = "num-cores")]
@@ -104,10 +94,6 @@ pub struct Opt {
     #[structopt(long = "no-statement")]
     pub no_statement: bool,
 
-    /// Verbose mode (-v, -vv, -vvv, etc.). Note that it does not play well with curses ui.
-    #[structopt(short, long, parse(from_occurrences))]
-    pub verbose: u8,
-
     /// Run the evaluation on a remote server instead of locally
     #[structopt(long = "evaluate-on")]
     pub evaluate_on: Option<String>,
@@ -116,66 +102,47 @@ pub struct Opt {
     #[structopt(short = "-W", long_help = skip_sanity_checks_long_help())]
     pub skip_sanity_checks: Vec<String>,
 
-    /// The name to use for the workers or for the client in remote executions
-    ///
-    /// This option only has no effect with `--server`.
+    /// The name to use for the client in remote executions
     #[structopt(long)]
     pub name: Option<String>,
-
-    /// Options for spawning a client or a server.
-    #[structopt(subcommand)]
-    pub remote: Option<Remote>,
 
     /// Show task information
     #[structopt(long)]
     pub task_info: bool,
-
-    /// Wipe the internal storage of task-maker
-    ///
-    /// Warning: no other instances of task-maker should be running when this flag is provided.
-    #[structopt(long)]
-    pub dont_panic: bool,
 
     /// Run the sandbox instead of the normal task-maker.
     ///
     /// This option is left as undocumented as it's not part of the public API.
     #[structopt(long, hidden(true))]
     pub sandbox: bool,
-}
 
-/// Options for spawning a client or a server.
-#[derive(StructOpt, Debug)]
-pub enum Remote {
-    /// Spawn a server instead of the normal task-maker
-    #[structopt(name = "--server")]
-    Server(ServerOptions),
-    /// Spawn a worker instead of the normal task-maker
-    #[structopt(name = "--worker")]
-    Worker(WorkerOptions),
+    #[structopt(flatten)]
+    pub logger: LoggerOpt,
+
+    #[structopt(flatten)]
+    pub storage: StorageOpt,
 }
 
 #[derive(StructOpt, Debug, Clone)]
-pub struct ServerOptions {
-    /// Address to bind the server on for listening for the clients
-    #[structopt(default_value = "0.0.0.0:27182")]
-    pub client_addr: String,
-    /// Address to bind the server on for listening for the workers
-    #[structopt(default_value = "0.0.0.0:27183")]
-    pub worker_addr: String,
-    /// Password for the connection of the clients
-    #[structopt(long = "client-password")]
-    pub client_password: Option<String>,
-    /// Password for the connection of the workers
-    #[structopt(long = "worker-password")]
-    pub worker_password: Option<String>,
+pub struct LoggerOpt {
+    /// Verbose mode (-v, -vv, -vvv, etc.). Note that it does not play well with curses ui.
+    #[structopt(short, long, parse(from_occurrences))]
+    pub verbose: u8,
 }
 
 #[derive(StructOpt, Debug, Clone)]
-pub struct WorkerOptions {
-    /// Address to use to connect to a remote server
-    pub server_addr: String,
-    /// ID of the worker (to differentiate between multiple workers on the same machine).
-    pub worker_id: Option<u32>,
+pub struct StorageOpt {
+    /// Where to store the storage files, including the cache
+    #[structopt(long = "store-dir")]
+    pub store_dir: Option<PathBuf>,
+
+    /// Maximum size of the storage directory, in MiB
+    #[structopt(long = "max-cache", default_value = "3072")]
+    pub max_cache: u64,
+
+    /// When the storage is flushed, this is the new maximum size, in MiB.
+    #[structopt(long = "min-cache", default_value = "2048")]
+    pub min_cache: u64,
 }
 
 /// Returns the long-help for the "skip sanity checks" option.
@@ -214,6 +181,24 @@ impl Opt {
         }
     }
 
+    pub fn enable_log(&mut self) {
+        // configure the logger based on the verbosity level
+        let mut show_warning = false;
+        if self.logger.verbose > 0 {
+            if let task_maker_format::ui::UIType::Curses = self.ui {
+                // warning deferred to after the logger has been initialized
+                show_warning = true;
+                self.ui = task_maker_format::ui::UIType::Print;
+            }
+        }
+        self.logger.enable_log();
+        if show_warning {
+            warn!("Do not combine -v with curses ui, bad things will happen! Fallback to print ui");
+        }
+    }
+}
+
+impl StorageOpt {
     /// Get the store directory of this configuration. If nothing is specified a cache directory is
     /// used if available, otherwise a temporary directory.
     pub fn store_dir(&self) -> PathBuf {
@@ -229,18 +214,11 @@ impl Opt {
             }
         }
     }
+}
 
-    pub fn enable_log(&mut self) {
-        // configure the logger based on the verbosity level
-        let mut show_warning = false;
+impl LoggerOpt {
+    pub fn enable_log(&self) {
         if self.verbose > 0 {
-            if let task_maker_format::ui::UIType::Curses = self.ui {
-                if self.remote.is_none() {
-                    // warning deferred to after the logger has been initialized
-                    show_warning = true;
-                }
-                self.ui = task_maker_format::ui::UIType::Print;
-            }
             std::env::set_var("RUST_BACKTRACE", "1");
             match self.verbose {
                 0 => unreachable!(),
@@ -254,10 +232,5 @@ impl Opt {
             .default_format_timestamp_nanos(true)
             .init();
         better_panic::install();
-        if show_warning {
-            warn!(
-                "Do not combine -v with curses ui, bad things will happen! Fallbacking to print ui"
-            );
-        }
     }
 }

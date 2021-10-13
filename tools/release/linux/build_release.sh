@@ -19,7 +19,7 @@ fi
 cargo build --bin task-maker --release
 
 # build the autocompletion files
-cargo run --release --bin task-maker-gen-autocompletion
+cargo run --release --bin task-maker-tools gen-autocompletion
 
 # prepare the .deb file
 cargo deb --no-build
