@@ -5,6 +5,7 @@ use task_maker_rust::tools::clear::main_clear;
 use task_maker_rust::tools::gen_autocompletion::main_get_autocompletion;
 use task_maker_rust::tools::opt::{Opt, Tool};
 use task_maker_rust::tools::reset::main_reset;
+use task_maker_rust::tools::sandbox::main_sandbox;
 use task_maker_rust::tools::server::main_server;
 use task_maker_rust::tools::typescriptify::main_typescriptify;
 use task_maker_rust::tools::worker::main_worker;
@@ -19,6 +20,7 @@ fn main() {
         Tool::Worker(opt) => main_worker(opt),
         Tool::Typescriptify => main_typescriptify(),
         Tool::Reset(opt) => main_reset(opt),
+        Tool::Sandbox(opt) => main_sandbox(opt),
     }
     .nice_unwrap()
 }

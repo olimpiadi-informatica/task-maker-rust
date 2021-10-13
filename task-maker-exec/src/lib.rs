@@ -98,7 +98,7 @@ mod detect_exe;
 mod executor;
 pub mod executors;
 pub mod proto;
-mod sandbox;
+pub mod sandbox;
 mod sandbox_runner;
 mod scheduler;
 mod worker;

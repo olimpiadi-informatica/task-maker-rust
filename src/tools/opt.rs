@@ -32,6 +32,8 @@ pub enum Tool {
     ///
     /// Warning: no other instances of task-maker should be running when this flag is provided.
     Reset(ResetOpt),
+    /// Run a command inside a sandbox similar to the one used by task-maker
+    Sandbox(SandboxOpt),
 }
 
 #[derive(StructOpt, Debug)]
@@ -94,4 +96,44 @@ pub struct WorkerOpt {
 pub struct ResetOpt {
     #[structopt(flatten)]
     pub storage: StorageOpt,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct SandboxOpt {
+    /// Working directory of the sandbox.
+    ///
+    /// Will be mounted in /box inside the sandbox. Defaults to current working directory.
+    #[structopt(long, short)]
+    pub workdir: Option<PathBuf>,
+
+    /// Memory limit for the sandbox, in KiB.
+    #[structopt(long, short)]
+    pub memory_limit: Option<u64>,
+
+    /// Stack limit for the sandbox, in KiB.
+    #[structopt(long, short)]
+    pub stack_limit: Option<u64>,
+
+    /// Prevent forking.
+    #[structopt(long)]
+    pub single_process: bool,
+
+    /// List of additional directory mounted read-only inside the sandbox.
+    #[structopt(long, short)]
+    pub readable_dirs: Vec<PathBuf>,
+
+    /// Mount /tmp and /dev/null inside the sandbox
+    #[structopt(long)]
+    pub mount_tmpfs: bool,
+
+    /// User id.
+    #[structopt(long, default_value = "1000")]
+    pub uid: usize,
+
+    /// User id.
+    #[structopt(long, default_value = "1000")]
+    pub gid: usize,
+
+    /// Command to execute inside the sandbox. If not specified, bash is executed.
+    pub command: Vec<String>,
 }

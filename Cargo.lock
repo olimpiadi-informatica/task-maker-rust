@@ -2012,6 +2012,7 @@ dependencies = [
  "task-maker-format",
  "task-maker-lang",
  "task-maker-store",
+ "tempdir",
  "typescript-definitions",
  "url",
  "walkdir",

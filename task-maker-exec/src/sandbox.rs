@@ -1,3 +1,6 @@
+//! This mod contains the sandbox-related code. It interfaces with tabox creating the sandbox setup
+//! (directories and configuration) for an execution.
+
 use std::collections::HashMap;
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
@@ -22,7 +25,7 @@ use crate::detect_exe::detect_exe;
 use crate::sandbox_runner::SandboxRunner;
 
 /// The list of all the system-wide readable directories inside the sandbox.
-const READABLE_DIRS: &[&str] = &[
+pub const READABLE_DIRS: &[&str] = &[
     "/lib",
     "/lib64",
     "/usr",

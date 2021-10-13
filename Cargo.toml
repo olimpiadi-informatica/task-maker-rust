@@ -72,6 +72,8 @@ walkdir = "2.3"
 scopeguard = "1.0"
 # URL parsing for connecting to a remote server
 url = "2.1"
+# Temporary directory for sandboxes
+tempdir = "0.3"
 
 # Typescript definition generation
 typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs"}
