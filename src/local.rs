@@ -14,8 +14,8 @@ use task_maker_store::FileStore;
 
 use crate::error::NiceError;
 use crate::opt::Opt;
-use crate::print_dag;
 use crate::remote::connect_to_remote_server;
+use crate::render_dag;
 use crate::sandbox::SelfExecSandboxRunner;
 
 /// Version of task-maker
@@ -105,9 +105,11 @@ where
     }
 
     trace!("The DAG is: {:#?}", eval.dag);
-    if opt.print_dag {
-        print_dag(eval.dag);
-        return Ok(Evaluation::Done);
+    if opt.copy_dag {
+        let dot = render_dag(&eval.dag);
+        let bin = task.path().join("bin");
+        std::fs::create_dir_all(&bin).context("Failed to create bin/ directory")?;
+        std::fs::write(bin.join("DAG.dot"), &dot).context("Failed to write bin/DAG.dot")?;
     }
 
     let (tx, rx, server) = if let Some(evaluate_on) = opt.evaluate_on {

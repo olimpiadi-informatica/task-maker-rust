@@ -11,15 +11,15 @@ extern crate lazy_static;
 #[macro_use]
 extern crate scopeguard;
 
+pub use copy_dag::*;
 pub use local::*;
 pub use opt::*;
-pub use print_dag::*;
 pub use sandbox::*;
 
+pub mod copy_dag;
 pub mod error;
 pub mod local;
 pub mod opt;
-pub mod print_dag;
 pub mod remote;
 pub mod sandbox;
 pub mod tools;

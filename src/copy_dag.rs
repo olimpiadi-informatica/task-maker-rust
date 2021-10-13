@@ -15,8 +15,8 @@ enum Node {
 /// An edge of the printed graph, linking 2 nodes.
 type Edge = (Node, Node);
 
-/// Print to `stdout` the nodes of this `ExecutionDAG` in DOT format.
-pub fn print_dag(dag: ExecutionDAG) {
+/// Render to string the `ExecutionDAG` in DOT format.
+pub fn render_dag(dag: &ExecutionDAG) -> String {
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
     let mut files = HashMap::new();
@@ -59,7 +59,7 @@ pub fn print_dag(dag: ExecutionDAG) {
         nodes.push(Node::File(file));
     }
     nodes.sort_by_cached_key(|n| node_label(n));
-    render_graph(nodes, edges);
+    render_graph(nodes, edges)
 }
 
 /// Obtain the identifier of the node for the DOT file.
@@ -84,18 +84,19 @@ fn node_label(n: &Node) -> String {
     }
 }
 
-/// Print to `stdout` the nodes and the edges in the DOT format, including the header and footer of
+/// Render to string the nodes and the edges in the DOT format, including the header and footer of
 /// the format.
-fn render_graph(nodes: Vec<Node>, edges: Vec<Edge>) {
-    println!("digraph taskmaker {{");
-    println!("    rankdir=\"LR\";");
+fn render_graph(nodes: Vec<Node>, edges: Vec<Edge>) -> String {
+    let mut res = "".to_string();
+    res += "digraph taskmaker {\n";
+    res += "    rankdir=\"LR\";\n";
     for node in nodes {
         let style = match &node {
             Node::Execution(_) => "style=rounded shape=record",
             Node::File(_) => "style=dashed shape=box",
         };
-        println!(
-            "    {}[label=\"{}\"][{}];",
+        res += &format!(
+            "    {}[label=\"{}\"][{}];\n",
             node_id(&node),
             node_label(&node)
                 .replace('"', "\\\"")
@@ -104,10 +105,12 @@ fn render_graph(nodes: Vec<Node>, edges: Vec<Edge>) {
                 .replace('<', "\\<")
                 .replace('>', "\\>"),
             style
-        )
+        );
     }
     for (a, b) in edges {
-        println!("    {} -> {};", node_id(&a), node_id(&b));
+        res += &format!("    {} -> {};\n", node_id(&a), node_id(&b));
     }
-    println!("}}");
+    res += "}\n";
+
+    res
 }

@@ -31,10 +31,6 @@ pub struct Opt {
     #[structopt(long = "dry-run")]
     pub dry_run: bool,
 
-    /// Print the evaluation DAG in DOT format
-    #[structopt(long = "print-dag")]
-    pub print_dag: bool,
-
     /// Disable the cache for this comma separated list of tags
     #[structopt(long = "no-cache", long_help = no_cache_long_help())]
     #[allow(clippy::option_option)]
@@ -55,6 +51,10 @@ pub struct Opt {
     /// Copy the logs of some executions to the bin/logs/ folder
     #[structopt(long = "copy-logs")]
     pub copy_logs: bool,
+
+    /// Store the DAG in DOT format inside of bin/DAG.dot
+    #[structopt(long = "copy-dag")]
+    pub copy_dag: bool,
 
     /// Execute only the solutions whose names start with the filter
     ///
