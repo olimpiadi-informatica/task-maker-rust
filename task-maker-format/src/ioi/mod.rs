@@ -163,7 +163,7 @@ impl TaskFormat for IOITask {
     fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),
-            UIType::Print => Ok(Box::new(PrintUI::new())),
+            UIType::Print => Ok(Box::new(PrintUI::<UIState>::new())),
             UIType::Curses => Ok(Box::new(
                 CursesUI::new(UIState::new(self)).context("Cannot build curses UI")?,
             )),

@@ -293,6 +293,13 @@ impl UIState {
 }
 
 impl UIStateT for UIState {
+    fn from(message: &UIMessage) -> Self {
+        match message {
+            UIMessage::IOITask { task } => Self::new(task.as_ref()),
+            _ => unreachable!("Expecting IOITask, got {:?}", message),
+        }
+    }
+
     /// Apply a `UIMessage` to this state.
     fn apply(&mut self, message: UIMessage) {
         match message {
@@ -580,5 +587,9 @@ impl UIStateT for UIState {
             | UIMessage::TerryChecker { .. }
             | UIMessage::TerrySolutionOutcome { .. } => unreachable!("Terry message on IOI UI"),
         }
+    }
+
+    fn finish(&mut self) {
+        finish_ui::FinishUI::print(self);
     }
 }

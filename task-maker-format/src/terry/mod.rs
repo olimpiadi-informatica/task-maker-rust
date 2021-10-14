@@ -157,7 +157,7 @@ impl TaskFormat for TerryTask {
             UIType::Raw => Ok(Box::new(RawUI::new())),
             UIType::Json => Ok(Box::new(JsonUI::new())),
             UIType::Silent => Ok(Box::new(SilentUI::new())),
-            UIType::Print => Ok(Box::new(PrintUI::new())),
+            UIType::Print => Ok(Box::new(PrintUI::<UIState>::new())),
             UIType::Curses => Ok(Box::new(CursesUI::new(UIState::new(self))?)),
         }
     }

@@ -162,8 +162,14 @@ impl CompilationStatus {
 ///
 /// The `T` at the end is to disambiguate from `UIState` due to a strange behaviour of the compiler.
 pub trait UIStateT {
+    /// Construct an instance of this `UIStateT` form a message with the task information.
+    fn from(message: &UIMessage) -> Self;
+
     /// Apply a `UIMessage` to this state.
     fn apply(&mut self, message: UIMessage);
+
+    /// Print the final results using a finish UI.
+    fn finish(&mut self);
 }
 
 /// UI that prints to `stdout` the ending result of the evaluation of a task.

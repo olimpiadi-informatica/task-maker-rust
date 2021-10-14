@@ -3,9 +3,9 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 
 use task_maker_dag::ExecutionStatus;
 
+use crate::cwrite;
 use crate::terry::CaseStatus;
 use crate::ui::*;
-use crate::{cwrite, ioi, terry};
 
 lazy_static! {
     static ref ERROR: ColorSpec = {
@@ -41,19 +41,17 @@ lazy_static! {
 
 /// A simple UI that will print to stdout the human readable messages. Useful
 /// for debugging or for when curses is not available.
-pub struct PrintUI {
+pub struct PrintUI<State: UIStateT> {
     stream: StandardStream,
-    ioi_state: Option<ioi::ui_state::UIState>,
-    terry_state: Option<terry::ui_state::UIState>,
+    state: Option<State>,
 }
 
-impl PrintUI {
+impl<State: UIStateT> PrintUI<State> {
     /// Make a new PrintUI.
-    pub fn new() -> PrintUI {
+    pub fn new() -> Self {
         PrintUI {
             stream: StandardStream::stdout(ColorChoice::Auto),
-            ioi_state: None,
-            terry_state: None,
+            state: None,
         }
     }
 
@@ -99,13 +97,10 @@ impl PrintUI {
     }
 }
 
-impl UI for PrintUI {
+impl<State: UIStateT + Send> UI for PrintUI<State> {
     #[allow(clippy::cognitive_complexity)]
     fn on_message(&mut self, message: UIMessage) {
-        if let Some(state) = self.ioi_state.as_mut() {
-            state.apply(message.clone())
-        }
-        if let Some(state) = self.terry_state.as_mut() {
+        if let Some(state) = self.state.as_mut() {
             state.apply(message.clone())
         }
         match message {
@@ -141,7 +136,7 @@ impl UI for PrintUI {
                 }
             }
             UIMessage::IOITask { task } => {
-                self.ioi_state = Some(ioi::ui_state::UIState::new(task.as_ref()));
+                self.state = Some(State::from(&UIMessage::IOITask { task: task.clone() }));
 
                 cwrite!(self, BOLD, "Task {} ({})\n", task.title, task.name);
                 println!("Path: {:?}", task.path);
@@ -296,7 +291,7 @@ impl UI for PrintUI {
                 print!("{}", message);
             }
             UIMessage::TerryTask { task } => {
-                self.terry_state = Some(terry::ui_state::UIState::new(task.as_ref()));
+                self.state = Some(State::from(&UIMessage::TerryTask { task }));
             }
             UIMessage::TerryGeneration {
                 solution,
@@ -377,16 +372,13 @@ impl UI for PrintUI {
     fn finish(&mut self) {
         println!();
         println!();
-        if let Some(state) = self.ioi_state.as_ref() {
-            ioi::finish_ui::FinishUI::print(state);
-        }
-        if let Some(state) = self.terry_state.as_ref() {
-            terry::finish_ui::FinishUI::print(state);
+        if let Some(state) = self.state.as_mut() {
+            state.finish();
         }
     }
 }
 
-impl Default for PrintUI {
+impl<State: UIStateT> Default for PrintUI<State> {
     fn default() -> Self {
         Self::new()
     }

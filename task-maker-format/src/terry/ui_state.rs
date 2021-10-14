@@ -5,8 +5,9 @@ use std::time::SystemTime;
 use task_maker_dag::{ExecutionResult, ExecutionStatus};
 use task_maker_exec::ExecutorStatus;
 
+use crate::terry::finish_ui;
 use crate::terry::{Seed, SolutionOutcome, TerryTask};
-use crate::ui::{CompilationStatus, UIExecutionStatus, UIMessage, UIStateT};
+use crate::ui::{CompilationStatus, FinishUI, UIExecutionStatus, UIMessage, UIStateT};
 
 /// The state of a Terry task, all the information for the UI are stored here.
 #[derive(Debug, Clone)]
@@ -89,6 +90,13 @@ impl UIState {
 }
 
 impl UIStateT for UIState {
+    fn from(message: &UIMessage) -> Self {
+        match message {
+            UIMessage::TerryTask { task } => Self::new(task.as_ref()),
+            _ => unreachable!("Expecting TerryTask, got {:?}", message),
+        }
+    }
+
     /// Apply a `UIMessage` to this state.
     fn apply(&mut self, message: UIMessage) {
         macro_rules! process_step {
@@ -193,5 +201,9 @@ impl UIStateT for UIState {
             | UIMessage::IOIBooklet { .. }
             | UIMessage::IOIBookletDependency { .. } => unreachable!("IOI message on Terry UI"),
         }
+    }
+
+    fn finish(&mut self) {
+        finish_ui::FinishUI::print(self)
     }
 }
