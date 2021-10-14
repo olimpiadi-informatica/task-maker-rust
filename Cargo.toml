@@ -59,7 +59,7 @@ anyhow = { version = "1.0", features = ["backtrace"] }
 serde = "1.0"
 serde_json = "1.0"
 # Sandbox implementation for --sandbox
-tabox = "0.1"
+tabox = "1"
 # Signal handler for ^C
 ctrlc = "3.1"
 # Global constants

@@ -31,7 +31,7 @@ scopeguard = "1.0"
 # Threadsafe hashmap
 chashmap = "2.2"
 # Sandbox
-tabox = "0.1"
+tabox = "1"
 # For killing processes and making FIFOs
 nix = "0.17"
 # In-memory and remote channels

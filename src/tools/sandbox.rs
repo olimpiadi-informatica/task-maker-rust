@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use anyhow::{anyhow, Context, Error};
+use anyhow::{Context, Error};
 use tabox::configuration::SandboxConfiguration;
 use tabox::syscall_filter::SyscallFilter;
 use tabox::{Sandbox, SandboxImplementation};
@@ -87,13 +87,8 @@ pub fn main_sandbox(opt: SandboxOpt) -> Result<(), Error> {
 
     debug!("Config: {:#?}", config);
 
-    let sandbox = SandboxImplementation::run(config)
-        .map_err(|e| anyhow!("{}", e))
-        .context("Failed to create sandbox")?;
-    let res = sandbox
-        .wait()
-        .map_err(|e| anyhow!("{}", e))
-        .context("Failed to wait sandbox")?;
+    let sandbox = SandboxImplementation::run(config).context("Failed to create sandbox")?;
+    let res = sandbox.wait().context("Failed to wait sandbox")?;
 
     debug!("Result: {:#?}", res);
 

@@ -27,4 +27,4 @@ task-maker-exec = { path = "../task-maker-exec" }
 tempdir = "0.3"
 # assert_that! macro
 spectral = "0.6"
-tabox = "0.1"
+tabox = "1"

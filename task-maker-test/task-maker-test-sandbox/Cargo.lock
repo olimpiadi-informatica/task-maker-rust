@@ -1111,13 +1111,13 @@ dependencies = [
 
 [[package]]
 name = "tabox"
-version = "0.1.16"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c54d107f0f72dee7c40d9c70f80b32aaf35780ef9cacd266dff90d44f3c0b7ed"
+checksum = "4ab8ab3e28d7ea6be57e487bf3cdb4e7c2e103eba1f01e571723ec2c86515e80"
 dependencies = [
+ "anyhow",
  "core_affinity",
  "errno",
- "failure",
  "lazy_static",
  "libc",
  "log",
