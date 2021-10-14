@@ -316,6 +316,11 @@ impl Sandbox {
         } else {
             config.stderr("/dev/null");
         }
+        for key in execution.copy_env.iter() {
+            if let Ok(value) = std::env::var(key) {
+                config.env(key, value);
+            }
+        }
         for (key, value) in execution.env.iter() {
             config.env(key, value);
         }

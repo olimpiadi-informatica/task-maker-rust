@@ -146,6 +146,8 @@ pub struct Execution {
 
     /// Environment variables to set.
     pub env: HashMap<String, String>,
+    /// Environment variables to copy from the sandbox host.
+    pub copy_env: Vec<String>,
 
     /// Limits on the execution.
     pub limits: ExecutionLimits,
@@ -410,6 +412,7 @@ impl Execution {
             outputs: HashMap::new(),
 
             env: HashMap::new(),
+            copy_env: Vec::new(),
 
             limits: ExecutionLimits::default(),
 
@@ -623,6 +626,20 @@ impl Execution {
     /// ```
     pub fn env<S1: Into<String>, S2: Into<String>>(&mut self, key: S1, value: S2) -> &mut Self {
         self.env.insert(key.into(), value.into());
+        self
+    }
+
+    /// Add an environment variable to the execution copying the value from the sandbox host.
+    ///
+    /// ```
+    /// use task_maker_dag::{Execution, ExecutionCommand};
+    ///
+    /// let mut exec = Execution::new("random exec", ExecutionCommand::local("foo"));
+    /// exec.copy_env("PATH");
+    /// assert_eq!(&exec.copy_env[0], "PATH");
+    /// ```
+    pub fn copy_env<S: Into<String>>(&mut self, key: S) -> &mut Self {
+        self.copy_env.push(key.into());
         self
     }
 

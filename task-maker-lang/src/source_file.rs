@@ -179,6 +179,9 @@ impl SourceFile {
             }
         }
         self.language.custom_limits(exec.limits_mut());
+        // some languages (e.g. Python) may behave strangely with LC_ALL=C
+        exec.copy_env("LANG");
+        exec.copy_env("LC_ALL");
         Ok((comp, exec))
     }
 

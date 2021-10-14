@@ -22,6 +22,8 @@ pub fn main_sandbox(opt: SandboxOpt) -> Result<(), Error> {
         .unwrap_or_else(|| "/".into());
     config.mount(&workdir, "/box", true);
     config.env("PATH", std::env::var("PATH").unwrap_or_default());
+    config.env("LANG", std::env::var("LANG").unwrap_or_default());
+    config.env("LC_ALL", std::env::var("LC_ALL").unwrap_or_default());
 
     config.mount(etcdir, "/etc", true);
     std::fs::write(
