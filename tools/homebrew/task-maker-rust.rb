@@ -5,6 +5,7 @@ class TaskMakerRust < Formula
   depends_on "rust" => :build
 
   url "https://github.com/edomora97/task-maker-rust/archive/ARCHIVE_VERSION.tar.gz"
+  version "ARCHIVE_VERSION"
   sha256 "ARCHIVE_SHA256"
 
   def install

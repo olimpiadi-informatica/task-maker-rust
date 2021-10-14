@@ -19,16 +19,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           args: "target/debian/*.deb"
-      - name: Publish docker container
-        run: |
-          echo ${DOCKER_PASSWORD} | docker login --username edomora97 --password-stdin
-          export TM_VERSION=$(grep version Cargo.toml | cut -d'"' -f 2)
-          cd tools/docker
-          docker build --build-arg TM_VERSION=$TM_VERSION -t edomora97/task-maker-rust:latest -t edomora97/task-maker-rust:$TM_VERSION .
-          docker push edomora97/task-maker-rust:$TM_VERSION
-          docker push edomora97/task-maker-rust:latest
-        env:
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      ## For now do not build the docker container for the server/worker: it requires some fixes because the workers
+      ## now spawn a single instance instead of as many as cores. Moreover, the server and worker commands changed.
+      # - name: Publish docker container
+      #   run: |
+      #     echo ${DOCKER_PASSWORD} | docker login --username edomora97 --password-stdin
+      #     export TM_VERSION=$(grep version Cargo.toml | head -n 1 | cut -d'"' -f 2)
+      #     cd tools/docker
+      #     docker build --build-arg TM_VERSION=$TM_VERSION -t edomora97/task-maker-rust:latest -t edomora97/task-maker-rust:$TM_VERSION .
+      #     docker push edomora97/task-maker-rust:$TM_VERSION
+      #     docker push edomora97/task-maker-rust:latest
+      #   env:
+      #     DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
   macOS:
     name: Build & Publish (macOS)
@@ -39,7 +41,7 @@ jobs:
         run: |
           set -ex
 
-          export version=$(grep version Cargo.toml | cut -d'"' -f 2)
+          export version=$(grep version Cargo.toml | head -n 1 | cut -d'"' -f 2)
           sed -i "" "s/ARCHIVE_VERSION/v$version/g" ./tools/homebrew/task-maker-rust.rb
           curl -L -o archive.tar.gz "https://github.com/edomora97/task-maker-rust/archive/v$version.tar.gz"
           export hash=$(shasum -a 256 archive.tar.gz | grep -o "[0-9a-f]*" | head -n 1)
@@ -53,7 +55,7 @@ jobs:
       - name: Upload the artifacts
         run: |
           export filename=$(ls *.bottle.tar.gz)
-          export tag=v$(grep version Cargo.toml | cut -d'"' -f 2)
+          export tag=v$(grep version Cargo.toml | head -n 1 | cut -d'"' -f 2)
           export GH_API="https://api.github.com"
           export GH_REPO="$GH_API/repos/edomora97/task-maker-rust"
           export GH_TAGS="$GH_REPO/releases/tags/$tag"

@@ -32,9 +32,13 @@ jobs:
         run: |
           set -ex
 
-          export version=$(grep version Cargo.toml | cut -d'"' -f 2)
-          sed -i "" "s/ARCHIVE_VERSION/v$version/g" ./tools/homebrew/task-maker-rust.rb
-          curl -L -o archive.tar.gz "https://github.com/edomora97/task-maker-rust/archive/v$version.tar.gz"
+          # the release may not have been published yet, use last commit instead
+          export version=$(git rev-parse HEAD)
+          sed -i "" "s/ARCHIVE_VERSION/$version/g" ./tools/homebrew/task-maker-rust.rb
+          curl -L -o archive.tar.gz "https://github.com/edomora97/task-maker-rust/archive/$version.tar.gz"
+          # export version=$(cargo pkgid task-maker-rust | cut -d'#' -f 2)
+          # sed -i "" "s/ARCHIVE_VERSION/v$version/g" ./tools/homebrew/task-maker-rust.rb
+          # curl -L -o archive.tar.gz "https://github.com/edomora97/task-maker-rust/archive/v$version.tar.gz"
           export hash=$(shasum -a 256 archive.tar.gz | grep -o "[0-9a-f]*" | head -n 1)
           sed -i "" "s/ARCHIVE_SHA256/$hash/g" ./tools/homebrew/task-maker-rust.rb
 
