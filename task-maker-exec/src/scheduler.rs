@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use task_maker_cache::{Cache, CacheResult};
 use task_maker_dag::{
-    CacheMode, ExecutionDAGData, ExecutionGroup, ExecutionGroupUuid, ExecutionResult,
-    ExecutionUuid, FileUuid, Priority, WorkerUuid,
+    CacheMode, DagPriority, ExecutionDAGData, ExecutionGroup, ExecutionGroupUuid, ExecutionResult,
+    ExecutionUuid, FileUuid, Priority, WorkerUuid, HIGH_PRIORITY,
 };
 use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey};
 
@@ -214,7 +214,7 @@ pub(crate) struct Scheduler {
     worker_manager: Sender<WorkerManagerInMessage>,
 
     /// The priority queue of the ready tasks, waiting for the workers.
-    ready_execs: BinaryHeap<(Priority, ExecutionGroupUuid, ClientUuid)>,
+    ready_execs: BinaryHeap<(DagPriority, Priority, ExecutionGroupUuid, ClientUuid)>,
     /// The data about the clients currently working.
     clients: HashMap<ClientUuid, SchedulerClientData>,
 
@@ -316,6 +316,7 @@ impl Scheduler {
         info!("Client '{}' asked to evaluate a new DAG", client.name);
         // build the scheduler structures, insert the client in the list of working
         // clients and schedule all the already cached executions.
+        let dag_priority = dag.config.priority;
         let mut client_data = SchedulerClientData::new(client.name, dag, callbacks);
         for group in client_data.dag.execution_groups.values() {
             let missing_dep = client_data.missing_deps.entry(group.uuid).or_default();
@@ -332,7 +333,7 @@ impl Scheduler {
                 client_data.ready_groups.insert(group.uuid);
                 for exec in &group.executions {
                     self.ready_execs
-                        .push((exec.priority, group.uuid, client.uuid));
+                        .push((dag_priority, exec.priority, group.uuid, client.uuid));
                 }
             }
         }
@@ -440,7 +441,8 @@ impl Scheduler {
                     return Ok(());
                 };
                 let priority = client.dag.execution_groups[&job].priority();
-                self.ready_execs.push((priority, job, client_uuid));
+                self.ready_execs
+                    .push((HIGH_PRIORITY, priority, job, client_uuid));
                 client.ready_groups.insert(job);
                 client.running_groups.remove(&job);
             }
@@ -458,9 +460,9 @@ impl Scheduler {
         }
         self.clients.remove(&client);
         let mut remaining = BinaryHeap::new();
-        while let Some((priority, exec, client)) = self.ready_execs.pop() {
+        while let Some((dag_priority, priority, exec, client)) = self.ready_execs.pop() {
             if self.clients.contains_key(&client) {
-                remaining.push((priority, exec, client));
+                remaining.push((dag_priority, priority, exec, client));
             }
         }
         self.ready_execs = remaining;
@@ -618,8 +620,12 @@ impl Scheduler {
                 files.remove(&file);
                 if files.is_empty() {
                     client.missing_deps.remove(group_uuid);
-                    self.ready_execs
-                        .push((group.priority(), *group_uuid, client_uuid));
+                    self.ready_execs.push((
+                        HIGH_PRIORITY,
+                        group.priority(),
+                        *group_uuid,
+                        client_uuid,
+                    ));
                     client.ready_groups.insert(*group_uuid);
                 }
             }
@@ -749,7 +755,7 @@ impl Scheduler {
         let mut not_cached = BinaryHeap::new();
         let mut cached = Vec::new();
 
-        for (priority, group_uuid, client_uuid) in self.ready_execs.iter() {
+        for (dag_priority, priority, group_uuid, client_uuid) in self.ready_execs.iter() {
             let client = if let Some(client) = self.clients.get_mut(client_uuid) {
                 client
             } else {
@@ -760,12 +766,12 @@ impl Scheduler {
             let cache_mode = &dag.config.cache_mode;
             // disable the cache for the execution
             if let CacheMode::Nothing = cache_mode {
-                not_cached.push((*priority, *group_uuid, *client_uuid));
+                not_cached.push((*dag_priority, *priority, *group_uuid, *client_uuid));
                 continue;
             }
             let group = dag.execution_groups[group_uuid].clone();
             if !Scheduler::is_cacheable(&group, cache_mode) {
-                not_cached.push((*priority, group.uuid, *client_uuid));
+                not_cached.push((*dag_priority, *priority, group.uuid, *client_uuid));
                 continue;
             }
             let result = self
@@ -778,7 +784,7 @@ impl Scheduler {
                     cached.push((*client_uuid, group, result, outputs));
                 }
                 CacheResult::Miss => {
-                    not_cached.push((*priority, group.uuid, *client_uuid));
+                    not_cached.push((*dag_priority, *priority, group.uuid, *client_uuid));
                 }
             }
         }
@@ -807,7 +813,7 @@ impl Scheduler {
             if worker.current_job.is_some() {
                 continue;
             }
-            let (_, group_uuid, client_uuid) = match self.ready_execs.pop() {
+            let (_, _, group_uuid, client_uuid) = match self.ready_execs.pop() {
                 Some(exec) => exec,
                 None => break,
             };

@@ -72,7 +72,8 @@ where
         .dry_run(opt.dry_run)
         .cache_mode(CacheMode::try_from(&opt.no_cache, &VALID_TAGS).context("Invalid cache mode")?)
         .copy_exe(opt.copy_exe)
-        .copy_logs(opt.copy_logs);
+        .copy_logs(opt.copy_logs)
+        .priority(opt.priority);
     if let Some(extra_time) = opt.extra_time {
         if extra_time < 0.0 {
             bail!("The extra time ({}) cannot be negative!", extra_time);

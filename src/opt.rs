@@ -4,6 +4,7 @@ use anyhow::{Context, Error};
 use itertools::Itertools;
 use structopt::StructOpt;
 
+use task_maker_dag::DagPriority;
 use task_maker_format::terry::Seed;
 use task_maker_format::{find_task, get_sanity_check_names, TaskFormat};
 use task_maker_format::{EvaluationConfig, VALID_TAGS};
@@ -113,6 +114,11 @@ pub struct Opt {
 
     #[structopt(flatten)]
     pub storage: StorageOpt,
+
+    /// Priority of the evaluations spawned by this invocation of task-maker; no effect if running
+    /// locally.
+    #[structopt(long, default_value = "0")]
+    pub priority: DagPriority,
 }
 
 #[derive(StructOpt, Debug, Clone)]
