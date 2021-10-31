@@ -16,6 +16,7 @@ pub use local::*;
 pub use opt::*;
 pub use sandbox::*;
 
+pub mod context;
 pub mod copy_dag;
 pub mod error;
 pub mod local;

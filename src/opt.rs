@@ -18,44 +18,15 @@ pub struct Opt {
     #[structopt(flatten)]
     pub find_task: FindTaskOpt,
 
-    /// Which UI to use, available UIS are: print, raw, curses, json.
+    /// Which UI to use, available UIs are: print, raw, curses, json.
     ///
     /// Note that the JSON api is not stable yet.
     #[structopt(long = "ui", default_value = "curses")]
     pub ui: task_maker_format::ui::UIType,
 
-    /// Keep all the sandbox directories
-    #[structopt(long = "keep-sandboxes")]
-    pub keep_sandboxes: bool,
-
-    /// Do not write any file inside the task directory
-    #[structopt(long = "dry-run")]
-    pub dry_run: bool,
-
-    /// Disable the cache for this comma separated list of tags
-    #[structopt(long = "no-cache", long_help = no_cache_long_help())]
-    #[allow(clippy::option_option)]
-    pub no_cache: Option<Option<String>>,
-
     /// Do not run in parallel time critical executions on the same machine
     #[structopt(long = "exclusive")]
     pub exclusive: bool,
-
-    /// Give to the solution some extra time before being killed
-    #[structopt(long = "extra-time")]
-    pub extra_time: Option<f64>,
-
-    /// Copy the executables to the bin/ folder
-    #[structopt(long = "copy-exe")]
-    pub copy_exe: bool,
-
-    /// Copy the logs of some executions to the bin/logs/ folder
-    #[structopt(long = "copy-logs")]
-    pub copy_logs: bool,
-
-    /// Store the DAG in DOT format inside of bin/DAG.dot
-    #[structopt(long = "copy-dag")]
-    pub copy_dag: bool,
 
     /// Execute only the solutions whose names start with the filter
     ///
@@ -79,10 +50,6 @@ pub struct Opt {
     #[structopt(long = "clean")]
     pub clean: bool,
 
-    /// The number of CPU cores to use. Ignored for workers.
-    #[structopt(long = "num-cores")]
-    pub num_cores: Option<usize>,
-
     /// Include the solutions in the booklet
     #[structopt(long = "booklet-solutions")]
     pub booklet_solutions: bool,
@@ -91,17 +58,9 @@ pub struct Opt {
     #[structopt(long = "no-statement")]
     pub no_statement: bool,
 
-    /// Run the evaluation on a remote server instead of locally
-    #[structopt(long = "evaluate-on")]
-    pub evaluate_on: Option<String>,
-
     /// List of sanity checks to skip.
     #[structopt(short = "-W", long_help = skip_sanity_checks_long_help())]
     pub skip_sanity_checks: Vec<String>,
-
-    /// The name to use for the client in remote executions
-    #[structopt(long)]
-    pub name: Option<String>,
 
     /// Run the sandbox instead of the normal task-maker.
     ///
@@ -115,10 +74,8 @@ pub struct Opt {
     #[structopt(flatten)]
     pub storage: StorageOpt,
 
-    /// Priority of the evaluations spawned by this invocation of task-maker; no effect if running
-    /// locally.
-    #[structopt(long, default_value = "0")]
-    pub priority: DagPriority,
+    #[structopt(flatten)]
+    pub execution: ExecutionOpt,
 }
 
 #[derive(StructOpt, Debug, Clone)]
@@ -137,6 +94,55 @@ pub struct FindTaskOpt {
     /// Look at most for this number of parents for searching the task
     #[structopt(long = "max-depth", default_value = "3")]
     pub max_depth: u32,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct ExecutionOpt {
+    /// Keep all the sandbox directories
+    #[structopt(long = "keep-sandboxes")]
+    pub keep_sandboxes: bool,
+
+    /// Do not write any file inside the task directory
+    #[structopt(long = "dry-run")]
+    pub dry_run: bool,
+
+    /// Disable the cache for this comma separated list of tags
+    #[structopt(long = "no-cache", long_help = no_cache_long_help())]
+    #[allow(clippy::option_option)]
+    pub no_cache: Option<Option<String>>,
+
+    /// Give to the solution some extra time before being killed
+    #[structopt(long = "extra-time")]
+    pub extra_time: Option<f64>,
+
+    /// Copy the executables to the bin/ folder
+    #[structopt(long = "copy-exe")]
+    pub copy_exe: bool,
+
+    /// Copy the logs of some executions to the bin/logs/ folder
+    #[structopt(long = "copy-logs")]
+    pub copy_logs: bool,
+
+    /// Store the DAG in DOT format inside of bin/DAG.dot
+    #[structopt(long = "copy-dag")]
+    pub copy_dag: bool,
+
+    /// The number of CPU cores to use.
+    #[structopt(long = "num-cores")]
+    pub num_cores: Option<usize>,
+
+    /// Run the evaluation on a remote server instead of locally
+    #[structopt(long = "evaluate-on")]
+    pub evaluate_on: Option<String>,
+
+    /// The name to use for the client in remote executions
+    #[structopt(long)]
+    pub name: Option<String>,
+
+    /// Priority of the evaluations spawned by this invocation of task-maker; no effect if running
+    /// locally.
+    #[structopt(long, default_value = "0")]
+    pub priority: DagPriority,
 }
 
 #[derive(StructOpt, Debug, Clone)]
@@ -186,7 +192,7 @@ impl Opt {
             solution_paths: self.solution.clone(),
             disabled_sanity_checks: self.skip_sanity_checks.clone(),
             seed: self.seed,
-            dry_run: self.dry_run,
+            dry_run: self.execution.dry_run,
         }
     }
 

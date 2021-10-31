@@ -1,25 +1,11 @@
-use std::sync::{Arc, Mutex};
+use anyhow::{bail, Context, Error};
 
-use anyhow::{anyhow, bail, Context, Error};
-
-use task_maker_cache::Cache;
-use task_maker_dag::CacheMode;
-use task_maker_exec::ductile::new_local_channel;
-use task_maker_exec::executors::{LocalExecutor, RemoteEntityMessage, RemoteEntityMessageResponse};
-use task_maker_exec::proto::ExecutorClientMessage;
-use task_maker_exec::ExecutorClient;
 use task_maker_format::ui::{UIMessage, UI};
-use task_maker_format::{EvaluationData, TaskFormat, UISender, VALID_TAGS};
-use task_maker_store::FileStore;
+use task_maker_format::TaskFormat;
 
+use crate::context::RuntimeContext;
 use crate::error::NiceError;
 use crate::opt::Opt;
-use crate::remote::connect_to_remote_server;
-use crate::render_dag;
-use crate::sandbox::SelfExecSandboxRunner;
-
-/// Version of task-maker
-const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The result of an evaluation.
 pub enum Evaluation {
@@ -45,9 +31,9 @@ pub enum Evaluation {
 /// # let opt = task_maker_rust::opt::Opt::from_args();
 /// run_evaluation(opt, move |ui, mex| ui.on_message(mex));
 /// ```
-pub fn run_evaluation<F>(opt: Opt, mut on_message: F) -> Result<Evaluation, Error>
+pub fn run_evaluation<F>(opt: Opt, on_message: F) -> Result<Evaluation, Error>
 where
-    F: 'static + FnMut(&mut dyn UI, UIMessage) + Send,
+    F: FnMut(&mut dyn UI, UIMessage) + Send + 'static,
 {
     if opt.exclusive {
         bail!("This option is not implemented yet");
@@ -65,158 +51,17 @@ where
     }
 
     // setup the configuration and the evaluation metadata
-    let (mut eval, ui_receiver) = EvaluationData::new(task.path());
-    let config = eval.dag.config_mut();
-    config
-        .keep_sandboxes(opt.keep_sandboxes)
-        .dry_run(opt.dry_run)
-        .cache_mode(CacheMode::try_from(&opt.no_cache, &VALID_TAGS).context("Invalid cache mode")?)
-        .copy_exe(opt.copy_exe)
-        .copy_logs(opt.copy_logs)
-        .priority(opt.priority);
-    if let Some(extra_time) = opt.extra_time {
-        if extra_time < 0.0 {
-            bail!("The extra time ({}) cannot be negative!", extra_time);
-        }
-        config.extra_time(extra_time);
-    }
-
-    // setup the file store
-    let store_path = opt.storage.store_dir();
-    let file_store = Arc::new(
-        FileStore::new(
-            store_path.join("store"),
-            opt.storage.max_cache * 1024 * 1024,
-            opt.storage.min_cache * 1024 * 1024,
-        )
-        .context(
-            "Cannot create the file store (You can try wiping it with task-maker-tools reset)",
-        )?,
-    );
-
-    // setup the executor
-    let cache = Cache::new(store_path.join("cache")).context("Cannot create the cache")?;
-    let num_cores = opt.num_cores.unwrap_or_else(num_cpus::get);
-    let sandbox_path = store_path.join("sandboxes");
-    let executor = LocalExecutor::new(file_store.clone(), num_cores, sandbox_path);
-
-    // build the DAG for the task
-    task.build_dag(&mut eval, &eval_config)
-        .context("Cannot build the task DAG")?;
-
-    trace!("The DAG is: {:#?}", eval.dag);
-    if opt.copy_dag {
-        let dot = render_dag(&eval.dag);
-        let bin = task.path().join("bin");
-        std::fs::create_dir_all(&bin).context("Failed to create bin/ directory")?;
-        std::fs::write(bin.join("DAG.dot"), &dot).context("Failed to write bin/DAG.dot")?;
-    }
-
-    let (tx, rx, server) = if let Some(evaluate_on) = opt.evaluate_on {
-        let (tx, rx) = connect_to_remote_server(&evaluate_on, 27182)
-            .context("Cannot connect to the remote server")?;
-        let name = opt
-            .name
-            .unwrap_or_else(|| format!("{}@{}", whoami::username(), whoami::hostname()));
-        tx.send(RemoteEntityMessage::Welcome {
-            name,
-            version: VERSION.into(),
-        })
-        .context("Cannot send welcome to the server")?;
-        if let RemoteEntityMessageResponse::Rejected(err) =
-            rx.recv().context("Failed to receive welcome response")?
-        {
-            bail!("The server rejected the client connection: {}", err);
-        }
-        (tx.change_type(), rx.change_type(), None)
-    } else {
-        // start the server and the client
-        let (tx, rx_remote) = new_local_channel();
-        let (tx_remote, rx) = new_local_channel();
-        let server = std::thread::Builder::new()
-            .name("Executor thread".into())
-            .spawn(move || {
-                executor.evaluate(
-                    tx_remote,
-                    rx_remote,
-                    cache,
-                    SelfExecSandboxRunner::default(),
-                )
-            })
-            .context("Failed to spawn the executor thread")?;
-        (tx, rx, Some(server))
-    };
-
-    // setup the ui thread
-    let mut ui = task
-        .ui(&opt.ui)
-        .context("This UI is not supported on this task type")?;
-    let ui_thread = std::thread::Builder::new()
-        .name("UI".to_owned())
-        .spawn(move || {
-            while let Ok(message) = ui_receiver.recv() {
-                if let UIMessage::StopUI = message {
-                    break;
-                }
-                on_message(ui.as_mut(), message);
-            }
-            ui.finish();
-        })
-        .context("Failed to spawn UI thread")?;
-
-    let ui_sender = eval.sender.clone();
-    // a shared sender for the ctrl-c handler, it has to be wrapped in Arc-Mutex-Option to be freed
-    // at the end of the computation to allow the client to exit.
-    let client_sender = Arc::new(Mutex::new(Some(tx.clone())));
-    // `ctrlc` crate doesn't allow multiple calls of set_handler, and the tests may call this
-    // function multiple times, so in the tests ^C handler is disabled.
-    #[cfg(not(test))]
-    {
-        let client_sender_ctrlc = client_sender.clone();
-        if let Err(e) = ctrlc::set_handler(move || {
-            let sender = client_sender_ctrlc.lock().unwrap();
-            if let Some(sender) = sender.as_ref() {
-                if sender.send(ExecutorClientMessage::Stop).is_err() {
-                    error!("Cannot tell the server to stop");
-                }
-            }
-        }) {
-            warn!("Cannot bind control-C handler: {:?}", e);
-        }
-    }
-
-    let EvaluationData { sender, dag, .. } = eval;
-    defer! {
-        // wait for the server and the ui to exit
-        if let Some(server) = server {
-            server
-                .join()
-                .map_err(|e| anyhow!("Executor panicked: {:?}", e))
-                .unwrap()
-                .expect("Server failed");
-        }
-        let _ = sender.send(UIMessage::StopUI);
-        ui_thread
-            .join()
-            .map_err(|e| anyhow!("UI panicked: {:?}", e))
-            .unwrap();
-    }
-
-    // run the actual computation and block until it ends
-    ExecutorClient::evaluate(dag, tx, &rx, file_store, move |status| {
-        ui_sender.send(UIMessage::ServerStatus { status })
-    })
-    .with_context(|| {
-        if let Some(tx) = client_sender.lock().unwrap().as_ref() {
-            let _ = tx.send(ExecutorClientMessage::Stop);
-        }
-        "Client failed"
+    let context = RuntimeContext::new(task, &opt.execution, |task, eval| {
+        // build the DAG for the task
+        task.build_dag(eval, &eval_config)
+            .context("Cannot build the task DAG")
     })?;
-    // disable the ctrl-c handler dropping the owned clone of the sender, letting the client exit
-    client_sender.lock().unwrap().take();
 
-    task.sanity_check_post_hook(&mut sender.lock().unwrap())
-        .context("Sanity checks failed")?;
+    // start the execution
+    let executor = context.connect_executor(&opt.execution, &opt.storage)?;
+    let executor = executor.start_ui(&opt.ui, on_message)?;
+    executor.execute()?;
+
     Ok(Evaluation::Done)
 }
 
