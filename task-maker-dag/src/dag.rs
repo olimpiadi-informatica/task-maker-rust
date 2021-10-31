@@ -39,6 +39,8 @@ pub struct ExecutionDAGConfig {
     pub copy_exe: bool,
     /// Whether to copy the log files of some interesting executions.
     pub copy_logs: bool,
+    /// Priority of this DAG.
+    pub priority: DagPriority,
 }
 
 /// A wrapper around a `File` provided by the client, this means that the client knows the
@@ -261,6 +263,7 @@ impl ExecutionDAGConfig {
             extra_time: 0.5,
             copy_exe: false,
             copy_logs: false,
+            priority: 0,
         }
     }
 
@@ -298,6 +301,12 @@ impl ExecutionDAGConfig {
     /// Set whether to copy the log files of some interesting executions.
     pub fn copy_logs(&mut self, copy_logs: bool) -> &mut Self {
         self.copy_logs = copy_logs;
+        self
+    }
+
+    /// Set the priority of this DAG.
+    pub fn priority(&mut self, priority: DagPriority) -> &mut Self {
+        self.priority = priority;
         self
     }
 }

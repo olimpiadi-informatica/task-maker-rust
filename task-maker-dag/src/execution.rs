@@ -32,6 +32,13 @@ pub type OnSkipCallback = BoxFnOnce<'static, (), Result<(), Error>>;
 /// Type of the priority value of an `Execution`.
 pub type Priority = i64;
 
+/// Type of the priority value of a DAG.
+pub type DagPriority = Priority;
+
+/// DAG-priority of executions that should run very soon, independently of their DAG, for example
+/// executions that became available after a previous execution finished, or retries.
+pub const HIGH_PRIORITY: DagPriority = 1_000_000_000_000;
+
 /// A tag on an `Execution`. Can be used to classify the executions into groups and refer to them,
 /// for example for splitting the cache scopes.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
