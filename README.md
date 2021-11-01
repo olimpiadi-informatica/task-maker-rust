@@ -14,8 +14,8 @@ There is a good chance that you have already all the dependencies already instal
 For **ArchLinux** users you can find the packages in the AUR: [`task-maker-rust`](https://aur.archlinux.org/packages/task-maker-rust) (the stable release)
 and [`task-maker-rust-git`](https://aur.archlinux.org/packages/task-maker-rust-git) (the version based on `master`).
 
-For **MacOS** users you can find the pre-built bottle in the [Releases](https://github.com/edomora97/task-maker-rust/releases) page.
-You can install it using `brew install task-maker-rust--*.bottle.tar.gz`.
+For **MacOS Catalina** users you can find the pre-built bottle in the [Releases](https://github.com/edomora97/task-maker-rust/releases) page.
+You can install it using `brew install task-maker-rust--*.catalina.bottle.tar.gz`.
 
 For the other operating systems the recommended way to use task-maker-rust is the following:
 
@@ -35,85 +35,145 @@ It should be possible to build task-maker using musl but it may be hard to link 
 
 ## Usage
 
-### Simple local usage
+<details>
+<summary>Simple local usage</summary>
+
 Run `task-maker-rust` in the task folder to compile and run everything.
 
 Specifying no option all the caches are active, the next executions will be very fast, actually doing only what's needed.
+</details>
 
-### Disable cache
-If you really want to repeat the execution of something provide the `--no-cache`
-option:
+<details>
+<summary>Disable cache</summary>
+
+If you really want to repeat the execution of something provide the `--no-cache` option:
+
 ```bash
 task-maker-rust --no-cache
 ```
 
 Without any options `--no-cache` won't use any caches.
 
-If you want, for example, just redo the evaluations (maybe for retrying the timings), use `--no-cache=evaluation`.
-The available options for `--no-cache` can be found with `--help`.
+If you want, for example, just redo the evaluations (maybe for retrying the timings), use
+`--no-cache=evaluation`. The available options for `--no-cache` can be found with `--help`.
 
-### Test only a subset of solutions
-Sometimes you only want to test only some solutions, speeding up the compilation and cleaning a bit the output:
+</details>
+
+<details>
+<summary>Test only a subset of solutions</summary>
+
+Sometimes you only want to test only some solutions, speeding up the compilation and cleaning a
+bit the output:
+
 ```bash
 task-maker-rust sol1.cpp sol2.py
 ```
-Note that you may or may not specify the folder of the solution (sol/ or solution/).
-You can also specify only the prefix of the name of the solutions you want to check.
 
-### Using different task directory
-By default the task in the current directory is executed, if you want to change the task without `cd`-ing away:
+Note that you may or may not specify the folder of the solution (sol/ or solution/). You can
+also specify only the prefix of the name of the solutions you want to check.
+
+</details>
+
+<details>
+<summary>Using different task directory</summary>
+
+By default the task in the current directory is executed, if you want to change the task without
+`cd`-ing away:
+
 ```bash
 task-maker-rust --task-dir ~/tasks/poldo
 ```
 
-### Extracting executable files
-All the compiled files are kept in an internal folder but if you want to use them, for example to debug a solution, passing `--copy-exe` all the useful files are copied to the `bin/` folder inside the task directory.
+</details>
+
+<details>
+<summary>Extracting executable files</summary>
+
+All the compiled files are kept in an internal folder but if you want to use them, for example
+to debug a solution, passing `--copy-exe` all the useful files are copied to the `bin/` folder
+inside the task directory.
+
 ```bash
 task-maker-rust --copy-exe
 ```
 
-### Do not build the statement
+</details>
+
+<details>
+<summary>Statement</summary>
+
 If you don't want to build the statement files (and the booklet) just pass `--no-statement`.
+
 ```bash
 task-maker-rust --no-statement
 ```
 
-### Clean the task directory
+If you want just to build the statement you can use:
+
+```bash
+task-maker-tools booklet
+```
+
+This tool can also be used to build the contest's booklet.
+
+</details>
+
+<details>
+<summary> Clean the task directory</summary>
+
 If you want to clean everything, for example after the contest, simply run:
 ```bash
-task-maker-rust --clean
+task-maker-tools clear
 ```
-This will remove the files that can be regenerated from the task directory.
-Note that the internal cache is not pruned by this command.
 
-### Remote evaluation
+This will remove the files that can be regenerated from the task directory. Note that the
+internal cache is not pruned by this command.
+
+</details>
+
+<details>
+<summary>Remote evaluation</summary>
+
 On a server (a machine accessible from clients and workers) run
+
 ```bash
-task-maker-rust --server
+task-maker-tools server
 ```
+
 This will start `task-maker` in server mode, listening for connections from clients and workers
 respectively on port 27182 and 27183.
 
-Then on the worker machines start a worker each with
+Then on the worker machines start a worker with
 ```bash
-task-maker-rust --worker ip_of_the_server:27183
+task-maker-tools worker server_addr num
 ```
-This will start a worker on that machine (using all the cores unless specified), connecting to
-the server and executing the jobs the server assigns.
+
+This will start a worker on that machine (**using a single core**), connecting to the server
+and executing the jobs the server assigns. The `num` parameter can be used to distinguish
+between multiple workers in the same machine.
 
 For running a remote computation on your machine just add the `--evaluate-on` option, like:
 ```bash
-task-maker-rust --evaluate-on ip_of_the_server:27182
+task-maker-rust --evaluate-on server_addr
 ```
+
+</details>
 
 #### Using docker
 
 You can easily spawn a task-maker server and a set of workers in your local machine without having to install all the compilers.
 
 ```bash
-docker run --name task-maker --rm -it -p 27183:27183 -p 27182:27182 --privileged edomora97/task-maker-rust:latest
+docker run --rm -it \
+    --name task-maker \
+    -p 27183:27183 \
+    -p 27182:27182 \
+    --privileged \
+    edomora97/task-maker-rust:latest
 ```
 
 Then you can use task-maker locally adding `--evaluate-on localhost`.
+
+`--privileged` is required to run the worker sandboxes.
 
 License: MPL-2.0

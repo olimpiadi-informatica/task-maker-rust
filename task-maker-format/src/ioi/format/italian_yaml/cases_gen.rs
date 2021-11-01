@@ -20,7 +20,7 @@ use crate::SourceFile;
 /// String placed in the auto-generated gen/GEN marking it as safely deletable.
 pub(crate) const TM_ALLOW_DELETE_COOKIE: &str = "tm-allow-delete";
 
-/// This module exists because of a `pest`'s bug: https://github.com/pest-parser/pest/issues/326
+/// This module exists because of a `pest`'s bug: <https://github.com/pest-parser/pest/issues/326>
 #[allow(missing_docs)]
 mod parser {
     /// The gen/cases.gen file parser.

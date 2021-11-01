@@ -12,7 +12,7 @@ use crate::ioi::{
     TestcaseInfo,
 };
 
-/// This module exists because of a `pest`'s bug: https://github.com/pest-parser/pest/issues/326
+/// This module exists because of a `pest`'s bug: <https://github.com/pest-parser/pest/issues/326>
 #[allow(missing_docs)]
 mod parser {
     /// The gen/GEN file parser.
