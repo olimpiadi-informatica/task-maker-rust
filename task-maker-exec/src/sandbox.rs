@@ -368,6 +368,9 @@ impl Sandbox {
         if execution.limits.mount_tmpfs {
             config.mount_tmpfs(true);
         }
+        if execution.limits.mount_proc {
+            config.mount_proc(true);
+        }
         match &execution.command {
             ExecutionCommand::System(cmd) => {
                 if let Ok(cmd) = which::which(cmd) {

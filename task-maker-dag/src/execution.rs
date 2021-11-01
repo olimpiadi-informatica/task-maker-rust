@@ -199,6 +199,8 @@ pub struct ExecutionLimits {
     pub read_only: bool,
     /// Whether the process in the sandbox can use `/dev/null` and `/tmp`.
     pub mount_tmpfs: bool,
+    /// Whether the process in the sandbox can use `/proc`.
+    pub mount_proc: bool,
     /// Extra directory that can be read inside the sandbox.
     pub extra_readable_dirs: Vec<PathBuf>,
 }
@@ -271,6 +273,7 @@ impl ExecutionLimits {
             stack: None,
             read_only: false,
             mount_tmpfs: true,
+            mount_proc: true,
             extra_readable_dirs: Vec::new(),
         }
     }
@@ -342,6 +345,12 @@ impl ExecutionLimits {
         self
     }
 
+    /// Set whether the process in the sandbox can use `/proc`.
+    pub fn mount_proc(&mut self, mount_proc: bool) -> &mut Self {
+        self.mount_proc = mount_proc;
+        self
+    }
+
     /// Add a directory to the list of additional readable directories in the sandbox.
     pub fn add_extra_readable_dir<P: Into<PathBuf>>(&mut self, dir: P) -> &mut Self {
         self.extra_readable_dirs.push(dir.into());
@@ -365,6 +374,7 @@ impl std::default::Default for ExecutionLimits {
             stack: None,
             read_only: true,
             mount_tmpfs: false,
+            mount_proc: false,
             extra_readable_dirs: Vec::new(),
         }
     }

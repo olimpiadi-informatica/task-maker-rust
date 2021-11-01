@@ -281,6 +281,11 @@ impl SourceFile {
                 }
             }
             let exec = comp.output(&self.language.compiled_file_name(&self.path, write_to));
+            comp.limits
+                .read_only(false)
+                .mount_tmpfs(true)
+                .mount_proc(true);
+
             let comp_uuid = comp.uuid;
             dag.add_execution(comp);
             dag.provide_file(source, &self.path)
