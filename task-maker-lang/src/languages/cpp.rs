@@ -4,7 +4,10 @@ use regex::Regex;
 
 use task_maker_dag::*;
 
-use crate::languages::{find_dependencies, Language};
+use crate::language::{
+    CompilationSettings, CompiledLanguageBuilder, Language, SimpleCompiledLanguageBuilder,
+};
+use crate::languages::find_dependencies;
 use crate::Dependency;
 
 /// Configuration of the C++ language to use.
@@ -59,51 +62,38 @@ impl Language for LanguageCpp {
         true
     }
 
-    fn compilation_command(&self, _path: &Path, _write_to: Option<&Path>) -> ExecutionCommand {
-        self.config.compiler.clone()
-    }
-
-    fn compilation_args(
+    fn compilation_builder(
         &self,
-        path: &Path,
-        write_to: Option<&Path>,
-        link_static: bool,
-    ) -> Vec<String> {
-        let exe_name = self.compiled_file_name(path, write_to);
-        let exe_name = exe_name.to_string_lossy();
-        let mut args = vec![
-            "-O2",
-            "-Wall",
-            "-ggdb3",
-            "-DEVAL",
-            "-fdiagnostics-color=always",
-            "-o",
-            exe_name.as_ref(),
-        ];
-        if link_static {
-            args.push("-static");
-        }
-        let mut args: Vec<_> = args.into_iter().map(|s| s.to_string()).collect();
-        args.push(format!("-std={}", self.config.std_version));
-        for arg in &self.config.extra_flags {
-            args.push(arg.clone());
-        }
-        args.push(
-            path.file_name()
-                .expect("Invalid source file name")
-                .to_string_lossy()
-                .to_string(),
+        source: &Path,
+        settings: CompilationSettings,
+    ) -> Option<Box<dyn CompiledLanguageBuilder + '_>> {
+        let mut metadata = SimpleCompiledLanguageBuilder::new(
+            self,
+            source,
+            settings.clone(),
+            self.config.compiler.clone(),
         );
-        args
-    }
+        let binary_name = metadata.binary_name.clone();
+        metadata
+            .add_arg("-O2")
+            .add_arg("-Wall")
+            .add_arg("-ggdb3")
+            .add_arg("-DEVAL")
+            .add_arg("-fdiagnostics-color=always")
+            .add_arg(format!("-std={}", self.config.std_version))
+            .add_arg("-o")
+            .add_arg(binary_name);
+        for arg in &self.config.extra_flags {
+            metadata.add_arg(arg);
+        }
+        if metadata.settings.list_static {
+            metadata.add_arg("-static");
+        }
 
-    fn compilation_add_file(&self, mut args: Vec<String>, file: &Path) -> Vec<String> {
-        args.push(file.to_string_lossy().to_string());
-        args
-    }
-
-    fn compilation_dependencies(&self, path: &Path) -> Vec<Dependency> {
-        find_cpp_deps(path)
+        find_cpp_deps(source)
+            .into_iter()
+            .for_each(|d| metadata.add_dependency(d));
+        Some(Box::new(metadata))
     }
 }
 
@@ -150,60 +140,64 @@ mod tests {
     use std::fs::write;
 
     use spectral::prelude::*;
+    use tempdir::TempDir;
 
     use super::*;
 
+    fn setup() -> TempDir {
+        let tempdir = TempDir::new("tm-test").unwrap();
+        let foo = tempdir.path().join("foo.cpp");
+        std::fs::write(foo, "int main() {}").unwrap();
+        tempdir
+    }
+
     #[test]
     fn test_compilation_args() {
+        let tmp = setup();
+
         let lang = LanguageCpp::new(LanguageCppConfiguration {
             compiler: ExecutionCommand::System("g++".into()),
             std_version: "c++14".to_string(),
             extra_flags: vec!["-lfoobar".into()],
         });
-        let args = lang.compilation_args(Path::new("foo.cpp"), None, false);
+        let mut builder = lang
+            .compilation_builder(&tmp.path().join("foo.cpp"), CompilationSettings::default())
+            .unwrap();
+        let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
+
+        let args = comp.args;
         assert_that!(args).contains("foo.cpp".to_string());
         assert_that!(args).contains("-std=c++14".to_string());
         assert_that!(args).contains("-lfoobar".to_string());
-        assert_that!(args).contains("-o".to_string());
-        assert_that!(args).contains("compiled".to_string());
         assert_that!(args).does_not_contain("-static".to_string());
     }
 
     #[test]
     fn test_compilation_args_static() {
+        let tmp = setup();
+
         let lang = LanguageCpp::new(LanguageCppConfiguration {
             compiler: ExecutionCommand::System("g++".into()),
             std_version: "c++14".to_string(),
             extra_flags: vec!["-lfoobar".into()],
         });
-        let args = lang.compilation_args(Path::new("foo.cpp"), None, true);
+        let mut settings = CompilationSettings::default();
+        settings.list_static = true;
+        let mut builder = lang
+            .compilation_builder(&tmp.path().join("foo.cpp"), settings)
+            .unwrap();
+        let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
+
+        let args = comp.args;
         assert_that!(args).contains("foo.cpp".to_string());
         assert_that!(args).contains("-std=c++14".to_string());
         assert_that!(args).contains("-lfoobar".to_string());
-        assert_that!(args).contains("-o".to_string());
-        assert_that!(args).contains("compiled".to_string());
         assert_that!(args).contains("-static".to_string());
     }
 
     #[test]
-    fn test_compilation_add_file() {
-        let lang = LanguageCpp::new(LanguageCppConfiguration::from_env());
-        let args = lang.compilation_args(Path::new("foo.cpp"), None, false);
-        let new_args = lang.compilation_add_file(args.clone(), Path::new("bar.cpp"));
-        assert_that!(new_args.iter()).contains_all_of(&args.iter());
-        assert_that!(new_args.iter()).contains("bar.cpp".to_string());
-    }
-
-    #[test]
-    fn test_executable_name() {
-        let lang = LanguageCpp::new(LanguageCppConfiguration::from_env());
-        assert_that!(lang.executable_name(Path::new("foo.cpp"), None))
-            .is_equal_to(PathBuf::from("foo"));
-    }
-
-    #[test]
     fn test_extract_imports() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = setup();
         let path = tmpdir.path().join("file.cpp");
         write(
             &path,
@@ -220,7 +214,7 @@ mod tests {
 
     #[test]
     fn test_find_cpp_deps() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = setup();
         let path = tmpdir.path().join("file.cpp");
         let foo_path = tmpdir.path().join("foo.hpp");
         let bar_path = tmpdir.path().join("bar.hpp");
@@ -237,7 +231,7 @@ mod tests {
 
     #[test]
     fn test_find_cpp_deps_loop() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = setup();
         let file_path = tmpdir.path().join("file.cpp");
         let foo_path = tmpdir.path().join("foo.hpp");
         // file imports itself and foo and file import each other

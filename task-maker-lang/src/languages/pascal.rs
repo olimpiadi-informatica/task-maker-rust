@@ -1,14 +1,19 @@
-use crate::languages::Language;
-use crate::Dependency;
 use std::path::{Path, PathBuf};
+
 use task_maker_dag::*;
+
+use crate::language::{
+    CompilationSettings, CompiledLanguageBuilder, SimpleCompiledLanguageBuilder,
+};
+use crate::Dependency;
+use crate::Language;
 
 /// The Pascal language.
 #[derive(Debug)]
 pub struct LanguagePascal;
 
 impl LanguagePascal {
-    /// Make a new LanguagePascal using the specified version.
+    /// Make a new `LanguagePascal`.
     pub fn new() -> LanguagePascal {
         LanguagePascal {}
     }
@@ -27,46 +32,34 @@ impl Language for LanguagePascal {
         true
     }
 
-    fn compilation_command(&self, _path: &Path, _write_to: Option<&Path>) -> ExecutionCommand {
-        ExecutionCommand::system("fpc")
-    }
-
-    fn compilation_args(
+    fn compilation_builder(
         &self,
-        path: &Path,
-        write_to: Option<&Path>,
-        _link_static: bool,
-    ) -> Vec<String> {
-        let exe_name = self.compiled_file_name(path, write_to);
-        let exe_name = exe_name.to_string_lossy();
-        let args = vec!["-dEVAL", "-Fe/dev/stderr", "-O2", "-XS"];
-        let mut args: Vec<_> = args.into_iter().map(|s| s.to_string()).collect();
-        args.push("-o".to_owned() + exe_name.as_ref());
-        args.push(
-            path.file_name()
-                .expect("Invalid source file name")
-                .to_string_lossy()
-                .to_string(),
+        source: &Path,
+        settings: CompilationSettings,
+    ) -> Option<Box<dyn CompiledLanguageBuilder + '_>> {
+        let mut metadata = SimpleCompiledLanguageBuilder::new(
+            self,
+            source,
+            settings.clone(),
+            ExecutionCommand::system("fpc"),
         );
-        args
-    }
+        let binary_name = metadata.binary_name.clone();
+        metadata
+            .add_arg("-dEVAL")
+            .add_arg("-Fe/dev/stderr")
+            .add_arg("-O2")
+            .add_arg("-XS")
+            .add_arg(format!("-o{}", binary_name));
 
-    fn compilation_add_file(&self, mut args: Vec<String>, file: &Path) -> Vec<String> {
-        args.push(file.to_string_lossy().to_string());
-        args
-    }
-
-    fn compilation_dependencies(&self, _path: &Path) -> Vec<Dependency> {
         if let Some(fpc_cfg) = find_fpc_cfg() {
-            vec![Dependency {
+            metadata.add_dependency(Dependency {
                 file: File::new("fpc configuration"),
                 local_path: fpc_cfg,
                 sandbox_path: PathBuf::from("fpc.cfg"),
                 executable: false,
-            }]
-        } else {
-            vec![]
+            });
         }
+        Some(Box::new(metadata))
     }
 }
 
@@ -104,30 +97,30 @@ fn find_fpc_cfg() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use spectral::prelude::*;
+    use tempdir::TempDir;
+
+    use super::*;
+
+    fn setup() -> TempDir {
+        let tempdir = TempDir::new("tm-test").unwrap();
+        let foo = tempdir.path().join("foo.pas");
+        std::fs::write(foo, "some code").unwrap();
+        tempdir
+    }
 
     #[test]
     fn test_compilation_args() {
+        let tmp = setup();
+
         let lang = LanguagePascal::new();
-        let args = lang.compilation_args(Path::new("foo.pas"), None, true);
+
+        let mut builder = lang
+            .compilation_builder(&tmp.path().join("foo.pas"), CompilationSettings::default())
+            .unwrap();
+        let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
+
+        let args = comp.args;
         assert_that!(args).contains("foo.pas".to_string());
-        assert_that!(args).contains("-ocompiled".to_string());
-    }
-
-    #[test]
-    fn test_compilation_add_file() {
-        let lang = LanguagePascal::new();
-        let args = lang.compilation_args(Path::new("foo.pas"), None, true);
-        let new_args = lang.compilation_add_file(args.clone(), Path::new("bar.pas"));
-        assert_that!(new_args.iter()).contains_all_of(&args.iter());
-        assert_that!(new_args.iter()).contains("bar.pas".to_string());
-    }
-
-    #[test]
-    fn test_executable_name() {
-        let lang = LanguagePascal::new();
-        assert_that!(lang.executable_name(Path::new("foo.pas"), None))
-            .is_equal_to(PathBuf::from("foo"));
     }
 }

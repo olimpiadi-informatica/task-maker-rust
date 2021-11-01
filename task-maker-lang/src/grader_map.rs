@@ -4,10 +4,10 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
-use task_maker_dag::*;
+use task_maker_dag::File;
 
-use crate::languages::{Dependency, Language};
-use crate::LanguageManager;
+use crate::language::Language;
+use crate::{Dependency, LanguageManager};
 
 /// The storage of the compilation/runtime dependencies for the source files.
 ///
@@ -60,14 +60,14 @@ impl GraderMap {
     /// let map = GraderMap::new(vec!["file.cpp", "file.py"]);
     /// let cpp = LanguageManager::detect_language("source.cpp").unwrap();
     /// let py = LanguageManager::detect_language("source.py").unwrap();
-    /// assert_eq!(map.get_compilation_deps(cpp.as_ref()).len(), 1);
-    /// assert_eq!(map.get_compilation_deps(py.as_ref()).len(), 0);
+    /// assert!(map.get_compilation_deps(cpp.as_ref()).is_some());
+    /// assert!(map.get_compilation_deps(py.as_ref()).is_none());
     /// ```
-    pub fn get_compilation_deps(&self, lang: &dyn Language) -> Vec<Dependency> {
+    pub fn get_compilation_deps(&self, lang: &dyn Language) -> Option<Dependency> {
         if !lang.need_compilation() || !self.graders.contains_key(lang.name()) {
-            vec![]
+            None
         } else {
-            vec![self.graders[lang.name()].clone()]
+            Some(self.graders[lang.name()].clone())
         }
     }
 
@@ -127,16 +127,16 @@ mod tests {
 
         let lang = LanguageCpp::new(LanguageCppConfiguration::from_env());
         let deps = grader_map.get_compilation_deps(&lang);
-        assert_that!(deps).has_length(1);
-        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("grader.cpp"));
+        assert_that!(deps).is_some();
+        assert_that!(deps.unwrap().sandbox_path).is_equal_to(PathBuf::from("grader.cpp"));
 
         let lang = LanguageC::new(LanguageCConfiguration::from_env());
         let deps = grader_map.get_compilation_deps(&lang);
-        assert_that!(deps).is_empty();
+        assert_that!(deps).is_none();
 
         let lang = LanguagePython::new(LanguagePythonVersion::Autodetect);
         let deps = grader_map.get_compilation_deps(&lang);
-        assert_that!(deps).is_empty();
+        assert_that!(deps).is_none();
     }
 
     #[test]

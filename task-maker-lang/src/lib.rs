@@ -29,17 +29,36 @@
 #[macro_use]
 extern crate lazy_static;
 
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+use typescript_definitions::TypeScriptify;
+
+pub use grader_map::GraderMap;
+pub use source_file::SourceFile;
+use task_maker_dag::File;
+
+use crate::language::Language;
+
 mod grader_map;
+mod language;
 mod languages;
 mod source_file;
 
-pub use grader_map::GraderMap;
-pub use languages::{Dependency, Language};
-pub use source_file::SourceFile;
-
-use languages::*;
-use std::path::Path;
-use std::sync::Arc;
+/// A dependency of an execution, all the sandbox paths must be relative and inside of the sandbox.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TypeScriptify)]
+pub struct Dependency {
+    /// The handle of the file.
+    pub file: File,
+    /// The path of the file on the local system.
+    pub local_path: PathBuf,
+    /// The path inside of the sandbox of where to put the file. Must be relative to the sandbox and
+    /// inside of it.
+    pub sandbox_path: PathBuf,
+    /// Whether the file should be executable or not.
+    pub executable: bool,
+}
 
 /// Manager of all the known languages, you should use this to get
 /// [`Language`](languages/trait.Language.html) instances.
@@ -51,6 +70,7 @@ pub struct LanguageManager {
 impl LanguageManager {
     /// Make a new `LanguageManager` with all the known languages.
     fn new() -> LanguageManager {
+        use languages::*;
         LanguageManager {
             // ordered by most important first
             known_languages: vec![
@@ -116,9 +136,11 @@ lazy_static! {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::languages::cpp::{LanguageCpp, LanguageCppConfiguration};
     use spectral::prelude::*;
+
+    use crate::languages::cpp::{LanguageCpp, LanguageCppConfiguration};
+
+    use super::*;
 
     #[test]
     fn test_detect_language() {

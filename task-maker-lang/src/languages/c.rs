@@ -1,10 +1,12 @@
 use std::path::Path;
 
-use task_maker_dag::*;
+use task_maker_dag::ExecutionCommand;
 
+use crate::language::{
+    CompilationSettings, CompiledLanguageBuilder, SimpleCompiledLanguageBuilder,
+};
 use crate::languages::cpp::find_cpp_deps;
-use crate::languages::Language;
-use crate::Dependency;
+use crate::Language;
 
 /// Configuration of the C language to use.
 #[derive(Clone, Debug)]
@@ -58,100 +60,99 @@ impl Language for LanguageC {
         true
     }
 
-    fn compilation_command(&self, _path: &Path, _write_to: Option<&Path>) -> ExecutionCommand {
-        self.config.compiler.clone()
-    }
-
-    fn compilation_args(
+    fn compilation_builder(
         &self,
-        path: &Path,
-        write_to: Option<&Path>,
-        link_static: bool,
-    ) -> Vec<String> {
-        let exe_name = self.compiled_file_name(path, write_to);
-        let exe_name = exe_name.to_string_lossy();
-        let mut args = vec!["-O2", "-Wall", "-ggdb3", "-DEVAL", "-o", exe_name.as_ref()];
-        if link_static {
-            args.push("-static");
-        }
-        let mut args: Vec<_> = args.into_iter().map(|s| s.to_string()).collect();
-        args.push(format!("-std={}", self.config.std_version));
-        for arg in &self.config.extra_flags {
-            args.push(arg.clone());
-        }
-        args.push(
-            path.file_name()
-                .expect("Invalid source file name")
-                .to_string_lossy()
-                .to_string(),
+        source: &Path,
+        settings: CompilationSettings,
+    ) -> Option<Box<dyn CompiledLanguageBuilder + '_>> {
+        let mut metadata = SimpleCompiledLanguageBuilder::new(
+            self,
+            source,
+            settings.clone(),
+            self.config.compiler.clone(),
         );
-        args.push("-lm".to_string());
-        args
-    }
+        let binary_name = metadata.binary_name.clone();
+        metadata
+            .add_arg("-O2")
+            .add_arg("-Wall")
+            .add_arg("-ggdb3")
+            .add_arg("-DEVAL")
+            .add_arg("-fdiagnostics-color=always")
+            .add_arg(format!("-std={}", self.config.std_version))
+            .add_arg("-o")
+            .add_arg(binary_name)
+            .add_arg("-lm");
+        for arg in &self.config.extra_flags {
+            metadata.add_arg(arg);
+        }
+        if metadata.settings.list_static {
+            metadata.add_arg("-static");
+        }
 
-    fn compilation_add_file(&self, mut args: Vec<String>, file: &Path) -> Vec<String> {
-        args.push(file.to_string_lossy().to_string());
-        args
-    }
-
-    fn compilation_dependencies(&self, path: &Path) -> Vec<Dependency> {
-        find_cpp_deps(path)
+        find_cpp_deps(source)
+            .into_iter()
+            .for_each(|d| metadata.add_dependency(d));
+        Some(Box::new(metadata))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use spectral::prelude::*;
+    use tempdir::TempDir;
+
+    use task_maker_dag::ExecutionDAG;
 
     use super::*;
 
+    fn setup() -> TempDir {
+        let tempdir = TempDir::new("tm-test").unwrap();
+        let foo = tempdir.path().join("foo.c");
+        std::fs::write(foo, "int main() {}").unwrap();
+        tempdir
+    }
+
     #[test]
     fn test_compilation_args() {
+        let tmp = setup();
+
         let lang = LanguageC::new(LanguageCConfiguration {
             compiler: ExecutionCommand::System("gcc".into()),
             std_version: "c11".to_string(),
             extra_flags: vec!["-lfoobar".into()],
         });
-        let args = lang.compilation_args(Path::new("foo.c"), None, false);
+        let mut builder = lang
+            .compilation_builder(&tmp.path().join("foo.c"), CompilationSettings::default())
+            .unwrap();
+        let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
+
+        let args = comp.args;
         assert_that!(args).contains("foo.c".to_string());
         assert_that!(args).contains("-std=c11".to_string());
         assert_that!(args).contains("-lfoobar".to_string());
-        assert_that!(args).contains("-o".to_string());
-        assert_that!(args).contains("compiled".to_string());
         assert_that!(args).does_not_contain("-static".to_string());
     }
 
     #[test]
     fn test_compilation_args_static() {
+        let tmp = setup();
+
         let lang = LanguageC::new(LanguageCConfiguration {
             compiler: ExecutionCommand::System("gcc".into()),
             std_version: "c11".to_string(),
             extra_flags: vec!["-lfoobar".into()],
         });
-        let args = lang.compilation_args(Path::new("foo.c"), None, true);
+        let mut settings = CompilationSettings::default();
+        settings.list_static = true;
+        let mut builder = lang
+            .compilation_builder(&tmp.path().join("foo.c"), settings)
+            .unwrap();
+        let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
+
+        let args = comp.args;
         assert_that!(args).contains("foo.c".to_string());
         assert_that!(args).contains("-std=c11".to_string());
         assert_that!(args).contains("-lfoobar".to_string());
-        assert_that!(args).contains("-o".to_string());
-        assert_that!(args).contains("compiled".to_string());
         assert_that!(args).contains("-static".to_string());
-    }
-
-    #[test]
-    fn test_compilation_add_file() {
-        let lang = LanguageC::new(LanguageCConfiguration::from_env());
-        let args = lang.compilation_args(Path::new("foo.c"), None, false);
-        let new_args = lang.compilation_add_file(args.clone(), Path::new("bar.c"));
-        assert_that!(new_args.iter()).contains_all_of(&args.iter());
-        assert_that!(new_args.iter()).contains("bar.c".to_string());
-    }
-
-    #[test]
-    fn test_executable_name() {
-        let lang = LanguageC::new(LanguageCConfiguration::from_env());
-        assert_that!(lang.executable_name(Path::new("foo.c"), None))
-            .is_equal_to(PathBuf::from("foo"));
     }
 }

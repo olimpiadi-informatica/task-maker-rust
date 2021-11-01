@@ -1,13 +1,15 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Error};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use typescript_definitions::TypeScriptify;
 
-use task_maker_dag::*;
+use task_maker_dag::{
+    Execution, ExecutionDAG, ExecutionTag, ExecutionUuid, File, FileUuid, Priority,
+};
 
-use crate::languages::*;
+use crate::language::{CompilationSettings, Language};
 use crate::{GraderMap, LanguageManager};
 
 /// Length of the stdout/stderr of the compilers to capture.
@@ -243,44 +245,22 @@ impl SourceFile {
             return Ok(None);
         }
         let write_to = self.write_bin_to.as_deref();
-        if self.language.need_compilation() {
-            let mut comp = Execution::new(
-                &format!("Compilation of {:?}", self.name()),
-                self.language.compilation_command(&self.path, write_to),
-            );
+        let settings = CompilationSettings {
+            write_to: write_to.map(Into::into),
+            list_static: self.link_static,
+            copy_exe: dag.config_mut().copy_exe || self.copy_exe,
+        };
+        if let Some(mut metadata) = self.language.compilation_builder(&self.path, settings) {
+            if let Some(grader_map) = self.grader_map.as_ref() {
+                metadata.use_grader(grader_map.as_ref());
+            }
+            let (mut comp, exec) = metadata.finalize(dag)?;
             comp.tag(ExecutionTag::from("compilation"))
                 .priority(COMPILATION_PRIORITY)
                 .capture_stdout(COMPILATION_CONTENT_LENGTH)
                 .capture_stderr(COMPILATION_CONTENT_LENGTH);
-            comp.args = self
-                .language
-                .compilation_args(&self.path, write_to, self.link_static);
-            let source = File::new(&format!("Source file of {:?}", self.path));
-            comp.input(
-                &source,
-                Path::new(self.path.file_name().context("Invalid file name")?),
-                false,
-            );
             comp.limits.nproc = None;
             // the compilers may need to store some temp files
-            comp.limits.read_only(false);
-            comp.limits.mount_tmpfs(true);
-            for dep in self.language.compilation_dependencies(&self.path) {
-                comp.input(&dep.file, &dep.sandbox_path, dep.executable);
-                dag.provide_file(dep.file, &dep.local_path)
-                    .context("Failed to provide compilation dependency")?;
-            }
-            if let Some(grader_map) = self.grader_map.as_ref() {
-                for dep in grader_map.get_compilation_deps(self.language.as_ref()) {
-                    comp.input(&dep.file, &dep.sandbox_path, dep.executable);
-                    comp.args = self
-                        .language
-                        .compilation_add_file(comp.args, &dep.sandbox_path);
-                    dag.provide_file(dep.file, &dep.local_path)
-                        .context("Failed to provide grader dependency")?;
-                }
-            }
-            let exec = comp.output(&self.language.compiled_file_name(&self.path, write_to));
             comp.limits
                 .read_only(false)
                 .mount_tmpfs(true)
@@ -288,13 +268,6 @@ impl SourceFile {
 
             let comp_uuid = comp.uuid;
             dag.add_execution(comp);
-            dag.provide_file(source, &self.path)
-                .context("Failed to provide source file")?;
-            if dag.config_mut().copy_exe || self.copy_exe {
-                if let Some(write_bin_to) = &self.write_bin_to {
-                    dag.write_file_to(&exec, write_bin_to, true);
-                }
-            }
             *self.executable.lock().unwrap() = Some(exec);
             Ok(Some(comp_uuid))
         } else {

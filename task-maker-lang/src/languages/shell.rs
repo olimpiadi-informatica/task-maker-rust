@@ -1,6 +1,8 @@
-use crate::languages::*;
 use std::path::{Path, PathBuf};
+
 use task_maker_dag::ExecutionLimits;
+
+use crate::language::Language;
 
 /// The Shell language
 #[derive(Debug)]
@@ -38,8 +40,9 @@ impl Language for LanguageShell {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use spectral::prelude::*;
+
+    use super::*;
 
     #[test]
     fn test_allow_fork() {

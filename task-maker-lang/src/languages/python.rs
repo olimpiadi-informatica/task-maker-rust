@@ -1,7 +1,12 @@
-use crate::languages::*;
-use regex::Regex;
 use std::path::{Path, PathBuf};
+
+use regex::Regex;
+
 use task_maker_dag::ExecutionCommand;
+
+use crate::language::Language;
+use crate::languages::find_dependencies;
+use crate::Dependency;
 
 /// Version of the Python interpreter to use.
 #[allow(dead_code)]
@@ -121,9 +126,11 @@ fn extract_imports(path: &Path) -> Vec<(PathBuf, PathBuf)> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use spectral::prelude::*;
     use std::fs::write;
+
+    use spectral::prelude::*;
+
+    use super::*;
 
     #[test]
     fn test_runtime_args_autodetect() {
