@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 
 use crate::{ioi, terry, EvaluationConfig, TaskFormat};
 
@@ -14,43 +14,48 @@ pub fn find_task<P: Into<PathBuf>>(
     if !base.is_absolute() {
         base = getcwd().join(base);
     }
-    let mut possible_ioi = false;
-    let mut possible_terry = false;
+    let mut fails = vec![];
     for _ in 0..max_depth {
-        possible_ioi = ioi::IOITask::is_valid(&base);
-        possible_terry = terry::TerryTask::is_valid(&base);
-        if possible_ioi || possible_terry {
-            break;
+        let mut task: Option<Box<dyn TaskFormat>> = None;
+        // try to parse a IOI task
+        if ioi::IOITask::is_valid(&base) {
+            match ioi::IOITask::new(&base, eval_config) {
+                Ok(ioi_task) => task = Some(Box::new(ioi_task)),
+                Err(err) => fails.push(("IOI", base.clone(), err)),
+            }
         }
+        // try to parse a Terry task
+        if terry::TerryTask::is_valid(&base) {
+            match terry::TerryTask::new(&base, eval_config) {
+                Ok(terry_task) => {
+                    if task.is_some() {
+                        bail!("Ambiguous task directory, can be either IOI and terry")
+                    }
+                    task = Some(Box::new(terry_task))
+                }
+                Err(err) => fails.push(("Terry", base.clone(), err)),
+            }
+        }
+        // if a task is found, return it
+        if let Some(task) = task {
+            return Ok(task);
+        }
+        // not task found yet, try on the parent folder
         base = match base.parent() {
             Some(parent) => parent.into(),
             _ => break,
         };
     }
-    match (possible_ioi, possible_terry) {
-        (true, true) => bail!("Ambiguous task directory, can be either IOI and terry"),
-        (false, false) => bail!("No task directory found!"),
-        (true, false) => match ioi::IOITask::new(&base, eval_config) {
-            Ok(task) => {
-                trace!("The task is IOI: {:#?}", task);
-                Ok(Box::new(task))
-            }
-            Err(e) => {
-                warn!("Invalid task: {:?}", e);
-                Err(e)
-            }
-        },
-        (false, true) => match terry::TerryTask::new(&base, eval_config) {
-            Ok(task) => {
-                trace!("The task is Terry: {:#?}", task);
-                Ok(Box::new(task))
-            }
-            Err(e) => {
-                warn!("Invalid task: {:?}", e);
-                Err(e)
-            }
-        },
+
+    let mut message = "\n".to_string();
+    for (format, path, error) in fails {
+        message += &format!("    - Not a valid {} task at {}\n", format, path.display());
+        error
+            .chain()
+            .for_each(|cause| message += &format!("      Caused by:\n        {}\n", cause));
     }
+
+    Err(anyhow!("{}", message)).context("Cannot find a valid task directory")
 }
 
 /// Return the current working directory.

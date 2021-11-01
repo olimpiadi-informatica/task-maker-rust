@@ -143,7 +143,7 @@ impl TerryTask {
 
     /// Check if in the provided path there could be a Terry-like task.
     pub fn is_valid<P: AsRef<Path>>(path: P) -> bool {
-        path.as_ref().join("task.yaml").exists() && path.as_ref().join("managers").is_dir()
+        path.as_ref().join("task.yaml").exists()
     }
 }
 
