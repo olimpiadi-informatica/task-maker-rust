@@ -29,6 +29,7 @@ pub struct RuntimeContext {
     task: Box<dyn TaskFormat>,
     eval: EvaluationData,
     ui_receiver: UIChannelReceiver,
+    sandbox_runner: SelfExecSandboxRunner,
 }
 
 /// Second step: connect to an executor (either local or remote). This opens the local store and
@@ -108,7 +109,13 @@ impl RuntimeContext {
             task,
             eval,
             ui_receiver,
+            sandbox_runner: SelfExecSandboxRunner::default(),
         })
+    }
+
+    /// Change the default sandbox runner for the local executor.
+    pub fn sandbox_runner(&mut self, sandbox_runner: SelfExecSandboxRunner) {
+        self.sandbox_runner = sandbox_runner;
     }
 
     /// Start the local executor or connect to a remote one.
@@ -162,16 +169,10 @@ impl RuntimeContext {
             let num_cores = opt.num_cores.unwrap_or_else(num_cpus::get);
             let sandbox_path = storage_opt.store_dir().join("sandboxes");
             let executor = LocalExecutor::new(file_store.clone(), num_cores, sandbox_path);
+            let sandbox_runner = self.sandbox_runner;
             let local_executor = std::thread::Builder::new()
                 .name("Executor thread".into())
-                .spawn(move || {
-                    executor.evaluate(
-                        tx_remote,
-                        rx_remote,
-                        cache,
-                        SelfExecSandboxRunner::default(),
-                    )
-                })
+                .spawn(move || executor.evaluate(tx_remote, rx_remote, cache, sandbox_runner))
                 .context("Failed to spawn the executor thread")?;
             (tx, rx, Some(local_executor))
         };

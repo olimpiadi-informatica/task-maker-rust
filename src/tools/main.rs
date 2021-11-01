@@ -1,6 +1,7 @@
 use structopt::StructOpt;
 
 use task_maker_rust::error::NiceError;
+use task_maker_rust::tools::booklet::main_booklet;
 use task_maker_rust::tools::clear::main_clear;
 use task_maker_rust::tools::gen_autocompletion::main_get_autocompletion;
 use task_maker_rust::tools::opt::{Opt, Tool};
@@ -14,6 +15,7 @@ use task_maker_rust::tools::worker::main_worker;
 fn main() {
     let opt = Opt::from_args();
     opt.logger.enable_log();
+
     match opt.tool {
         Tool::Clear(opt) => main_clear(opt),
         Tool::GenAutocompletion(opt) => main_get_autocompletion(opt),
@@ -23,6 +25,8 @@ fn main() {
         Tool::Reset(opt) => main_reset(opt),
         Tool::Sandbox(opt) => main_sandbox(opt),
         Tool::TaskInfo(opt) => main_task_info(opt),
+        Tool::Booklet(opt) => main_booklet(opt),
+        Tool::InternalSandbox => return task_maker_rust::main_sandbox(),
     }
     .nice_unwrap()
 }

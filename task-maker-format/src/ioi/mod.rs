@@ -145,6 +145,31 @@ impl IOITask {
         format::italian_yaml::parse_task(path, eval_config)
     }
 
+    /// Create a "fake" `IOITask` that will not contain any data.
+    ///
+    /// This can be used to setup executions that are not related to tasks (e.g. booklet
+    /// compilations).  
+    pub fn fake() -> IOITask {
+        IOITask {
+            path: Default::default(),
+            task_type: TaskType::None,
+            name: "".to_string(),
+            title: "".to_string(),
+            time_limit: None,
+            memory_limit: None,
+            infile: None,
+            outfile: None,
+            subtasks: Default::default(),
+            input_validator: InputValidator::AssumeValid,
+            testcase_score_aggregator: TestcaseScoreAggregator::Min,
+            grader_map: Arc::new(GraderMap::new::<&Path>(vec![])),
+            booklets: vec![],
+            difficulty: None,
+            syllabus_level: None,
+            sanity_checks: Arc::new(Default::default()),
+        }
+    }
+
     /// Check if in the provided path there could be a IOI-like task.
     pub fn is_valid<P: AsRef<Path>>(path: P) -> bool {
         let path = path.as_ref();

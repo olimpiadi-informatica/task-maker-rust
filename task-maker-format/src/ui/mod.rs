@@ -312,7 +312,7 @@ pub trait UI: Send {
 }
 
 /// The type of the UI to use, it enumerates all the known UI interfaces.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum UIType {
     /// The `PrintUI`.
     Print,

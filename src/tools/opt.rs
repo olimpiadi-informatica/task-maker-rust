@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use crate::{FindTaskOpt, LoggerOpt, StorageOpt};
+use crate::{ExecutionOpt, FindTaskOpt, LoggerOpt, StorageOpt};
 
 #[derive(StructOpt, Debug)]
 #[structopt(
@@ -38,6 +38,13 @@ pub enum Tool {
     Sandbox(SandboxOpt),
     /// Obtain the information about a task.
     TaskInfo(TaskInfoOpt),
+    /// Compile just the booklet for a task or a context.
+    Booklet(BookletOpt),
+    /// Run the sandbox instead of the normal task-maker.
+    ///
+    /// This option is left as undocumented as it's not part of the public API.
+    #[structopt(setting(structopt::clap::AppSettings::Hidden))]
+    InternalSandbox,
 }
 
 #[derive(StructOpt, Debug)]
@@ -144,4 +151,39 @@ pub struct TaskInfoOpt {
     /// Produce JSON output.
     #[structopt(long, short)]
     pub json: bool,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct BookletOpt {
+    /// Include the solutions in the booklet
+    #[structopt(long = "booklet-solutions")]
+    pub booklet_solutions: bool,
+
+    /// Directory of the context.
+    ///
+    /// When specified, --task-dir should not be used.
+    #[structopt(short = "c", long = "contest-dir")]
+    pub contest_dir: Option<PathBuf>,
+
+    /// Directory of the task.
+    ///
+    /// When specified, --contest-dir should not be used.
+    #[structopt(short = "t", long = "task-dir")]
+    pub task_dir: Vec<PathBuf>,
+
+    /// Look at most for this number of parents for searching the task
+    #[structopt(long = "max-depth", default_value = "3")]
+    pub max_depth: u32,
+
+    /// Which UI to use, available UIs are: print, raw, curses, json.
+    ///
+    /// Note that the JSON api is not stable yet.
+    #[structopt(long = "ui", default_value = "curses")]
+    pub ui: task_maker_format::ui::UIType,
+
+    #[structopt(flatten)]
+    pub execution: ExecutionOpt,
+
+    #[structopt(flatten)]
+    pub storage: StorageOpt,
 }

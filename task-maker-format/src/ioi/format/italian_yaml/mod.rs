@@ -271,7 +271,7 @@ use task_maker_lang::GraderMap;
 use crate::ioi::sanity_checks::get_sanity_checks;
 use crate::ioi::TM_VALIDATION_FILE_NAME;
 use crate::ioi::{
-    make_booklets, Checker, IOITask, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo,
+    make_task_booklets, Checker, IOITask, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo,
     TaskType, TestcaseId, TestcaseInfo, TestcaseScoreAggregator,
 };
 use crate::ioi::{BatchTypeData, CommunicationTypeData};
@@ -474,7 +474,8 @@ pub fn parse_task<P: AsRef<Path>>(
     };
     // split the creation of the task because make_booklets need an instance of Task
     if !eval_config.no_statement {
-        task.booklets = make_booklets(&task, eval_config).context("Failed to make booklets")?;
+        task.booklets =
+            make_task_booklets(&task, eval_config).context("Failed to make booklets")?;
     }
     Ok(task)
 }

@@ -69,17 +69,19 @@ pub struct Booklet {
 
 /// Part of the schema of `contest.yaml`, used for extracting the configuration of the booklet.
 #[derive(Debug, Deserialize)]
-struct ContestYAML {
+pub struct ContestYAML {
     /// The description of the contest.
-    description: Option<String>,
+    pub description: Option<String>,
     /// The location of the contest.
-    location: Option<String>,
+    pub location: Option<String>,
     /// The date of the contest.
-    date: Option<String>,
+    pub date: Option<String>,
     /// The logo of the contest.
-    logo: Option<String>,
+    pub logo: Option<String>,
     /// `Some("True")` if the time and memory limits should be put in the booklet.
-    show_summary: Option<String>,
+    pub show_summary: Option<String>,
+    /// The list of the tasks in the contest (in the correct order).
+    pub tasks: Vec<String>,
 }
 
 impl Booklet {
@@ -256,16 +258,8 @@ impl BookletConfig {
         contest_dir: P,
         booklet_solutions: bool,
     ) -> Result<BookletConfig, Error> {
-        let contest_yaml_path = contest_dir.into().join("contest.yaml");
-        if contest_yaml_path.exists() {
-            let file = std::fs::File::open(&contest_yaml_path).with_context(|| {
-                format!(
-                    "Failed to open contest.yaml at {}",
-                    contest_yaml_path.display()
-                )
-            })?;
-            let contest_yaml: ContestYAML =
-                serde_yaml::from_reader(file).context("Failed to deserialize contest.yaml")?;
+        if let Some(contest_yaml) = Self::contest_yaml(contest_dir) {
+            let contest_yaml = contest_yaml?;
             Ok(BookletConfig {
                 language: language.into(),
                 show_solutions: booklet_solutions,
@@ -289,6 +283,28 @@ impl BookletConfig {
                 date: None,
                 logo: None,
             })
+        }
+    }
+
+    /// Find and parse the contest.yaml in the provided contest root.
+    pub fn contest_yaml<P: Into<PathBuf>>(contest_dir: P) -> Option<Result<ContestYAML, Error>> {
+        let contest_yaml_path = contest_dir.into().join("contest.yaml");
+        let parse_yaml = || {
+            let file = std::fs::File::open(&contest_yaml_path).with_context(|| {
+                format!(
+                    "Failed to open contest.yaml at {}",
+                    contest_yaml_path.display()
+                )
+            })?;
+            let contest_yaml: ContestYAML =
+                serde_yaml::from_reader(file).context("Failed to deserialize contest.yaml")?;
+            Ok(contest_yaml)
+        };
+
+        if contest_yaml_path.exists() {
+            Some(parse_yaml())
+        } else {
+            None
         }
     }
 }

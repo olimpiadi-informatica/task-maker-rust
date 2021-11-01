@@ -1,30 +1,30 @@
-use anyhow::{anyhow, Context, Error};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+
+use anyhow::{anyhow, bail, Context, Error};
+use itertools::Itertools;
 
 pub use booklet::*;
 pub use statement::*;
 
 use crate::ioi::IOITask;
-use crate::{list_files, EvaluationConfig};
+use crate::{list_files, EvaluationConfig, TaskFormat};
 
 mod asy;
 mod booklet;
 #[allow(clippy::module_inception)]
 mod statement;
 
-/// Find all the `Booklet` it makes sense to build.
-pub fn make_booklets(
+/// Find all the `Booklet` it makes sense to build for a single task.
+pub fn make_task_booklets(
     task: &IOITask,
     eval_config: &EvaluationConfig,
 ) -> Result<Vec<Booklet>, Error> {
-    let statements = list_files(&task.path, vec!["statement/*.tex", "testo/*.tex"]);
+    let statements = find_statement_files(&task.path);
     let mut booklets = vec![];
     let config = StatementConfig::from_task(task);
-    for path in statements {
+    for (language, path) in statements {
         let dest = path.with_extension("pdf");
-        let language = match path.file_stem() {
-            Some(language) => language.to_string_lossy().to_string(),
-            None => continue,
-        };
         let statement = Statement::new(path, config.clone())
             .with_context(|| format!("Failed to build statement for language {}", language))?;
         let booklet_config = BookletConfig::from_contest(
@@ -40,4 +40,72 @@ pub fn make_booklets(
         booklets.push(booklet);
     }
     Ok(booklets)
+}
+
+/// Find all the `Booklet` it makes sense to build for all the provided tasks.
+pub fn make_context_booklets(
+    tasks: &[IOITask],
+    eval_config: &EvaluationConfig,
+) -> Result<Vec<Booklet>, Error> {
+    if tasks.is_empty() {
+        return Ok(vec![]);
+    }
+    let contest_dir = tasks[0]
+        .path
+        .parent()
+        .ok_or_else(|| anyhow!("Task is at the root"))?;
+    // check all the tasks are in the same directory, so we are sure that they belong all to the
+    // same contest.
+    for task in tasks.iter() {
+        let this_contest_dir = task
+            .path
+            .parent()
+            .ok_or_else(|| anyhow!("Task is at the root"))?;
+        if contest_dir != this_contest_dir {
+            bail!("The tasks are not all in the same directory (i.e. different contests)");
+        }
+    }
+
+    let statements = tasks
+        .iter()
+        .map(|task| (task, find_statement_files(task.path())))
+        .collect_vec();
+    let mut by_language: HashMap<_, Vec<_>> = HashMap::new();
+    for (task, statements) in statements.into_iter() {
+        for (language, path) in statements {
+            by_language.entry(language).or_default().push((task, path));
+        }
+    }
+
+    let mut booklets = vec![];
+    for (language, tasks) in by_language {
+        let booklet_config =
+            BookletConfig::from_contest(&language, contest_dir, eval_config.booklet_solutions)
+                .context("Failed to build booklet contest configuration")?;
+        let dest = contest_dir.join(format!("{}.pdf", language));
+        let mut booklet = Booklet::new(booklet_config, dest);
+
+        for (task, path) in tasks {
+            let config = StatementConfig::from_task(task);
+            let statement = Statement::new(path, config)
+                .with_context(|| format!("Failed to build statement for language {}", language))?;
+            booklet.add_statement(statement);
+        }
+        booklets.push(booklet);
+    }
+
+    Ok(booklets)
+}
+
+/// Find a list of all the statement files for a task, extracting the language from them.
+fn find_statement_files(task_dir: &Path) -> Vec<(String, PathBuf)> {
+    list_files(task_dir, vec!["statement/*.tex", "testo/*.tex"])
+        .into_iter()
+        .filter_map(|path| {
+            let language = path
+                .file_stem()
+                .map(|lang| lang.to_string_lossy().to_string());
+            language.map(|lang| (lang, path))
+        })
+        .collect()
 }

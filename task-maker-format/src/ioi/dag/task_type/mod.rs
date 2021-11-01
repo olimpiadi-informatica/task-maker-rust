@@ -24,6 +24,8 @@ pub enum TaskType {
     /// The solution is executed in parallel with a manager and communicate using FIFO pipes. There
     /// are only input files since the manager computes the score of the solution.
     Communication(CommunicationTypeData),
+    /// Not an actual task.
+    None,
 }
 
 impl TaskType {
@@ -67,6 +69,7 @@ impl TaskType {
                 score_manager,
                 data,
             ),
+            TaskType::None => Ok(()),
         }
     }
 
@@ -84,6 +87,7 @@ impl TaskType {
             TaskType::Communication(communication) => {
                 communication.manager.prepare(eval)?;
             }
+            TaskType::None => {}
         }
         Ok(())
     }

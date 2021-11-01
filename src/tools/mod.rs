@@ -1,3 +1,4 @@
+pub mod booklet;
 pub mod clear;
 pub mod gen_autocompletion;
 pub mod opt;
