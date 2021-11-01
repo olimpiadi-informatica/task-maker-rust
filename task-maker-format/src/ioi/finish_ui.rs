@@ -33,15 +33,23 @@ impl FinishUITrait<UIState> for FinishUI {
             stream: StandardStream::stdout(ColorChoice::Auto),
         };
         ui.print_task_info(state);
-        println!();
-        FinishUIUtils::new(&mut ui.stream).print_compilations(&state.compilations);
-        println!();
-        ui.print_booklets(state);
-        println!();
-        ui.print_generations(state);
-        println!();
-        ui.print_evaluations(state);
-        ui.print_summary(state);
+        if !state.compilations.is_empty() {
+            println!();
+            FinishUIUtils::new(&mut ui.stream).print_compilations(&state.compilations);
+        }
+        if !state.booklets.is_empty() {
+            println!();
+            ui.print_booklets(state);
+        }
+        if !state.generations.is_empty() {
+            println!();
+            ui.print_generations(state);
+        }
+        if !state.evaluations.is_empty() {
+            println!();
+            ui.print_evaluations(state);
+            ui.print_summary(state);
+        }
         FinishUIUtils::new(&mut ui.stream).print_messages(&state.warnings);
     }
 }

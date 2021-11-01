@@ -57,13 +57,17 @@ fn draw_frame(state: &UIState, mut f: FrameType, loading: char, frame_index: usi
     } else {
         0
     };
-    let booklet_len = state
-        .booklets
-        .values()
-        .map(|s| s.dependencies.len() as u16 + 1)
-        .sum::<u16>()
-        + 2;
-    let generations_len = 3;
+    let booklet_len = if state.booklets.is_empty() {
+        0
+    } else {
+        state
+            .booklets
+            .values()
+            .map(|s| s.dependencies.len() as u16 + 1)
+            .sum::<u16>()
+            + 2
+    };
+    let generations_len = if state.generations.is_empty() { 0 } else { 3 };
     let evaluations_len = state.evaluations.len() as u16 + 2;
     let mut workers_len = state
         .executor_status
@@ -112,12 +116,18 @@ fn draw_frame(state: &UIState, mut f: FrameType, loading: char, frame_index: usi
             loading,
         );
     }
-    render_block(&mut f, chunks[2], " Statements ");
-    draw_booklets(&mut f, inner_block(chunks[2]), state, loading);
-    render_block(&mut f, chunks[3], " Generation ");
-    draw_generations(&mut f, inner_block(chunks[3]), state, loading);
-    render_block(&mut f, chunks[4], " Evaluations ");
-    draw_evaluations(&mut f, inner_block(chunks[4]), state, loading);
+    if !state.booklets.is_empty() {
+        render_block(&mut f, chunks[2], " Statements ");
+        draw_booklets(&mut f, inner_block(chunks[2]), state, loading);
+    }
+    if !state.generations.is_empty() {
+        render_block(&mut f, chunks[3], " Generation ");
+        draw_generations(&mut f, inner_block(chunks[3]), state, loading);
+    }
+    if !state.evaluations.is_empty() {
+        render_block(&mut f, chunks[4], " Evaluations ");
+        draw_evaluations(&mut f, inner_block(chunks[4]), state, loading);
+    }
     render_server_status(
         &mut f,
         chunks[5],
