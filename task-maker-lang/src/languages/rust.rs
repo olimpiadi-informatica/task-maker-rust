@@ -70,7 +70,9 @@ impl Language for LanguageRust {
         metadata.grader_only();
         let binary_name = metadata.binary_name.clone();
         metadata
-            .add_arg("-O") //
+            .add_arg("-O")
+            .add_arg("--cfg")
+            .add_arg("EVAL")
             .add_arg("-o")
             .add_arg(binary_name);
         if metadata.settings.list_static {
