@@ -9,6 +9,7 @@ pub(crate) mod c;
 pub(crate) mod cpp;
 pub(crate) mod pascal;
 pub(crate) mod python;
+pub(crate) mod rust;
 pub(crate) mod shell;
 
 /// Extract all the dependencies of a source file recursively. The file can include/import many
