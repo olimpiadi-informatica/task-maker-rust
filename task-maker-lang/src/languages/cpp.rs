@@ -70,7 +70,7 @@ impl Language for LanguageCpp {
         let mut metadata = SimpleCompiledLanguageBuilder::new(
             self,
             source,
-            settings.clone(),
+            settings,
             self.config.compiler.clone(),
         );
         let binary_name = metadata.binary_name.clone();
@@ -181,8 +181,10 @@ mod tests {
             std_version: "c++14".to_string(),
             extra_flags: vec!["-lfoobar".into()],
         });
-        let mut settings = CompilationSettings::default();
-        settings.list_static = true;
+        let settings = CompilationSettings {
+            list_static: true,
+            ..Default::default()
+        };
         let mut builder = lang
             .compilation_builder(&tmp.path().join("foo.cpp"), settings)
             .unwrap();

@@ -40,7 +40,7 @@ impl Language for LanguagePascal {
         let mut metadata = SimpleCompiledLanguageBuilder::new(
             self,
             source,
-            settings.clone(),
+            settings,
             ExecutionCommand::system("fpc"),
         );
         let binary_name = metadata.binary_name.clone();

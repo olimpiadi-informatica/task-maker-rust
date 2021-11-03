@@ -64,7 +64,7 @@ impl Language for LanguageRust {
         let mut metadata = SimpleCompiledLanguageBuilder::new(
             self,
             source,
-            settings.clone(),
+            settings,
             ExecutionCommand::system("rustc"),
         );
         metadata.grader_only();
