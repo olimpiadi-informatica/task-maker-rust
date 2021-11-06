@@ -113,6 +113,7 @@ impl Booklet {
             ExecutionCommand::system("latexmk"),
         );
         exec.args(vec![
+            "-shell-escape",
             "-f",
             "-interaction=nonstopmode",
             "-pdf",
