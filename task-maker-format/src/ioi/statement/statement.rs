@@ -111,6 +111,17 @@ impl Statement {
                     )
                 })?;
         }
+        for path in &[Path::new("../gen/limiti.py"), Path::new("../gen/GEN")] {
+            let full_path = base_dir.join(path);
+            if !full_path.is_file() {
+                continue;
+            }
+            let file = File::new(format!("Dependency of {} at {:?}", self.config.name, path));
+            eval.dag
+                .provide_file(file.clone(), &full_path)
+                .context("Failed to provide statement dependency")?;
+            deps.push((path.file_name().unwrap().into(), file));
+        }
         Ok(deps)
     }
 
