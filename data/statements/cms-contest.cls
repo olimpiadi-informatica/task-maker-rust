@@ -53,6 +53,7 @@
 \RequirePackage{currfile}
 \RequirePackage{xstring}
 \RequirePackage{catchfile}
+\RequirePackage{booktabs}
 
 
 \pagestyle{fancy}
@@ -457,6 +458,12 @@
 %*********************************************************************
 %                             Environments                           *
 %*********************************************************************
+
+% Function signature table
+\newenvironment{signatures}
+{\par\begin{mdframed}[backgroundcolor=gray!10]%
+\begin{tabular}{@{}>{\centering\arraybackslash}p{2cm}|p{\dimexpr\textwidth-2cm-2\tabcolsep\relax}@{}}}
+{\end{tabular}\end{mdframed}\par}
 
 % contest
 %
