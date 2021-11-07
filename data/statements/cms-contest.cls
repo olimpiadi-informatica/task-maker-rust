@@ -49,6 +49,10 @@
 \RequirePackage{tabularx}
 \RequirePackage{environ}
 \RequirePackage{fontawesome}
+\RequirePackage{siunitx}
+\RequirePackage{currfile}
+\RequirePackage{xstring}
+\RequirePackage{catchfile}
 
 
 \pagestyle{fancy}
@@ -398,6 +402,49 @@
 	   \@showlogotrue%
 	   \gdef\this@contestlogo{#1}%
     }
+}
+
+
+% Tools to extract subtask and task limits and scores.
+\newwrite\py@num@tmp
+\newcommand{\pynum}[2][]{%
+\immediate\openout\py@num@tmp=\currfiledir/py_num.py%
+\if\relax\detokenize{#1}\relax
+\else
+\immediate\write\py@num@tmp{from #1 import *}%
+\fi
+\immediate\write\py@num@tmp{print(#2)}%
+\immediate\closeout\py@num@tmp%
+\immediate\write18{cd \currfiledir; python py_num.py > ../py_num.tex}%
+\ifnum0\pdffilesize{py_num.tex}>0
+\CatchFileDef{\py@num}{py_num.tex}{}%
+\IfDecimal{\py@num}{\num{\py@num}}{\PackageError{pynum}{Python output for #2 is not a number}{}}
+\else
+\PackageError{pynum}{No output from Python. Check if #1.py is present}{}
+\fi
+}
+
+\newcommand{\limiti}[1]{%
+\pynum[limiti]{#1}%
+}
+\newcommand{\limitist}[2][\st]{
+\pynum[limiti]{subtask[#1]["#2"]}%
+}
+
+\newcommand{\stscore}[1]{%
+\immediate\write18{cd \currfiledir; grep '^\#ST:' GEN | head -n #1 | tail -n 1 | cut -f 2 -d : | cut -f 1 -d \# | xargs echo -n > ../stscore.tex}%
+\ifnum0\pdffilesize{py_num.tex}>0
+\phantom{00}\llap{\input{stscore.tex}\unskip}%
+\else
+\PackageError{GEN}{Subtask #1 not found}{}
+\fi
+}
+
+\newcommand{\st}{\the@subtaskcounter}
+
+\newcommand{\subtask}{%
+\addtocounter{@subtaskcounter}{1}%
+\textbf{\makebox[2cm][l]{\kw@Subtask~\the@subtaskcounter}~[\stscore{\the@subtaskcounter} \kw@points]}:
 }
 
 
