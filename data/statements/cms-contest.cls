@@ -434,7 +434,7 @@
 
 \newcommand{\stscore}[1]{%
 \immediate\write18{cd \currfiledir; grep '^\#ST:' GEN | head -n #1 | tail -n 1 | cut -f 2 -d : | cut -f 1 -d \# | xargs echo -n > ../stscore.tex}%
-\ifnum0\pdffilesize{py_num.tex}>0
+\ifnum0\pdffilesize{stscore.tex}>0
 \phantom{00}\llap{\input{stscore.tex}\unskip}%
 \else
 \PackageError{GEN}{Subtask #1 not found}{}
