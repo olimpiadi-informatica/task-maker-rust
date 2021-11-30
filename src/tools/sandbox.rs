@@ -18,10 +18,9 @@ pub fn main_sandbox(opt: SandboxOpt) -> Result<(), Error> {
     let mut config = SandboxConfiguration::default();
 
     #[cfg(not(target_os = "macos"))]
-    {
+    let _tempdir = {
         let tempdir = TempDir::new("tm-tools-sandbox")?;
         let etcdir = tempdir.path();
-
         config.working_directory("/box");
 
         let workdir = opt
@@ -67,7 +66,9 @@ pub fn main_sandbox(opt: SandboxOpt) -> Result<(), Error> {
         if opt.mount_tmpfs {
             config.mount_tmpfs(true);
         }
-    }
+
+        tempdir
+    };
 
     config.env("PATH", std::env::var("PATH").unwrap_or_default());
     config.env("LANG", std::env::var("LANG").unwrap_or_default());
