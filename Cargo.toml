@@ -86,3 +86,7 @@ path = "src/main.rs"
 [[bin]]
 name = "task-maker-tools"
 path = "src/tools/main.rs"
+
+[[bin]]
+name = "task-maker-sandbox"
+path = "src/task_maker_sandbox.rs"
