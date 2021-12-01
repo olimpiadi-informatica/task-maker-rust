@@ -56,7 +56,7 @@ pub fn main_worker(opt: WorkerOpt) -> Result<(), Error> {
         sandbox_path,
         executor_tx.change_type(),
         executor_rx.change_type(),
-        SelfExecSandboxRunner::default(),
+        SelfExecSandboxRunner::new("internal-sandbox"),
     );
     worker.work()
 }
