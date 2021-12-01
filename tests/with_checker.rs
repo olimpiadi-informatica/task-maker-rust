@@ -1,5 +1,7 @@
+mod common;
+use common::TestInterface;
+
 use task_maker_format::ioi::TestcaseEvaluationStatus::*;
-use task_maker_test::*;
 
 fn with_checker(test: TestInterface) {
     test.success()

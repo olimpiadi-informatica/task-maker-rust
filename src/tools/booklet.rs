@@ -42,7 +42,7 @@ pub fn main_booklet(opt: BookletOpt) -> Result<(), Error> {
         }
         Ok(())
     })?;
-    context.sandbox_runner(SelfExecSandboxRunner::new("internal-sandbox"));
+    context.sandbox_runner(SelfExecSandboxRunner::default());
 
     // start the execution
     let executor = context.connect_executor(&opt.execution, &opt.storage)?;

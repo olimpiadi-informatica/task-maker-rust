@@ -1,5 +1,4 @@
 use std::io::{stdin, stdout};
-use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -9,6 +8,7 @@ use tabox::configuration::SandboxConfiguration;
 use tabox::result::SandboxExecutionResult;
 use tabox::{Sandbox, SandboxImplementation};
 
+use task_maker_exec::find_tools::find_tools_path;
 use task_maker_exec::{RawSandboxResult, SandboxRunner};
 
 /// Actually parse the input and return the result.
@@ -37,33 +37,24 @@ pub fn main_sandbox() {
     }
 }
 
-/// Run the sandbox integrated in the task-maker binary, by executing itself with different command
-/// line arguments.
+/// Run the sandbox integrated in the task-maker-tools binary.
 #[derive(Clone, Debug)]
 pub struct SelfExecSandboxRunner {
-    /// Single command line argument to send to the command to enter in the internal sandbox mode.
-    self_arg: String,
-}
-
-impl SelfExecSandboxRunner {
-    /// Make a new SelfExecSandboxRunner which calls the task-maker binary providing only the
-    /// argument.
-    pub fn new<S: Into<String>>(self_arg: S) -> Self {
-        Self {
-            self_arg: self_arg.into(),
-        }
-    }
+    /// Path to the tools executable.
+    tools_path: std::ffi::OsString,
 }
 
 impl Default for SelfExecSandboxRunner {
     fn default() -> Self {
-        Self::new("--sandbox")
+        SelfExecSandboxRunner {
+            tools_path: find_tools_path(),
+        }
     }
 }
 
 impl SandboxRunner for SelfExecSandboxRunner {
     fn run(&self, config: SandboxConfiguration, pid: Arc<AtomicU32>) -> RawSandboxResult {
-        match self_exec_sandbox_internal(&self.self_arg, config, pid) {
+        match self_exec_sandbox_internal(&self.tools_path, config, pid) {
             Ok(res) => res,
             Err(e) => RawSandboxResult::Error(e.to_string()),
         }
@@ -72,15 +63,12 @@ impl SandboxRunner for SelfExecSandboxRunner {
 
 /// Actually run the sandbox, but with a return type that supports the `?` operator.
 fn self_exec_sandbox_internal(
-    self_arg: &str,
+    tools_path: &std::ffi::OsStr,
     config: SandboxConfiguration,
     pid: Arc<AtomicU32>,
 ) -> Result<RawSandboxResult, Error> {
-    let command = std::env::var_os("TASK_MAKER_SANDBOX_BIN")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::current_exe().expect("Cannot get current executable"));
-    let mut cmd = Command::new(command)
-        .arg(self_arg)
+    let mut cmd = Command::new(tools_path)
+        .arg("internal-sandbox")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

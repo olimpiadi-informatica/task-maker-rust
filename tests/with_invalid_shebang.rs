@@ -1,7 +1,9 @@
-use task_maker_format::ioi::TestcaseGenerationStatus::Failed;
-use task_maker_test::*;
+mod common;
+use common::TestInterface;
 
-fn missing_shebang(test: TestInterface) {
+use task_maker_format::ioi::TestcaseGenerationStatus::Failed;
+
+fn with_invalid_shebang(test: TestInterface) {
     test.success()
         .time_limit(1.0)
         .memory_limit(64)
@@ -11,15 +13,15 @@ fn missing_shebang(test: TestInterface) {
 }
 
 #[test]
-fn missing_shebang_local() {
+fn with_invalid_shebang_local() {
     better_panic::install();
 
-    missing_shebang(TestInterface::run_local("missing_shebang"));
+    with_invalid_shebang(TestInterface::run_local("with_invalid_shebang"));
 }
 
 #[test]
-fn missing_shebang_remote() {
+fn with_invalid_shebang_remote() {
     better_panic::install();
 
-    missing_shebang(TestInterface::run_remote("missing_shebang"));
+    with_invalid_shebang(TestInterface::run_remote("with_invalid_shebang"));
 }

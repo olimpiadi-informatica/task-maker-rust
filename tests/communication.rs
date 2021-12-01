@@ -1,5 +1,7 @@
 use task_maker_format::ioi::TestcaseEvaluationStatus::*;
-use task_maker_test::*;
+
+mod common;
+use common::TestInterface;
 
 fn communication(test: TestInterface) {
     test.success()

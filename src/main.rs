@@ -181,18 +181,11 @@
 
 use structopt::StructOpt;
 
+use task_maker_rust::main_local;
 use task_maker_rust::opt;
-use task_maker_rust::{main_local, main_sandbox};
 
 fn main() {
     let mut opt = opt::Opt::from_args();
     opt.enable_log();
-
-    // internal API: run in sandbox mode if `--sandbox` is provided
-    if opt.sandbox {
-        main_sandbox();
-        return;
-    }
-
     main_local(opt);
 }

@@ -97,6 +97,7 @@ mod client;
 mod detect_exe;
 mod executor;
 pub mod executors;
+pub mod find_tools;
 pub mod proto;
 pub mod sandbox;
 mod sandbox_runner;

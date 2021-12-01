@@ -1,4 +1,5 @@
-use task_maker_test::*;
+mod common;
+use common::TestInterface;
 
 #[test]
 fn with_bugged_checker_local() {

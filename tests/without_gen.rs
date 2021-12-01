@@ -1,7 +1,9 @@
-use task_maker_format::ioi::TestcaseEvaluationStatus::*;
-use task_maker_test::*;
+mod common;
+use common::TestInterface;
 
-fn with_stdio(test: TestInterface) {
+use task_maker_format::ioi::TestcaseEvaluationStatus::*;
+
+fn without_gen(test: TestInterface) {
     test.success()
         .time_limit(1.0)
         .memory_limit(64)
@@ -10,9 +12,7 @@ fn with_stdio(test: TestInterface) {
         .must_compile("soluzione.cpp")
         .must_compile("wa.cpp")
         .must_compile("wrong_file.cpp")
-        .not_compiled("noop.py")
         .solution_score("soluzione.cpp", vec![100.0])
-        .solution_score("noop.py", vec![0.0])
         .solution_score("wa.cpp", vec![50.0])
         .solution_score("wrong_file.cpp", vec![0.0])
         .solution_statuses("soluzione.cpp", vec![Accepted("Output is correct".into())])
@@ -28,20 +28,19 @@ fn with_stdio(test: TestInterface) {
         .solution_statuses(
             "wrong_file.cpp",
             vec![WrongAnswer("Output is incorrect".into())],
-        )
-        .solution_statuses("noop.py", vec![WrongAnswer("Output is incorrect".into())]);
+        );
 }
 
 #[test]
-fn with_stdio_local() {
+fn without_gen_local() {
     better_panic::install();
 
-    with_stdio(TestInterface::run_local("with_stdio"));
+    without_gen(TestInterface::run_local("without_gen"));
 }
 
 #[test]
-fn with_stdio_remote() {
+fn without_gen_remote() {
     better_panic::install();
 
-    with_stdio(TestInterface::run_remote("with_stdio"));
+    without_gen(TestInterface::run_remote("without_gen"));
 }
