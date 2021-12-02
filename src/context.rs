@@ -18,7 +18,7 @@ use task_maker_format::{EvaluationData, TaskFormat, UISender, VALID_TAGS};
 use task_maker_store::FileStore;
 
 use crate::remote::connect_to_remote_server;
-use crate::{render_dag, ExecutionOpt, SelfExecSandboxRunner, StorageOpt};
+use crate::{render_dag, ExecutionOpt, StorageOpt, ToolsSandboxRunner};
 
 /// Version of task-maker.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -29,7 +29,7 @@ pub struct RuntimeContext {
     task: Box<dyn TaskFormat>,
     eval: EvaluationData,
     ui_receiver: UIChannelReceiver,
-    sandbox_runner: SelfExecSandboxRunner,
+    sandbox_runner: ToolsSandboxRunner,
 }
 
 /// Second step: connect to an executor (either local or remote). This opens the local store and
@@ -109,12 +109,12 @@ impl RuntimeContext {
             task,
             eval,
             ui_receiver,
-            sandbox_runner: SelfExecSandboxRunner::default(),
+            sandbox_runner: ToolsSandboxRunner::default(),
         })
     }
 
     /// Change the default sandbox runner for the local executor.
-    pub fn sandbox_runner(&mut self, sandbox_runner: SelfExecSandboxRunner) {
+    pub fn sandbox_runner(&mut self, sandbox_runner: ToolsSandboxRunner) {
         self.sandbox_runner = sandbox_runner;
     }
 

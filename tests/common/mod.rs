@@ -6,7 +6,7 @@ mod test_interface;
 
 use task_maker_dag::ExecutionDAG;
 use task_maker_exec::eval_dag_locally;
-use task_maker_rust::SelfExecSandboxRunner;
+use task_maker_rust::ToolsSandboxRunner;
 
 pub fn setup() {
     let _ = env_logger::Builder::from_default_env()
@@ -28,6 +28,6 @@ pub fn eval_dag(dag: ExecutionDAG) {
         cwd.path(),
         1000,
         1000,
-        SelfExecSandboxRunner::default(),
+        ToolsSandboxRunner::default(),
     );
 }

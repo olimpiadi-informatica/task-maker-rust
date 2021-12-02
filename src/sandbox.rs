@@ -39,22 +39,22 @@ pub fn main_sandbox() {
 
 /// Run the sandbox integrated in the task-maker-tools binary.
 #[derive(Clone, Debug)]
-pub struct SelfExecSandboxRunner {
+pub struct ToolsSandboxRunner {
     /// Path to the tools executable.
-    tools_path: std::ffi::OsString,
+    tools_path: std::path::PathBuf,
 }
 
-impl Default for SelfExecSandboxRunner {
+impl Default for ToolsSandboxRunner {
     fn default() -> Self {
-        SelfExecSandboxRunner {
+        ToolsSandboxRunner {
             tools_path: find_tools_path(),
         }
     }
 }
 
-impl SandboxRunner for SelfExecSandboxRunner {
+impl SandboxRunner for ToolsSandboxRunner {
     fn run(&self, config: SandboxConfiguration, pid: Arc<AtomicU32>) -> RawSandboxResult {
-        match self_exec_sandbox_internal(&self.tools_path, config, pid) {
+        match tools_sandbox_internal(&self.tools_path, config, pid) {
             Ok(res) => res,
             Err(e) => RawSandboxResult::Error(e.to_string()),
         }
@@ -62,8 +62,8 @@ impl SandboxRunner for SelfExecSandboxRunner {
 }
 
 /// Actually run the sandbox, but with a return type that supports the `?` operator.
-fn self_exec_sandbox_internal(
-    tools_path: &std::ffi::OsStr,
+fn tools_sandbox_internal(
+    tools_path: &std::path::Path,
     config: SandboxConfiguration,
     pid: Arc<AtomicU32>,
 ) -> Result<RawSandboxResult, Error> {

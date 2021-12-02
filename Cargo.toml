@@ -83,7 +83,6 @@ regex = "1"
 approx = "0.5.0"
 port_scanner = "0.1.5"
 
-
 [[bin]]
 name = "task-maker"
 path = "src/main.rs"

@@ -5,7 +5,7 @@ use task_maker_format::{find_task, EvaluationConfig, TaskFormat};
 
 use crate::context::RuntimeContext;
 use crate::tools::opt::BookletOpt;
-use crate::SelfExecSandboxRunner;
+use crate::ToolsSandboxRunner;
 use std::path::{Path, PathBuf};
 
 pub fn main_booklet(opt: BookletOpt) -> Result<(), Error> {
@@ -42,7 +42,7 @@ pub fn main_booklet(opt: BookletOpt) -> Result<(), Error> {
         }
         Ok(())
     })?;
-    context.sandbox_runner(SelfExecSandboxRunner::default());
+    context.sandbox_runner(ToolsSandboxRunner::default());
 
     // start the execution
     let executor = context.connect_executor(&opt.execution, &opt.storage)?;
