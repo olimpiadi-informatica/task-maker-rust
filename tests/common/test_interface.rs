@@ -20,6 +20,8 @@ use task_maker_rust::tools::server::main_server;
 use task_maker_rust::tools::worker::main_worker;
 use task_maker_rust::{run_evaluation, Evaluation, Opt};
 
+use approx::abs_diff_eq;
+
 /// Interface for testing a task.
 #[derive(Debug)]
 pub struct TestInterface {
@@ -40,6 +42,7 @@ impl TestInterface {
             .is_test(true)
             .try_init();
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
             .join("tasks")
             .join(path.into());
         let tempdir = TempDir::new("tm-test-local-client").expect("Cannot crete tempdir");
@@ -62,6 +65,7 @@ impl TestInterface {
         }
 
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
             .join("tasks")
             .join(path.into());
         let tempdir = TempDir::new("tm-test-remote-client").expect("Cannot crete tempdir");
@@ -128,8 +132,8 @@ impl TestInterface {
             args.push(arg);
         }
         std::env::set_var(
-            "TASK_MAKER_SANDBOX_BIN",
-            PathBuf::from(env!("OUT_DIR")).join("sandbox"),
+            "TASK_MAKER_TOOLS_PATH",
+            env!("CARGO_BIN_EXE_task-maker-tools"),
         );
         let opt = Opt::from_iter(&args);
 
@@ -205,8 +209,8 @@ impl TestInterface {
                 ]);
                 eprintln!("Worker opts {:?}", opt);
                 std::env::set_var(
-                    "TASK_MAKER_SANDBOX_BIN",
-                    PathBuf::from(env!("OUT_DIR")).join("sandbox"),
+                    "TASK_MAKER_TOOLS_PATH",
+                    env!("CARGO_BIN_EXE_task-maker-tools"),
                 );
                 main_worker(opt).unwrap();
             })

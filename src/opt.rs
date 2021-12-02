@@ -62,12 +62,6 @@ pub struct Opt {
     #[structopt(short = "-W", long_help = skip_sanity_checks_long_help())]
     pub skip_sanity_checks: Vec<String>,
 
-    /// Run the sandbox instead of the normal task-maker.
-    ///
-    /// This option is left as undocumented as it's not part of the public API.
-    #[structopt(long, hidden(true))]
-    pub sandbox: bool,
-
     #[structopt(flatten)]
     pub logger: LoggerOpt,
 

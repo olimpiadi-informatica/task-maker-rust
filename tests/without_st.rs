@@ -1,5 +1,7 @@
+mod common;
+use common::TestInterface;
+
 use task_maker_format::ioi::TestcaseEvaluationStatus::*;
-use task_maker_test::*;
 
 fn without_st(test: TestInterface) {
     test.success()

@@ -7,7 +7,7 @@ use task_maker_exec::Worker;
 use task_maker_store::FileStore;
 
 use crate::remote::connect_to_remote_server;
-use crate::sandbox::SelfExecSandboxRunner;
+use crate::sandbox::ToolsSandboxRunner;
 use crate::tools::opt::WorkerOpt;
 
 /// Version of task-maker
@@ -56,7 +56,7 @@ pub fn main_worker(opt: WorkerOpt) -> Result<(), Error> {
         sandbox_path,
         executor_tx.change_type(),
         executor_rx.change_type(),
-        SelfExecSandboxRunner::new("internal-sandbox"),
+        ToolsSandboxRunner::default(),
     );
     worker.work()
 }

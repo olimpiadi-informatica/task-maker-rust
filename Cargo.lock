@@ -54,6 +54,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "approx"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "072df7202e63b127ab55acfe16ce97013d5b97bf160489336d3f1840fd78e99e"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "arrayref"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1897,7 +1906,7 @@ name = "task-maker-dag"
 version = "0.5.1"
 dependencies = [
  "anyhow",
- "approx",
+ "approx 0.3.2",
  "boxfnonce",
  "serde",
  "task-maker-store",
@@ -1939,7 +1948,7 @@ name = "task-maker-format"
 version = "0.5.1"
 dependencies = [
  "anyhow",
- "approx",
+ "approx 0.3.2",
  "askama",
  "askama_derive",
  "derivative",
@@ -1992,6 +2001,7 @@ name = "task-maker-rust"
 version = "0.5.1"
 dependencies = [
  "anyhow",
+ "approx 0.5.0",
  "better-panic",
  "ctrlc",
  "directories",
@@ -2000,6 +2010,7 @@ dependencies = [
  "lazy_static",
  "log",
  "num_cpus",
+ "port_scanner",
  "regex",
  "scopeguard",
  "serde",
@@ -2031,27 +2042,6 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "serde_json",
- "tempdir",
-]
-
-[[package]]
-name = "task-maker-test"
-version = "0.5.1"
-dependencies = [
- "anyhow",
- "approx",
- "better-panic",
- "env_logger",
- "itertools",
- "log",
- "port_scanner",
- "serde",
- "serde_json",
- "structopt",
- "task-maker-dag",
- "task-maker-exec",
- "task-maker-format",
- "task-maker-rust",
  "tempdir",
 ]
 
