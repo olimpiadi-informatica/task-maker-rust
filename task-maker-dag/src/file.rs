@@ -25,6 +25,7 @@ pub struct WriteToCallback {
 }
 
 /// The callbacks that will trigger when the file is ready.
+#[derive(Default)]
 pub struct FileCallbacks {
     /// Destination of the file if it has to be stored in the disk of the client.
     pub write_to: Option<WriteToCallback>,
@@ -67,15 +68,6 @@ impl std::fmt::Debug for FileCallbacks {
             .field("write_to", &self.write_to)
             .finish()?;
         Ok(())
-    }
-}
-
-impl std::default::Default for FileCallbacks {
-    fn default() -> FileCallbacks {
-        FileCallbacks {
-            write_to: None,
-            get_content: None,
-        }
     }
 }
 

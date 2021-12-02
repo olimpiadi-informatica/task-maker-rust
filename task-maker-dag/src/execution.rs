@@ -79,6 +79,7 @@ pub struct ExecutionInput {
 }
 
 /// The callbacks to be called when an event of an execution occurs.
+#[derive(Default)]
 pub struct ExecutionCallbacks {
     /// The callbacks called when the execution starts.
     pub on_start: Vec<OnStartCallback>,
@@ -743,16 +744,6 @@ impl std::fmt::Debug for ExecutionCallbacks {
             .field("on_skip", &self.on_skip.len())
             .finish()?;
         Ok(())
-    }
-}
-
-impl std::default::Default for ExecutionCallbacks {
-    fn default() -> Self {
-        ExecutionCallbacks {
-            on_start: Vec::new(),
-            on_done: Vec::new(),
-            on_skip: Vec::new(),
-        }
     }
 }
 

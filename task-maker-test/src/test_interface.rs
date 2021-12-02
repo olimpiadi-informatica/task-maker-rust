@@ -24,7 +24,7 @@ use task_maker_rust::{run_evaluation, Evaluation, Opt};
 #[derive(Debug)]
 pub struct TestInterface {
     state: Result<UIState, Error>,
-    tempdir: TempDir,
+    _tempdir: TempDir,
 }
 
 /// Interface for testing a task.
@@ -45,7 +45,7 @@ impl TestInterface {
         let tempdir = TempDir::new("tm-test-local-client").expect("Cannot crete tempdir");
         TestInterface {
             state: TestInterface::run_task_maker(path, false, tempdir.path(), &[]),
-            tempdir,
+            _tempdir: tempdir,
         }
     }
 
@@ -72,7 +72,7 @@ impl TestInterface {
                 tempdir.path(),
                 &["--evaluate-on", "tcp://127.0.0.1:27182"],
             ),
-            tempdir,
+            _tempdir: tempdir,
         }
     }
 

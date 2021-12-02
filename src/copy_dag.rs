@@ -58,7 +58,7 @@ pub fn render_dag(dag: &ExecutionDAG) -> String {
     for (_, file) in files {
         nodes.push(Node::File(file));
     }
-    nodes.sort_by_cached_key(|n| node_label(n));
+    nodes.sort_by_cached_key(node_label);
     render_graph(nodes, edges)
 }
 

@@ -87,7 +87,7 @@ pub struct FileStore {
     /// Base directory of the `FileStore`.
     base_path: PathBuf,
     /// Handle of the file with the data of the store. This handle keeps the lock alive.
-    file: File,
+    _file: File,
     /// The files locked because there are some handles still alive.
     locked_files: Arc<Mutex<LockedFiles>>,
     /// The index with the files known to the store. This is used when flushing the old files.
@@ -168,7 +168,7 @@ impl FileStore {
             .context("Failed to load storage index")?;
         Ok(FileStore {
             base_path,
-            file,
+            _file: file,
             locked_files: Arc::new(Mutex::new(LockedFiles::new())),
             index: Arc::new(Mutex::new(index)),
             max_store_size,
