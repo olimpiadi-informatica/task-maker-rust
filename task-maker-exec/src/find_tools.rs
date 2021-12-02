@@ -1,7 +1,8 @@
 //! Finds the location of the `task-maker-tools` executable.
+use std::path::PathBuf;
 
 /// Locates the `task-maker-tools` executable.
-pub fn find_tools_path() -> std::path::PathBuf {
+pub fn find_tools_path() -> PathBuf {
     // Check environment variable.
     if let Some(path) = std::env::var_os("TASK_MAKER_TOOLS_PATH") {
         return path.into();

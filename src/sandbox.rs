@@ -1,4 +1,5 @@
 use std::io::{stdin, stdout};
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -41,7 +42,7 @@ pub fn main_sandbox() {
 #[derive(Clone, Debug)]
 pub struct ToolsSandboxRunner {
     /// Path to the tools executable.
-    tools_path: std::path::PathBuf,
+    tools_path: PathBuf,
 }
 
 impl Default for ToolsSandboxRunner {
@@ -63,7 +64,7 @@ impl SandboxRunner for ToolsSandboxRunner {
 
 /// Actually run the sandbox, but with a return type that supports the `?` operator.
 fn tools_sandbox_internal(
-    tools_path: &std::path::Path,
+    tools_path: &Path,
     config: SandboxConfiguration,
     pid: Arc<AtomicU32>,
 ) -> Result<RawSandboxResult, Error> {
