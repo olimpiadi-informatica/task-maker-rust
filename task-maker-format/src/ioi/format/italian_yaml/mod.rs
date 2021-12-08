@@ -571,8 +571,13 @@ fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> Result<
         .map(|mut c| {
             // always copy the custom checker
             c.copy_exe();
+
             // Link the checker statically. This makes sure that it will work also outside this machine.
-            c.link_static();
+            // Doesn't work on MacOS, see https://github.com/edomora97/task-maker-rust/pull/29
+            if cfg!(not(target_os = "macos")) {
+                c.link_static();
+            }
+
             Checker::Custom(Arc::new(c))
         })
         .unwrap_or(Checker::WhiteDiff);
@@ -610,8 +615,12 @@ fn parse_communication_task_data(
     } else {
         return Ok(None);
     };
+
     // Link the manager statically. This makes sure that it will work also outside this machine.
-    manager.link_static();
+    // Doesn't work on MacOS, see https://github.com/edomora97/task-maker-rust/pull/29
+    if cfg!(not(target_os = "macos")) {
+        manager.link_static();
+    }
 
     Ok(Some(TaskType::Communication(CommunicationTypeData {
         manager: Arc::new(manager),
