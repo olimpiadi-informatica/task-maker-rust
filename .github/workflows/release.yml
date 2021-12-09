@@ -31,39 +31,3 @@ jobs:
       #     docker push edomora97/task-maker-rust:latest
       #   env:
       #     DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-
-  macOS:
-    name: Build & Publish (macOS)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v1
-      - name: Build
-        run: |
-          set -ex
-
-          export version=$(grep version Cargo.toml | head -n 1 | cut -d'"' -f 2)
-          sed -i "" "s/ARCHIVE_VERSION/v$version/g" ./tools/homebrew/task-maker-rust.rb
-          curl -L -o archive.tar.gz "https://github.com/edomora97/task-maker-rust/archive/v$version.tar.gz"
-          export hash=$(shasum -a 256 archive.tar.gz | grep -o "[0-9a-f]*" | head -n 1)
-          sed -i "" "s/ARCHIVE_SHA256/$hash/g" ./tools/homebrew/task-maker-rust.rb
-
-          brew update
-          mkdir -p $(brew --prefix)/Homebrew/Library/Taps/homebrew/homebrew-core/Formula/
-          cp ./tools/homebrew/task-maker-rust.rb $(brew --prefix)/Homebrew/Library/Taps/homebrew/homebrew-core/Formula/
-          brew install --verbose --build-bottle --formula task-maker-rust
-          brew bottle --force-core-tap task-maker-rust
-      - name: Upload the artifacts
-        run: |
-          export filename=$(ls *.bottle.tar.gz)
-          export tag=v$(grep version Cargo.toml | head -n 1 | cut -d'"' -f 2)
-          export GH_API="https://api.github.com"
-          export GH_REPO="$GH_API/repos/edomora97/task-maker-rust"
-          export GH_TAGS="$GH_REPO/releases/tags/$tag"
-          export AUTH="Authorization: token $GITHUB_TOKEN"
-          response=$(curl -sH "$AUTH" $GH_TAGS)
-          eval $(echo "$response" | grep -m 1 "id.:" | grep -w id | tr : = | tr -cd '[[:alnum:]]=')
-          [ "$id" ] || { echo "Error: Failed to get release id for tag: $tag"; echo "$response" | awk 'length($0)<100' >&2; exit 1; }
-          export GH_ASSET="https://uploads.github.com/repos/edomora97/task-maker-rust/releases/$id/assets?name=$(basename $filename)"
-          curl --data-binary @"$filename" -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/octet-stream" $GH_ASSET
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
