@@ -26,7 +26,7 @@ pub struct InputFileHash(HashData);
 /// expected to change the result (such as outer hashes of inputs, or the command line). The inner
 /// hash takes care of properties of the computation that should not change the outputs, such as
 /// time and memory limits; it also includes the first hash.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ComputationHash(HashData, HashData);
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone)]
@@ -35,9 +35,11 @@ enum HandleMode {
     Write,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+type HandleId = usize;
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct FileSetHandle {
-    id: usize,
+    id: HandleId,
     mode: HandleMode,
 }
 
@@ -50,7 +52,7 @@ impl FileSetHandle {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileHandle {
     file_set_handle: FileSetHandle,
-    id: usize,
+    id: HandleId,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -101,7 +103,7 @@ pub trait Store {
     async fn finalize_fileset(handle: FileSetHandle) -> Result<FileSetHandle, Error>;
 
     /// Tries to read from a file. Refreshes the corresponding lease.
-    async fn read_chunk(file: FileHandle, offset: usize) -> FileReadingOutcome;
+    async fn read_chunk(file: FileHandle, offset: usize) -> Result<FileReadingOutcome, Error>;
 
     /// Refreshes the lease for the given fileset.
     /// It is guaranteed that the fileset will not be deleted while there's an outstanding lease
@@ -115,9 +117,11 @@ enum FileSetKind {
     InputFile,
 }
 
+type FileContents = Vec<u8>;
+
 #[derive(Debug)]
 struct FileSet {
-    files: HashMap<FileSetFile, Vec<u8>>,
+    files: HashMap<FileSetFile, FileContents>,
     kind: FileSetKind,
     finalized: bool,
 }
@@ -130,14 +134,14 @@ struct FileSetHandleInfo {
     inner_hash: HashData,
     expiration: Instant,
     mode: HandleMode,
-    file_handles: HashMap<usize, FileSetFile>,
-    next_handle: usize,
+    file_handles: HashMap<HandleId, FileSetFile>,
+    next_handle: HandleId,
 }
 
 struct StoreServiceImpl {
     filesets: HashMap<HashData, FileSetVariants>,
-    fileset_handles: HashMap<usize, FileSetHandleInfo>,
-    next_handle: usize,
+    fileset_handles: HashMap<HandleId, FileSetHandleInfo>,
+    next_handle: HandleId,
 }
 
 impl StoreServiceImpl {
@@ -149,9 +153,19 @@ impl StoreServiceImpl {
         }
     }
 
-    fn new_handle(&mut self, mode: HandleMode) -> FileSetHandle {
+    fn new_handle(&mut self, hash: ComputationHash, mode: HandleMode) -> FileSetHandle {
         let handle = self.next_handle;
         self.next_handle += 1;
+        let ComputationHash(outer_hash, inner_hash) = hash;
+        let handle_info = FileSetHandleInfo {
+            outer_hash,
+            inner_hash,
+            expiration: Instant::now() + LEASE_LENGTH,
+            mode,
+            file_handles: HashMap::new(),
+            next_handle: 0,
+        };
+        self.fileset_handles.insert(handle, handle_info);
         FileSetHandle { id: handle, mode }
     }
 
@@ -160,15 +174,12 @@ impl StoreServiceImpl {
         hash: ComputationHash,
         kind: FileSetKind,
     ) -> Result<FileSetHandle, Error> {
-        let outer_comp = self
-            .filesets
-            .entry(hash.0.clone())
-            .or_insert_with(HashMap::new);
-        let handle = if let Some(file_set) = outer_comp.get(&hash.1) {
+        let outer_comp = self.filesets.entry(hash.0.clone()).or_default();
+        if let Some(file_set) = outer_comp.get(&hash.1) {
             if file_set.kind != kind {
                 return Err(Error::HashCollision(hash));
             }
-            self.new_handle(HandleMode::Read)
+            Ok(self.new_handle(hash, HandleMode::Read))
         } else {
             outer_comp.insert(
                 hash.1.clone(),
@@ -178,22 +189,46 @@ impl StoreServiceImpl {
                     finalized: false,
                 },
             );
-            self.new_handle(HandleMode::Write)
-        };
-        let ComputationHash(outer_hash, inner_hash) = hash;
-        let handle_info = FileSetHandleInfo {
-            outer_hash,
-            inner_hash,
-            expiration: Instant::now() + LEASE_LENGTH,
-            mode: handle.mode,
-            file_handles: HashMap::new(),
-            next_handle: 0usize,
-        };
-        self.fileset_handles.insert(handle.id, handle_info);
-        Ok(handle)
+            Ok(self.new_handle(hash, HandleMode::Write))
+        }
+    }
+
+    fn clear_expired_leases(&mut self) {
+        let time = Instant::now();
+        for info in self.fileset_handles.values() {
+            if info.expiration >= time && info.mode == HandleMode::Write {
+                self.filesets
+                    .get_mut(&info.outer_hash)
+                    .unwrap()
+                    .remove(&info.inner_hash);
+            }
+        }
+        self.fileset_handles
+            .retain(|_, info| info.expiration >= time);
+    }
+
+    fn validate_and_refresh(
+        &mut self,
+        handle: FileSetHandle,
+    ) -> Result<Entry<'_, HandleId, FileSetHandleInfo>, Error> {
+        let mut entry = self.fileset_handles.entry(handle.id);
+        match entry {
+            Entry::Vacant(_) => return Err(Error::UnknownHandle(handle.id)),
+            Entry::Occupied(ref mut entry) => {
+                let mut v = entry.get_mut();
+                if v.mode != handle.mode {
+                    return Err(Error::UnknownHandle(handle.id));
+                } else {
+                    v.expiration = Instant::now() + LEASE_LENGTH;
+                }
+            }
+        }
+        Ok(entry)
     }
 }
 
+/// In-memory implementation of the Store interface.
+/// TODO(veluca): write a proper disk-backed implementation.
 #[derive(Clone)]
 pub struct StoreService {
     service: Arc<Mutex<StoreServiceImpl>>,
@@ -230,64 +265,50 @@ impl StoreService {
         }
     }
 
-    pub fn clear_expired_leases(&self) {
-        let mut service_guard = self.service.lock().unwrap();
-        let service = &mut *service_guard;
-        let time = Instant::now();
-        for info in service.fileset_handles.values() {
-            if info.expiration >= time && info.mode == HandleMode::Write {
-                service
-                    .filesets
-                    .get_mut(&info.outer_hash)
-                    .unwrap()
-                    .remove(&info.inner_hash);
-            }
-        }
-        service
-            .fileset_handles
-            .retain(|_, info| info.expiration >= time);
-    }
-
     /// Creates and starts a store, listening for RPCs on the given transport.
     pub fn new_on_transport(
         transport: impl Transport<Response<StoreResponse>, ClientMessage<StoreRequest>> + Send + 'static,
     ) -> Self {
         let token = CancellationToken::new();
 
-        let s = StoreService {
+        let service = StoreService {
             service: Arc::new(Mutex::new(StoreServiceImpl::new())),
             cancellation_token: Arc::new(token),
         };
         let server = BaseChannel::with_defaults(transport);
-        let s_clone = s.clone();
 
-        let token = s.cancellation_token.clone();
-        tokio::spawn(async move {
-            select! {
-                _ = token.cancelled() => {}
-                _ = server.execute(s_clone.serve()) => { }
-            }
-        });
-
-        let token = s.cancellation_token.clone();
-        let s_clone = s.clone();
-        tokio::spawn(async move {
-            let mut timer = interval(LEASE_LENGTH);
-            let timer = async {
-                loop {
-                    let x = timer.tick().await;
-                    s_clone.clear_expired_leases();
+        {
+            let service = service.clone();
+            let token = service.cancellation_token.clone();
+            tokio::spawn(async move {
+                select! {
+                    _ = token.cancelled() => {}
+                    _ = server.execute(service.serve()) => {}
                 }
-            };
+            });
+        }
 
-            select! {
-                _ = token.cancelled() => {
-                    println!("Cancelled");
+        {
+            let token = service.cancellation_token.clone();
+            let service = service.clone();
+            tokio::spawn(async move {
+                let mut timer = interval(LEASE_LENGTH);
+                let timer = async {
+                    loop {
+                        let x = timer.tick().await;
+                        {
+                            service.service.lock().unwrap().clear_expired_leases();
+                        }
+                    }
+                };
+
+                select! {
+                    _ = token.cancelled() => {}
+                    _ = timer => {}
                 }
-                _ = timer => { }
-            }
-        });
-        s
+            });
+        }
+        service
     }
 
     /// Stops the server.
@@ -315,47 +336,31 @@ impl Store for StoreService {
         context: Context,
         hash: ComputationHash,
     ) -> Result<FileSetHandle, Error> {
-        let get_handle = || {
-            let hash = hash.clone();
-            let mut service = self.service.lock().unwrap();
-            let outer_comp = service
+        let has_comp = {
+            let service = self.service.lock().unwrap();
+            service
                 .filesets
-                .entry(hash.0.clone())
-                .or_insert_with(HashMap::new);
-            if let Some(file_set) = outer_comp.get(&hash.1) {
-                if file_set.kind != FileSetKind::Computation {
-                    return Err(Error::HashCollision(hash));
-                }
-                Ok(Some(service.new_handle(HandleMode::Read)))
-            } else {
-                Ok(None)
-            }
+                .get(&hash.0)
+                .and_then(|x| x.get(&hash.1))
+                .is_some()
         };
-        #[allow(clippy::never_loop)]
-        let handle = loop {
-            let handle = get_handle()?;
-            if let Some(handle) = handle {
-                break handle;
-            } else {
-                return Err(Error::NotImplemented(
-                    "waiting for computation creation is not yet implemented".into(),
-                ));
-            }
-        };
-        let handle_info = FileSetHandleInfo {
-            outer_hash: hash.0.clone(),
-            inner_hash: hash.1.clone(),
-            expiration: Instant::now() + LEASE_LENGTH,
-            mode: HandleMode::Read,
-            file_handles: HashMap::new(),
-            next_handle: 0usize,
-        };
-        self.service
-            .lock()
-            .unwrap()
-            .fileset_handles
-            .insert(handle.id, handle_info);
-        Ok(handle)
+
+        if !has_comp {
+            return Err(Error::NotImplemented(
+                "waiting for computation creation is not yet implemented".into(),
+            ));
+        }
+
+        let mut service = self.service.lock().unwrap();
+        let file_set = service
+            .filesets
+            .get(&hash.0)
+            .and_then(|x| x.get(&hash.1))
+            .unwrap();
+        if file_set.kind != FileSetKind::Computation {
+            return Err(Error::HashCollision(hash));
+        }
+        Ok(service.new_handle(hash, HandleMode::Read))
     }
 
     async fn finalize_fileset(
@@ -367,17 +372,9 @@ impl Store for StoreService {
             return Err(Error::FinalizeRead(handle.id));
         }
         let mut service = self.service.lock().unwrap();
-        let entry = service.fileset_handles.entry(handle.id);
-        if let Entry::Vacant(_) = entry {
-            return Err(Error::UnknownHandle(handle.id));
-        }
-        if let Entry::Occupied(entry) = &entry {
-            if entry.get().mode != handle.mode {
-                return Err(Error::UnknownHandle(handle.id));
-            }
-        }
+        let entry = service.validate_and_refresh(handle)?;
         // TODO(veluca): we should verify the hash of the file if this is a fileset.
-        entry.and_modify(|v| v.expiration = Instant::now() + LEASE_LENGTH);
+        entry.and_modify(|v| v.mode = HandleMode::Read);
         Ok(FileSetHandle {
             id: handle.id,
             mode: HandleMode::Read,
@@ -390,19 +387,7 @@ impl Store for StoreService {
         handle: FileSetHandle,
     ) -> Result<(), Error> {
         let mut service = self.service.lock().unwrap();
-        let entry = service.fileset_handles.entry(handle.id);
-        match entry {
-            Entry::Vacant(_) => Err(Error::UnknownHandle(handle.id)),
-            Entry::Occupied(mut entry) => {
-                let mut v = entry.get_mut();
-                if v.mode != handle.mode {
-                    Err(Error::UnknownHandle(handle.id))
-                } else {
-                    v.expiration = Instant::now() + LEASE_LENGTH;
-                    Ok(())
-                }
-            }
-        }
+        service.validate_and_refresh(handle).map(|x| ())
     }
 
     async fn open_file(
@@ -428,7 +413,7 @@ impl Store for StoreService {
         context: Context,
         file: FileHandle,
         offset: usize,
-    ) -> FileReadingOutcome {
+    ) -> Result<FileReadingOutcome, Error> {
         todo!("not implemented");
     }
 }
@@ -436,35 +421,62 @@ impl Store for StoreService {
 #[cfg(test)]
 mod test {
     use super::*;
+    use assert2::{check, let_assert};
     use tarpc::context;
 
     #[tokio::test]
-    async fn create() {
+    async fn fileset_basic() {
         let (client_transport, server_transport) = tarpc::transport::channel::unbounded();
         let client = StoreClient::new(tarpc::client::Config::default(), client_transport).spawn();
         let context = context::current();
         let server = StoreService::new_on_transport(server_transport);
+
+        // Obtain a writing lease.
         let resp = client
             .create_or_open_input_file(context, InputFileHash(vec![]))
             .await
             .unwrap();
-        println!("{:?}", resp);
-        let resp2 = client
+        let_assert!(Ok(handle1) = resp);
+        check!(handle1.is_writable());
+
+        // Obtain a reading lease.
+        let resp = client
             .create_or_open_input_file(context, InputFileHash(vec![]))
             .await
             .unwrap();
-        println!("{:?}", resp2);
-        let resp3 = client
-            .refresh_fileset_lease(context::current(), resp.unwrap())
+        let_assert!(Ok(handle2) = resp);
+        check!(!handle2.is_writable());
+
+        // Refresh the writing lease.
+        let resp = client
+            .refresh_fileset_lease(context::current(), handle1)
             .await
             .unwrap();
-        println!("{:?}", resp3);
+        check!(Ok(()) == resp);
+
+        // Finalize the writing lease.
+        let resp = client
+            .finalize_fileset(context::current(), handle1)
+            .await
+            .unwrap();
+        let_assert!(Ok(handle1) = resp);
+        check!(!handle1.is_writable());
+
+        // Refresh the resulting reading lease.
+        let resp = client
+            .refresh_fileset_lease(context::current(), handle1)
+            .await
+            .unwrap();
+        check!(Ok(()) == resp);
+
+        // Wait long enough for the reading lease to expire.
         tokio::time::sleep(LEASE_LENGTH + Duration::from_millis(100)).await;
-        let resp4 = client
-            .refresh_fileset_lease(context::current(), resp2.unwrap())
+
+        let resp = client
+            .refresh_fileset_lease(context::current(), handle2)
             .await
             .unwrap();
-        println!("{:?}", resp4);
-        server.stop();
+
+        let_assert!(Err(_) = resp);
     }
 }

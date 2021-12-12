@@ -2,7 +2,7 @@ use crate::store::ComputationHash;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Error, Debug, Serialize, Deserialize)]
+#[derive(Error, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Error {
     #[error("Computation already exists: {0:?}")]
     ComputationExists(ComputationHash),

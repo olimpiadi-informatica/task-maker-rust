@@ -13,3 +13,4 @@ task-maker-dag = { path = "../task-maker-dag" }
 tokio-util = "0.6.9"
 tokio = { version = "1.14.0", features = ["full"] }
 futures = "0.3.18"
+assert2 = "0.3.6"
