@@ -1,3 +1,4 @@
+use crate::error::Error;
 use crate::store::FileSetHandle;
 use serde::{Deserialize, Serialize};
 use task_maker_dag::{ExecutionDAGData, ExecutionGroup};
@@ -13,7 +14,7 @@ pub struct ServerStatus {
 pub trait Server {
     /// Asks the server to evaluate the given DAG. All the input files must already be available in
     /// the Store.
-    async fn evaluate(dag: ExecutionDAGData) -> Result<(), ()>;
+    async fn evaluate(dag: ExecutionDAGData) -> Result<(), Error>;
 
     /// Asks the server for work to do. Returns a ComputationWriteHandle to be used to store the
     /// outputs in the Store. id is an identifier of the worker that calls the method.

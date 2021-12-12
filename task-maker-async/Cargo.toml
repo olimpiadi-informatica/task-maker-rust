@@ -1,11 +1,15 @@
 [package]
 name = "task-maker-async"
 version = "0.1.0"
-edition = "2021"
+edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tarpc = "0.27"
+tarpc = { version = "0.27", features = ["full"] }
+thiserror = "1.0"
 serde =  { version = "1.0", features = ["derive"] }
 task-maker-dag = { path = "../task-maker-dag" }
+tokio-util = "0.6.9"
+tokio = { version = "1.14.0", features = ["full"] }
+futures = "0.3.18"
