@@ -35,11 +35,12 @@ enum HandleMode {
     Write,
 }
 
-type HandleId = usize;
+type FileSetHandleId = usize;
+type FileHandleId = usize;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct FileSetHandle {
-    id: HandleId,
+    id: FileSetHandleId,
     mode: HandleMode,
 }
 
@@ -52,7 +53,7 @@ impl FileSetHandle {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileHandle {
     file_set_handle: FileSetHandle,
-    id: HandleId,
+    id: FileHandleId,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -134,14 +135,14 @@ struct FileSetHandleInfo {
     inner_hash: HashData,
     expiration: Instant,
     mode: HandleMode,
-    file_handles: HashMap<HandleId, FileSetFile>,
-    next_handle: HandleId,
+    file_handles: HashMap<FileHandleId, FileSetFile>,
+    next_handle: FileHandleId,
 }
 
 struct StoreServiceImpl {
     filesets: HashMap<HashData, FileSetVariants>,
-    fileset_handles: HashMap<HandleId, FileSetHandleInfo>,
-    next_handle: HandleId,
+    fileset_handles: HashMap<FileSetHandleId, FileSetHandleInfo>,
+    next_handle: FileSetHandleId,
 }
 
 impl StoreServiceImpl {
@@ -210,7 +211,7 @@ impl StoreServiceImpl {
     fn validate_and_refresh(
         &mut self,
         handle: FileSetHandle,
-    ) -> Result<Entry<'_, HandleId, FileSetHandleInfo>, Error> {
+    ) -> Result<Entry<'_, FileSetHandleId, FileSetHandleInfo>, Error> {
         let mut entry = self.fileset_handles.entry(handle.id);
         match entry {
             Entry::Vacant(_) => return Err(Error::UnknownHandle(handle.id)),
@@ -414,7 +415,7 @@ impl Store for StoreService {
         file: FileHandle,
         offset: usize,
     ) -> Result<FileReadingOutcome, Error> {
-        todo!("not implemented");
+        Err(Error::NotImplemented("read".into()))
     }
 }
 
