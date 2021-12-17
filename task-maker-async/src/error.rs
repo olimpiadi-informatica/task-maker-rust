@@ -1,4 +1,4 @@
-use crate::store::ComputationHash;
+use crate::store::{ComputationHash, FileSetFile};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -12,6 +12,16 @@ pub enum Error {
     UnknownHandle(usize),
     #[error("Trying to finalize a read-only handle {0}.")]
     FinalizeRead(usize),
+    #[error("Trying to append to read-only handle {0}:{1}.")]
+    AppendRead(usize, usize),
+    #[error("Trying to read from a write-only handle {0}:{1}.")]
+    ReadWrite(usize, usize),
+    #[error("Fileset has been dropped {0}.")]
+    FileSetDropped(usize),
+    #[error("File {0:?} does not exist in fileset {1}.")]
+    NonExistentFile(FileSetFile, usize),
+    #[error("{0:?} is not a valid file type for an input file.")]
+    InvalidFileForInput(FileSetFile),
     #[error("Not implemented: {0}")]
     NotImplemented(String),
 }
