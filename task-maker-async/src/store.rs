@@ -1,19 +1,18 @@
 #![allow(dead_code, unused_variables)]
 
-use crate::error::Error;
-use serde::{Deserialize, Serialize};
 use std::collections::{hash_map::Entry, HashMap};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use tokio::select;
-use tokio::time::interval;
-
-use tokio_util::sync::CancellationToken;
-
+use serde::{Deserialize, Serialize};
 use tarpc::context::Context;
 use tarpc::server::{BaseChannel, Channel};
 use tarpc::{ClientMessage, Response, Transport};
+use tokio::select;
+use tokio::time::interval;
+use tokio_util::sync::CancellationToken;
+
+use crate::error::Error;
 
 type HashData = Vec<u8>;
 
@@ -28,7 +27,7 @@ pub struct InputFileHash(HashData);
 /// expected to change the result (such as outer hashes of inputs, or the command line). The inner
 /// hash takes care of properties of the computation that should not change the outputs, such as
 /// time and memory limits; it also includes the first hash.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
 pub struct ComputationHash(HashData, HashData);
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone)]
@@ -536,123 +535,269 @@ impl Store for StoreService {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use assert2::{check, let_assert};
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    use assert2::{assert, check, let_assert};
+    use tarpc::client::RpcError;
     use tarpc::context;
 
-    #[tokio::test]
-    async fn fileset_basic() {
+    use super::*;
+
+    fn spawn() -> (StoreClient, Context, StoreService) {
         let (client_transport, server_transport) = tarpc::transport::channel::unbounded();
         let client = StoreClient::new(tarpc::client::Config::default(), client_transport).spawn();
         let context = context::current();
         let server = StoreService::new_on_transport(server_transport);
+        (client, context, server)
+    }
 
-        // Obtain a writing lease.
-        let resp = client
-            .create_or_open_input_file(context, InputFileHash(vec![]))
-            .await
-            .unwrap();
-        let_assert!(Ok(handle1) = resp);
-        check!(handle1.is_writable());
-
-        // Obtain a reading lease.
-        let resp = client
-            .create_or_open_input_file(context, InputFileHash(vec![]))
-            .await
-            .unwrap();
-        let_assert!(Ok(handle2) = resp);
-        check!(!handle2.is_writable());
-
-        // Refresh the writing lease.
-        let resp = client
-            .refresh_fileset_lease(context::current(), handle1)
-            .await
-            .unwrap();
-        check!(Ok(()) == resp);
-
-        // Finalize the writing lease.
-        let resp = client
-            .finalize_fileset(context::current(), handle1)
-            .await
-            .unwrap();
-        let_assert!(Ok(handle1) = resp);
-        check!(!handle1.is_writable());
-
-        // Refresh the resulting reading lease.
-        let resp = client
-            .refresh_fileset_lease(context::current(), handle1)
-            .await
-            .unwrap();
-        check!(Ok(()) == resp);
-
-        // Wait long enough for the reading lease to expire.
-        tokio::time::sleep(LEASE_LENGTH + Duration::from_millis(100)).await;
-
-        let resp = client
-            .refresh_fileset_lease(context::current(), handle2)
-            .await
-            .unwrap();
-
-        let_assert!(Err(_) = resp);
+    fn get_hash<T: Hash>(data: T) -> HashData {
+        // TODO: this is just a mock of the hash
+        let mut hasher = DefaultHasher::default();
+        data.hash(&mut hasher);
+        hasher.finish().to_le_bytes().into()
     }
 
     #[tokio::test]
-    async fn write_read_file() {
-        let (client_transport, server_transport) = tarpc::transport::channel::unbounded();
-        let client = StoreClient::new(tarpc::client::Config::default(), client_transport).spawn();
-        let context = context::current();
-        let server = StoreService::new_on_transport(server_transport);
+    async fn test_write_and_read_files() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
 
-        // Obtain a fileset lease.
+        let hash = get_hash("input1");
         let resp = client
-            .create_or_open_input_file(context, InputFileHash(vec![]))
-            .await
-            .unwrap();
-        let_assert!(Ok(handle1) = resp);
-        check!(handle1.is_writable());
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?;
+        let_assert!(Ok(fileset_handle) = resp);
+        check!(fileset_handle.is_writable());
 
-        // Obtain a file lease.
+        for (i, file_type) in [(0, FileSetFile::MainFile), (1, FileSetFile::Metadata)] {
+            let resp = client.open_file(context, fileset_handle, file_type).await?;
+            let_assert!(Ok(file_handle) = resp);
+
+            let resp = client
+                .append_chunk(context, file_handle, vec![i, i, i])
+                .await?;
+            let_assert!(Ok(()) = resp);
+
+            let resp = client
+                .append_chunk(context, file_handle, vec![42, 42])
+                .await?;
+            let_assert!(Ok(()) = resp);
+        }
+
+        let resp = client.finalize_fileset(context, fileset_handle).await?;
+        let_assert!(Ok(fileset_handle) = resp);
+        check!(!fileset_handle.is_writable());
+
         let resp = client
-            .open_file(context, handle1, FileSetFile::MainFile)
-            .await
-            .unwrap();
-        let_assert!(Ok(handle2) = resp);
+            .create_or_open_input_file(context, InputFileHash(hash))
+            .await?;
+        let_assert!(Ok(fileset_handle2) = resp);
+        check!(!fileset_handle2.is_writable());
 
-        // Append data to the file.
+        let resp = client
+            .open_file(context, fileset_handle, FileSetFile::MainFile)
+            .await?;
+        let_assert!(Ok(file_handle1) = resp);
+
+        let resp = client
+            .open_file(context, fileset_handle2, FileSetFile::MainFile)
+            .await?;
+        let_assert!(Ok(file_handle2) = resp);
+
+        let resp = client.read_chunk(context, file_handle1, 0).await?;
+        let_assert!(Ok(FileReadingOutcome::Data(data1)) = resp);
+        assert!(data1 == vec![0, 0, 0, 42, 42]);
+
+        let resp = client.read_chunk(context, file_handle2, 0).await?;
+        let_assert!(Ok(FileReadingOutcome::Data(data2)) = resp);
+        assert!(data2 == vec![0, 0, 0, 42, 42]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_not_existent() -> Result<(), RpcError> {
+        let (client, context, server) = spawn();
+        let hash = get_hash("comp1");
+        let comp_hash = ComputationHash(hash.clone(), hash);
+        let write_handle = server.create_computation(comp_hash.clone()).unwrap();
+        let file = client
+            .open_file(
+                context,
+                write_handle,
+                FileSetFile::AuxiliaryFile("file".into()),
+            )
+            .await?
+            .unwrap();
         client
-            .append_chunk(context, handle2, vec![0u8; CHUNK_SIZE])
-            .await
-            .unwrap()
+            .finalize_fileset(context, write_handle)
+            .await?
             .unwrap();
 
-        // Append one more chunk to the file.
+        let read_handle = client.open_computation(context, comp_hash).await?.unwrap();
+        check!(!read_handle.is_writable());
+
+        let file = FileSetFile::AuxiliaryFile("lolnope".into());
+        let resp = client.open_file(context, read_handle, file.clone()).await?;
+        let_assert!(Err(Error::NonExistentFile(file, _)) = resp);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_write_with_readonly() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
+        let hash = get_hash("comp1");
+        let write_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+        let file = client
+            .open_file(context, write_handle, FileSetFile::MainFile)
+            .await?
+            .unwrap();
         client
-            .append_chunk(context, handle2, vec![1u8; CHUNK_SIZE])
-            .await
-            .unwrap()
+            .append_chunk(context, file, vec![1, 2, 3])
+            .await?
+            .unwrap();
+        client
+            .finalize_fileset(context, write_handle)
+            .await?
             .unwrap();
 
-        // Finalize the fileset.
-        let handle1 = client
-            .finalize_fileset(context, handle1)
-            .await
-            .unwrap()
+        let read_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+        check!(!read_handle.is_writable());
+        let file = client
+            .open_file(context, read_handle, FileSetFile::MainFile)
+            .await?
             .unwrap();
 
-        // Obtain a reading file lease.
+        let resp = client.append_chunk(context, file, vec![1, 2, 3]).await?;
+        let_assert!(Err(Error::AppendRead(_, _)) = resp);
+
+        let resp = client.read_chunk(context, file, 0).await?;
+        let_assert!(Ok(FileReadingOutcome::Data(_)) = resp);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_with_writeonly() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
+        let hash = get_hash("comp1");
+        let write_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+        let file = client
+            .open_file(context, write_handle, FileSetFile::MainFile)
+            .await?
+            .unwrap();
+        let resp = client.read_chunk(context, file, 0).await?;
+        let_assert!(Err(Error::ReadWrite(_, _)) = resp);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_finalize_with_readonly() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
+        let hash = get_hash("comp1");
+        let write_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+        client
+            .finalize_fileset(context, write_handle)
+            .await?
+            .unwrap();
+
+        let read_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+        check!(!read_handle.is_writable());
+        let resp = client.finalize_fileset(context, read_handle).await?;
+        let_assert!(Err(Error::FinalizeRead(_)) = resp);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_no_auxiliary_file_for_input() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
+        let hash = get_hash("comp1");
+        let write_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash))
+            .await?
+            .unwrap();
+        let file = FileSetFile::AuxiliaryFile("file".into());
         let resp = client
-            .open_file(context, handle1, FileSetFile::MainFile)
-            .await
+            .open_file(context, write_handle, file.clone())
+            .await?;
+        let_assert!(Err(Error::InvalidFileForInput(file)) = resp);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_read() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
+        let hash = get_hash("comp1");
+        let write_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
             .unwrap();
-        let_assert!(Ok(handle2) = resp);
+        let file = client
+            .open_file(context, write_handle, FileSetFile::MainFile)
+            .await?
+            .unwrap();
+        let mut expected = vec![];
+        // 5 full chunks
+        for i in 0..5 {
+            let mut chunk = vec![i; CHUNK_SIZE];
+            client
+                .append_chunk(context, file, chunk.clone())
+                .await?
+                .unwrap();
+            expected.append(&mut chunk);
+        }
+        // 5 small chunks
+        for i in 0..5 {
+            let mut chunk = vec![i; 3];
+            client
+                .append_chunk(context, file, chunk.clone())
+                .await?
+                .unwrap();
+            expected.append(&mut chunk);
+        }
+        // 5 full chunks
+        for i in 0..5 {
+            let mut chunk = vec![i; CHUNK_SIZE];
+            client
+                .append_chunk(context, file, chunk.clone())
+                .await?
+                .unwrap();
+            expected.append(&mut chunk);
+        }
+        client
+            .finalize_fileset(context, write_handle)
+            .await?
+            .unwrap();
+
+        let read_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+        check!(!read_handle.is_writable());
+        let file = client
+            .open_file(context, read_handle, FileSetFile::MainFile)
+            .await?
+            .unwrap();
 
         let mut data = vec![];
         loop {
-            let outcome = client
-                .read_chunk(context, handle2, data.len())
-                .await
-                .unwrap()
-                .unwrap();
+            let outcome = client.read_chunk(context, file, data.len()).await?.unwrap();
             match outcome {
                 FileReadingOutcome::Dropped => {
                     unreachable!("invalid outcome");
@@ -665,8 +810,278 @@ mod test {
                 }
             }
         }
+        assert!(data == expected);
+        Ok(())
+    }
 
-        assert!(data[0..CHUNK_SIZE] == [0u8; CHUNK_SIZE]);
-        assert!(data[CHUNK_SIZE..2 * CHUNK_SIZE] == [1u8; CHUNK_SIZE]);
+    #[tokio::test]
+    #[ignore] // because opening a file for reading when not finalized is not implemented yet
+    async fn test_read_dropped() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
+        let hash = get_hash("comp1");
+        let write_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+        let read_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash))
+            .await?
+            .unwrap();
+
+        let file_w = client
+            .open_file(context, write_handle, FileSetFile::MainFile)
+            .await?
+            .unwrap();
+        let file_r = client
+            .open_file(context, read_handle, FileSetFile::MainFile)
+            .await?
+            .unwrap();
+
+        client
+            .append_chunk(context, file_w, vec![1, 2, 3])
+            .await?
+            .unwrap();
+
+        client.read_chunk(context, file_r, 0).await?.unwrap();
+
+        // drop write_handle but keep read_handle alive
+        for _ in 0..4 {
+            tokio::time::sleep(LEASE_LENGTH / 2).await;
+            client
+                .refresh_fileset_lease(context, read_handle)
+                .await?
+                .unwrap();
+        }
+        // 2 * LEASE_LENGTH has passed, the write handle for sure is gone
+        let resp = client.read_chunk(context, file_r, 3).await?;
+        let_assert!(Ok(FileReadingOutcome::Dropped) = resp);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_open_write_lease_expired() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
+        let hash = get_hash("comp1");
+        let write_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+
+        tokio::time::sleep(LEASE_LENGTH * 2).await;
+        // now the lease is expired
+
+        let resp = client
+            .open_file(context, write_handle, FileSetFile::MainFile)
+            .await?;
+        let_assert!(Err(Error::UnknownHandle(_)) = resp);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_open_read_lease_expired() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
+        let hash = get_hash("comp1");
+        client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+        let read_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+
+        tokio::time::sleep(LEASE_LENGTH * 2).await;
+        // now the lease is expired
+
+        let resp = client
+            .open_file(context, read_handle, FileSetFile::MainFile)
+            .await?;
+        let_assert!(Err(Error::UnknownHandle(_)) = resp);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_append_lease_expired() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
+        let hash = get_hash("comp1");
+        let write_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+        let file_w = client
+            .open_file(context, write_handle, FileSetFile::MainFile)
+            .await?
+            .unwrap();
+        client
+            .append_chunk(context, file_w, vec![1, 2, 3])
+            .await?
+            .unwrap();
+
+        tokio::time::sleep(LEASE_LENGTH * 2).await;
+        // now the lease is expired
+
+        let resp = client.append_chunk(context, file_w, vec![4, 5, 6]).await?;
+        let_assert!(Err(Error::UnknownHandle(_)) = resp);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_lease_expired() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
+        let hash = get_hash("comp1");
+        let write_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+        client
+            .open_file(context, write_handle, FileSetFile::MainFile)
+            .await?
+            .unwrap();
+        client
+            .finalize_fileset(context, write_handle)
+            .await?
+            .unwrap();
+
+        let read_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+        let file = client
+            .open_file(context, read_handle, FileSetFile::MainFile)
+            .await?
+            .unwrap();
+
+        tokio::time::sleep(LEASE_LENGTH * 2).await;
+        // now the lease is expired
+
+        let resp = client.read_chunk(context, file, 0).await?;
+        let_assert!(Err(Error::UnknownHandle(_)) = resp);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_refresh_lease_expired() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
+        let hash = get_hash("comp1");
+        let write_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+
+        tokio::time::sleep(LEASE_LENGTH * 2).await;
+        // now the lease is expired
+
+        let resp = client.refresh_fileset_lease(context, write_handle).await?;
+        let_assert!(Err(Error::UnknownHandle(_)) = resp);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hash_collision() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
+        let hash = get_hash("comp1");
+        let input_file_handle = client
+            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .await?
+            .unwrap();
+        let resp = client
+            .open_computation(context, ComputationHash(hash.clone(), hash))
+            .await?;
+        let_assert!(Err(Error::HashCollision(_)) = resp);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hash_collision2() -> Result<(), RpcError> {
+        let (client, context, server) = spawn();
+        let hash = get_hash("comp1");
+        server
+            .create_computation(ComputationHash(hash.clone(), hash.clone()))
+            .unwrap();
+        let resp = client
+            .create_or_open_input_file(context, InputFileHash(hash))
+            .await?;
+        let_assert!(Err(Error::HashCollision(_)) = resp);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_computation_exists() -> Result<(), RpcError> {
+        let (client, context, server) = spawn();
+        let hash = get_hash("comp1");
+        let comp_hash = ComputationHash(hash.clone(), hash);
+        server.create_computation(comp_hash.clone()).unwrap();
+        let resp = server.create_computation(comp_hash);
+        let_assert!(Err(Error::ComputationExists(hash)) = resp);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[ignore] // because waiting for computation creation is not implemented yet
+    async fn test_wait_computation_creation() -> Result<(), RpcError> {
+        let (client, context, server) = spawn();
+        let hash = get_hash("comp1");
+        let comp_hash = ComputationHash(hash.clone(), hash);
+
+        let mut fut = Box::pin(client.open_computation(context, comp_hash.clone()));
+        select! {
+            _ = tokio::time::sleep(Duration::from_millis(100)) => {},
+            resp = &mut fut => panic!("should be waiting for the computation, but got: {:?}", resp),
+        }
+
+        let comp = server.create_computation(comp_hash).unwrap();
+
+        select! {
+            _ = tokio::time::sleep(Duration::from_millis(100)) => panic!("the computation should be ready now"),
+            resp = fut => assert!(let Ok(_) = resp),
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_similar_computations() -> Result<(), RpcError> {
+        let (client, context, server) = spawn();
+        let outer1 = get_hash("outer1");
+        let outer2 = get_hash("outer2");
+        let inner1 = get_hash("inner1");
+        let inner2 = get_hash("inner2");
+        for outer in [&outer1, &outer2] {
+            for inner in [&inner1, &inner2] {
+                let handle = server
+                    .create_computation(ComputationHash(outer.clone(), inner.clone()))
+                    .unwrap();
+                client
+                    .finalize_fileset(context, handle)
+                    .await
+                    .unwrap()
+                    .unwrap();
+            }
+        }
+
+        let mut similar =
+            server.similar_computations(ComputationHash(outer1.clone(), inner1.clone()));
+        let mut expected = vec![
+            ComputationHash(outer1.clone(), inner1.clone()),
+            ComputationHash(outer1.clone(), inner2.clone()),
+        ];
+        similar.sort();
+        expected.sort();
+        assert!(similar == expected);
+
+        let similar =
+            server.similar_computations(ComputationHash(get_hash("lolnope"), get_hash("nope")));
+        assert!(similar.is_empty());
+
+        Ok(())
     }
 }
