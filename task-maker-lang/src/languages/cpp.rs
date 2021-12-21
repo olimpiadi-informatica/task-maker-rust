@@ -173,6 +173,28 @@ mod tests {
     }
 
     #[test]
+    fn test_compilation_args_starting_with_dash() {
+        let tmp = setup();
+        std::fs::copy(tmp.path().join("foo.cpp"), tmp.path().join("-foo.cpp")).unwrap();
+
+        let lang = LanguageCpp::new(LanguageCppConfiguration {
+            compiler: ExecutionCommand::System("g++".into()),
+            std_version: "c++14".to_string(),
+            extra_flags: vec!["-lfoobar".into()],
+        });
+        let mut builder = lang
+            .compilation_builder(&tmp.path().join("-foo.cpp"), CompilationSettings::default())
+            .unwrap();
+        let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
+
+        let args = comp.args;
+        assert_that!(args).contains("./-foo.cpp".to_string());
+        assert_that!(args).contains("-std=c++14".to_string());
+        assert_that!(args).contains("-lfoobar".to_string());
+        assert_that!(args).does_not_contain("-static".to_string());
+    }
+
+    #[test]
     fn test_compilation_args_static() {
         let tmp = setup();
 

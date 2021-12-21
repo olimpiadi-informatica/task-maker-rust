@@ -166,11 +166,15 @@ impl<'l, 'c> SimpleCompiledLanguageBuilder<'l, 'c> {
         compiler: ExecutionCommand,
     ) -> Self {
         let source_path = source_path.into();
-        let source_name = source_path
+        let mut source_name = source_path
             .file_name()
             .expect("Invalid file name")
             .to_string_lossy()
             .to_string();
+        // names starting with - can be interpreted as command line options
+        if source_name.starts_with('-') {
+            source_name = format!("./{}", source_name);
+        }
         Self {
             language,
             settings,
