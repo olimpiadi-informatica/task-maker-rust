@@ -129,6 +129,56 @@ impl SanityCheck<IOITask> for StatementValid {
     }
 }
 
+/// Check that the statement file comes out of the compilation of one of the booklets.
+#[derive(Debug, Default)]
+pub struct StatementCompiled;
+
+impl SanityCheck<IOITask> for StatementCompiled {
+    fn name(&self) -> &'static str {
+        "StatementCompiled"
+    }
+
+    fn post_hook(&mut self, task: &IOITask, ui: &mut UIMessageSender) -> Result<(), Error> {
+        // If there are no booklets it may mean that the statement is compiled with an external tool
+        // or that the statement compilation is not done. Either way this sanity check should be
+        // ignored.
+        if task.booklets.is_empty() {
+            return Ok(());
+        }
+
+        let path = match find_statement_pdf(task) {
+            Some(path) => path,
+            _ => return Ok(()),
+        };
+        // The source of the actual statement pdf (symlinks resolved). If the symlink is broken,
+        // there's nothing we can do (another sanity check will warn this error).
+        let target = match path.canonicalize() {
+            Ok(path) => path,
+            _ => return Ok(()),
+        };
+
+        for booklet in &task.booklets {
+            let dest = match booklet.dest.canonicalize() {
+                Ok(dest) => dest,
+                _ => continue,
+            };
+            // this booklet corresponds to the official statement file, so we are good!
+            if dest == target {
+                return Ok(());
+            }
+        }
+
+        // We didn't find any compiled booklet referring to the official statement, this means that
+        // the statement that will be used isn't the one compiled by us.
+        return ui.send(UIMessage::Warning {
+            message: format!(
+                "The official statement at {} is not the one compiled by task-maker",
+                path.strip_prefix(&task.path).unwrap().display()
+            ),
+        });
+    }
+}
+
 /// Check that the statement file is known to git.
 #[derive(Debug, Default)]
 pub struct StatementGit;
