@@ -283,6 +283,11 @@ impl SourceFile {
             Ok(None)
         }
     }
+
+    /// The language of the source file.
+    pub fn language(&self) -> &dyn Language {
+        self.language.as_ref()
+    }
 }
 
 /// Serializer for `Arc<dyn Language>`. It serializes just the name of the language, expecting the
