@@ -19,6 +19,8 @@ anyhow = { version = "1.0", features = ["backtrace"] }
 itertools = "0.8"
 # Utilities for writing to the terminal with colors
 termcolor = "1"
+# Checks if the terminal supports the colors
+supports-color = "1"
 # Logging
 log = "0.4"
 # Globbing files

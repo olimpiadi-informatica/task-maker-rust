@@ -43,7 +43,9 @@ lazy_static! {
     pub static ref BLUE: Style = Style::default()
         .fg(Color::LightBlue)
         .modifier(Modifier::BOLD);
-    pub static ref YELLOW: Style = Style::default().fg(Color::Yellow).modifier(Modifier::BOLD);
+    pub static ref YELLOW: Style = Style::default()
+        .fg(Color::LightYellow)
+        .modifier(Modifier::BOLD);
 }
 
 /// A generic animated UI for tasks, dynamically refreshing using curses as a backend.

@@ -31,11 +31,23 @@ pub type UIChannelSender = Sender<UIMessage>;
 pub type UIChannelReceiver = Receiver<UIMessage>;
 
 lazy_static! {
+    /// Whether the terminal supports ANSI 256 colors.
+    static ref HAS_256: bool = {
+        if std::env::var("TM_ANSI256").as_deref() == Ok("true") {
+            if let Some(support) = supports_color::on(supports_color::Stream::Stdout) {
+                support.has_256
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    };
     /// The RED color to use with `cwrite!` and `cwriteln!`
     pub static ref RED: ColorSpec = {
         let mut color = ColorSpec::new();
         color
-            .set_fg(Some(Color::Red))
+            .set_fg(Some(if *HAS_256 { Color::Ansi256(196) } else { Color::Red }))
             .set_intense(true)
             .set_bold(true);
         color
@@ -44,7 +56,7 @@ lazy_static! {
     pub static ref GREEN: ColorSpec = {
         let mut color = ColorSpec::new();
         color
-            .set_fg(Some(Color::Green))
+            .set_fg(Some(if *HAS_256 { Color::Ansi256(118) } else { Color::Green }))
             .set_intense(true)
             .set_bold(true);
         color
@@ -53,7 +65,7 @@ lazy_static! {
     pub static ref YELLOW: ColorSpec = {
         let mut color = ColorSpec::new();
         color
-            .set_fg(Some(Color::Yellow))
+            .set_fg(Some(if *HAS_256 { Color::Ansi256(226) } else { Color::Yellow }))
             .set_intense(true)
             .set_bold(true);
         color
@@ -62,7 +74,7 @@ lazy_static! {
     pub static ref BLUE: ColorSpec = {
         let mut color = ColorSpec::new();
         color
-            .set_fg(Some(Color::Blue))
+            .set_fg(Some(if *HAS_256 { Color::Ansi256(33) } else { Color::Blue }))
             .set_intense(true)
             .set_bold(true);
         color
