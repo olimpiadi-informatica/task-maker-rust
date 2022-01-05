@@ -9,7 +9,7 @@ jobs:
     name: Build & Publish (Linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - name: Build deb file
         run: |
           docker run --rm -v $(pwd):/source ghcr.io/edomora97/task-maker-rust-release-linux
