@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
+use termcolor::{ColorChoice, ColorSpec, StandardStream};
 
 use task_maker_dag::ExecutionStatus;
 
@@ -8,35 +8,9 @@ use crate::terry::CaseStatus;
 use crate::ui::*;
 
 lazy_static! {
-    static ref ERROR: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(Color::Red))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
-    static ref SUCCESS: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(Color::Green))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
-    static ref WARNING: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(Color::Yellow))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
-    static ref BOLD: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color.set_bold(true);
-        color
-    };
+    static ref ERROR: ColorSpec = RED.clone();
+    static ref SUCCESS: ColorSpec = GREEN.clone();
+    static ref WARNING: ColorSpec = YELLOW.clone();
 }
 
 /// A simple UI that will print to stdout the human readable messages. Useful
