@@ -16,9 +16,7 @@ use crate::terry::dag::{Checker, InputGenerator, InputValidator, Solution};
 use crate::terry::format::parse_task;
 use crate::terry::ui_state::UIState;
 use crate::ui::{JsonUI, PrintUI, RawUI, SilentUI, UIMessage, UIMessageSender, UIType, UI};
-use crate::{
-    list_files, EvaluationConfig, EvaluationData, SourceFile, TaskFormat, TaskInfo, UISender,
-};
+use crate::{list_files, EvaluationConfig, EvaluationData, SourceFile, TaskInfo, UISender};
 
 mod curses_ui;
 mod dag;
@@ -145,14 +143,14 @@ impl TerryTask {
     pub fn is_valid<P: AsRef<Path>>(path: P) -> bool {
         path.as_ref().join("task.yaml").exists()
     }
-}
 
-impl TaskFormat for TerryTask {
-    fn path(&self) -> &Path {
+    /// Get the root directory of the task.
+    pub fn path(&self) -> &Path {
         &self.path
     }
 
-    fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
+    /// Get an appropriate `UI` for this task.
+    pub fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),
             UIType::Json => Ok(Box::new(JsonUI::new())),
@@ -162,7 +160,12 @@ impl TaskFormat for TerryTask {
         }
     }
 
-    fn build_dag(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error> {
+    /// Add the executions required for evaluating this task to the execution DAG.
+    pub fn build_dag(
+        &self,
+        eval: &mut EvaluationData,
+        config: &EvaluationConfig,
+    ) -> Result<(), Error> {
         eval.sender.send(UIMessage::TerryTask {
             task: Box::new(self.clone()),
         })?;
@@ -212,11 +215,14 @@ impl TaskFormat for TerryTask {
         Ok(())
     }
 
-    fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
+    /// Hook called after the execution completed, useful for sending messages to the UI about the
+    /// results of the sanity checks with data available only after the evaluation.
+    pub fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
         self.sanity_checks.post_hook(self, ui)
     }
 
-    fn clean(&self) -> Result<(), Error> {
+    /// Clean the task folder removing the files that can be generated automatically.
+    pub fn clean(&self) -> Result<(), Error> {
         let all_managers: HashSet<PathBuf> = list_files(&self.path, vec!["managers/*.*"])
             .iter()
             .map(|f| f.file_stem().unwrap().into())
@@ -242,7 +248,8 @@ impl TaskFormat for TerryTask {
         Ok(())
     }
 
-    fn task_info(&self) -> Result<TaskInfo, Error> {
+    /// Get the task information.
+    pub fn task_info(&self) -> Result<TaskInfo, Error> {
         Ok(TaskInfo::Terry(task_info::TerryTaskInfo::new(self)?))
     }
 }

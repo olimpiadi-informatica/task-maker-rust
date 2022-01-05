@@ -1,7 +1,6 @@
 use anyhow::{bail, Context, Error};
 
 use task_maker_format::ui::{UIMessage, UI};
-use task_maker_format::TaskFormat;
 
 use crate::context::RuntimeContext;
 use crate::error::NiceError;
@@ -41,7 +40,7 @@ where
 
     // setup the task
     let eval_config = opt.to_config();
-    let task: Box<dyn TaskFormat> = opt.find_task.find_task(&eval_config)?;
+    let task = opt.find_task.find_task(&eval_config)?;
 
     // clean the task
     if opt.clean {

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 use task_maker_format::ioi::{Checker, InputGenerator, TaskType};
-use task_maker_format::{SourceFile, TaskFormat};
+use task_maker_format::SourceFile;
 
 mod utils;
 

@@ -247,7 +247,7 @@ impl LoggerOpt {
 
 impl FindTaskOpt {
     /// Use the specified options to find a task.
-    pub fn find_task(&self, eval_config: &EvaluationConfig) -> Result<Box<dyn TaskFormat>, Error> {
+    pub fn find_task(&self, eval_config: &EvaluationConfig) -> Result<TaskFormat, Error> {
         find_task(&self.task_dir, self.max_depth, eval_config).context("Invalid task directory")
     }
 }

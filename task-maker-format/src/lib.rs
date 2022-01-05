@@ -29,15 +29,17 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
+use crate::ioi::IOITask;
 pub use detect_format::find_task;
 pub use sanity_checks::get_sanity_check_names;
 pub use source_file::SourceFile;
 pub use tag::{Tag, VALID_TAGS};
+pub use task_format::*;
 use task_maker_dag::ExecutionDAG;
 use task_maker_lang::{GraderMap, LanguageManager};
 
 use crate::ioi::task_info::IOITaskInfo;
-use crate::terry::Seed;
+use crate::terry::{Seed, TerryTask};
 use crate::ui::UI;
 
 mod detect_format;
@@ -45,6 +47,7 @@ pub mod ioi;
 mod sanity_checks;
 mod source_file;
 mod tag;
+mod task_format;
 pub mod terry;
 pub mod ui;
 
@@ -61,29 +64,6 @@ lazy_static! {
                 .join("data")
         }
     };
-}
-
-/// Trait that defines the capabilities of a task format, providing a UI and the parsing and
-/// execution abilities.
-pub trait TaskFormat {
-    /// Get the root directory of the task.
-    fn path(&self) -> &Path;
-
-    /// Get an appropriate `UI` for this task.
-    fn ui(&self, ui_type: &ui::UIType) -> Result<Box<dyn UI>, Error>;
-
-    /// Add the executions required for evaluating this task to the execution DAG.
-    fn build_dag(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error>;
-
-    /// Hook called after the execution completed, useful for sending messages to the UI about the
-    /// results of the sanity checks with data available only after the evaluation.
-    fn sanity_check_post_hook(&self, ui: &mut ui::UIMessageSender) -> Result<(), Error>;
-
-    /// Clean the task folder removing the files that can be generated automatically.
-    fn clean(&self) -> Result<(), Error>;
-
-    /// Get task information
-    fn task_info(&self) -> Result<TaskInfo, Error>;
 }
 
 /// Information about a parsed task, returned with the `--task-info` option.

@@ -36,7 +36,7 @@ use crate::ioi::format::italian_yaml::TM_ALLOW_DELETE_COOKIE;
 use crate::ioi::italian_yaml::is_gen_gen_deletable;
 use crate::sanity_checks::SanityChecks;
 use crate::ui::*;
-use crate::{EvaluationConfig, EvaluationData, TaskFormat, TaskInfo, UISender};
+use crate::{EvaluationConfig, EvaluationData, TaskInfo, UISender};
 
 mod curses_ui;
 mod dag;
@@ -174,14 +174,14 @@ impl IOITask {
     pub fn is_valid<P: AsRef<Path>>(path: P) -> bool {
         path.as_ref().join("task.yaml").exists()
     }
-}
 
-impl TaskFormat for IOITask {
-    fn path(&self) -> &Path {
+    /// Get the root directory of the task.
+    pub fn path(&self) -> &Path {
         &self.path
     }
 
-    fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
+    /// Get an appropriate `UI` for this task.
+    pub fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),
             UIType::Print => Ok(Box::new(PrintUI::<UIState>::new())),
@@ -193,7 +193,12 @@ impl TaskFormat for IOITask {
         }
     }
 
-    fn build_dag(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error> {
+    /// Add the executions required for evaluating this task to the execution DAG.
+    pub fn build_dag(
+        &self,
+        eval: &mut EvaluationData,
+        config: &EvaluationConfig,
+    ) -> Result<(), Error> {
         eval.sender.send(UIMessage::IOITask {
             task: Box::new(self.clone()),
         })?;
@@ -266,11 +271,14 @@ impl TaskFormat for IOITask {
         Ok(())
     }
 
-    fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
+    /// Hook called after the execution completed, useful for sending messages to the UI about the
+    /// results of the sanity checks with data available only after the evaluation.
+    pub fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
         self.sanity_checks.post_hook(self, ui)
     }
 
-    fn clean(&self) -> Result<(), Error> {
+    /// Clean the task folder removing the files that can be generated automatically.
+    pub fn clean(&self) -> Result<(), Error> {
         for dir in &["input", "output"] {
             let dir = self.path.join(dir);
             if !dir.exists() {
@@ -355,7 +363,8 @@ impl TaskFormat for IOITask {
         Ok(())
     }
 
-    fn task_info(&self) -> Result<TaskInfo, Error> {
+    /// Get the task information.
+    pub fn task_info(&self) -> Result<TaskInfo, Error> {
         Ok(TaskInfo::IOI(
             task_info::IOITaskInfo::new(self).context("Cannot produce IOI task info")?,
         ))

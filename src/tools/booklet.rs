@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Error};
 
 use task_maker_format::ioi::{make_context_booklets, Booklet, BookletConfig, IOITask};
-use task_maker_format::{find_task, EvaluationConfig, TaskFormat};
+use task_maker_format::{find_task, EvaluationConfig};
 
 use crate::context::RuntimeContext;
 use crate::tools::opt::BookletOpt;
@@ -33,10 +33,9 @@ pub fn main_booklet(opt: BookletOpt) -> Result<(), Error> {
 
     // clean up the task a bit for a cleaner ui
     task.subtasks.clear();
-    let task: Box<dyn TaskFormat> = Box::new(task);
 
     // setup the configuration and the evaluation metadata
-    let mut context = RuntimeContext::new(task, &opt.execution, |_task, eval| {
+    let mut context = RuntimeContext::new(task.into(), &opt.execution, |_task, eval| {
         for booklet in booklets {
             booklet.build(eval)?;
         }

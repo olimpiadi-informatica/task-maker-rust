@@ -26,7 +26,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// First step of the execution: take a task and build the Execution DAG. This needs setting the
 /// first configurations of the environment.
 pub struct RuntimeContext {
-    task: Box<dyn TaskFormat>,
+    task: TaskFormat,
     eval: EvaluationData,
     ui_receiver: UIChannelReceiver,
     sandbox_runner: ToolsSandboxRunner,
@@ -36,7 +36,7 @@ pub struct RuntimeContext {
 /// setups the local executor if necessary.
 pub struct ConnectedExecutor {
     // fields from RuntimeContext
-    task: Box<dyn TaskFormat>,
+    task: TaskFormat,
     eval: EvaluationData,
     ui_receiver: UIChannelReceiver,
 
@@ -50,7 +50,7 @@ pub struct ConnectedExecutor {
 /// Third step: start the UI thread.
 pub struct ConnectedExecutorWithUI {
     // fields from ConnectedExecutor
-    task: Box<dyn TaskFormat>,
+    task: TaskFormat,
     eval: EvaluationData,
     file_store: Arc<FileStore>,
     tx: ChannelSender<ExecutorClientMessage>,
@@ -67,12 +67,12 @@ impl RuntimeContext {
     /// execution DAG for the execution. The closure is given a reference to the given task and a
     /// reference to the evaluation data.
     pub fn new<BuildDag>(
-        task: Box<dyn TaskFormat>,
+        task: TaskFormat,
         opt: &ExecutionOpt,
         build_dag: BuildDag,
     ) -> Result<Self, Error>
     where
-        BuildDag: FnOnce(&dyn TaskFormat, &mut EvaluationData) -> Result<(), Error>,
+        BuildDag: FnOnce(&TaskFormat, &mut EvaluationData) -> Result<(), Error>,
     {
         let (mut eval, ui_receiver) = EvaluationData::new(task.path());
 
@@ -95,7 +95,7 @@ impl RuntimeContext {
         }
 
         // build the execution dag
-        build_dag(task.as_ref(), &mut eval)?;
+        build_dag(&task, &mut eval)?;
 
         trace!("The DAG is: {:#?}", eval.dag);
         if opt.copy_dag {

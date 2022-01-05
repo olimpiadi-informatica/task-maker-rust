@@ -4,7 +4,7 @@ use task_maker_format::ioi::{
     Booklet, BookletConfig, InputGenerator, InputValidator, OutputGenerator, Statement,
     StatementConfig,
 };
-use task_maker_format::{EvaluationConfig, EvaluationData, SourceFile, TaskFormat};
+use task_maker_format::{EvaluationConfig, EvaluationData, SourceFile};
 
 mod utils;
 
