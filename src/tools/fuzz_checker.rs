@@ -9,7 +9,7 @@ use serde::Deserialize;
 
 use task_maker_format::ioi::{Checker, TaskType};
 use task_maker_format::ui::{StdoutPrinter, RED};
-use task_maker_format::{cwrite, find_task, EvaluationConfig, TaskFormat};
+use task_maker_format::{cwrite, TaskFormat};
 
 use crate::tools::opt::FuzzCheckerOpt;
 
@@ -29,13 +29,10 @@ struct FuzzData {
 }
 
 pub fn main_fuzz_checker(opt: FuzzCheckerOpt) -> Result<(), Error> {
-    let eval_config = EvaluationConfig::default();
-    let task = find_task(
-        &opt.find_task.task_dir,
-        opt.find_task.max_depth,
-        &eval_config,
-    )
-    .context("Failed to locate the task")?;
+    let task = opt
+        .find_task
+        .find_task(&Default::default())
+        .context("Failed to locate the task")?;
 
     let task = if let TaskFormat::IOI(task) = task {
         task
