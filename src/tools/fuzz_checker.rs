@@ -1,5 +1,7 @@
 use std::io::{Read, Write};
+use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 
 use anyhow::{anyhow, bail, Context, Error};
 
@@ -90,15 +92,6 @@ pub fn main_fuzz_checker(opt: FuzzCheckerOpt) -> Result<(), Error> {
     let artifacts = run_fuzzer(&fuzz_dir, &fuzz_data, &fuzz_binary)?;
     organize_failures(&fuzz_dir, &fuzz_data, &artifacts)?;
 
-    // TODO:
-    //  x Create fuzz/ directory
-    //  x Prepare the initial corpus
-    //  x Prepare the patched checker source file
-    //  - Check if there are static or global variables, and make sure the main exits with 0
-    //  x Compile the patched checker
-    //  x Run the fuzzer
-    //  - Parse the fuzzer output
-    //  x Cleanup the generated artifacts
     Ok(())
 }
 
@@ -275,7 +268,22 @@ fn run_fuzzer(fuzz_dir: &Path, data: &FuzzData, fuzzer: &Path) -> Result<Vec<Pat
     command.arg(format!("-max_total_time={}", data.opt.max_time));
     command.arg(fuzz_dir.join("initial_corpus"));
     command.arg(format!("-artifact_prefix={}/", artifacts.display()));
-    // TODO: quiet
+    if data.opt.quiet {
+        let stdout = fuzz_dir.join("stdout.txt");
+        debug!("Redirecting stdout to {}", stdout.display());
+        let stdout_file = std::fs::File::create(&stdout)
+            .with_context(|| anyhow!("Failed to create stdout at {}", stdout.display()))?;
+        // SAFETY: the file is constructed and dropped here, it is not shared anywhere
+        let stdout = unsafe { Stdio::from_raw_fd(stdout_file.into_raw_fd()) };
+        command.stdout(stdout);
+
+        let stderr = fuzz_dir.join("stderr.txt");
+        debug!("Redirecting stderr to {}", stderr.display());
+        let stderr_file = std::fs::File::create(&stderr)
+            .with_context(|| anyhow!("Failed to create stderr at {}", stderr.display()))?;
+        let stderr = unsafe { Stdio::from_raw_fd(stderr_file.into_raw_fd()) };
+        command.stderr(stderr);
+    };
 
     info!("Running fuzzer with: {:?}", command);
     let status = command

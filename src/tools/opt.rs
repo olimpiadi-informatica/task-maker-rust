@@ -230,4 +230,8 @@ pub struct FuzzCheckerOpt {
     /// Halt after fuzzing for this amount of time. Zero should not be used.
     #[structopt(long, default_value = "60")]
     pub max_time: usize,
+
+    /// Don't print the fuzzer output to the console, but redirect it to a file.
+    #[structopt(long)]
+    pub quiet: bool,
 }
