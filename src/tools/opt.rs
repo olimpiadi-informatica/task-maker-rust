@@ -234,4 +234,14 @@ pub struct FuzzCheckerOpt {
     /// Don't print the fuzzer output to the console, but redirect it to a file.
     #[structopt(long)]
     pub quiet: bool,
+
+    /// Don't run the evaluation for building the output files.
+    #[structopt(long)]
+    pub no_build: bool,
+
+    #[structopt(flatten)]
+    pub execution: ExecutionOpt,
+
+    #[structopt(flatten)]
+    pub storage: StorageOpt,
 }

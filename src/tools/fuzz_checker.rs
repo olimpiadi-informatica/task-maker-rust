@@ -8,9 +8,10 @@ use regex::Regex;
 use serde::Deserialize;
 
 use task_maker_format::ioi::{Checker, TaskType};
-use task_maker_format::ui::{StdoutPrinter, RED};
-use task_maker_format::{cwrite, TaskFormat};
+use task_maker_format::ui::{StdoutPrinter, UIType, RED};
+use task_maker_format::{cwrite, EvaluationConfig, TaskFormat};
 
+use crate::context::RuntimeContext;
 use crate::tools::opt::FuzzCheckerOpt;
 
 const CHECKER_HEADER: &[u8] = include_bytes!("./fuzz_checker/checker_header.h");
@@ -29,24 +30,24 @@ struct FuzzData {
 }
 
 pub fn main_fuzz_checker(opt: FuzzCheckerOpt) -> Result<(), Error> {
-    let task = opt
+    let task_format = opt
         .find_task
         .find_task(&Default::default())
         .context("Failed to locate the task")?;
 
-    let task = if let TaskFormat::IOI(task) = task {
+    let task = if let TaskFormat::IOI(task) = &task_format {
         task
     } else {
         bail!("The fuzz-checker tool only supports IOI-tasks for now");
     };
 
-    let task_type = if let TaskType::Batch(task_type) = task.task_type {
+    let task_type = if let TaskType::Batch(task_type) = &task.task_type {
         task_type
     } else {
         bail!("Only Batch tasks are supported");
     };
 
-    let checker = if let Checker::Custom(checker) = task_type.checker {
+    let checker = if let Checker::Custom(checker) = &task_type.checker {
         checker
     } else {
         bail!("Only tasks with a checker are supported");
@@ -69,13 +70,36 @@ pub fn main_fuzz_checker(opt: FuzzCheckerOpt) -> Result<(), Error> {
         opt,
     };
 
-    for output in &fuzz_data.initial_output_files {
-        if !output.exists() {
-            bail!("The output files haven't been generated, please run task-maker");
-        }
-    }
+    trace!("Fuzz data: {:#?}", fuzz_data);
 
-    debug!("Fuzz data: {:#?}", fuzz_data);
+    if fuzz_data.opt.no_build {
+        for output in &fuzz_data.initial_output_files {
+            if !output.exists() {
+                bail!("The output files haven't been generated, please run task-maker");
+            }
+        }
+    } else {
+        info!("Running task-maker for building the output files");
+
+        let eval_config = EvaluationConfig {
+            solution_filter: vec!["do not evaluate the solutions!!".into()],
+            no_statement: true,
+            ..Default::default()
+        };
+
+        // setup the configuration and the evaluation metadata
+        let context = RuntimeContext::new(task_format, &fuzz_data.opt.execution, |task, eval| {
+            // build the DAG for the task
+            task.build_dag(eval, &eval_config)
+                .context("Cannot build the task DAG")
+        })?;
+
+        // start the execution
+        let executor =
+            context.connect_executor(&fuzz_data.opt.execution, &fuzz_data.opt.storage)?;
+        let executor = executor.start_ui(&UIType::Silent, |_, _| {})?;
+        executor.execute()?;
+    }
 
     let fuzz_dir = fuzz_data.task_dir.join(&fuzz_data.opt.fuzz_dir);
     if !fuzz_dir.exists() {
