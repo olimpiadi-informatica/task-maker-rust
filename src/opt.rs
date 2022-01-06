@@ -230,12 +230,12 @@ impl LoggerOpt {
     pub fn enable_log(&self) {
         if self.verbose > 0 {
             std::env::set_var("RUST_BACKTRACE", "1");
-            match self.verbose {
-                0 => unreachable!(),
-                1 => std::env::set_var("RUST_LOG", "info,tabox=info"),
-                2 => std::env::set_var("RUST_LOG", "debug,tabox=debug"),
-                _ => std::env::set_var("RUST_LOG", "trace,tabox=trace"),
-            }
+        }
+        match self.verbose {
+            0 => std::env::set_var("RUST_LOG", "warn,tabox=warn"),
+            1 => std::env::set_var("RUST_LOG", "info,tabox=info"),
+            2 => std::env::set_var("RUST_LOG", "debug,tabox=debug"),
+            _ => std::env::set_var("RUST_LOG", "trace,tabox=trace"),
         }
 
         env_logger::Builder::from_default_env()
