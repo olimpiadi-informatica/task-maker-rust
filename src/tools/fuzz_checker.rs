@@ -163,7 +163,10 @@ fn write_initial_corpus(fuzz_dir: &Path, data: &FuzzData) -> Result<(), Error> {
 }
 
 fn write_checker_source(fuzz_dir: &Path, data: &FuzzData) -> Result<Vec<PathBuf>, Error> {
-    let path = fuzz_dir.join("checker-patched.cpp");
+    let sources_dir = fuzz_dir.join("sources");
+    std::fs::create_dir_all(&sources_dir)
+        .with_context(|| anyhow!("Failed to create sources dir at {}", sources_dir.display()))?;
+    let path = sources_dir.join("checker-patched.cpp");
     info!("Writing patched checker source at {}", path.display());
     let mut checker_file = std::fs::OpenOptions::new()
         .write(true)
@@ -196,7 +199,7 @@ fn write_checker_source(fuzz_dir: &Path, data: &FuzzData) -> Result<Vec<PathBuf>
             )
         })?;
 
-    let fuzzer = fuzz_dir.join("fuzzer.cpp");
+    let fuzzer = sources_dir.join("fuzzer.cpp");
     info!("Writing fuzzer source at {}", fuzzer.display());
     std::fs::OpenOptions::new()
         .write(true)
@@ -291,7 +294,10 @@ fn patch_checker(source: &mut String) -> Result<(), Error> {
 }
 
 fn compile_fuzzer(fuzz_dir: &Path, data: &FuzzData, sources: &[PathBuf]) -> Result<PathBuf, Error> {
-    let target = fuzz_dir.join("fuzzer");
+    let fuzzer_dir = fuzz_dir.join("fuzzer");
+    std::fs::create_dir_all(&fuzzer_dir)
+        .with_context(|| anyhow!("Failed to create fuzzer dir at {}", fuzzer_dir.display()))?;
+    let target = fuzzer_dir.join("fuzzer");
     info!("Compiling {} with clang++", target.display());
 
     let mut command = std::process::Command::new("clang++");
@@ -359,7 +365,7 @@ fn run_fuzzer(fuzz_dir: &Path, data: &FuzzData, fuzzer: &Path) -> Result<Vec<Pat
     command.arg(fuzz_dir.join("initial_corpus"));
     command.arg(format!("-artifact_prefix={}/", artifacts.display()));
     if data.opt.quiet {
-        let stdout = fuzz_dir.join("stdout.txt");
+        let stdout = fuzz_dir.join("fuzzer/stdout.txt");
         debug!("Redirecting stdout to {}", stdout.display());
         let stdout_file = std::fs::File::create(&stdout)
             .with_context(|| anyhow!("Failed to create stdout at {}", stdout.display()))?;
@@ -367,7 +373,7 @@ fn run_fuzzer(fuzz_dir: &Path, data: &FuzzData, fuzzer: &Path) -> Result<Vec<Pat
         let stdout = unsafe { Stdio::from_raw_fd(stdout_file.into_raw_fd()) };
         command.stdout(stdout);
 
-        let stderr = fuzz_dir.join("stderr.txt");
+        let stderr = fuzz_dir.join("fuzzer/stderr.txt");
         debug!("Redirecting stderr to {}", stderr.display());
         let stderr_file = std::fs::File::create(&stderr)
             .with_context(|| anyhow!("Failed to create stderr at {}", stderr.display()))?;
