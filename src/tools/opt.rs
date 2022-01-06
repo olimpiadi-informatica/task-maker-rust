@@ -38,8 +38,10 @@ pub enum Tool {
     Sandbox(SandboxOpt),
     /// Obtain the information about a task.
     TaskInfo(TaskInfoOpt),
-    /// Compile just the booklet for a task or a context.
+    /// Compile just the booklet for a task or a contest.
     Booklet(BookletOpt),
+    /// Fuzz the checker of a task.
+    FuzzChecker(FuzzCheckerOpt),
     /// Run the sandbox instead of the normal task-maker.
     ///
     /// This option is left as undocumented as it's not part of the public API.
@@ -186,4 +188,46 @@ pub struct BookletOpt {
 
     #[structopt(flatten)]
     pub storage: StorageOpt,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct FuzzCheckerOpt {
+    #[structopt(flatten)]
+    pub find_task: FindTaskOpt,
+
+    /// Where to store fuzzing data.
+    ///
+    /// The path is relative to the task directory.
+    #[structopt(long, default_value = "fuzz")]
+    pub fuzz_dir: PathBuf,
+
+    /// Additional sanitizers to use.
+    ///
+    /// Comma separated list of sanitizers to use.
+    #[structopt(long, default_value = "address,undefined")]
+    pub sanitizers: String,
+
+    /// List of additional arguments to pass to the compiler.
+    ///
+    /// If nothing is listed here, -O2 and -g are passed.
+    pub extra_args: Vec<String>,
+
+    /// Number of fuzzing process to spawn.
+    ///
+    /// Defaults to the number of cores.
+    #[structopt(long, short)]
+    pub jobs: Option<usize>,
+
+    /// Maximum number of seconds the checker can run.
+    ///
+    /// If the checker takes longer than this, the fuzzer fails and the corresponding file is
+    /// emitted.
+    #[structopt(long, default_value = "2")]
+    pub checker_timeout: usize,
+
+    /// Maximum fuzzing time in seconds.
+    ///
+    /// Halt after fuzzing for this amount of time. Zero should not be used.
+    #[structopt(long, default_value = "60")]
+    pub max_time: usize,
 }
