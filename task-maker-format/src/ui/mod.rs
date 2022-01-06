@@ -6,7 +6,8 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 
 use anyhow::Error;
 use serde::{Deserialize, Serialize};
-use termcolor::{Color, ColorSpec, StandardStream};
+pub use termcolor::WriteColor;
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 use typescript_definitions::TypeScriptify;
 
 pub use json::JsonUI;
@@ -353,6 +354,21 @@ impl std::str::FromStr for UIType {
     }
 }
 
+/// A simple printer that outputs to stdout. This can be used with `cwrite!` and `cwriteln!`.
+#[allow(dead_code)]
+pub struct StdoutPrinter {
+    /// The actual stream.
+    pub stream: StandardStream,
+}
+
+impl Default for StdoutPrinter {
+    fn default() -> Self {
+        Self {
+            stream: StandardStream::stdout(ColorChoice::Auto),
+        }
+    }
+}
+
 /// Write to `$self.stream`, in the color specified as second parameter. The arguments that follow
 /// will be passed to `write!`.
 ///
@@ -360,23 +376,23 @@ impl std::str::FromStr for UIType {
 /// #[macro_use]
 /// extern crate task_maker_format;
 ///
-/// use termcolor::{StandardStream, ColorSpec, ColorChoice};
+/// use termcolor::{ColorSpec, ColorChoice};
+/// use task_maker_format::ui::StdoutPrinter;
 /// use task_maker_format::cwrite;
 ///
 /// # fn main() {
-/// struct Printer { stream: StandardStream }
 /// let mut color = ColorSpec::new();
 /// color.set_bold(true);
 ///
-/// let mut printer = Printer { stream: StandardStream::stdout(ColorChoice::Auto) };
+/// let mut printer = StdoutPrinter::default();
 /// cwrite!(printer, color, "The output is {}", 42);
 /// # }
 /// ```
 #[macro_export]
 macro_rules! cwrite {
     ($self:expr, $color:expr, $($arg:tt)*) => {{
-        use termcolor::WriteColor;
         use std::io::Write;
+        use $crate::ui::WriteColor;
         $self.stream.set_color(&$color).unwrap();
         write!(&mut $self.stream, $($arg)*).unwrap();
         $self.stream.reset().unwrap();
@@ -389,24 +405,23 @@ macro_rules! cwrite {
 /// ```
 /// #[macro_use]
 /// extern crate task_maker_format;
-///
-/// use termcolor::{StandardStream, ColorSpec, ColorChoice};
-/// use task_maker_format::cwriteln;
+/// use termcolor::{ColorSpec, ColorChoice};
+/// use task_maker_format::ui::StdoutPrinter;
+/// use task_maker_format::cwrite;
 ///
 /// # fn main() {
-/// struct Printer { stream: StandardStream }
 /// let mut color = ColorSpec::new();
 /// color.set_bold(true);
 ///
-/// let mut printer = Printer { stream: StandardStream::stdout(ColorChoice::Auto) };
+/// let mut printer = StdoutPrinter::default();
 /// cwriteln!(printer, color, "The output is {}", 42);
 /// # }
 /// ```
 #[macro_export]
 macro_rules! cwriteln {
     ($self:expr, $color:expr, $($arg:tt)*) => {{
-        use termcolor::WriteColor;
         use std::io::Write;
+        use $crate::ui::WriteColor;
         $self.stream.set_color(&$color).unwrap();
         writeln!(&mut $self.stream, $($arg)*).unwrap();
         $self.stream.reset().unwrap();
