@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use anyhow::{anyhow, bail, Context, Error};
+use regex::Regex;
+use serde::Deserialize;
 
 use task_maker_format::ioi::{Checker, TaskType};
 use task_maker_format::ui::{StdoutPrinter, RED};
@@ -160,6 +162,7 @@ fn write_checker_source(fuzz_dir: &Path, data: &FuzzData) -> Result<Vec<PathBuf>
         )
     })?;
 
+    checker_sanity_check(data, &checker_content)?;
     patch_checker(&mut checker_content).with_context(|| anyhow!("Failed to patch checker"))?;
 
     checker_file
@@ -192,10 +195,76 @@ fn write_checker_source(fuzz_dir: &Path, data: &FuzzData) -> Result<Vec<PathBuf>
     Ok(vec![path, fuzzer])
 }
 
+fn checker_sanity_check(data: &FuzzData, checker_content: &str) -> Result<(), Error> {
+    let mut command = std::process::Command::new("ctags");
+    command.arg("--output-format=json");
+    command.arg("--c-kinds=v");
+    command.arg("--extras=-F");
+    command.arg(&data.checker_source);
+    command.stdout(Stdio::piped());
+    let output = match command.output() {
+        Ok(output) => output,
+        Err(e) => {
+            warn!(
+                "Failed to execute ctags, you may need to installed it: {:?}",
+                e
+            );
+            return Ok(());
+        }
+    };
+    if !output.status.success() {
+        warn!(
+            "ctags failed to analyze the checker source (exit code {:?})",
+            output.status.code()
+        );
+    }
+
+    // Example output line:
+    //     {"_type": "tag", "name": "H", "path": "cor/correttore.cpp", "pattern": "/^int H[MAXN], rep[MAXN], lep[MAXN], nxt[MAXN], prv[MAXN];$/", "typeref": "typename:int[]", "kind": "variable"}
+    //     {"_type": "tag", "name": "MAXN", "path": "cor/correttore.cpp", "pattern": "/^const int MAXN = 2000005;$/", "typeref": "typename:const int", "kind": "variable"}
+    #[derive(Deserialize)]
+    struct OutputLine {
+        name: String,
+        typeref: String,
+        kind: String,
+    }
+
+    let output = String::from_utf8_lossy(&output.stdout);
+    for line in output.as_ref().lines() {
+        let line = match serde_json::from_str::<OutputLine>(line) {
+            Ok(line) => line,
+            Err(e) => {
+                warn!(
+                    "Failed to deserialize line from ctags: {:?} (line was {})",
+                    e, line
+                );
+                continue;
+            }
+        };
+        // we are only interested in global variables
+        if line.kind != "variable" {
+            continue;
+        }
+        // constants are ok to be global
+        if line.typeref.starts_with("typename:const ") {
+            continue;
+        }
+        // we found a global variable!
+        error!(
+            "Global variable found! '{}' looks like a global variable and it will probably interfere with the fuzzing process", line.name
+        )
+    }
+
+    let re = Regex::new(r"\b(static\s[^=;]*)").expect("bad regex");
+    for cap in re.captures_iter(checker_content) {
+        error!("Static variable found! '{}' looks like a static variable and it will probably interfere with the fuzzing process", &cap[1]);
+    }
+
+    Ok(())
+}
+
 fn patch_checker(source: &mut String) -> Result<(), Error> {
     info!("Patching checker source file");
-    // TODO: check if the checker has static variables, global variables, throws or the main doesn't
-    //       return
     *source = source.replace("std::exit", "exit");
     Ok(())
 }
