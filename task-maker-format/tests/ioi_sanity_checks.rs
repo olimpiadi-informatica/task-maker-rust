@@ -302,7 +302,7 @@ fn test_sanity_checks_statement_git_not_repo() {
 }
 
 #[test]
-fn test_sanity_checks_statement_git_untracked() {
+fn test_sanity_checks_statement_git_everything_untracked() {
     let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
 
@@ -311,6 +311,34 @@ fn test_sanity_checks_statement_git_untracked() {
 
     assert!(Command::new("git")
         .arg("init")
+        .current_dir(tmpdir.path())
+        .stdout(std::process::Stdio::null())
+        .status()
+        .unwrap()
+        .success());
+    let warnings = get_post_warnings(&task);
+    does_not_have_warning(&warnings, "git");
+}
+
+#[test]
+fn test_sanity_checks_statement_git_untracked() {
+    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let task = utils::new_task_with_context(tmpdir.path());
+
+    std::fs::create_dir(tmpdir.path().join("statement")).unwrap();
+    std::fs::write(tmpdir.path().join("statement/statement.pdf"), "%PDF").unwrap();
+    std::fs::write(tmpdir.path().join("statement/english.tex"), "").unwrap();
+
+    assert!(Command::new("git")
+        .arg("init")
+        .current_dir(tmpdir.path())
+        .stdout(std::process::Stdio::null())
+        .status()
+        .unwrap()
+        .success());
+    assert!(Command::new("git")
+        .arg("add")
+        .arg("statement/english.tex")
         .current_dir(tmpdir.path())
         .stdout(std::process::Stdio::null())
         .status()
@@ -334,6 +362,14 @@ fn test_sanity_checks_statement_git_ignored() {
 
     assert!(Command::new("git")
         .arg("init")
+        .current_dir(tmpdir.path())
+        .stdout(std::process::Stdio::null())
+        .status()
+        .unwrap()
+        .success());
+    assert!(Command::new("git")
+        .arg("add")
+        .arg(".gitignore")
         .current_dir(tmpdir.path())
         .stdout(std::process::Stdio::null())
         .status()

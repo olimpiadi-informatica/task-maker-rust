@@ -1,4 +1,5 @@
 use std::io::Read;
+use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -194,11 +195,7 @@ impl SanityCheck<IOITask> for StatementGit {
             Some(path) => {
                 let path = path.strip_prefix(&task.path).unwrap();
                 let mut command = Command::new("git");
-                command
-                    .arg("ls-files")
-                    .arg("--")
-                    .arg(&path)
-                    .current_dir(&task.path);
+                command.arg("ls-files").arg("-z").current_dir(&task.path);
                 match command.output() {
                     // git not available
                     Err(_) => return Ok(()),
@@ -208,7 +205,12 @@ impl SanityCheck<IOITask> for StatementGit {
                             return Ok(());
                         }
                         // file not know to git
-                        if output.stdout.is_empty() {
+                        if !output.stdout.is_empty()
+                            && !output
+                                .stdout
+                                .split(|b| 0u8.eq(b))
+                                .any(|p| path.as_os_str().as_bytes().eq(p))
+                        {
                             ui.send(UIMessage::Warning {
                                 message: format!("File {} is not known to git", path.display()),
                             })?;
