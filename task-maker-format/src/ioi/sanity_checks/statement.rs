@@ -194,6 +194,7 @@ impl SanityCheck<IOITask> for StatementGit {
             None => return Ok(()),
             Some(path) => {
                 let path = path.strip_prefix(&task.path).unwrap();
+                let raw_path = path.as_os_str().as_bytes();
                 let mut command = Command::new("git");
                 command.arg("ls-files").arg("-z").current_dir(&task.path);
                 match command.output() {
@@ -206,10 +207,7 @@ impl SanityCheck<IOITask> for StatementGit {
                         }
                         // file not know to git
                         if !output.stdout.is_empty()
-                            && !output
-                                .stdout
-                                .split(|b| 0u8.eq(b))
-                                .any(|p| path.as_os_str().as_bytes().eq(p))
+                            && !output.stdout.split(|&b| b == 0).any(|p| p == raw_path)
                         {
                             ui.send(UIMessage::Warning {
                                 message: format!("File {} is not known to git", path.display()),
