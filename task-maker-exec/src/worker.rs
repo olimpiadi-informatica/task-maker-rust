@@ -54,7 +54,7 @@ pub struct Worker {
     /// The function that spawns an actual sandbox.
     sandbox_runner: Arc<dyn SandboxRunner>,
     /// The join handle of the currently running sandbox, if any.
-    current_sandbox_thread: Option<JoinHandle<Result<(), Error>>>,
+    current_sandbox_thread: Option<JoinHandle<()>>,
 }
 
 /// An handle of the connection to the worker.
@@ -168,7 +168,7 @@ impl Worker {
         if let Some(join_handle) = self.current_sandbox_thread.take() {
             join_handle
                 .join()
-                .map_err(|e| anyhow!("Sandbox thread panicked: {:?}", e))?
+                .map_err(|e| anyhow!("Sandbox thread panicked: {:?}", e))
                 .context("Sandbox thread failed")?;
         }
         Ok(())
@@ -310,7 +310,7 @@ fn execute_job(
     sender: &ChannelSender<WorkerClientMessage>,
     sandbox_path: &Path,
     runner: Arc<dyn SandboxRunner>,
-) -> Result<JoinHandle<Result<(), Error>>, Error> {
+) -> Result<JoinHandle<()>, Error> {
     let (job, sandboxes, fifo_dir, server_asked_files) = {
         let mut current_job = current_job.lock().unwrap();
         let job = current_job
@@ -357,11 +357,9 @@ fn execute_job(
         (job, boxes, fifo_dir, receiver)
     };
     let sender = sender.clone();
+    let description = job.group.description.clone();
     let join_handle = std::thread::Builder::new()
-        .name(format!(
-            "Sandbox group manager for {}",
-            job.group.description
-        ))
+        .name(format!("Sandbox group manager for {}", description))
         .spawn(move || {
             sandbox_group_manager(
                 current_job,
@@ -372,6 +370,9 @@ fn execute_job(
                 runner,
                 fifo_dir,
             )
+            .with_context(|| format!("Sandbox group for {} failed", description))
+            // FIXME: find a better way to propagate the error to the server
+            .unwrap();
         })?;
     Ok(join_handle)
 }
