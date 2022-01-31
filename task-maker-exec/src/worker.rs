@@ -612,12 +612,7 @@ fn get_result_outputs(
             );
             output_paths.insert(file.uuid, path.clone());
         } else {
-            // FIXME: /dev/null may not be used
-            outputs.insert(
-                file.uuid,
-                FileStoreKey::from_file("/dev/null")
-                    .context("Failed to get store key of /dev/null")?,
-            );
+            outputs.insert(file.uuid, FileStoreKey::from_content(&[]));
             output_paths.insert(file.uuid, "/dev/null".into());
         }
     }
