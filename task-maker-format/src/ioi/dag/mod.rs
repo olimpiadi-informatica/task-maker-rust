@@ -6,7 +6,7 @@ pub use input_generator::InputGenerator;
 pub use input_validator::{InputValidator, TM_VALIDATION_FILE_NAME};
 pub use output_generator::OutputGenerator;
 use task_maker_dag::Priority;
-pub use task_type::{BatchTypeData, CommunicationTypeData, TaskType};
+pub use task_type::{BatchTypeData, CommunicationTypeData, TaskType, UserIo};
 
 mod checker;
 mod input_generator;

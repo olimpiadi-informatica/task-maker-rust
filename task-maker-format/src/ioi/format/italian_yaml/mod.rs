@@ -274,7 +274,7 @@ use crate::ioi::{
     make_task_booklets, Checker, IOITask, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo,
     TaskType, TestcaseId, TestcaseInfo, TestcaseScoreAggregator,
 };
-use crate::ioi::{BatchTypeData, CommunicationTypeData};
+use crate::ioi::{BatchTypeData, CommunicationTypeData, UserIo};
 use crate::{find_source_file, list_files, EvaluationConfig};
 
 mod cases_gen;
@@ -320,6 +320,11 @@ struct TaskYAML {
 
     /// Number of solution processes to spawn in parallel in a communication task.
     pub num_processes: Option<u8>,
+    /// The type of communication for the solution in a communication task.
+    ///
+    /// Can be either "std_io" for using stdin/stdout, or "fifo_io" for using pipes given in argv.
+    /// Defaults to "fifo_io".
+    pub user_io: Option<String>,
 }
 
 /// The iterator item type when following the task input testcases.
@@ -622,9 +627,17 @@ fn parse_communication_task_data(
         manager.link_static();
     }
 
+    let user_io = match yaml.user_io.as_deref() {
+        None => UserIo::FifoIo,
+        Some("std_io") => UserIo::StdIo,
+        Some("fifo_io") => UserIo::FifoIo,
+        Some(other) => bail!("Unsupported value \"{}\" for user_io in task.yaml", other),
+    };
+
     Ok(Some(TaskType::Communication(CommunicationTypeData {
         manager: Arc::new(manager),
         num_processes: yaml.num_processes.unwrap_or(1),
+        user_io,
     })))
 }
 

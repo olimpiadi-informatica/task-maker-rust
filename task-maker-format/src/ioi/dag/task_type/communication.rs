@@ -12,6 +12,15 @@ use crate::ui::{UIMessage, UIMessageSender};
 use crate::{bind_exec_callbacks, bind_exec_io};
 use crate::{EvaluationData, SourceFile, Tag};
 
+/// The type of communication for the solution in a communication task.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TypeScriptify, Eq, PartialEq)]
+pub enum UserIo {
+    /// Communication is achieved by using stdin/stdout.
+    StdIo,
+    /// Communication is achieved by using the pipes passed in argv.
+    FifoIo,
+}
+
 /// The internal data of a task of type `Batch`.
 #[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct CommunicationTypeData {
@@ -19,6 +28,8 @@ pub struct CommunicationTypeData {
     pub manager: Arc<SourceFile>,
     /// Number of solution processes to spawn in parallel in a communication task.
     pub num_processes: u8,
+    /// The type of communication for the solution in a communication task.
+    pub user_io: UserIo,
 }
 
 /// Internal data of `ScoreSender`.
@@ -99,10 +110,13 @@ pub fn evaluate(
         score_manager,
     );
     for process_index in 0..num_processes {
-        let mut args = vec![
-            fifo_sol2man[process_index].clone(),
-            fifo_man2sol[process_index].clone(),
-        ];
+        let mut args = match data.user_io {
+            UserIo::FifoIo => vec![
+                fifo_man2sol[process_index].clone(),
+                fifo_sol2man[process_index].clone(),
+            ],
+            UserIo::StdIo => vec![],
+        };
         if num_processes > 1 {
             args.push(process_index.to_string());
         }
@@ -120,6 +134,10 @@ pub fn evaluate(
                 args,
             )
             .context("Failed to execute solution source file")?;
+        if data.user_io == UserIo::StdIo {
+            exec.stdin_redirect_path(&fifo_man2sol[process_index]);
+            exec.stdout_redirect_path(&fifo_sol2man[process_index]);
+        }
         exec.tag(Tag::Evaluation.into());
         exec.priority(EVALUATION_PRIORITY - testcase_id as Priority);
         let limits = exec.limits_mut();
@@ -155,8 +173,8 @@ pub fn evaluate(
 
     let mut args = Vec::new();
     for process_index in 0..num_processes {
-        args.push(&fifo_man2sol[process_index]);
         args.push(&fifo_sol2man[process_index]);
+        args.push(&fifo_man2sol[process_index]);
     }
     let mut exec = data
         .manager
