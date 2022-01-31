@@ -239,7 +239,7 @@ impl LoggerOpt {
         }
 
         env_logger::Builder::from_default_env()
-            .default_format_timestamp_nanos(true)
+            .format_timestamp_nanos()
             .init();
         better_panic::install();
     }

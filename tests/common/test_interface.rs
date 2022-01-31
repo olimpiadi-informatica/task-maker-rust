@@ -38,7 +38,7 @@ pub struct TestInterfaceSuccessful {
 impl TestInterface {
     pub fn run_local<P: Into<PathBuf>>(path: P) -> Self {
         let _ = env_logger::Builder::from_default_env()
-            .default_format_timestamp_nanos(true)
+            .format_timestamp_nanos()
             .is_test(true)
             .try_init();
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -55,7 +55,7 @@ impl TestInterface {
     /// Evaluate the task using a "remote" setup (spawning a local server and local workers).
     pub fn run_remote<P: Into<PathBuf>>(path: P) -> Self {
         let _ = env_logger::Builder::from_default_env()
-            .default_format_timestamp_nanos(true)
+            .format_timestamp_nanos()
             .is_test(true)
             .try_init();
         if !port_scanner::scan_port(27182) {
