@@ -169,7 +169,7 @@ impl Checker {
 
     /// The checker may return a message to be translated. This function maps the message
     /// placeholders to actual messages.
-    fn translate_checker_message(message: String) -> String {
+    pub fn translate_checker_message(message: String) -> String {
         match message.as_str() {
             "translate:success" => "Output is correct".into(),
             "translate:partial" => "Output is partially correct".into(),

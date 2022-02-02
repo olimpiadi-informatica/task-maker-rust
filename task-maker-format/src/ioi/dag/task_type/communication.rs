@@ -7,7 +7,7 @@ use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{ExecutionGroup, FileUuid, Priority};
 
-use crate::ioi::{IOITask, ScoreManager, SubtaskId, TestcaseId, EVALUATION_PRIORITY};
+use crate::ioi::{Checker, IOITask, ScoreManager, SubtaskId, TestcaseId, EVALUATION_PRIORITY};
 use crate::ui::{UIMessage, UIMessageSender};
 use crate::{bind_exec_callbacks, bind_exec_io};
 use crate::{EvaluationData, SourceFile, Tag};
@@ -229,6 +229,7 @@ pub fn evaluate(
         let score = String::from_utf8_lossy(&stdout);
         let score: f64 = score.trim().parse().context("Invalid score from checker")?;
         let message = String::from_utf8_lossy(&stderr).trim().to_string();
+        let message = Checker::translate_checker_message(message);
         score_sender.send(score, message)?;
         Ok(())
     });
