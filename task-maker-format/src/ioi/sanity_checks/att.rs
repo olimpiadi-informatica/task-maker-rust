@@ -236,11 +236,7 @@ fn get_sample_files(
         let caps = regex.captures(path_str.as_ref());
         if let Some(caps) = caps {
             if let Some(num) = caps.get(2) {
-                let num: TestcaseId = if let Ok(num) = num.as_str().parse() {
-                    num
-                } else {
-                    return None;
-                };
+                let num: TestcaseId = num.as_str().parse().ok()?;
                 return Some(num);
             }
         }
