@@ -230,6 +230,11 @@ pub fn evaluate(
         let score: f64 = score.trim().parse().context("Invalid score from checker")?;
         let message = String::from_utf8_lossy(&stderr).trim().to_string();
         let message = Checker::translate_checker_message(message);
+        // FIXME: this, combined with the send from the exec of the solution (in case of failures),
+        //        cause a race condition. If the manager exits first with an outcome (let's say AC),
+        //        but the solution afterwards got stuck (or just is slow at exiting, or crashes) the
+        //        failure is not registered in the score, but the exit status is. The result is that
+        //        a solution can get the points for a testcase even if it crashes.
         score_sender.send(score, message)?;
         Ok(())
     });
