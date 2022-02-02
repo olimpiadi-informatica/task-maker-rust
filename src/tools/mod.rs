@@ -1,5 +1,6 @@
 pub mod booklet;
 pub mod clear;
+pub mod fuzz_checker;
 pub mod gen_autocompletion;
 pub mod opt;
 pub mod reset;

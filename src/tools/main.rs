@@ -3,6 +3,7 @@ use structopt::StructOpt;
 use task_maker_rust::error::NiceError;
 use task_maker_rust::tools::booklet::main_booklet;
 use task_maker_rust::tools::clear::main_clear;
+use task_maker_rust::tools::fuzz_checker::main_fuzz_checker;
 use task_maker_rust::tools::gen_autocompletion::main_get_autocompletion;
 use task_maker_rust::tools::opt::{Opt, Tool};
 use task_maker_rust::tools::reset::main_reset;
@@ -26,6 +27,7 @@ fn main() {
         Tool::Sandbox(opt) => main_sandbox(opt),
         Tool::TaskInfo(opt) => main_task_info(opt),
         Tool::Booklet(opt) => main_booklet(opt),
+        Tool::FuzzChecker(opt) => main_fuzz_checker(opt),
         Tool::InternalSandbox => return task_maker_rust::main_sandbox(),
     }
     .nice_unwrap()
