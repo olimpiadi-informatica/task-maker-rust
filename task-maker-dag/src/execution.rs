@@ -403,6 +403,11 @@ impl ExecutionStatus {
     pub fn is_internal_error(&self) -> bool {
         matches!(self, ExecutionStatus::InternalError(_))
     }
+
+    /// Build a new `ExecutionStatus` as an `InternalError`.
+    pub fn internal_error<S: Into<String>>(error: S) -> Self {
+        Self::InternalError(error.into())
+    }
 }
 
 impl ExecutionCommand {
