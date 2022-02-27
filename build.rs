@@ -8,6 +8,7 @@ fn get_version() -> String {
     cmd.arg("describe");
     cmd.arg("--tags");
     cmd.arg("--dirty=+dirty");
+    cmd.arg("--long");
     let output = cmd.output();
     let version = env!("CARGO_PKG_VERSION").to_string();
     match output {
