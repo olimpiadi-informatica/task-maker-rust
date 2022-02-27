@@ -271,7 +271,7 @@ impl FinishUI {
                 let memory_color = FinishUI::resource_color(
                     result.resources.memory as f64,
                     max_memory as f64 * BOLD_RESOURCE_THRESHOLD,
-                    state.task.memory_limit.unwrap_or(u64::max_value()) as f64
+                    state.task.memory_limit.unwrap_or(u64::MAX) as f64
                         * 1024.0
                         * YELLOW_RESOURCE_THRESHOLD,
                 );
