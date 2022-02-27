@@ -22,7 +22,8 @@ fn communication_stdio(test: TestInterface) {
         .solution_statuses("solution.c", vec![Accepted("Ok!".into())])
         .solution_statuses("solution.py", vec![Accepted("Ok!".into())])
         .solution_statuses("no_output.cpp", vec![WrongAnswer("Ko!".into())])
-        .solution_statuses("wrong.cpp", vec![WrongAnswer("Ko!".into())]);
+        .solution_statuses("wrong.cpp", vec![WrongAnswer("Ko!".into())])
+        .file_exists("check/manager");
 }
 
 #[test]

@@ -16,7 +16,8 @@ fn communication(test: TestInterface) {
         .solution_score("solution.c", vec![100.0])
         .solution_score("wrong.cpp", vec![0.0])
         .solution_statuses("solution.cpp", vec![Accepted("Ok!".into())])
-        .solution_statuses("wrong.cpp", vec![WrongAnswer("Ko!".into())]);
+        .solution_statuses("wrong.cpp", vec![WrongAnswer("Ko!".into())])
+        .file_exists("check/manager");
 }
 
 #[test]

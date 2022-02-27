@@ -14,7 +14,8 @@ fn with_checker(test: TestInterface) {
         .solution_score("soluzione.sh", vec![100.0])
         .solution_score("wrong.sh", vec![0.0])
         .solution_statuses("soluzione.sh", vec![Accepted("Ok!".into())])
-        .solution_statuses("wrong.sh", vec![WrongAnswer("Ko!".into())]);
+        .solution_statuses("wrong.sh", vec![WrongAnswer("Ko!".into())])
+        .file_exists("cor/correttore");
 }
 
 #[test]

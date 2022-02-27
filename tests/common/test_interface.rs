@@ -124,7 +124,6 @@ impl TestInterface {
         if !cache {
             args.push("--no-cache");
         }
-        args.push("--dry-run");
         args.push("-vv");
         let store_dir = format!("--store-dir={}", store_dir.to_string_lossy());
         args.push(&store_dir);
@@ -518,6 +517,19 @@ impl TestInterfaceSuccessful {
             }
         }
         assert_eq!(id, fails.len(), "Too many testcases provided");
+        self
+    }
+
+    /// Check that a file is present in the task directory.
+    pub fn file_exists<P: AsRef<Path>>(self, path: P) -> Self {
+        let full_path = self.state.task.path.join(path.as_ref());
+        if !full_path.exists() {
+            panic!(
+                "File {} (at {}) does not exists",
+                path.as_ref().display(),
+                full_path.display()
+            );
+        }
         self
     }
 
