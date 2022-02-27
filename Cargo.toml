@@ -12,6 +12,7 @@ edition = "2018"
 documentation = "https://edomora97.github.io/task-maker-rust/"
 repository = "https://github.com/edomora97/task-maker-rust"
 license = "MPL-2.0"
+default-run = "task-maker"
 
 [package.metadata.deb]
 extended-description = "Tool for building tasks for informatics competitions, with support for cache, distributed computations and more"

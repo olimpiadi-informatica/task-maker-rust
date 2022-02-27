@@ -12,6 +12,7 @@ use task_maker_format::{EvaluationConfig, VALID_TAGS};
 #[derive(StructOpt, Debug)]
 #[structopt(
     name = "task-maker",
+    version = include_str!(concat!(env!("OUT_DIR"), "/version.txt")),
     setting = structopt::clap::AppSettings::ColoredHelp,
 )]
 pub struct Opt {
