@@ -218,10 +218,10 @@ impl Booklet {
             show_summary: Booklet::bool_to_tpl_string(self.config.show_summary, "showsummary"),
             font_enc: self.config.font_enc.clone(),
             input_enc: self.config.input_enc.clone(),
-            description: self.config.description.clone().unwrap_or_else(String::new),
-            location: self.config.location.clone().unwrap_or_else(String::new),
-            date: self.config.date.clone().unwrap_or_else(String::new),
-            logo: self.config.logo.clone().unwrap_or_else(String::new),
+            description: self.config.description.clone().unwrap_or_default(),
+            location: self.config.location.clone().unwrap_or_default(),
+            date: self.config.date.clone().unwrap_or_default(),
+            logo: self.config.logo.clone().unwrap_or_default(),
             packages: packages.iter().sorted().join("\n"),
             tasks: tasks.join("\n"),
         }
@@ -328,8 +328,7 @@ mod tests {
         eval.dag
             .file_callbacks
             .values()
-            .map(|f| f.write_to.as_ref())
-            .flatten()
+            .filter_map(|f| f.write_to.as_ref())
             .map(|f| f.dest.clone())
             .collect()
     }

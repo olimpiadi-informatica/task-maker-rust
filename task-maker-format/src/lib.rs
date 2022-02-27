@@ -195,14 +195,13 @@ impl EvaluationConfig {
                     .iter()
                     .any(|filter| name.starts_with(filter.as_str()))
             })
-            .map(|p| {
+            .filter_map(|p| {
                 let write_to = base_dir
                     .join("bin")
                     .join("sol")
                     .join(p.file_name().unwrap());
                 SourceFile::new(p, base_dir, grader_map.clone(), Some(write_to))
             })
-            .flatten()
             .collect()
     }
 }
