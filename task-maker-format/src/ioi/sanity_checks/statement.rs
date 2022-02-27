@@ -265,6 +265,27 @@ fn check_subtasks_oii(text: &str) -> Option<Vec<ExtractedSubtask>> {
     }
 }
 
+/// Extract from the OII's new format the subtasks. They are for example:
+///
+/// `\item \subtask $L\leq 10$.`
+fn check_subtasks_oii_new(text: &str) -> Option<Vec<ExtractedSubtask>> {
+    lazy_static! {
+        static ref FIND_SUBTASKS: Regex = Regex::new(r".*\\subtask.*").expect("Invalid regex");
+    }
+    let mut result = Vec::new();
+    for (index, _) in FIND_SUBTASKS.captures_iter(text).enumerate() {
+        result.push(ExtractedSubtask {
+            id: index as SubtaskId,
+            score: None,
+        });
+    }
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
+}
+
 /// Extract from the OIS's usual format the subtasks. They are for example:
 ///
 /// `\OISubtask{10}{1}{$N \le 10$.}`
@@ -296,6 +317,8 @@ fn check_subtasks_ois(text: &str) -> Option<Vec<ExtractedSubtask>> {
 /// empty, `None` is returned.
 fn extract_subtasks(tex: String) -> Option<Vec<ExtractedSubtask>> {
     let mut subtasks = if let Some(subtasks) = check_subtasks_oii(&tex) {
+        subtasks
+    } else if let Some(subtasks) = check_subtasks_oii_new(&tex) {
         subtasks
     } else {
         check_subtasks_ois(&tex)?
