@@ -25,8 +25,11 @@ impl SanityCheck<IOITask> for StatementSubtasks {
         let expected_subtasks = task
             .subtasks
             .iter()
-            .map(|(st_num, st)| (*st_num, st.max_score))
-            .sorted_by_key(|(st, _)| *st)
+            .map(|(st_num, st)| ExtractedSubtask {
+                id: *st_num,
+                score: Some(st.max_score),
+            })
+            .sorted_by_key(|st| st.id)
             .collect_vec();
         for booklet in task.booklets.iter() {
             if booklet.statements.len() != 1 {
@@ -41,13 +44,15 @@ impl SanityCheck<IOITask> for StatementSubtasks {
             let mut non_sequential = false;
             let mut wrong = false;
             for (expected, actual) in expected_subtasks.iter().zip(subtasks.iter()) {
-                if expected.0 != actual.0 {
+                if expected.id != actual.id {
                     non_sequential = true;
                     break;
                 }
-                if approx::abs_diff_ne!(expected.1, actual.1) {
-                    wrong = true;
-                    break;
+                if let Some(actual_score) = actual.score {
+                    if approx::abs_diff_ne!(expected.score.unwrap(), actual_score) {
+                        wrong = true;
+                        break;
+                    }
                 }
             }
             if expected_subtasks.len() != subtasks.len() {
@@ -221,12 +226,20 @@ impl SanityCheck<IOITask> for StatementGit {
     }
 }
 
+/// An extracted subtask from the statement file.
+struct ExtractedSubtask {
+    /// The id of the subtask.
+    id: SubtaskId,
+    /// The score of the subtask, if present.
+    score: Option<f64>,
+}
+
 /// Extract from the OII's usual format the subtasks. They are for example:
 ///
 /// `\item \textbf{\makebox[2cm][l]{Subtask 2} [20 punti]}: $L\leq 10$.`
 ///
 /// The regex is pretty powerful and tries to match as many variations as possible.
-fn check_subtasks_oii(text: &str) -> Option<Vec<(SubtaskId, f64)>> {
+fn check_subtasks_oii(text: &str) -> Option<Vec<ExtractedSubtask>> {
     lazy_static! {
         static ref FIND_SUBTASKS: Regex =
             Regex::new(r".*\{Subtask ([0-9]+)\} *\[(?:\\phantom\{[^\}]+\})?([0-9]+).*\].*")
@@ -235,9 +248,12 @@ fn check_subtasks_oii(text: &str) -> Option<Vec<(SubtaskId, f64)>> {
     let mut result = Vec::new();
     for subtask in FIND_SUBTASKS.captures_iter(text) {
         let num = subtask[1].parse::<SubtaskId>();
-        let max_score = subtask[2].parse::<f64>();
-        if let (Ok(num), Ok(max_score)) = (num, max_score) {
-            result.push((num, max_score));
+        let score = subtask[2].parse::<f64>();
+        if let (Ok(num), Ok(score)) = (num, score) {
+            result.push(ExtractedSubtask {
+                id: num,
+                score: Some(score),
+            });
         } else {
             return None;
         }
@@ -252,16 +268,19 @@ fn check_subtasks_oii(text: &str) -> Option<Vec<(SubtaskId, f64)>> {
 /// Extract from the OIS's usual format the subtasks. They are for example:
 ///
 /// `\OISubtask{10}{1}{$N \le 10$.}`
-fn check_subtasks_ois(text: &str) -> Option<Vec<(SubtaskId, f64)>> {
+fn check_subtasks_ois(text: &str) -> Option<Vec<ExtractedSubtask>> {
     lazy_static! {
         static ref FIND_SUBTASKS: Regex =
             Regex::new(r".*\\OISubtask\{(\d+)\}\{\d+\}\{.+\}.*").expect("Invalid regex");
     }
     let mut result = Vec::new();
     for (index, subtask) in FIND_SUBTASKS.captures_iter(text).enumerate() {
-        let max_score = subtask[1].parse::<f64>();
-        if let Ok(max_score) = max_score {
-            result.push((index as SubtaskId, max_score));
+        let score = subtask[1].parse::<f64>();
+        if let Ok(score) = score {
+            result.push(ExtractedSubtask {
+                id: index as SubtaskId,
+                score: Some(score),
+            });
         } else {
             return None;
         }
@@ -275,18 +294,18 @@ fn check_subtasks_ois(text: &str) -> Option<Vec<(SubtaskId, f64)>> {
 
 /// Try to extract from the tex file the list of statements, starting with zero. If the list is
 /// empty, `None` is returned.
-fn extract_subtasks(tex: String) -> Option<Vec<(SubtaskId, f64)>> {
+fn extract_subtasks(tex: String) -> Option<Vec<ExtractedSubtask>> {
     let mut subtasks = if let Some(subtasks) = check_subtasks_oii(&tex) {
         subtasks
     } else {
         check_subtasks_ois(&tex)?
     };
     // subtasks 1-based
-    if subtasks[0].0 == 1 {
+    if subtasks[0].id == 1 {
         for subtask in subtasks.iter_mut() {
             // make the subtasks 0-based
-            if subtask.0 > 0 {
-                subtask.0 -= 1;
+            if subtask.id > 0 {
+                subtask.id -= 1;
             }
         }
     }
