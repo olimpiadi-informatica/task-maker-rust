@@ -574,7 +574,7 @@ fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> Result<
     let checker = checkers
         .pop()
         .map(|mut c| {
-            // always copy the custom checker
+            // Always copy the custom checker.
             c.copy_exe();
 
             // Link the checker statically. This makes sure that it will work also outside this machine.
@@ -620,6 +620,9 @@ fn parse_communication_task_data(
     } else {
         return Ok(None);
     };
+
+    // Always copy the manager.
+    manager.copy_exe();
 
     // Link the manager statically. This makes sure that it will work also outside this machine.
     // Doesn't work on MacOS, see https://github.com/edomora97/task-maker-rust/pull/29
