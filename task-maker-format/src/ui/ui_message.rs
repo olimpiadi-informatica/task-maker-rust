@@ -206,4 +206,10 @@ pub enum UIMessage {
         /// The message of the warning.
         message: String,
     },
+
+    /// An error has been emitted.
+    Error {
+        /// The message of the error.
+        message: String,
+    },
 }

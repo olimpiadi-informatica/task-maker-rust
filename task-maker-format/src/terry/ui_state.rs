@@ -22,6 +22,8 @@ pub struct UIState {
     pub executor_status: Option<ExecutorStatus<SystemTime>>,
     /// All the emitted warnings.
     pub warnings: Vec<String>,
+    /// All the emitted errors.
+    pub errors: Vec<String>,
 }
 
 /// The state of the evaluation of a solution.
@@ -85,6 +87,7 @@ impl UIState {
             solutions: HashMap::new(),
             executor_status: None,
             warnings: Vec::new(),
+            errors: Vec::new(),
         }
     }
 }
@@ -188,6 +191,9 @@ impl UIStateT for UIState {
             }
             UIMessage::Warning { message } => {
                 self.warnings.push(message);
+            }
+            UIMessage::Error { message } => {
+                self.errors.push(message);
             }
             UIMessage::IOITask { .. }
             | UIMessage::IOIGeneration { .. }

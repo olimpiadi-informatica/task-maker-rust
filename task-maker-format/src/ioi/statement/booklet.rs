@@ -246,7 +246,7 @@ impl Booklet {
             errors.insert(format!("Latex error at line {}: {}", &cap[2][2..], &cap[1]));
         }
         for message in errors {
-            sender.send(UIMessage::Warning { message })?;
+            sender.send_warning(message)?;
         }
         Ok(())
     }

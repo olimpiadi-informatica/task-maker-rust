@@ -8,7 +8,6 @@ use task_maker_lang::LanguageManager;
 
 use crate::ioi::IOITask;
 use crate::sanity_checks::{SanityCheck, SanityChecks};
-use crate::ui::UIMessage;
 use crate::{list_files, EvaluationData, UISender};
 use std::collections::HashSet;
 
@@ -90,13 +89,11 @@ fn check_missing_graders<P: AsRef<Path>>(
     for grader in graders {
         if !grader.exists() {
             let name = Path::new(grader.file_name().unwrap());
-            eval.sender.send(UIMessage::Warning {
-                message: format!(
-                    "Missing grader at {}/{}",
-                    folder.as_ref().display(),
-                    name.display()
-                ),
-            })?;
+            eval.sender.send_error(format!(
+                "Missing grader at {}/{}",
+                folder.as_ref().display(),
+                name.display()
+            ))?;
         }
     }
     Ok(())

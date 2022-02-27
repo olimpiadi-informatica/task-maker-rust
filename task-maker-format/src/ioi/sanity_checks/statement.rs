@@ -9,7 +9,7 @@ use regex::Regex;
 
 use crate::ioi::{IOITask, SubtaskId};
 use crate::sanity_checks::SanityCheck;
-use crate::ui::{UIMessage, UIMessageSender};
+use crate::ui::UIMessageSender;
 use crate::{EvaluationData, UISender};
 
 /// Check that the subtasks in the statement are consistent with the ones of the task.
@@ -59,19 +59,15 @@ impl SanityCheck<IOITask> for StatementSubtasks {
                 wrong = true;
             }
             if non_sequential {
-                eval.sender.send(UIMessage::Warning {
-                    message: format!(
-                        "The subtasks in the statement {} are non-sequentially numbered",
-                        statement.path.strip_prefix(&task.path).unwrap().display()
-                    ),
-                })?;
+                eval.sender.send_error(format!(
+                    "The subtasks in the statement {} are non-sequentially numbered",
+                    statement.path.strip_prefix(&task.path).unwrap().display()
+                ))?;
             } else if wrong {
-                eval.sender.send(UIMessage::Warning {
-                    message: format!(
-                        "The subtasks in the statement {} don't match the tasks's ones",
-                        statement.path.strip_prefix(&task.path).unwrap().display()
-                    ),
-                })?;
+                eval.sender.send_error(format!(
+                    "The subtasks in the statement {} don't match the tasks's ones",
+                    statement.path.strip_prefix(&task.path).unwrap().display()
+                ))?;
             }
         }
         Ok(())
@@ -90,10 +86,9 @@ impl SanityCheck<IOITask> for StatementValid {
     fn post_hook(&mut self, task: &IOITask, ui: &mut UIMessageSender) -> Result<(), Error> {
         match find_statement_pdf(task) {
             None => {
-                return ui.send(UIMessage::Warning {
-                    message: "Missing statement file (statement/statement.pdf or testo/testo.pdf)"
-                        .into(),
-                });
+                ui.send_error(
+                    "Missing statement file (statement/statement.pdf or testo/testo.pdf)",
+                )?;
             }
             Some(path) => {
                 // normal file or valid symlink
@@ -111,23 +106,19 @@ impl SanityCheck<IOITask> for StatementValid {
                     };
 
                     if invalid {
-                        return ui.send(UIMessage::Warning {
-                            message: format!(
-                                "Invalid PDF file at {}",
-                                path.strip_prefix(&task.path).unwrap().display()
-                            ),
-                        });
+                        ui.send_error(format!(
+                            "Invalid PDF file at {}",
+                            path.strip_prefix(&task.path).unwrap().display()
+                        ))?;
                     }
                     return Ok(());
                 }
                 // broken symlink
                 else if path.read_link().is_ok() {
-                    return ui.send(UIMessage::Warning {
-                        message: format!(
-                            "Statement {} is a broken link",
-                            path.strip_prefix(&task.path).unwrap().display()
-                        ),
-                    });
+                    ui.send_error(format!(
+                        "Statement {} is a broken link",
+                        path.strip_prefix(&task.path).unwrap().display()
+                    ))?;
                 }
             }
         }
@@ -176,12 +167,10 @@ impl SanityCheck<IOITask> for StatementCompiled {
 
         // We didn't find any compiled booklet referring to the official statement, this means that
         // the statement that will be used isn't the one compiled by us.
-        return ui.send(UIMessage::Warning {
-            message: format!(
-                "The official statement at {} is not the one compiled by task-maker",
-                path.strip_prefix(&task.path).unwrap().display()
-            ),
-        });
+        return ui.send_warning(format!(
+            "The official statement at {} is not the one compiled by task-maker",
+            path.strip_prefix(&task.path).unwrap().display()
+        ));
     }
 }
 
@@ -214,9 +203,7 @@ impl SanityCheck<IOITask> for StatementGit {
                         if !output.stdout.is_empty()
                             && !output.stdout.split(|&b| b == 0).any(|p| p == raw_path)
                         {
-                            ui.send(UIMessage::Warning {
-                                message: format!("File {} is not known to git", path.display()),
-                            })?;
+                            ui.send_error(format!("File {} is not known to git", path.display()))?;
                         }
                     }
                 }

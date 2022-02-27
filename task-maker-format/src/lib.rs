@@ -125,6 +125,20 @@ impl EvaluationData {
 pub trait UISender {
     /// Send that `UIMessage` to the UI.
     fn send(&self, message: ui::UIMessage) -> Result<(), Error>;
+
+    /// Send a warning to the UI.
+    fn send_warning(&self, message: impl Into<String>) -> Result<(), Error> {
+        self.send(ui::UIMessage::Warning {
+            message: message.into(),
+        })
+    }
+
+    /// Send an error to the UI.
+    fn send_error(&self, message: impl Into<String>) -> Result<(), Error> {
+        self.send(ui::UIMessage::Error {
+            message: message.into(),
+        })
+    }
 }
 
 /// Implement `.send(message)` for `Mutex<UIMessageSender>` in order to do

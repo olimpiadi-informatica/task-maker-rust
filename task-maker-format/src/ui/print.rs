@@ -264,6 +264,10 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
                 cwrite!(self, WARNING, "[WARNING] ");
                 print!("{}", message);
             }
+            UIMessage::Error { message } => {
+                cwrite!(self, ERROR, "[ERROR]   ");
+                print!("{}", message);
+            }
             UIMessage::TerryTask { task } => {
                 self.state = Some(State::from(&UIMessage::TerryTask { task }));
             }

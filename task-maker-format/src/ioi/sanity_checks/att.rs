@@ -9,7 +9,7 @@ use task_maker_dag::File;
 use crate::ioi::sanity_checks::check_missing_graders;
 use crate::ioi::{IOITask, TaskType, TestcaseId};
 use crate::sanity_checks::SanityCheck;
-use crate::ui::{UIMessage, UIMessageSender};
+use crate::ui::UIMessageSender;
 use crate::{list_files, EvaluationData, UISender};
 
 /// Check that all the graders are present inside att.
@@ -43,9 +43,8 @@ impl SanityCheck<IOITask> for AttTemplates {
                 .to_string_lossy();
             let template = task.path.join("att").join(format!("{}.{}", task.name, ext));
             if !template.exists() {
-                eval.sender.send(UIMessage::Warning {
-                    message: format!("Missing template at att/{}.{}", task.name, ext),
-                })?;
+                eval.sender
+                    .send_warning(format!("Missing template at att/{}.{}", task.name, ext))?;
             }
         }
         Ok(())
@@ -69,26 +68,20 @@ impl SanityCheck<IOITask> for AttSampleFiles {
             if sample.read_link().is_ok() {
                 // check if the symlink is broken
                 if sample.canonicalize().is_err() {
-                    ui.send(UIMessage::Warning {
-                        message: format!(
-                            "Sample case {} is a broken link",
-                            sample.strip_prefix(&task.path).unwrap().display()
-                        ),
-                    })?;
+                    ui.send_error(format!(
+                        "Sample case {} is a broken link",
+                        sample.strip_prefix(&task.path).unwrap().display()
+                    ))?;
                 }
             } else {
-                ui.send(UIMessage::Warning {
-                    message: format!(
-                        "Sample case {} is not a symlink",
-                        sample.strip_prefix(&task.path).unwrap().display()
-                    ),
-                })?;
+                ui.send_warning(format!(
+                    "Sample case {} is not a symlink",
+                    sample.strip_prefix(&task.path).unwrap().display()
+                ))?;
             }
         }
         if no_sample {
-            ui.send(UIMessage::Warning {
-                message: "No sample file in att/".into(),
-            })?;
+            ui.send_warning("No sample file in att/")?;
         }
         Ok(())
     }
@@ -136,12 +129,10 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
                 let sender = eval.sender.clone();
                 eval.dag.on_execution_done(&val.uuid, move |res| {
                     if !res.status.is_success() {
-                        sender.send(UIMessage::Warning {
-                            message: format!(
-                                "Sample input file {} is not valid",
-                                input_name.display()
-                            ),
-                        })?;
+                        sender.send_error(format!(
+                            "Sample input file {} is not valid",
+                            input_name.display()
+                        ))?;
                     }
                     Ok(())
                 });
@@ -179,12 +170,10 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
                     let output_name = output_name.clone();
                     eval.dag.on_execution_done(&sol.uuid, move |res| {
                         if !res.status.is_success() {
-                            sender.send(UIMessage::Warning {
-                                message: format!(
-                                    "Solution failed on sample input file {}",
-                                    output_name.display()
-                                ),
-                            })?;
+                            sender.send_error(format!(
+                                "Solution failed on sample input file {}",
+                                output_name.display()
+                            ))?;
                         }
                         Ok(())
                     });
@@ -204,14 +193,12 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
                         output_uuid,
                         move |score, message| {
                             if abs_diff_ne!(score, 1.0) {
-                                sender.send(UIMessage::Warning {
-                                    message: format!(
-                                        "Sample output file {} scores {}: {}",
-                                        output_name.display(),
-                                        score,
-                                        message
-                                    ),
-                                })?;
+                                sender.send_warning(format!(
+                                    "Sample output file {} scores {}: {}",
+                                    output_name.display(),
+                                    score,
+                                    message
+                                ))?;
                             }
                             Ok(())
                         },
@@ -246,14 +233,12 @@ fn get_sample_files(
     for input in list_files(&task.path, vec!["att/*input*.txt"]) {
         if let Some(num) = extract_num(&input) {
             if let Some(i) = inputs.insert(num, input.clone()) {
-                eval.sender.send(UIMessage::Warning {
-                    message: format!(
-                        "Duplicate sample input file with number {}: {} and {}",
-                        num,
-                        input.strip_prefix(&task.path).unwrap().display(),
-                        i.strip_prefix(&task.path).unwrap().display()
-                    ),
-                })?;
+                eval.sender.send_error(format!(
+                    "Duplicate sample input file with number {}: {} and {}",
+                    num,
+                    input.strip_prefix(&task.path).unwrap().display(),
+                    i.strip_prefix(&task.path).unwrap().display()
+                ))?;
             }
         }
     }
@@ -261,14 +246,12 @@ fn get_sample_files(
     for output in list_files(&task.path, vec!["att/*output*.txt"]) {
         if let Some(num) = extract_num(&output) {
             if let Some(o) = outputs.insert(num, output.clone()) {
-                eval.sender.send(UIMessage::Warning {
-                    message: format!(
-                        "Duplicate sample output file with number {}: {} and {}",
-                        num,
-                        output.strip_prefix(&task.path).unwrap().display(),
-                        o.strip_prefix(&task.path).unwrap().display()
-                    ),
-                })?;
+                eval.sender.send_error(format!(
+                    "Duplicate sample output file with number {}: {} and {}",
+                    num,
+                    output.strip_prefix(&task.path).unwrap().display(),
+                    o.strip_prefix(&task.path).unwrap().display()
+                ))?;
             }
         }
     }
@@ -277,23 +260,19 @@ fn get_sample_files(
         let output = if let Some(output) = outputs.remove(&num) {
             output
         } else {
-            eval.sender.send(UIMessage::Warning {
-                message: format!(
-                    "Sample input file {} does not have its output file",
-                    input.strip_prefix(&task.path).unwrap().display()
-                ),
-            })?;
+            eval.sender.send_warning(format!(
+                "Sample input file {} does not have its output file",
+                input.strip_prefix(&task.path).unwrap().display()
+            ))?;
             continue;
         };
         samples.push((input, output));
     }
     for (_, output) in outputs {
-        eval.sender.send(UIMessage::Warning {
-            message: format!(
-                "Sample output file {} does not have its input file",
-                output.strip_prefix(&task.path).unwrap().display()
-            ),
-        })?;
+        eval.sender.send_warning(format!(
+            "Sample output file {} does not have its input file",
+            output.strip_prefix(&task.path).unwrap().display()
+        ))?;
     }
     Ok(samples)
 }

@@ -187,6 +187,8 @@ pub struct UIState {
     pub booklets: HashMap<String, BookletState>,
     /// All the emitted warnings.
     pub warnings: Vec<String>,
+    /// All the emitted errors.
+    pub errors: Vec<String>,
 }
 
 impl TestcaseEvaluationStatus {
@@ -288,6 +290,7 @@ impl UIState {
             executor_status: None,
             booklets: HashMap::new(),
             warnings: Vec::new(),
+            errors: Vec::new(),
         }
     }
 }
@@ -579,6 +582,9 @@ impl UIStateT for UIState {
             }
             UIMessage::Warning { message } => {
                 self.warnings.push(message);
+            }
+            UIMessage::Error { message } => {
+                self.errors.push(message);
             }
             UIMessage::TerryTask { .. }
             | UIMessage::TerryGeneration { .. }

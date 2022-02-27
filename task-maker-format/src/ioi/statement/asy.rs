@@ -82,9 +82,8 @@ impl AsyFile {
                     .provide_file(file, local)
                     .context("Failed to provide asy dependency")?;
             } else {
-                eval.sender.send(UIMessage::Warning {
-                    message: format!("Dependency {:?} of {:?} not found", local, name),
-                })?;
+                eval.sender
+                    .send_error(format!("Dependency {:?} of {:?} not found", local, name))?;
             }
         }
         let compiled = comp.output("output.pdf");
