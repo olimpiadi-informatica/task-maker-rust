@@ -83,6 +83,8 @@ typescript-definitions = { git = "https://github.com/onelson/typescript-definiti
 [dev-dependencies]
 approx = "0.5.0"
 port_scanner = "0.1.5"
+# Resolve executable names in $PATH
+which = "2.0"
 
 [[bin]]
 name = "task-maker"

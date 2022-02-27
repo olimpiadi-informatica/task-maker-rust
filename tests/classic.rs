@@ -4,7 +4,8 @@ mod common;
 use common::TestInterface;
 
 fn classic(test: TestInterface) {
-    test.success()
+    let test = test
+        .success()
         .time_limit(1.0)
         .memory_limit(64)
         .max_score(100.0)
@@ -17,14 +18,12 @@ fn classic(test: TestInterface) {
         .must_compile("tle.cpp")
         .must_compile("wa.cpp")
         .must_compile("wrong_file.cpp")
-        .must_compile("pascal.pas")
         .must_not_compile("not_compile.cpp")
         // .not_compiled(".ignoreme.cpp")
         .not_compiled("bash.sh")
         .not_compiled("noop.py")
         .not_compiled("soluzione.py")
         .solution_score("soluzione.py", vec![5.0, 45.0, 50.0])
-        .solution_score("pascal.pas", vec![5.0, 45.0, 50.0])
         .solution_score("bash.sh", vec![5.0, 45.0, 50.0])
         .solution_score("float_error.cpp", vec![0.0, 0.0, 0.0])
         .solution_score("mle.cpp", vec![0.0, 0.0, 0.0])
@@ -35,7 +34,6 @@ fn classic(test: TestInterface) {
         .solution_score("wa.cpp", vec![0.0, 0.0, 0.0])
         .solution_score("wrong_file.cpp", vec![0.0, 0.0, 0.0])
         .solution_statuses("soluzione.py", vec![Accepted("Output is correct".into())])
-        .solution_statuses("pascal.pas", vec![Accepted("Output is correct".into())])
         .solution_statuses("bash.sh", vec![Accepted("Output is correct".into())])
         // .solution_statuses("mle.cpp", vec![RuntimeError]) // pretty unreliable
         .solution_statuses("nonzero.cpp", vec![RuntimeError])
@@ -56,6 +54,12 @@ fn classic(test: TestInterface) {
             "wrong_file.cpp",
             vec![WrongAnswer("Output is incorrect".into())],
         );
+
+    if which::which("fpc").is_ok() {
+        test.must_compile("pascal.pas")
+            .solution_score("pascal.pas", vec![5.0, 45.0, 50.0])
+            .solution_statuses("pascal.pas", vec![Accepted("Output is correct".into())]);
+    }
 }
 
 #[test]
