@@ -222,29 +222,48 @@ pub(crate) fn list_files<P: AsRef<Path>, S: AsRef<str>>(cwd: P, patterns: Vec<S>
     results
 }
 
+/// Information about where to write the binary of the `SourceFile` found by `find_source_file`.
+pub enum WriteBinTo {
+    /// Do not write the binary anywhere.
+    None,
+    /// Write the binary to a file in the same place as the source file, but without extension.
+    WithoutExtension,
+    /// Write the binary to this path, relative to the base path.
+    Path(PathBuf),
+}
+
+impl WriteBinTo {
+    /// Make a `WriteBinTo::Path`.
+    pub fn path<P: Into<PathBuf>>(path: P) -> Self {
+        Self::Path(path.into())
+    }
+}
+
 /// Make a `SourceFile` with each file that match the patterns provided, that is in a recognised
 /// language.
 pub(crate) fn find_source_file<
-    P: AsRef<Path>,
-    S: AsRef<str>,
-    P2: Into<PathBuf>,
-    P3: Into<PathBuf>,
+    CwdPath: AsRef<Path>,
+    Pattern: AsRef<str>,
+    BasePath: Into<PathBuf>,
 >(
-    cwd: P,
-    patterns: Vec<S>,
-    base_path: P3,
+    cwd: CwdPath,
+    patterns: Vec<Pattern>,
+    base_path: BasePath,
     grader_map: Option<Arc<GraderMap>>,
-    write_bin_to: Option<P2>,
+    write_bin_to: WriteBinTo,
 ) -> Vec<SourceFile> {
     let mut result = vec![];
     let base_path = base_path.into();
-    let write_bin_to = write_bin_to.map(|p| p.into());
     for path in list_files(cwd, patterns) {
         if path.exists() && LanguageManager::detect_language(&path).is_some() {
+            let write_bin_to = match &write_bin_to {
+                WriteBinTo::None => None,
+                WriteBinTo::WithoutExtension => Some(path.with_extension("")),
+                WriteBinTo::Path(path) => Some(base_path.join(path)),
+            };
             // SourceFile::new may fail if the language is unknown
             result.push(
-                SourceFile::new(&path, &base_path, grader_map.clone(), write_bin_to.clone())
-                    .unwrap(),
+                SourceFile::new(&path, &base_path, grader_map.clone(), write_bin_to).unwrap(),
             );
         }
     }
@@ -347,7 +366,7 @@ mod tests {
             vec!["foo/bar/*.py"],
             "",
             None,
-            None::<PathBuf>,
+            WriteBinTo::None,
         );
         assert_eq!(source.len(), 1);
         let source = source.pop().unwrap();
@@ -360,7 +379,7 @@ mod tests {
         std::fs::create_dir_all(tmpdir.path().join("foo")).unwrap();
         std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
         std::fs::write(tmpdir.path().join("foo/zzz.py"), "x").unwrap();
-        let source = find_source_file(tmpdir.path(), vec!["foo/*.py"], "", None, None::<PathBuf>);
+        let source = find_source_file(tmpdir.path(), vec!["foo/*.py"], "", None, WriteBinTo::None);
         assert_eq!(source.len(), 2);
     }
 
@@ -374,7 +393,7 @@ mod tests {
             vec!["foo/bar/*.py"],
             "",
             None,
-            None::<PathBuf>,
+            WriteBinTo::None,
         );
         assert!(source.is_empty());
     }

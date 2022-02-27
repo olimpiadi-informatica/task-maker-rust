@@ -275,7 +275,7 @@ use crate::ioi::{
     TaskType, TestcaseId, TestcaseInfo, TestcaseScoreAggregator,
 };
 use crate::ioi::{BatchTypeData, CommunicationTypeData, UserIo};
-use crate::{find_source_file, list_files, EvaluationConfig};
+use crate::{find_source_file, list_files, EvaluationConfig, WriteBinTo};
 
 mod cases_gen;
 mod gen_gen;
@@ -499,7 +499,7 @@ fn detect_validator(task_dir: PathBuf) -> Result<impl Fn(SubtaskId) -> InputVali
         ],
         &task_dir,
         None,
-        Some(task_dir.join("bin").join("validator")),
+        WriteBinTo::path("bin/validator"),
     );
     if validators.len() > 1 {
         let paths = validators.iter().map(|s| s.name()).collect::<Vec<_>>();
@@ -537,7 +537,7 @@ fn detect_output_generator(
         ],
         &task_dir,
         Some(grader_map),
-        Some(task_dir.join("bin").join("official_solution")),
+        WriteBinTo::path("bin/official_solution"),
     );
     if official_solutions.len() > 1 {
         let paths = official_solutions
@@ -565,7 +565,7 @@ fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> Result<
         vec!["check/checker.*", "cor/correttore.*"],
         task_dir,
         None,
-        Some(task_dir.join("check").join("checker")),
+        WriteBinTo::WithoutExtension,
     );
     if checkers.len() > 1 {
         let paths = checkers.iter().map(|s| s.name()).collect::<Vec<_>>();
@@ -609,7 +609,7 @@ fn parse_communication_task_data(
         vec!["check/manager.*", "cor/manager.*"],
         task_dir,
         None,
-        Some(task_dir.join("bin").join("manager")),
+        WriteBinTo::WithoutExtension,
     );
     if managers.len() > 1 {
         let paths = managers.iter().map(|s| s.name()).collect::<Vec<_>>();

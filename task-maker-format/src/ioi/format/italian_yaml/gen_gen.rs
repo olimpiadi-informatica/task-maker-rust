@@ -5,12 +5,12 @@ use std::sync::Arc;
 use anyhow::{anyhow, bail, Context, Error};
 use pest::Parser;
 
-use crate::find_source_file;
 use crate::ioi::format::italian_yaml::TaskInputEntry;
 use crate::ioi::{
     InputGenerator, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo, TestcaseId,
     TestcaseInfo,
 };
+use crate::{find_source_file, WriteBinTo};
 
 /// This module exists because of a `pest`'s bug: <https://github.com/pest-parser/pest/issues/326>
 #[allow(missing_docs)]
@@ -63,7 +63,7 @@ where
         ],
         task_dir,
         None,
-        Some(task_dir.join("bin").join("generator")),
+        WriteBinTo::path("bin/generator"),
     );
     if generators.len() > 1 {
         let paths = generators.iter().map(|s| s.name()).collect::<Vec<_>>();

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::terry::dag::{Checker, InputGenerator, InputValidator};
 use crate::terry::sanity_checks::get_sanity_checks;
 use crate::terry::TerryTask;
-use crate::{find_source_file, EvaluationConfig, SourceFile};
+use crate::{find_source_file, EvaluationConfig, SourceFile, WriteBinTo};
 
 lazy_static! {
     /// The extension suffix for the current platform.
@@ -65,7 +65,7 @@ fn get_manager(task_dir: &Path, manager: &str) -> Result<Option<Arc<SourceFile>>
         vec![&format!("managers/{}.*", manager)],
         task_dir,
         None,
-        Some(task_dir.join(format!("managers/{}.{}", manager, *EXE_EXTENSION))),
+        WriteBinTo::path(format!("managers/{}.{}", manager, *EXE_EXTENSION)),
     );
     if managers.len() > 1 {
         let paths = managers.iter().map(|s| s.name()).collect::<Vec<_>>();
