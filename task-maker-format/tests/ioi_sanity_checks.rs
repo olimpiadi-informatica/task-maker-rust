@@ -12,8 +12,9 @@ fn get_warnings(task: &IOITask) -> Vec<String> {
     task.sanity_checks.pre_hook(task, &mut eval).unwrap();
     let mut res = vec![];
     while let Ok(mex) = recv.try_recv() {
-        if let UIMessage::Warning { message } = mex {
-            res.push(message);
+        match mex {
+            UIMessage::Warning { message } | UIMessage::Error { message } => res.push(message),
+            _ => {}
         }
     }
     res
@@ -26,8 +27,9 @@ fn get_post_warnings(task: &IOITask) -> Vec<String> {
         .unwrap();
     let mut res = vec![];
     while let Ok(mex) = recv.try_recv() {
-        if let UIMessage::Warning { message } = mex {
-            res.push(message);
+        match mex {
+            UIMessage::Warning { message } | UIMessage::Error { message } => res.push(message),
+            _ => {}
         }
     }
     res
