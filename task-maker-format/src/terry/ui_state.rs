@@ -93,13 +93,6 @@ impl UIState {
 }
 
 impl UIStateT for UIState {
-    fn from(message: &UIMessage) -> Self {
-        match message {
-            UIMessage::TerryTask { task } => Self::new(task.as_ref()),
-            _ => unreachable!("Expecting TerryTask, got {:?}", message),
-        }
-    }
-
     /// Apply a `UIMessage` to this state.
     fn apply(&mut self, message: UIMessage) {
         macro_rules! process_step {

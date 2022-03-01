@@ -204,6 +204,8 @@ pub struct BookletState {
 pub struct UIState {
     /// The task.
     pub task: IOITask,
+    /// The configuration of this evaluation.
+    pub config: ExecutionDAGConfig,
     /// The maximum score of this task.
     pub max_score: f64,
     /// The status of the compilations.
@@ -285,7 +287,7 @@ impl TestcaseEvaluationStatus {
 
 impl UIState {
     /// Make a new `UIState`.
-    pub fn new(task: &IOITask) -> UIState {
+    pub fn new(task: &IOITask, config: ExecutionDAGConfig) -> UIState {
         let generations = task
             .subtasks
             .iter()
@@ -313,6 +315,7 @@ impl UIState {
             })
             .collect();
         UIState {
+            config,
             max_score: task.subtasks.values().map(|s| s.max_score).sum(),
             task: task.clone(),
             compilations: HashMap::new(),
@@ -327,13 +330,6 @@ impl UIState {
 }
 
 impl UIStateT for UIState {
-    fn from(message: &UIMessage) -> Self {
-        match message {
-            UIMessage::IOITask { task } => Self::new(task.as_ref()),
-            _ => unreachable!("Expecting IOITask, got {:?}", message),
-        }
-    }
-
     /// Apply a `UIMessage` to this state.
     fn apply(&mut self, message: UIMessage) {
         match message {

@@ -196,17 +196,18 @@ impl ConnectedExecutor {
     ///
     /// The callback takes 2 parameters, a reference to the current UI and the message produced.
     pub fn start_ui<OnMessage>(
-        self,
+        mut self,
         ui_type: &UIType,
         mut on_message: OnMessage,
     ) -> Result<ConnectedExecutorWithUI, Error>
     where
         OnMessage: FnMut(&mut dyn UI, UIMessage) + Send + 'static,
     {
+        let config = self.eval.dag.config_mut().clone();
         // setup the UI thread
         let mut ui = self
             .task
-            .ui(ui_type)
+            .ui(ui_type, config)
             .context("This UI is not supported on this task type")?;
         let ui_receiver = self.ui_receiver;
         let ui_thread = std::thread::Builder::new()

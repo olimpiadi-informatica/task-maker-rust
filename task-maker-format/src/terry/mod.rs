@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
 pub use task_info::*;
+use task_maker_dag::ExecutionDAGConfig;
 
 use crate::sanity_checks::SanityChecks;
 use crate::terry::curses_ui::CursesUI;
@@ -150,12 +151,12 @@ impl TerryTask {
     }
 
     /// Get an appropriate `UI` for this task.
-    pub fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
+    pub fn ui(&self, ui_type: &UIType, _config: ExecutionDAGConfig) -> Result<Box<dyn UI>, Error> {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),
             UIType::Json => Ok(Box::new(JsonUI::new())),
             UIType::Silent => Ok(Box::new(SilentUI::new())),
-            UIType::Print => Ok(Box::new(PrintUI::<UIState>::new())),
+            UIType::Print => Ok(Box::new(PrintUI::new(UIState::new(self)))),
             UIType::Curses => Ok(Box::new(CursesUI::new(UIState::new(self))?)),
         }
     }

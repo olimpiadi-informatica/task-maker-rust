@@ -149,7 +149,7 @@ impl TestInterface {
             },
         )
         .unwrap();
-        let state = Arc::new(Mutex::new(UIState::new(&task)));
+        let state = Arc::new(Mutex::new(UIState::new(&task, Default::default())));
 
         let state2 = state.clone();
         let res = run_evaluation(opt, move |_, mex| state2.lock().unwrap().apply(mex));

@@ -29,6 +29,7 @@ pub use dag::*;
 pub use format::italian_yaml;
 pub use statement::*;
 pub use task_info::*;
+use task_maker_dag::ExecutionDAGConfig;
 use task_maker_lang::GraderMap;
 pub use ui_state::*;
 
@@ -181,12 +182,12 @@ impl IOITask {
     }
 
     /// Get an appropriate `UI` for this task.
-    pub fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
+    pub fn ui(&self, ui_type: &UIType, config: ExecutionDAGConfig) -> Result<Box<dyn UI>, Error> {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),
-            UIType::Print => Ok(Box::new(PrintUI::<UIState>::new())),
+            UIType::Print => Ok(Box::new(PrintUI::new(UIState::new(self, config)))),
             UIType::Curses => Ok(Box::new(
-                CursesUI::new(UIState::new(self)).context("Cannot build curses UI")?,
+                CursesUI::new(UIState::new(self, config)).context("Cannot build curses UI")?,
             )),
             UIType::Json => Ok(Box::new(JsonUI::new())),
             UIType::Silent => Ok(Box::new(SilentUI::new())),

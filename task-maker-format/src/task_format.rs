@@ -3,6 +3,8 @@ use std::path::Path;
 use anyhow::Error;
 use serde::{Deserialize, Serialize};
 
+use task_maker_dag::ExecutionDAGConfig;
+
 use crate::{ui, EvaluationConfig, EvaluationData, IOITask, TaskInfo, TerryTask, UI};
 
 /// The format of the task.
@@ -26,10 +28,14 @@ impl TaskFormat {
     }
 
     /// Get an appropriate `UI` for this task.
-    pub fn ui(&self, ui_type: &ui::UIType) -> Result<Box<dyn UI>, Error> {
+    pub fn ui(
+        &self,
+        ui_type: &ui::UIType,
+        config: ExecutionDAGConfig,
+    ) -> Result<Box<dyn UI>, Error> {
         match self {
-            TaskFormat::IOI(task) => task.ui(ui_type),
-            TaskFormat::Terry(task) => task.ui(ui_type),
+            TaskFormat::IOI(task) => task.ui(ui_type, config),
+            TaskFormat::Terry(task) => task.ui(ui_type, config),
         }
     }
 
