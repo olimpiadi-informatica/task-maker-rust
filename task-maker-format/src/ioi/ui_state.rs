@@ -99,19 +99,29 @@ impl SolutionTestcaseEvaluationState {
     /// Checks whether the resources used by a solution on a testcase are close to the limits of
     /// time or memory.
     ///
+    /// The time 't' is close to the limit TL if:
+    ///   TL * threshold <= t <= TL / threshold  &&  t <= ceil(TL + extra time) - 0.1s
+    ///
+    /// The second condition guards against a value of extra time too small, which would mark every
+    /// TLE as "close to the limits".
+    ///
     /// Memory limit is in MiB.
     pub fn is_close_to_limits(
         &self,
         time_limit: Option<f64>,
+        extra_time: f64,
         memory_limit: Option<u64>,
         threshold: f64,
     ) -> bool {
         for result in self.results.iter().flatten() {
             let resources = &result.resources;
-            // TODO: Return true also when the cpu_time is above the time_limit, but not too close
-            //       to the limit with which the solution is killed.
             if let Some(time_limit) = time_limit {
-                if resources.cpu_time >= time_limit * threshold {
+                let lower_bound = time_limit * threshold;
+                let upper_bound = time_limit / threshold;
+                if lower_bound <= resources.cpu_time
+                    && resources.cpu_time <= upper_bound
+                    && resources.cpu_time <= (time_limit + extra_time).ceil() - 0.1
+                {
                     return true;
                 }
             }

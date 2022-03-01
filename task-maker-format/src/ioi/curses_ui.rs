@@ -334,25 +334,34 @@ fn testcase_evaluation_status_text<'a>(
     loading: char,
     state: &'a UIState,
 ) -> Text<'a> {
+    let time_limit = state.task.time_limit;
+    let memory_limit = state.task.memory_limit;
+    let extra_time = state.config.extra_time;
+    let close_color = if testcase.is_close_to_limits(
+        time_limit,
+        extra_time,
+        memory_limit,
+        YELLOW_RESOURCE_THRESHOLD,
+    ) {
+        Some(*ORANGE)
+    } else {
+        None
+    };
     match &testcase.status {
         TestcaseEvaluationStatus::Pending => Text::raw("."),
         TestcaseEvaluationStatus::Solving => Text::raw(format!("{}", loading)),
         TestcaseEvaluationStatus::Solved => Text::raw("s"),
         TestcaseEvaluationStatus::Checking => Text::raw(format!("{}", loading)),
-        TestcaseEvaluationStatus::Accepted(_) => {
-            let time_limit = state.task.time_limit;
-            let memory_limit = state.task.memory_limit;
-            if testcase.is_close_to_limits(time_limit, memory_limit, YELLOW_RESOURCE_THRESHOLD) {
-                Text::styled("A", *ORANGE)
-            } else {
-                Text::styled("A", *GREEN)
-            }
-        }
+        TestcaseEvaluationStatus::Accepted(_) => Text::styled("A", close_color.unwrap_or(*GREEN)),
         TestcaseEvaluationStatus::WrongAnswer(_) => Text::styled("W", *RED),
         TestcaseEvaluationStatus::Partial(_) => Text::styled("P", *YELLOW),
-        TestcaseEvaluationStatus::TimeLimitExceeded => Text::styled("T", *RED),
+        TestcaseEvaluationStatus::TimeLimitExceeded => {
+            Text::styled("T", close_color.unwrap_or(*RED))
+        }
         TestcaseEvaluationStatus::WallTimeLimitExceeded => Text::styled("T", *RED),
-        TestcaseEvaluationStatus::MemoryLimitExceeded => Text::styled("M", *RED),
+        TestcaseEvaluationStatus::MemoryLimitExceeded => {
+            Text::styled("M", close_color.unwrap_or(*RED))
+        }
         TestcaseEvaluationStatus::RuntimeError => Text::styled("R", *RED),
         TestcaseEvaluationStatus::Failed => Text::styled(
             "F",

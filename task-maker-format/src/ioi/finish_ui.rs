@@ -351,10 +351,12 @@ impl FinishUI {
                 cwrite!(self, color, "[");
                 let time_limit = state.task.time_limit;
                 let memory_limit = state.task.memory_limit;
+                let extra_time = state.config.extra_time;
                 for tc_num in subtask.testcases.keys().sorted() {
                     let testcase = &subtask.testcases[tc_num];
                     let close_color = if testcase.is_close_to_limits(
                         time_limit,
+                        extra_time,
                         memory_limit,
                         YELLOW_RESOURCE_THRESHOLD,
                     ) {
@@ -366,10 +368,10 @@ impl FinishUI {
                     match testcase.status {
                         Accepted(_) => cwrite!(self, close_color.unwrap_or(&*GREEN), "A"),
                         WrongAnswer(_) => cwrite!(self, RED, "W"),
-                        Partial(_) => cwrite!(self, YELLOW, "P"),
-                        TimeLimitExceeded => cwrite!(self, RED, "T"),
+                        Partial(_) => cwrite!(self, close_color.unwrap_or(&*YELLOW), "P"),
+                        TimeLimitExceeded => cwrite!(self, close_color.unwrap_or(&*RED), "T"),
                         WallTimeLimitExceeded => cwrite!(self, RED, "T"),
-                        MemoryLimitExceeded => cwrite!(self, RED, "M"),
+                        MemoryLimitExceeded => cwrite!(self, close_color.unwrap_or(&*RED), "M"),
                         RuntimeError => cwrite!(self, RED, "R"),
                         Failed => cwrite!(self, BOLD, "F"),
                         Skipped => cwrite!(self, BOLD, "S"),
