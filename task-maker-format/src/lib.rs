@@ -96,12 +96,21 @@ pub struct EvaluationConfig {
     pub dry_run: bool,
 }
 
+/// A solution to evaluate. This includes the source file and some additional metadata.
+#[derive(Clone, Debug)]
+pub struct Solution {
+    /// A reference to the source file of this solution.
+    source_file: Arc<SourceFile>,
+}
+
 /// The data for an evaluation, including the DAG and the UI channel.
 pub struct EvaluationData {
     /// Root directory of the task.
     pub task_root: PathBuf,
     /// The DAG with the evaluation data.
     pub dag: ExecutionDAG,
+    /// The list of solutions to evaluate.
+    pub solutions: Vec<Solution>,
     /// The sender of the UI.
     pub sender: Arc<Mutex<ui::UIMessageSender>>,
 }
@@ -114,6 +123,7 @@ impl EvaluationData {
             EvaluationData {
                 task_root: task_root.into(),
                 dag: ExecutionDAG::new(),
+                solutions: Default::default(),
                 sender: Arc::new(Mutex::new(sender)),
             },
             receiver,
@@ -183,12 +193,12 @@ impl EvaluationConfig {
     /// If the configuration is set with a filter, it is applied.
     ///
     /// If the configuration is set to evaluate only some solutions, it is applied.
-    pub fn filter_solutions(
+    pub fn find_solutions(
         &self,
         base_dir: &Path,
         patterns: Vec<&str>,
         grader_map: Option<Arc<GraderMap>>,
-    ) -> Vec<SourceFile> {
+    ) -> Vec<Solution> {
         let solutions_paths = self.solution_paths(base_dir, patterns);
         let filter = self.solution_filters();
         let graders: HashSet<PathBuf> = if let Some(grader_map) = &grader_map {
@@ -215,6 +225,9 @@ impl EvaluationConfig {
                     .join("sol")
                     .join(p.file_name().unwrap());
                 SourceFile::new(p, base_dir, grader_map.clone(), Some(write_to))
+            })
+            .map(|source_file| Solution {
+                source_file: Arc::new(source_file),
             })
             .collect()
     }

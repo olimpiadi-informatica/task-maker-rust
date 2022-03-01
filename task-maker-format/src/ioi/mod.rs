@@ -203,12 +203,16 @@ impl IOITask {
         eval.sender.send(UIMessage::IOITask {
             task: Box::new(self.clone()),
         })?;
+        eval.solutions =
+            config.find_solutions(&self.path, vec!["sol/*"], Some(self.grader_map.clone()));
         self.sanity_checks
             .pre_hook(self, eval)
             .context("Sanity check pre-hooks failed")?;
+
         let empty_score_manager = ScoreManager::new(self);
-        let solutions: Vec<_> = config
-            .filter_solutions(&self.path, vec!["sol/*"], Some(self.grader_map.clone()))
+        let solutions: Vec<_> = eval
+            .solutions
+            .clone()
             .into_iter()
             .map(|source| (source, Arc::new(Mutex::new(empty_score_manager.clone()))))
             .collect();
@@ -243,7 +247,7 @@ impl IOITask {
                 for (solution, score_manager) in solutions.iter() {
                     trace!(
                         "Evaluation of the solution {:?} against subtask {} / testcase {}",
-                        solution.name(),
+                        solution.source_file.name(),
                         subtask.id,
                         testcase.id
                     );
@@ -254,7 +258,7 @@ impl IOITask {
                             eval,
                             subtask.id,
                             testcase.id,
-                            solution,
+                            &solution.source_file,
                             input,
                             val_handle,
                             output,

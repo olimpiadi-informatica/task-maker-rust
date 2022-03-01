@@ -170,8 +170,10 @@ impl TerryTask {
         eval.sender.send(UIMessage::TerryTask {
             task: Box::new(self.clone()),
         })?;
+        eval.solutions = config.find_solutions(&self.path, vec!["solutions/*"], None);
         self.sanity_checks.pre_hook(self, eval)?;
-        let solutions = config.filter_solutions(&self.path, vec!["solutions/*"], None);
+
+        let solutions = eval.solutions.clone();
         let mut rng = rand::thread_rng();
         for solution in solutions {
             let seed = if let Some(seed) = config.seed {
@@ -181,14 +183,14 @@ impl TerryTask {
             };
             let input_file = self.generator.generate_and_bind(
                 eval,
-                &solution,
+                &solution.source_file,
                 seed,
                 self.official_solution.clone(),
             )?;
             let validation_file = if let Some(validator) = self.validator.as_ref() {
                 Some(validator.validate_and_bind(
                     eval,
-                    &solution,
+                    &solution.source_file,
                     input_file,
                     self.official_solution.clone(),
                 )?)
@@ -196,12 +198,12 @@ impl TerryTask {
                 None
             };
             let output_file =
-                Solution::solve_and_bind(eval, &solution, input_file, validation_file)?;
+                Solution::solve_and_bind(eval, &solution.source_file, input_file, validation_file)?;
             let sender = eval.sender.clone();
-            let solution_path = solution.path.clone();
+            let solution_path = solution.source_file.path.clone();
             self.checker.check_and_bind(
                 eval,
-                &solution,
+                &solution.source_file,
                 input_file,
                 output_file,
                 self.official_solution.clone(),
