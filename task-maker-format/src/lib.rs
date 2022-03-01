@@ -39,12 +39,14 @@ use task_maker_dag::ExecutionDAG;
 use task_maker_lang::{GraderMap, LanguageManager};
 
 use crate::ioi::task_info::IOITaskInfo;
+use crate::solution::Solution;
 use crate::terry::{Seed, TerryTask};
 use crate::ui::UI;
 
 mod detect_format;
 pub mod ioi;
 mod sanity_checks;
+mod solution;
 mod source_file;
 mod tag;
 mod task_format;
@@ -94,13 +96,6 @@ pub struct EvaluationConfig {
     pub seed: Option<Seed>,
     /// Do not write any file inside the task directory.
     pub dry_run: bool,
-}
-
-/// A solution to evaluate. This includes the source file and some additional metadata.
-#[derive(Clone, Debug)]
-pub struct Solution {
-    /// A reference to the source file of this solution.
-    source_file: Arc<SourceFile>,
 }
 
 /// The data for an evaluation, including the DAG and the UI channel.
@@ -219,16 +214,7 @@ impl EvaluationConfig {
                     .iter()
                     .any(|filter| name.starts_with(filter.as_str()))
             })
-            .filter_map(|p| {
-                let write_to = base_dir
-                    .join("bin")
-                    .join("sol")
-                    .join(p.file_name().unwrap());
-                SourceFile::new(p, base_dir, grader_map.clone(), Some(write_to))
-            })
-            .map(|source_file| Solution {
-                source_file: Arc::new(source_file),
-            })
+            .filter_map(|path| Solution::new(&path, base_dir, grader_map.clone()))
             .collect()
     }
 }
