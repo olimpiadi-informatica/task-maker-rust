@@ -8,18 +8,19 @@ use task_maker_dag::ExecutionStatus;
 use crate::ioi::ui_state::{SolutionEvaluationState, TestcaseEvaluationStatus, UIState};
 use crate::ioi::{SolutionTestcaseEvaluationState, TestcaseId};
 use crate::ui::{
-    FinishUI as FinishUITrait, FinishUIUtils, UIExecutionStatus, BLUE, BOLD, GREEN, RED, YELLOW,
+    FinishUI as FinishUITrait, FinishUIUtils, UIExecutionStatus, BLUE, BOLD, GREEN, ORANGE, RED,
+    YELLOW,
 };
 use crate::{cwrite, cwriteln};
 
 /// Percentage threshold for showing a resource usage in bold for a solution. If the maximum
 /// cpu_time used by the solution among the testcases is X, all the cpu_time of that solution that
 /// are >= X*BOLD_RESOURCE_THRESHOLD will be shown in bold. Same for the memory usage.
-const BOLD_RESOURCE_THRESHOLD: f64 = 0.9;
+pub const BOLD_RESOURCE_THRESHOLD: f64 = 0.9;
 /// Percentage threshold for showing a resource usage in yellow for a solution. If the cpu_time of
 /// a solution is >= time limit of the task * YELLOW_RESOURCE_THRESHOLD, it is shown in yellow. Same
 /// for the memory usage.
-const YELLOW_RESOURCE_THRESHOLD: f64 = 0.6;
+pub const YELLOW_RESOURCE_THRESHOLD: f64 = 0.6;
 
 /// UI that prints to `stdout` the ending result of the evaluation of a IOI task.
 pub struct FinishUI {
@@ -266,7 +267,7 @@ impl FinishUI {
                 let time_color = FinishUI::resource_color(
                     result.resources.cpu_time,
                     max_time * BOLD_RESOURCE_THRESHOLD,
-                    state.task.time_limit.unwrap_or(1.0 / 0.0) * YELLOW_RESOURCE_THRESHOLD,
+                    state.task.time_limit.unwrap_or(f64::INFINITY) * YELLOW_RESOURCE_THRESHOLD,
                 );
                 let memory_color = FinishUI::resource_color(
                     result.resources.memory as f64,
@@ -348,11 +349,22 @@ impl FinishUI {
                 let normalized_score = subtask.normalized_score.unwrap_or(0.0);
                 let color = self.score_color(normalized_score);
                 cwrite!(self, color, "[");
+                let time_limit = state.task.time_limit;
+                let memory_limit = state.task.memory_limit;
                 for tc_num in subtask.testcases.keys().sorted() {
                     let testcase = &subtask.testcases[tc_num];
+                    let close_color = if testcase.is_close_to_limits(
+                        time_limit,
+                        memory_limit,
+                        YELLOW_RESOURCE_THRESHOLD,
+                    ) {
+                        Some(&*ORANGE)
+                    } else {
+                        None
+                    };
                     use TestcaseEvaluationStatus::*;
                     match testcase.status {
-                        Accepted(_) => cwrite!(self, GREEN, "A"),
+                        Accepted(_) => cwrite!(self, close_color.unwrap_or(&*GREEN), "A"),
                         WrongAnswer(_) => cwrite!(self, RED, "W"),
                         Partial(_) => cwrite!(self, YELLOW, "P"),
                         TimeLimitExceeded => cwrite!(self, RED, "T"),

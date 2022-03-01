@@ -7,11 +7,14 @@ use tui::widgets::{Block, Borders, Paragraph, Text, Widget};
 
 use task_maker_dag::ExecutionStatus;
 
-use crate::ioi::finish_ui::FinishUI;
-use crate::ioi::{SubtaskId, TestcaseEvaluationStatus, TestcaseGenerationStatus, UIState};
+use crate::ioi::finish_ui::{FinishUI, YELLOW_RESOURCE_THRESHOLD};
+use crate::ioi::{
+    SolutionTestcaseEvaluationState, SubtaskId, TestcaseEvaluationStatus, TestcaseGenerationStatus,
+    UIState,
+};
 use crate::ui::curses::{
     compilation_status_text, draw_compilations, inner_block, render_block, render_server_status,
-    CursesDrawer, CursesUI as GenericCursesUI, FrameType, GREEN, RED, YELLOW,
+    CursesDrawer, CursesUI as GenericCursesUI, FrameType, GREEN, ORANGE, RED, YELLOW,
 };
 use crate::ui::UIExecutionStatus;
 
@@ -319,20 +322,32 @@ fn subtask_evaluation_status_text<'a>(
     };
     texts.push(Text::styled("[", par_style));
     for (_, testcase) in subtask.testcases.iter().sorted_by_key(|(k, _)| *k) {
-        texts.push(testcase_evaluation_status_text(&testcase.status, loading));
+        texts.push(testcase_evaluation_status_text(testcase, loading, state));
     }
     texts.push(Text::styled("]", par_style));
     texts
 }
 
 /// Get the colored character corresponding to the status of the evaluation of a testcase.
-fn testcase_evaluation_status_text(status: &TestcaseEvaluationStatus, loading: char) -> Text {
-    match status {
+fn testcase_evaluation_status_text<'a>(
+    testcase: &'a SolutionTestcaseEvaluationState,
+    loading: char,
+    state: &'a UIState,
+) -> Text<'a> {
+    match &testcase.status {
         TestcaseEvaluationStatus::Pending => Text::raw("."),
         TestcaseEvaluationStatus::Solving => Text::raw(format!("{}", loading)),
         TestcaseEvaluationStatus::Solved => Text::raw("s"),
         TestcaseEvaluationStatus::Checking => Text::raw(format!("{}", loading)),
-        TestcaseEvaluationStatus::Accepted(_) => Text::styled("A", *GREEN),
+        TestcaseEvaluationStatus::Accepted(_) => {
+            let time_limit = state.task.time_limit;
+            let memory_limit = state.task.memory_limit;
+            if testcase.is_close_to_limits(time_limit, memory_limit, YELLOW_RESOURCE_THRESHOLD) {
+                Text::styled("A", *ORANGE)
+            } else {
+                Text::styled("A", *GREEN)
+            }
+        }
         TestcaseEvaluationStatus::WrongAnswer(_) => Text::styled("W", *RED),
         TestcaseEvaluationStatus::Partial(_) => Text::styled("P", *YELLOW),
         TestcaseEvaluationStatus::TimeLimitExceeded => Text::styled("T", *RED),

@@ -95,6 +95,37 @@ pub struct SolutionTestcaseEvaluationState {
     pub checker: Option<ExecutionResult>,
 }
 
+impl SolutionTestcaseEvaluationState {
+    /// Checks whether the resources used by a solution on a testcase are close to the limits of
+    /// time or memory.
+    ///
+    /// Memory limit is in MiB.
+    pub fn is_close_to_limits(
+        &self,
+        time_limit: Option<f64>,
+        memory_limit: Option<u64>,
+        threshold: f64,
+    ) -> bool {
+        for result in self.results.iter().flatten() {
+            let resources = &result.resources;
+            // TODO: Return true also when the cpu_time is above the time_limit, but not too close
+            //       to the limit with which the solution is killed.
+            if let Some(time_limit) = time_limit {
+                if resources.cpu_time >= time_limit * threshold {
+                    return true;
+                }
+            }
+            if let Some(memory_limit) = memory_limit {
+                if resources.memory as f64 >= memory_limit as f64 * 1024.0 * threshold {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+}
+
 /// State of the evaluation of a subtask.
 #[derive(Debug, Clone)]
 pub struct SolutionSubtaskEvaluationState {
