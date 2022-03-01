@@ -1,0 +1,68 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "gen/GEN",
+  "patterns": [
+    {
+      "include": "#subtask"
+    },
+    {
+      "include": "#subtask-name"
+    },
+    {
+      "include": "#copy"
+    },
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#input"
+    }
+  ],
+  "repository": {
+    "input": {
+      "name": "entity.control.gengen",
+      "match": "(^[^#]*)"
+    },
+    "comment": {
+      "name": "comment.control.gengen",
+      "match": "(#.*)"
+    },
+    "subtask": {
+      "patterns": [
+        {
+          "name": "entity.name.namespace.control.gengen",
+          "match": "(#ST:\\s*)"
+        },
+        {
+          "name": "constant.numeric.control.gengen",
+          "match": "(?<=#ST:\\s*)(\\d+)"
+        }
+      ]
+    },
+    "subtask-name": {
+      "patterns": [
+        {
+          "name": "entity.name.namespace.control.gengen",
+          "match": "(#STNAME:\\s*)"
+        },
+        {
+          "name": "string.control.gengen",
+          "match": "(?<=#STNAME:\\s*)([^\\s]+)"
+        }
+      ]
+    },
+    "copy": {
+      "patterns": [
+        {
+          "name": "entity.name.namespace.control.gengen",
+          "match": "(#COPY:\\s*)"
+        },
+        {
+          "name": "string.control.gengen",
+          "match": "(?<=#COPY:\\s*)(.+)"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.gengen"
+}
