@@ -21,6 +21,7 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, bail, Context, Error};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 use unicode_normalization::UnicodeNormalization;
@@ -38,6 +39,7 @@ pub use ui_state::*;
 use crate::ioi::format::italian_yaml::TM_ALLOW_DELETE_COOKIE;
 use crate::ioi::italian_yaml::is_gen_gen_deletable;
 use crate::sanity_checks::SanityChecks;
+use crate::solution::SolutionInfo;
 use crate::ui::*;
 use crate::{EvaluationConfig, EvaluationData, TaskInfo, UISender};
 
@@ -222,6 +224,14 @@ impl IOITask {
             .into_iter()
             .map(|source| (source, Arc::new(Mutex::new(empty_score_manager.clone()))))
             .collect();
+
+        let solution_info = solutions
+            .iter()
+            .map(|(solution, _)| SolutionInfo::from(solution))
+            .collect_vec();
+        eval.sender.send(UIMessage::Solutions {
+            solutions: solution_info,
+        })?;
 
         self.task_type
             .prepare_dag(eval)

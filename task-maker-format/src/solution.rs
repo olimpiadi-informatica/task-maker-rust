@@ -1,10 +1,11 @@
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Error};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 use task_maker_lang::GraderMap;
 
@@ -36,8 +37,32 @@ impl Solution {
     }
 }
 
+/// Some information about a solution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SolutionInfo {
+    /// The path on disk of this solution.
+    pub path: PathBuf,
+    /// The name of this solution.
+    pub name: String,
+    /// The name of the language of this solution.
+    pub language_name: String,
+    /// The list of checks specified inside the source file.
+    pub checks: Vec<SolutionCheck>,
+}
+
+impl From<&Solution> for SolutionInfo {
+    fn from(solution: &Solution) -> Self {
+        Self {
+            path: solution.source_file.path.clone(),
+            name: solution.source_file.name(),
+            language_name: solution.source_file.language().name().into(),
+            checks: solution.checks.clone(),
+        }
+    }
+}
+
 /// A check to perform on a solution, against a subtask.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SolutionCheck {
     /// The expected result of the solution.
     pub result: SolutionCheckResult,
@@ -55,7 +80,7 @@ impl SolutionCheck {
 }
 
 /// The expected result of a solution in a set of subtasks.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum SolutionCheckResult {
     /// The solution should get "Accepted" on all the testcases of the subtask.
     Accepted,

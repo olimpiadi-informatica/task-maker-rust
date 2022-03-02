@@ -90,6 +90,12 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
                     }
                 }
             }
+            UIMessage::Solutions { solutions } => {
+                println!("[SOLUTIONS] Solutions that will be evaluated:");
+                for solution in solutions {
+                    println!("  - {}", solution.path.display());
+                }
+            }
             UIMessage::Compilation { file, status } => {
                 self.write_status(&status);
                 self.write_message(format!("Compilation of {:?} ", file));

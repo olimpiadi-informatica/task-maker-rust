@@ -6,6 +6,7 @@ use task_maker_dag::*;
 use task_maker_exec::ExecutorStatus;
 
 use crate::ioi::*;
+use crate::solution::SolutionInfo;
 use crate::ui::{CompilationStatus, UIExecutionStatus, UIMessage, UIStateT};
 
 /// Status of the generation of a testcase input and output.
@@ -218,6 +219,8 @@ pub struct UIState {
     pub config: ExecutionDAGConfig,
     /// The maximum score of this task.
     pub max_score: f64,
+    /// The set of solutions that will be evaluated.
+    pub solutions: HashMap<PathBuf, SolutionInfo>,
     /// The status of the compilations.
     pub compilations: HashMap<PathBuf, CompilationStatus>,
     /// The state of the generation of the testcases.
@@ -328,6 +331,7 @@ impl UIState {
             config,
             max_score: task.subtasks.values().map(|s| s.max_score).sum(),
             task: task.clone(),
+            solutions: HashMap::new(),
             compilations: HashMap::new(),
             generations,
             evaluations: HashMap::new(),
@@ -345,6 +349,12 @@ impl UIStateT for UIState {
         match message {
             UIMessage::StopUI => {}
             UIMessage::ServerStatus { status } => self.executor_status = Some(status),
+            UIMessage::Solutions { solutions } => {
+                self.solutions = solutions
+                    .into_iter()
+                    .map(|info| (info.path.clone(), info))
+                    .collect()
+            }
             UIMessage::Compilation { file, status } => self
                 .compilations
                 .entry(file)

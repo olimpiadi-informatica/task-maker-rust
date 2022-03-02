@@ -7,6 +7,7 @@ use typescript_definitions::TypeScriptify;
 use task_maker_exec::ExecutorStatus;
 
 use crate::ioi::{SubtaskId, TestcaseId};
+use crate::solution::SolutionInfo;
 use crate::terry::{Seed, SolutionOutcome};
 use crate::ui::UIExecutionStatus;
 use crate::{ioi, terry};
@@ -21,6 +22,12 @@ pub enum UIMessage {
     ServerStatus {
         /// The status of the executor.
         status: ExecutorStatus<SystemTime>,
+    },
+
+    /// The list of solutions that will be evaluated.
+    Solutions {
+        /// The information of the solutions to evaluate.
+        solutions: Vec<SolutionInfo>,
     },
 
     /// An update on the compilation status.
