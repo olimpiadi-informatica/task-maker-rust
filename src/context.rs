@@ -259,12 +259,17 @@ impl ConnectedExecutor {
 
 impl ConnectedExecutorWithUI {
     /// Finally, start the execution and wait until it ends or it is stopped.
-    pub fn execute(self) -> Result<(), Error> {
+    pub fn execute(mut self) -> Result<(), Error> {
         let ui_sender = self.eval.sender.clone();
-        let EvaluationData { sender, dag, .. } = self.eval;
+        // Create a copy of the DAG, keeping the cloned object inside the EvaluationData, while the
+        // original is stored in `dag`. This because after cloning a ExecutionDAG the copies don't
+        // have access to the callbacks.
+        let mut dag = self.eval.dag.clone();
+        std::mem::swap(&mut dag, &mut self.eval.dag);
 
         let local_executor = self.local_executor;
         let ui_thread = self.ui_thread;
+        let sender = self.eval.sender.clone();
         defer! {
             // wait for the executor and the ui to exit
             if let Some(local_executor) = local_executor {
@@ -296,7 +301,7 @@ impl ConnectedExecutorWithUI {
         client_sender.lock().unwrap().take();
 
         self.task
-            .sanity_check_post_hook(&mut sender.lock().unwrap())
+            .sanity_check_post_hook(&mut self.eval)
             .context("Sanity checks failed")?;
         Ok(())
     }

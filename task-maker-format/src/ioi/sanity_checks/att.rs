@@ -9,7 +9,6 @@ use task_maker_dag::File;
 use crate::ioi::sanity_checks::check_missing_graders;
 use crate::ioi::{IOITask, TaskType, TestcaseId};
 use crate::sanity_checks::SanityCheck;
-use crate::ui::UIMessageSender;
 use crate::{list_files, EvaluationData, UISender};
 
 /// Check that all the graders are present inside att.
@@ -60,7 +59,7 @@ impl SanityCheck<IOITask> for AttSampleFiles {
         "AttSampleFiles"
     }
 
-    fn post_hook(&mut self, task: &IOITask, ui: &mut UIMessageSender) -> Result<(), Error> {
+    fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         let mut no_sample = true;
         for sample in list_files(&task.path, vec!["att/*input*.txt", "att/*output*.txt"]) {
             no_sample = false;
@@ -68,20 +67,20 @@ impl SanityCheck<IOITask> for AttSampleFiles {
             if sample.read_link().is_ok() {
                 // check if the symlink is broken
                 if sample.canonicalize().is_err() {
-                    ui.send_error(format!(
+                    eval.sender.send_error(format!(
                         "Sample case {} is a broken link",
                         sample.strip_prefix(&task.path).unwrap().display()
                     ))?;
                 }
             } else {
-                ui.send_warning(format!(
+                eval.sender.send_warning(format!(
                     "Sample case {} is not a symlink",
                     sample.strip_prefix(&task.path).unwrap().display()
                 ))?;
             }
         }
         if no_sample {
-            ui.send_warning("No sample file in att/")?;
+            eval.sender.send_warning("No sample file in att/")?;
         }
         Ok(())
     }

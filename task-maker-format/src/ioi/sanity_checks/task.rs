@@ -2,7 +2,6 @@ use anyhow::Error;
 
 use crate::ioi::IOITask;
 use crate::sanity_checks::SanityCheck;
-use crate::ui::UIMessageSender;
 use crate::{list_files, EvaluationData, UISender};
 
 /// The default maximum score of a task.
@@ -38,10 +37,10 @@ impl SanityCheck<IOITask> for BrokenSymlinks {
         "BrokenSymlinks"
     }
 
-    fn post_hook(&mut self, task: &IOITask, ui: &mut UIMessageSender) -> Result<(), Error> {
+    fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         for file in list_files(&task.path, vec!["**/*"]) {
             if !file.exists() && file.read_link().is_ok() {
-                ui.send_warning(format!(
+                eval.sender.send_warning(format!(
                     "{} is a broken link",
                     file.strip_prefix(&task.path).unwrap().display()
                 ))?;

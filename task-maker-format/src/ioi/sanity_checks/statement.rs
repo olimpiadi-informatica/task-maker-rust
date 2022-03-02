@@ -9,7 +9,6 @@ use regex::Regex;
 
 use crate::ioi::{IOITask, SubtaskId};
 use crate::sanity_checks::SanityCheck;
-use crate::ui::UIMessageSender;
 use crate::{EvaluationData, UISender};
 
 /// Check that the subtasks in the statement are consistent with the ones of the task.
@@ -83,10 +82,10 @@ impl SanityCheck<IOITask> for StatementValid {
         "StatementValid"
     }
 
-    fn post_hook(&mut self, task: &IOITask, ui: &mut UIMessageSender) -> Result<(), Error> {
+    fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         match find_statement_pdf(task) {
             None => {
-                ui.send_error(
+                eval.sender.send_error(
                     "Missing statement file (statement/statement.pdf or testo/testo.pdf)",
                 )?;
             }
@@ -106,7 +105,7 @@ impl SanityCheck<IOITask> for StatementValid {
                     };
 
                     if invalid {
-                        ui.send_error(format!(
+                        eval.sender.send_error(format!(
                             "Invalid PDF file at {}",
                             path.strip_prefix(&task.path).unwrap().display()
                         ))?;
@@ -115,7 +114,7 @@ impl SanityCheck<IOITask> for StatementValid {
                 }
                 // broken symlink
                 else if path.read_link().is_ok() {
-                    ui.send_error(format!(
+                    eval.sender.send_error(format!(
                         "Statement {} is a broken link",
                         path.strip_prefix(&task.path).unwrap().display()
                     ))?;
@@ -135,7 +134,7 @@ impl SanityCheck<IOITask> for StatementCompiled {
         "StatementCompiled"
     }
 
-    fn post_hook(&mut self, task: &IOITask, ui: &mut UIMessageSender) -> Result<(), Error> {
+    fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         // If there are no booklets it may mean that the statement is compiled with an external tool
         // or that the statement compilation is not done. Either way this sanity check should be
         // ignored.
@@ -167,7 +166,7 @@ impl SanityCheck<IOITask> for StatementCompiled {
 
         // We didn't find any compiled booklet referring to the official statement, this means that
         // the statement that will be used isn't the one compiled by us.
-        return ui.send_warning(format!(
+        return eval.sender.send_warning(format!(
             "The official statement at {} is not the one compiled by task-maker",
             path.strip_prefix(&task.path).unwrap().display()
         ));
@@ -183,7 +182,7 @@ impl SanityCheck<IOITask> for StatementGit {
         "StatementGit"
     }
 
-    fn post_hook(&mut self, task: &IOITask, ui: &mut UIMessageSender) -> Result<(), Error> {
+    fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         match find_statement_pdf(task) {
             None => return Ok(()),
             Some(path) => {
@@ -203,7 +202,10 @@ impl SanityCheck<IOITask> for StatementGit {
                         if !output.stdout.is_empty()
                             && !output.stdout.split(|&b| b == 0).any(|p| p == raw_path)
                         {
-                            ui.send_error(format!("File {} is not known to git", path.display()))?;
+                            eval.sender.send_error(format!(
+                                "File {} is not known to git",
+                                path.display()
+                            ))?;
                         }
                     }
                 }
