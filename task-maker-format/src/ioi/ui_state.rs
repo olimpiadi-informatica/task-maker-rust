@@ -321,6 +321,7 @@ impl TestcaseEvaluationStatus {
 }
 
 /// The outcome of the execution of a check on a subtask.
+#[derive(Clone, Debug)]
 pub struct SolutionCheckOutcome {
     /// The path of the solution.
     pub solution: PathBuf,

@@ -113,6 +113,19 @@ impl SolutionCheckResult {
             _ => outcomes.iter().any(|o| o == self),
         }
     }
+
+    /// Get a compact representation of this result.
+    ///
+    /// For example `SolutionCheckResult::Accepted` is `"AC"`.
+    pub fn as_compact_str(&self) -> &'static str {
+        match self {
+            SolutionCheckResult::Accepted => "AC",
+            SolutionCheckResult::WrongAnswer => "WA",
+            SolutionCheckResult::TimeLimitExceeded => "TLE",
+            SolutionCheckResult::MemoryLimitExceeded => "MLE",
+            SolutionCheckResult::RuntimeError => "RE",
+        }
+    }
 }
 
 fn extract_check_list<P: AsRef<Path>>(path: P) -> Result<Vec<SolutionCheck>, Error> {
