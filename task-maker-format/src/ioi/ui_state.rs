@@ -6,7 +6,7 @@ use task_maker_dag::*;
 use task_maker_exec::ExecutorStatus;
 
 use crate::ioi::*;
-use crate::solution::SolutionInfo;
+use crate::solution::{SolutionCheck, SolutionCheckResult, SolutionInfo};
 use crate::ui::{CompilationStatus, UIExecutionStatus, UIMessage, UIStateT};
 
 /// Status of the generation of a testcase input and output.
@@ -61,6 +61,28 @@ pub enum TestcaseEvaluationStatus {
     Failed,
     /// The evaluation has been skipped.
     Skipped,
+}
+
+impl From<&TestcaseEvaluationStatus> for Option<SolutionCheckResult> {
+    fn from(status: &TestcaseEvaluationStatus) -> Self {
+        match status {
+            TestcaseEvaluationStatus::Accepted(_) => Some(SolutionCheckResult::Accepted),
+            TestcaseEvaluationStatus::Partial(_) | TestcaseEvaluationStatus::WrongAnswer(_) => {
+                Some(SolutionCheckResult::WrongAnswer)
+            }
+            TestcaseEvaluationStatus::TimeLimitExceeded => {
+                Some(SolutionCheckResult::TimeLimitExceeded)
+            }
+            TestcaseEvaluationStatus::WallTimeLimitExceeded => {
+                Some(SolutionCheckResult::TimeLimitExceeded)
+            }
+            TestcaseEvaluationStatus::MemoryLimitExceeded => {
+                Some(SolutionCheckResult::MemoryLimitExceeded)
+            }
+            TestcaseEvaluationStatus::RuntimeError => Some(SolutionCheckResult::RuntimeError),
+            _ => None,
+        }
+    }
 }
 
 /// State of the generation of a testcases.
@@ -298,6 +320,18 @@ impl TestcaseEvaluationStatus {
     }
 }
 
+/// The outcome of the execution of a check on a subtask.
+pub struct SolutionCheckOutcome {
+    /// The path of the solution.
+    pub solution: PathBuf,
+    /// The check that originated this outcome.
+    pub check: SolutionCheck,
+    /// The id of the subtask this outcome refers to.
+    pub subtask_id: SubtaskId,
+    /// Whether the check was successful or not.
+    pub success: bool,
+}
+
 impl UIState {
     /// Make a new `UIState`.
     pub fn new(task: &IOITask, config: ExecutionDAGConfig) -> UIState {
@@ -340,6 +374,50 @@ impl UIState {
             warnings: Vec::new(),
             errors: Vec::new(),
         }
+    }
+
+    /// Evaluate the checks of all the solutions.
+    ///
+    /// This function should be called only after all the executions have completed.
+    pub fn run_solution_checks(&self) -> Vec<SolutionCheckOutcome> {
+        let mut result = vec![];
+        for (path, solution) in self.solutions.iter() {
+            for check in solution.checks.iter() {
+                let subtasks = self
+                    .task
+                    .find_subtasks_by_pattern_name(&check.subtask_name_pattern);
+                for subtask in subtasks {
+                    let solution_result = self.evaluations.get(path);
+                    // The solution was not run on this subtask.
+                    if solution_result.is_none() {
+                        continue;
+                    }
+                    let solution_result = solution_result.unwrap();
+                    let subtask_result = &solution_result.subtasks[&subtask.id];
+                    let testcase_results: Vec<Option<SolutionCheckResult>> = subtask_result
+                        .testcases
+                        .values()
+                        .map(|testcase| (&testcase.status).into())
+                        .collect_vec();
+                    // Not all the testcase results are valid.
+                    if testcase_results.iter().any(Option::is_none) {
+                        continue;
+                    }
+                    let testcase_results = testcase_results
+                        .into_iter()
+                        .map(Option::unwrap)
+                        .collect_vec();
+                    let success = check.result.check(&testcase_results);
+                    result.push(SolutionCheckOutcome {
+                        solution: path.clone(),
+                        check: check.clone(),
+                        subtask_id: subtask.id,
+                        success,
+                    })
+                }
+            }
+        }
+        result
     }
 }
 

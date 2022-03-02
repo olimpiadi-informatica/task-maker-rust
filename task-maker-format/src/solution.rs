@@ -105,6 +105,14 @@ impl SolutionCheckResult {
             _ => None,
         }
     }
+
+    /// Check if this result is valid with respect to the actual outcomes.
+    pub fn check(&self, outcomes: &[SolutionCheckResult]) -> bool {
+        match self {
+            SolutionCheckResult::Accepted => outcomes.iter().all(|o| o == self),
+            _ => outcomes.iter().any(|o| o == self),
+        }
+    }
 }
 
 fn extract_check_list<P: AsRef<Path>>(path: P) -> Result<Vec<SolutionCheck>, Error> {
