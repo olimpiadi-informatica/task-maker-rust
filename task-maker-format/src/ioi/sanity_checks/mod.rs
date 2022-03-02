@@ -38,6 +38,7 @@ fn get_sanity_check_list(skip: &[String]) -> Vec<Box<dyn SanityCheck<IOITask>>> 
         Box::new(statement::StatementCompiled::default()),
         Box::new(statement::StatementGit::default()),
         Box::new(subtasks::MissingSubtaskNames::default()),
+        Box::new(subtasks::SolutionsWithNoChecks::default()),
     ];
     all.into_iter()
         .filter(|s| !skip.contains(&s.name().into()))

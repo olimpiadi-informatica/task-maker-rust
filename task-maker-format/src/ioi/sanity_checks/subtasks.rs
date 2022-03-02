@@ -33,3 +33,47 @@ impl SanityCheck<IOITask> for MissingSubtaskNames {
         Ok(())
     }
 }
+
+/// Check that all the solutions (that are not symlinks) contain at least one check.
+#[derive(Debug, Default)]
+pub struct SolutionsWithNoChecks;
+
+impl SanityCheck<IOITask> for SolutionsWithNoChecks {
+    fn name(&self) -> &'static str {
+        "SolutionsWithNoChecks"
+    }
+
+    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        for subtask in task.subtasks.values() {
+            if subtask.name.is_none() {
+                // If not all the subtasks have a name, do not bother with the solutions, it's much
+                // more important to give everything a name before.
+                return Ok(());
+            }
+        }
+
+        let mut solutions = vec![];
+        for solution in eval.solutions.iter() {
+            if !solution.checks.is_empty() {
+                continue;
+            }
+            let path = &solution.source_file.path;
+            // Ignore the symlinks, since they may come from att/, in which we don't want to put the
+            // checks.
+            if path.is_symlink() {
+                continue;
+            }
+            solutions.push(format!(
+                "{}",
+                solution.source_file.relative_path().display()
+            ))
+        }
+        if !solutions.is_empty() {
+            eval.sender.send_warning(format!(
+                "The following solutions are missing the subtask checks: {}",
+                solutions.join(", ")
+            ))?;
+        }
+        Ok(())
+    }
+}
