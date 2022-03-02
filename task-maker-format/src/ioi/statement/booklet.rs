@@ -326,7 +326,7 @@ mod tests {
         booklet.add_statement(statement);
         booklet.build(&mut eval).unwrap();
         eval.dag
-            .file_callbacks
+            .file_callbacks()
             .values()
             .filter_map(|f| f.write_to.as_ref())
             .map(|f| f.dest.clone())

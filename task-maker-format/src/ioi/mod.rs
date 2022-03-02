@@ -282,8 +282,8 @@ impl IOITask {
 
     /// Hook called after the execution completed, useful for sending messages to the UI about the
     /// results of the sanity checks with data available only after the evaluation.
-    pub fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
-        self.sanity_checks.post_hook(self, ui)
+    pub fn sanity_check_post_hook(&self, eval: &mut EvaluationData) -> Result<(), Error> {
+        self.sanity_checks.post_hook(self, eval)
     }
 
     /// Clean the task folder removing the files that can be generated automatically.

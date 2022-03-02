@@ -53,10 +53,10 @@ impl TaskFormat {
 
     /// Hook called after the execution completed, useful for sending messages to the UI about the
     /// results of the sanity checks with data available only after the evaluation.
-    pub fn sanity_check_post_hook(&self, ui: &mut ui::UIMessageSender) -> Result<(), Error> {
+    pub fn sanity_check_post_hook(&self, eval: &mut EvaluationData) -> Result<(), Error> {
         match self {
-            TaskFormat::IOI(task) => task.sanity_check_post_hook(ui),
-            TaskFormat::Terry(task) => task.sanity_check_post_hook(ui),
+            TaskFormat::IOI(task) => task.sanity_check_post_hook(eval),
+            TaskFormat::Terry(task) => task.sanity_check_post_hook(eval),
         }
     }
 

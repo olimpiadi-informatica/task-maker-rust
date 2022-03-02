@@ -79,19 +79,29 @@ pub struct ExecutionDAGData {
     pub config: ExecutionDAGConfig,
 }
 
-/// A computation DAG, this is not serializable because it contains the callbacks of the client.
+/// The set of callbacks of a DAG.
 #[derive(Debug)]
-pub struct ExecutionDAG {
-    /// Serializable part of the DAG with all the executions and files.
-    pub data: ExecutionDAGData,
-    /// Actual callbacks of the executions.
+pub struct ExecutionDAGCallbacks {
+    /// The callbacks of the executions.
     pub execution_callbacks: HashMap<ExecutionUuid, ExecutionCallbacks>,
-    /// Actual callbacks of the files.
+    /// The callbacks of the files.
     pub file_callbacks: HashMap<FileUuid, FileCallbacks>,
     /// Set of the handles of the files that should be sent to the client as soon as possible. The
     /// others will be sent at the end of the evaluation. Note that sending big files during the
     /// evaluation can cause performance degradations.
     pub urgent_files: HashSet<FileUuid>,
+}
+
+/// A computation DAG, this is not serializable because it contains the callbacks of the client.
+#[derive(Debug)]
+pub struct ExecutionDAG {
+    /// Serializable part of the DAG with all the executions and files.
+    pub data: ExecutionDAGData,
+    /// The list of callbacks for the items of the DAG.
+    ///
+    /// Upon cloning this DAG, the callbacks won't be available anymore. This is an Option to check
+    /// that the callbacks are never accessed on the clones.
+    pub callbacks: Option<ExecutionDAGCallbacks>,
 }
 
 impl ExecutionDAG {
@@ -103,9 +113,11 @@ impl ExecutionDAG {
                 execution_groups: HashMap::new(),
                 config: ExecutionDAGConfig::new(),
             },
-            execution_callbacks: HashMap::new(),
-            file_callbacks: HashMap::new(),
-            urgent_files: HashSet::new(),
+            callbacks: Some(ExecutionDAGCallbacks {
+                execution_callbacks: HashMap::new(),
+                file_callbacks: HashMap::new(),
+                urgent_files: HashSet::new(),
+            }),
         }
     }
 
@@ -239,17 +251,57 @@ impl ExecutionDAG {
 
     /// Makes sure that a callback item exists for that file and returns a &mut to it.
     fn file_callback<F: Into<FileUuid>>(&mut self, file: F) -> &mut FileCallbacks {
-        self.file_callbacks.entry(file.into()).or_default()
+        self.callbacks
+            .as_mut()
+            .expect("Cannot change callbacks after cloning")
+            .file_callbacks
+            .entry(file.into())
+            .or_default()
+    }
+
+    /// Get the list of registered file callbacks.
+    pub fn file_callbacks(&mut self) -> &mut HashMap<FileUuid, FileCallbacks> {
+        &mut self.callbacks.as_mut().unwrap().file_callbacks
     }
 
     /// Makes sure that a callback item exists for that execution and returns a &mut to it.
     fn execution_callback(&mut self, execution: &ExecutionUuid) -> &mut ExecutionCallbacks {
-        self.execution_callbacks.entry(*execution).or_default()
+        self.callbacks
+            .as_mut()
+            .expect("Cannot change callbacks after cloning")
+            .execution_callbacks
+            .entry(*execution)
+            .or_default()
+    }
+
+    /// Get the list of registered execution callbacks.
+    pub fn execution_callbacks(&mut self) -> &mut HashMap<ExecutionUuid, ExecutionCallbacks> {
+        &mut self.callbacks.as_mut().unwrap().execution_callbacks
     }
 
     /// Mark a file as urgent. The server will try to send it as soon as possible.
     pub fn urgent_file<F: Into<FileUuid>>(&mut self, file: F) {
-        self.urgent_files.insert(file.into());
+        self.callbacks
+            .as_mut()
+            .expect("Cannot change callbacks after cloning")
+            .urgent_files
+            .insert(file.into());
+    }
+
+    /// Get the list of urgent files.
+    pub fn urgent_files(&mut self) -> &mut HashSet<FileUuid> {
+        &mut self.callbacks.as_mut().unwrap().urgent_files
+    }
+}
+
+impl Clone for ExecutionDAG {
+    /// Clone this `ExecutionDAG`. The callbacks are not cloned, and trying to access them will
+    /// result in a panic.
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            callbacks: None,
+        }
     }
 }
 
@@ -417,7 +469,10 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         let file = File::new("file");
         dag.write_file_to(file.clone(), "foo", false);
-        let write_to = dag.file_callbacks[&file.uuid].write_to.as_ref().unwrap();
+        let write_to = dag.callbacks.as_mut().unwrap().file_callbacks[&file.uuid]
+            .write_to
+            .as_ref()
+            .unwrap();
         assert_eq!(Path::new("foo"), write_to.dest);
         assert!(!write_to.allow_failure);
         assert!(!write_to.executable);
@@ -428,7 +483,10 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         let file = File::new("file");
         dag.write_file_to(file.clone(), "foo", true);
-        let write_to = dag.file_callbacks[&file.uuid].write_to.as_ref().unwrap();
+        let write_to = dag.callbacks.as_mut().unwrap().file_callbacks[&file.uuid]
+            .write_to
+            .as_ref()
+            .unwrap();
         assert_eq!(Path::new("foo"), write_to.dest);
         assert!(!write_to.allow_failure);
         assert!(write_to.executable);
@@ -439,7 +497,10 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         let file = File::new("file");
         dag.write_file_to_allow_fail(file.clone(), "foo", false);
-        let write_to = dag.file_callbacks[&file.uuid].write_to.as_ref().unwrap();
+        let write_to = dag.callbacks.as_mut().unwrap().file_callbacks[&file.uuid]
+            .write_to
+            .as_ref()
+            .unwrap();
         assert_eq!(Path::new("foo"), write_to.dest);
         assert!(write_to.allow_failure);
         assert!(!write_to.executable);
@@ -450,7 +511,10 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         let file = File::new("file");
         dag.write_file_to_allow_fail(file.clone(), "foo", true);
-        let write_to = dag.file_callbacks[&file.uuid].write_to.as_ref().unwrap();
+        let write_to = dag.callbacks.as_mut().unwrap().file_callbacks[&file.uuid]
+            .write_to
+            .as_ref()
+            .unwrap();
         assert_eq!(Path::new("foo"), write_to.dest);
         assert!(write_to.allow_failure);
         assert!(write_to.executable);
@@ -461,7 +525,10 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         let file = File::new("file");
         dag.get_file_content(file.clone(), 1234, |_| Ok(()));
-        let (limit, _) = dag.file_callbacks[&file.uuid].get_content.as_ref().unwrap();
+        let (limit, _) = dag.callbacks.as_mut().unwrap().file_callbacks[&file.uuid]
+            .get_content
+            .as_ref()
+            .unwrap();
         assert_eq!(&1234, limit);
     }
 
@@ -470,7 +537,12 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         let exec = Execution::new("exec", ExecutionCommand::local("foo"));
         dag.on_execution_start(&exec.uuid, |_| Ok(()));
-        assert_eq!(1, dag.execution_callbacks[&exec.uuid].on_start.len());
+        assert_eq!(
+            1,
+            dag.callbacks.unwrap().execution_callbacks[&exec.uuid]
+                .on_start
+                .len()
+        );
     }
 
     #[test]
@@ -478,7 +550,12 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         let exec = Execution::new("exec", ExecutionCommand::local("foo"));
         dag.on_execution_done(&exec.uuid, |_| Ok(()));
-        assert_eq!(1, dag.execution_callbacks[&exec.uuid].on_done.len());
+        assert_eq!(
+            1,
+            dag.callbacks.unwrap().execution_callbacks[&exec.uuid]
+                .on_done
+                .len()
+        );
     }
 
     #[test]
@@ -486,7 +563,12 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         let exec = Execution::new("exec", ExecutionCommand::local("foo"));
         dag.on_execution_skip(&exec.uuid, || Ok(()));
-        assert_eq!(1, dag.execution_callbacks[&exec.uuid].on_skip.len());
+        assert_eq!(
+            1,
+            dag.callbacks.unwrap().execution_callbacks[&exec.uuid]
+                .on_skip
+                .len()
+        );
     }
 
     #[test]
@@ -501,7 +583,7 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         let file = File::new("file".to_string());
         dag.urgent_file(&file);
-        assert!(dag.urgent_files.contains(&file.uuid));
+        assert!(dag.callbacks.unwrap().urgent_files.contains(&file.uuid));
     }
 
     #[test]

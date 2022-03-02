@@ -16,7 +16,7 @@ use crate::terry::curses_ui::CursesUI;
 use crate::terry::dag::{Checker, InputGenerator, InputValidator, Solution};
 use crate::terry::format::parse_task;
 use crate::terry::ui_state::UIState;
-use crate::ui::{JsonUI, PrintUI, RawUI, SilentUI, UIMessage, UIMessageSender, UIType, UI};
+use crate::ui::{JsonUI, PrintUI, RawUI, SilentUI, UIMessage, UIType, UI};
 use crate::{list_files, EvaluationConfig, EvaluationData, SourceFile, TaskInfo, UISender};
 
 mod curses_ui;
@@ -220,8 +220,8 @@ impl TerryTask {
 
     /// Hook called after the execution completed, useful for sending messages to the UI about the
     /// results of the sanity checks with data available only after the evaluation.
-    pub fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
-        self.sanity_checks.post_hook(self, ui)
+    pub fn sanity_check_post_hook(&self, eval: &mut EvaluationData) -> Result<(), Error> {
+        self.sanity_checks.post_hook(self, eval)
     }
 
     /// Clean the task folder removing the files that can be generated automatically.
