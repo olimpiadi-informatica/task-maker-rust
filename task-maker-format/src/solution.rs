@@ -117,7 +117,6 @@ fn extract_check_list<P: AsRef<Path>>(path: P) -> Result<Vec<SolutionCheck>, Err
             let result = SolutionCheckResult::from_str(result)
                 .ok_or_else(|| anyhow!("Invalid check result: {}", result))?;
             let patterns = &captures["subtasks"];
-            eprintln!("{:?} -> {}", result, patterns);
             for pattern in split_patterns(patterns) {
                 checks.push(SolutionCheck::new(result, pattern));
             }
