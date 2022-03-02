@@ -115,6 +115,10 @@ pub struct IOITask {
 pub struct SubtaskInfo {
     /// The id of the subtask.
     pub id: SubtaskId,
+    /// The name of the subtask.
+    ///
+    /// This is what is used for running the solutions' checks.
+    pub name: Option<String>,
     /// Textual description of the subtask.
     pub description: Option<String>,
     /// The maximum score of the subtask, must be >= 0.

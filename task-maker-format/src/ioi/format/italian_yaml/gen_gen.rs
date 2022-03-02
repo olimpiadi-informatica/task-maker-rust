@@ -6,6 +6,7 @@ use anyhow::{anyhow, bail, Context, Error};
 use pest::Parser;
 
 use crate::ioi::format::italian_yaml::TaskInputEntry;
+use crate::ioi::italian_yaml::cleanup_subtask_name;
 use crate::ioi::{
     InputGenerator, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo, TestcaseId,
     TestcaseInfo,
@@ -48,6 +49,7 @@ where
 
     let mut default_subtask = Some(SubtaskInfo {
         id: 0,
+        name: None,
         description: None,
         max_score: 100.0,
         testcases: HashMap::new(),
@@ -91,11 +93,33 @@ where
                             .as_str();
                         entries.push(TaskInputEntry::Subtask(SubtaskInfo {
                             id: subtask_id,
+                            name: None,
                             description: None,
                             max_score: score.parse::<f64>().context("Invalid subtask score")?,
                             testcases: HashMap::new(),
                         }));
                         subtask_id += 1;
+                    }
+                    parser::Rule::subtask_name => {
+                        let last_entry = entries.last_mut().ok_or_else(|| {
+                            anyhow!("A #STNAME: rule must immediately follow a #ST: in gen/GEN")
+                        })?;
+                        if let TaskInputEntry::Subtask(subtask) = last_entry {
+                            let name = line
+                                .into_inner()
+                                .next()
+                                .ok_or_else(|| anyhow!("Corrupted parser"))?
+                                .as_str();
+                            if subtask.name.is_some() {
+                                bail!("Cannot assign the name of a subtask twice");
+                            }
+                            subtask.name = Some(
+                                cleanup_subtask_name(name)
+                                    .with_context(|| format!("Invalid subtask name: {}", name))?,
+                            );
+                        } else {
+                            bail!("#STNAME: must immediately follow a #ST: in gen/GEN");
+                        }
                     }
                     parser::Rule::copy => {
                         if let Some(default) = default_subtask.take() {
@@ -148,16 +172,20 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::Path;
+    use std::sync::Arc;
+
+    use anyhow::Error;
+    use pretty_assertions::assert_eq;
+    use tempdir::TempDir;
+
+    use TaskInputEntry::*;
+
     use crate::ioi::format::italian_yaml::gen_gen::parse_gen_gen;
     use crate::ioi::format::italian_yaml::TaskInputEntry;
     use crate::ioi::{InputGenerator, InputValidator, OutputGenerator, SubtaskId, TestcaseId};
     use crate::SourceFile;
-    use pretty_assertions::assert_eq;
-    use std::fs;
-    use std::path::Path;
-    use std::sync::Arc;
-    use tempdir::TempDir;
-    use TaskInputEntry::*;
 
     fn make_task<S: AsRef<str>>(gen_gen: S) -> TempDir {
         let dir = TempDir::new("tm-test").unwrap();
@@ -187,19 +215,23 @@ mod tests {
         OutputGenerator::Custom(Arc::new(source), vec![])
     }
 
-    fn get_entries(dir: &Path) -> Vec<TaskInputEntry> {
+    fn get_entries(dir: &Path) -> Result<Vec<TaskInputEntry>, Error> {
         parse_gen_gen(
             dir.join("gen").join("GEN"),
             get_validator,
             get_output_generator,
         )
-        .unwrap()
+    }
+
+    /// Build a task and return the parsed gen/GEN.
+    fn get_parsed_gen_gen(gen_gen: &str) -> Result<Vec<TaskInputEntry>, Error> {
+        let task = make_task(gen_gen);
+        get_entries(task.path())
     }
 
     #[test]
     fn test_parser_single_line() {
-        let task = make_task("1234\n");
-        let entries = get_entries(task.path());
+        let entries = get_parsed_gen_gen("1234\n").unwrap();
         if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
             assert_eq!(subtask.max_score as u32, 100);
@@ -215,8 +247,7 @@ mod tests {
 
     #[test]
     fn test_parser_single_line_without_ending_lf() {
-        let task = make_task("1234");
-        let entries = get_entries(task.path());
+        let entries = get_parsed_gen_gen("1234").unwrap();
         if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
             assert_eq!(subtask.max_score as u32, 100);
@@ -232,8 +263,8 @@ mod tests {
 
     #[test]
     fn test_parser_single_line_with_comments() {
-        let task = make_task("# this is a comment\n1234\n# this is a comment too\n");
-        let entries = get_entries(task.path());
+        let entries =
+            get_parsed_gen_gen("# this is a comment\n1234\n# this is a comment too\n").unwrap();
         if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
             assert_eq!(subtask.max_score as u32, 100);
@@ -249,8 +280,7 @@ mod tests {
 
     #[test]
     fn test_parser_comment_empty() {
-        let task = make_task("#\n1234\n#\n");
-        let entries = get_entries(task.path());
+        let entries = get_parsed_gen_gen("#\n1234\n#\n").unwrap();
         if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
             assert_eq!(subtask.max_score as u32, 100);
@@ -266,8 +296,7 @@ mod tests {
 
     #[test]
     fn test_parser_comment_empty_no_ending_lf() {
-        let task = make_task("#\n1234\n#");
-        let entries = get_entries(task.path());
+        let entries = get_parsed_gen_gen("#\n1234\n#").unwrap();
         if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
             assert_eq!(subtask.max_score as u32, 100);
@@ -283,8 +312,7 @@ mod tests {
 
     #[test]
     fn test_parser_line_with_comment() {
-        let task = make_task("1234 # normal comment\n5678 #risky comment");
-        let entries = get_entries(task.path());
+        let entries = get_parsed_gen_gen("1234 # normal comment\n5678 #risky comment").unwrap();
         if let [Subtask(subtask), Testcase(testcase1), Testcase(testcase2)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
             assert_eq!(subtask.max_score as u32, 100);
@@ -305,8 +333,7 @@ mod tests {
 
     #[test]
     fn test_parser_multiple_lines() {
-        let task = make_task("1234\n5678\n");
-        let entries = get_entries(task.path());
+        let entries = get_parsed_gen_gen("1234\n5678\n").unwrap();
         if let [Subtask(subtask), Testcase(testcase1), Testcase(testcase2)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
             assert_eq!(subtask.max_score as u32, 100);
@@ -328,7 +355,7 @@ mod tests {
     #[test]
     fn test_parser_copy() {
         let task = make_task("#COPY: random/file\n5678\n");
-        let entries = get_entries(task.path());
+        let entries = get_entries(task.path()).unwrap();
         if let [Subtask(subtask), Testcase(testcase1), Testcase(testcase2)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
             assert_eq!(subtask.max_score as u32, 100);
@@ -352,7 +379,7 @@ mod tests {
     #[test]
     fn test_parser_subtasks() {
         let task = make_task("#ST: 123\n#COPY: random/file\n5678\n#ST: 321\n1234\n");
-        let entries = get_entries(task.path());
+        let entries = get_entries(task.path()).unwrap();
         if let [Subtask(subtask1), Testcase(testcase1), Testcase(testcase2), Subtask(subtask2), Testcase(testcase3)] =
             entries.as_slice()
         {
@@ -382,9 +409,45 @@ mod tests {
     }
 
     #[test]
+    fn test_parser_subtasks_with_names() {
+        let entries =
+            get_parsed_gen_gen("#ST: 123\n#STNAME: name\n5678\n#ST: 321\n#STNAME:wow\n1234\n")
+                .unwrap();
+        if let [Subtask(subtask1), Testcase(_), Subtask(subtask2), Testcase(_)] = entries.as_slice()
+        {
+            assert_eq!(subtask1.id, 0);
+            assert_eq!(subtask1.max_score as u32, 123);
+            assert_eq!(subtask1.name.as_deref(), Some("name"));
+            assert_eq!(subtask2.id, 1);
+            assert_eq!(subtask2.max_score as u32, 321);
+            assert_eq!(subtask2.name.as_deref(), Some("wow"));
+        } else {
+            panic!("Wrong entries returned: {:?}", entries);
+        }
+    }
+
+    #[test]
+    fn test_parser_subtasks_with_names_with_comments() {
+        let entries = get_parsed_gen_gen(
+            "#ST: 123\n#STNAME: name # comment\n5678\n#ST: 321\n#STNAME: wow#comment\n1234\n",
+        )
+        .unwrap();
+        if let [Subtask(subtask1), Testcase(_), Subtask(subtask2), Testcase(_)] = entries.as_slice()
+        {
+            assert_eq!(subtask1.id, 0);
+            assert_eq!(subtask1.max_score as u32, 123);
+            assert_eq!(subtask1.name.as_deref(), Some("name"));
+            assert_eq!(subtask2.id, 1);
+            assert_eq!(subtask2.max_score as u32, 321);
+            assert_eq!(subtask2.name.as_deref(), Some("wow"));
+        } else {
+            panic!("Wrong entries returned: {:?}", entries);
+        }
+    }
+
+    #[test]
     fn test_parser_empty_lines() {
-        let task = make_task("\n\n1234\n\n\n5678\n\n");
-        let entries = get_entries(task.path());
+        let entries = get_parsed_gen_gen("\n\n1234\n\n\n5678\n\n").unwrap();
         if let [Subtask(subtask), Testcase(testcase1), Testcase(testcase2)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
             assert_eq!(subtask.max_score as u32, 100);
@@ -405,8 +468,7 @@ mod tests {
 
     #[test]
     fn test_parser_spaces_before_and_after() {
-        let task = make_task("  \t 1234\t  \t\n");
-        let entries = get_entries(task.path());
+        let entries = get_parsed_gen_gen("  \t 1234\t  \t\n").unwrap();
         if let [Subtask(subtask), Testcase(testcase)] = entries.as_slice() {
             assert_eq!(subtask.id, 0);
             assert_eq!(subtask.max_score as u32, 100);
@@ -418,5 +480,57 @@ mod tests {
         } else {
             panic!("Wrong entries returned: {:?}", entries);
         }
+    }
+
+    #[test]
+    fn test_parser_subtask_name_empty() {
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME:");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_parser_subtask_name_with_spaces() {
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME: two names");
+        assert!(res.is_err());
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME: two\tnames");
+        assert!(res.is_err());
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME: two\u{200B}names");
+        assert!(res.is_err());
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME: two\u{FEFF}names");
+        assert!(res.is_err());
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME: two\u{180E}names");
+        assert!(res.is_err());
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME: a b");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_parser_subtask_name_illegal_characters() {
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME: n*pe");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_parser_subtask_name_start_with_dash() {
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME: -nope");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_parser_subtask_name_double() {
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME: one\n#STNAME: two");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_parser_subtask_name_utf_and_symbols() {
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME: n²logn");
+        assert!(res.is_ok());
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME: N<=2");
+        assert!(res.is_ok());
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME: N=5_&&_M=2");
+        assert!(res.is_ok());
+        let res = get_parsed_gen_gen("#ST:1\n#STNAME: tree-line");
+        assert!(res.is_ok());
     }
 }
