@@ -161,7 +161,7 @@ mod tests {
         assert!(eval.dag.data.provided_files.contains_key(&out));
         assert!(eval
             .dag
-            .file_callbacks
+            .file_callbacks()
             .get(&out)
             .unwrap()
             .write_to
@@ -197,7 +197,7 @@ mod tests {
         assert_eq!(group.executions[0].stdout.as_ref().unwrap().uuid, out);
         assert!(eval
             .dag
-            .file_callbacks
+            .file_callbacks()
             .get(&out)
             .unwrap()
             .write_to
@@ -257,7 +257,7 @@ mod tests {
         assert!(eval.dag.data.provided_files.contains_key(&out));
         assert!(eval
             .dag
-            .file_callbacks
+            .file_callbacks()
             .get(&out)
             .unwrap()
             .write_to
@@ -303,7 +303,7 @@ mod tests {
         assert!(group.executions[0].dependencies().contains(&val.uuid));
         assert!(eval
             .dag
-            .file_callbacks
+            .file_callbacks()
             .get(&out)
             .unwrap()
             .write_to
@@ -354,7 +354,7 @@ mod tests {
         checker
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
-        let callbacks = eval.dag.execution_callbacks.into_iter().next().unwrap().1;
+        let callbacks = eval.dag.execution_callbacks().drain().next().unwrap().1;
         callbacks.on_done.into_iter().for_each(|cb| {
             cb.call(ExecutionResult {
                 status: ExecutionStatus::Success,
@@ -392,7 +392,7 @@ mod tests {
         checker
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
-        let callbacks = eval.dag.execution_callbacks.into_iter().next().unwrap().1;
+        let callbacks = eval.dag.execution_callbacks().drain().next().unwrap().1;
         callbacks.on_done.into_iter().for_each(|cb| {
             cb.call(ExecutionResult {
                 status: ExecutionStatus::ReturnCode(1),
@@ -460,8 +460,8 @@ mod tests {
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        let exec = &group.executions[0];
-        let on_done = eval.dag.execution_callbacks.get_mut(&exec.uuid).unwrap();
+        let exec = group.executions[0].uuid;
+        let on_done = eval.dag.execution_callbacks().get_mut(&exec).unwrap();
         on_done
             .on_done
             .remove(0)
@@ -501,8 +501,8 @@ mod tests {
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        let exec = &group.executions[0];
-        let on_done = eval.dag.execution_callbacks.get_mut(&exec.uuid).unwrap();
+        let exec = group.executions[0].uuid;
+        let on_done = eval.dag.execution_callbacks().get_mut(&exec).unwrap();
         on_done
             .on_done
             .remove(0)
@@ -535,8 +535,8 @@ mod tests {
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        let exec = &group.executions[0];
-        let on_done = eval.dag.execution_callbacks.get_mut(&exec.uuid).unwrap();
+        let exec = group.executions[0].uuid;
+        let on_done = eval.dag.execution_callbacks().get_mut(&exec).unwrap();
         let err = on_done
             .on_done
             .remove(0)

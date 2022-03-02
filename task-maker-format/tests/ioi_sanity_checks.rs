@@ -21,10 +21,8 @@ fn get_warnings(task: &IOITask) -> Vec<String> {
 }
 
 fn get_post_warnings(task: &IOITask) -> Vec<String> {
-    let (eval, recv) = EvaluationData::new("");
-    task.sanity_checks
-        .post_hook(task, &mut eval.sender.lock().unwrap())
-        .unwrap();
+    let (mut eval, recv) = EvaluationData::new("");
+    task.sanity_checks.post_hook(task, &mut eval).unwrap();
     let mut res = vec![];
     while let Ok(mex) = recv.try_recv() {
         match mex {
