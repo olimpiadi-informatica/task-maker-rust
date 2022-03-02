@@ -741,6 +741,9 @@ fn cleanup_subtask_name(id: &str) -> Result<String, Error> {
         if ch == '*' {
             return fail("must not contain asterisks (*)");
         }
+        if ch == '?' {
+            return fail("must not contain question marks (?)");
+        }
         let category = GeneralCategory::of(ch);
         if !VALID_SUBTASK_NAME_CHARACTER_CATEGORIES.contains(&category) {
             return fail(&format!(

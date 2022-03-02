@@ -77,3 +77,36 @@ impl SanityCheck<IOITask> for SolutionsWithNoChecks {
         Ok(())
     }
 }
+
+/// Check that all the checks target at least one subtask.
+#[derive(Debug, Default)]
+pub struct InvalidSubtaskName;
+
+impl SanityCheck<IOITask> for InvalidSubtaskName {
+    fn name(&self) -> &'static str {
+        "InvalidSubtaskName"
+    }
+
+    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        let subtask_names = task
+            .subtasks
+            .keys()
+            .sorted()
+            .filter_map(|st| task.subtasks[st].name.as_ref())
+            .join(", ");
+        for solution in &eval.solutions {
+            for check in &solution.checks {
+                let subtasks = task.find_subtasks_by_pattern_name(&check.subtask_name_pattern);
+                if subtasks.is_empty() {
+                    eval.sender.send_error(format!(
+                        "Invalid subtask name '{}' in solution '{}' (valid names are: {})",
+                        check.subtask_name_pattern,
+                        solution.source_file.relative_path().display(),
+                        subtask_names
+                    ))?;
+                }
+            }
+        }
+        Ok(())
+    }
+}

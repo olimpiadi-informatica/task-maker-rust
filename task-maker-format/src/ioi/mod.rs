@@ -23,6 +23,8 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, bail, Context, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
+use unicode_normalization::UnicodeNormalization;
+use wildmatch::WildMatch;
 
 use curses_ui::CursesUI;
 pub use dag::*;
@@ -377,6 +379,31 @@ impl IOITask {
         Ok(TaskInfo::IOI(
             task_info::IOITaskInfo::new(self).context("Cannot produce IOI task info")?,
         ))
+    }
+
+    /// Find the list of all the subtasks that match the given pattern.
+    fn find_subtasks_by_pattern_name(&self, pattern: impl AsRef<str>) -> Vec<&SubtaskInfo> {
+        // Normalize the pattern; the subtask names are already normalized.
+        let pattern = pattern.as_ref().nfkc().collect::<String>();
+        let pattern = WildMatch::new(&pattern);
+        let mut result = vec![];
+        for subtask in self.subtasks.values() {
+            if subtask.name_matches(&pattern) {
+                result.push(subtask);
+            }
+        }
+        result
+    }
+}
+
+impl SubtaskInfo {
+    /// Check if the pattern matches the subtaks name.
+    fn name_matches(&self, pattern: &WildMatch) -> bool {
+        if let Some(name) = &self.name {
+            pattern.matches(name)
+        } else {
+            false
+        }
     }
 }
 
