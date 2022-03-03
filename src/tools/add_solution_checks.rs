@@ -8,7 +8,7 @@ use anyhow::{bail, Context, Error};
 use itertools::Itertools;
 
 use task_maker_format::ioi::UIState;
-use task_maker_format::ui::{StdoutPrinter, UIStateT, BLUE, YELLOW};
+use task_maker_format::ui::{StdoutPrinter, UIStateT, BLUE, BOLD, YELLOW};
 use task_maker_format::{cwrite, cwriteln, EvaluationConfig, SolutionCheckResult, TaskFormat};
 use task_maker_lang::LanguageManager;
 
@@ -83,7 +83,7 @@ pub fn main_add_solution_checks(
             skipped.push(&solution.name);
             continue;
         }
-        let has_changes = process_solution(&ui_state, solution_name, opt.in_place);
+        let has_changes = process_solution(&ui_state, solution_name, &mut printer, opt.in_place);
         if has_changes && !opt.in_place {
             changes_to_write = true;
         }
@@ -106,7 +106,12 @@ pub fn main_add_solution_checks(
 }
 
 /// Generate (and add with in_place) the @check comments to this solution.
-fn process_solution(state: &UIState, solution_name: &Path, in_place: bool) -> bool {
+fn process_solution(
+    state: &UIState,
+    solution_name: &Path,
+    printer: &mut StdoutPrinter,
+    in_place: bool,
+) -> bool {
     let solution = &state.solutions[solution_name];
     let language = LanguageManager::detect_language(solution_name);
 
@@ -172,7 +177,7 @@ fn process_solution(state: &UIState, solution_name: &Path, in_place: bool) -> bo
             format!("{} @check-{}: {}", prefix, result.as_str(), subtasks)
         })
         .collect_vec();
-    println!("{}\n{}", solution.name, comments.iter().join("\n"));
+    let mut written = "";
     if in_place && !comments.is_empty() {
         if let Err(e) = write_comments_to_file(&solution.path, &comments).with_context(|| {
             format!(
@@ -181,8 +186,12 @@ fn process_solution(state: &UIState, solution_name: &Path, in_place: bool) -> bo
             )
         }) {
             eprintln!("Error: {:?}", e);
+        } else {
+            written = " (written!)";
         }
     }
+    cwrite!(printer, BOLD, "{}", solution.name);
+    println!("{}\n{}", written, comments.iter().join("\n"));
 
     !comments.is_empty()
 }
@@ -212,6 +221,5 @@ fn write_comments_to_file(path: &Path, comments: &[String]) -> Result<(), Error>
         .with_context(|| format!("Failed to open '{}' for writing", path.display()))?;
     file.write_all(content.as_bytes())
         .context("Failed to write the source file content")?;
-    eprintln!("Written!");
     Ok(())
 }
