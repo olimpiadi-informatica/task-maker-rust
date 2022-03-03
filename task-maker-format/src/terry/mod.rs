@@ -172,7 +172,7 @@ impl TerryTask {
         eval.sender.send(UIMessage::TerryTask {
             task: Box::new(self.clone()),
         })?;
-        eval.solutions = config.find_solutions(&self.path, vec!["solutions/*"], None);
+        eval.solutions = config.find_solutions(&self.path, vec!["solutions/*"], None, eval);
         self.sanity_checks.pre_hook(self, eval)?;
 
         let solution_info = eval.solutions.iter().map(SolutionInfo::from).collect_vec();

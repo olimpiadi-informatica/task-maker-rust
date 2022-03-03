@@ -194,6 +194,7 @@ impl EvaluationConfig {
         base_dir: &Path,
         patterns: Vec<&str>,
         grader_map: Option<Arc<GraderMap>>,
+        eval: &mut EvaluationData,
     ) -> Vec<Solution> {
         let solutions_paths = self.solution_paths(base_dir, patterns);
         let filter = self.solution_filters();
@@ -215,7 +216,7 @@ impl EvaluationConfig {
                     .iter()
                     .any(|filter| name.starts_with(filter.as_str()))
             })
-            .filter_map(|path| Solution::new(&path, base_dir, grader_map.clone()))
+            .filter_map(|path| Solution::new(&path, base_dir, grader_map.clone(), eval))
             .collect()
     }
 }

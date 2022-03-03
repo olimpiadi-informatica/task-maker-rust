@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use task_maker_lang::GraderMap;
 
-use crate::SourceFile;
+use crate::{EvaluationData, SourceFile, UISender};
 
 /// A solution to evaluate. This includes the source file and some additional metadata.
 #[derive(Clone, Debug)]
@@ -25,7 +25,12 @@ impl Solution {
     /// Create a new [`Solution`] for a given source file.
     ///
     /// Returns `None` if the language is unknown.
-    pub fn new(path: &Path, base_dir: &Path, grader_map: Option<Arc<GraderMap>>) -> Option<Self> {
+    pub fn new(
+        path: &Path,
+        base_dir: &Path,
+        grader_map: Option<Arc<GraderMap>>,
+        eval: &mut EvaluationData,
+    ) -> Option<Self> {
         let write_to = base_dir
             .join("bin")
             .join("sol")
@@ -33,7 +38,7 @@ impl Solution {
         let source_file = SourceFile::new(path, base_dir, grader_map, Some(write_to))?;
         Some(Self {
             source_file: Arc::new(source_file),
-            checks: extract_check_list(path).ok()?,
+            checks: extract_check_list(path, eval).ok()?,
         })
     }
 }
@@ -146,7 +151,10 @@ impl SolutionCheckResult {
     }
 }
 
-fn extract_check_list<P: AsRef<Path>>(path: P) -> Result<Vec<SolutionCheck>, Error> {
+fn extract_check_list<P: AsRef<Path>>(
+    path: P,
+    eval: &mut EvaluationData,
+) -> Result<Vec<SolutionCheck>, Error> {
     lazy_static! {
         static ref FIND_CHECKS: Regex = Regex::new(r".*@check-.*").expect("Invalid regex");
         static ref EXTRACT_CHECKS: Regex = Regex::new(
@@ -184,8 +192,11 @@ fn extract_check_list<P: AsRef<Path>>(path: P) -> Result<Vec<SolutionCheck>, Err
                 checks.push(SolutionCheck::new(result, pattern));
             }
         } else {
-            // FIXME: the check is invalid! Emit a proper message
-            eprintln!("Invalid check: {:?}", line);
+            let _ = eval.sender.send_error(format!(
+                "In '{}' the check '{}' is not valid",
+                path.display(),
+                line
+            ));
         }
     }
     Ok(checks)
@@ -204,6 +215,7 @@ fn split_patterns(patterns: &str) -> Vec<&str> {
 
 #[cfg(test)]
 mod tests {
+    use crate::EvaluationData;
     use anyhow::Error;
 
     use crate::solution::{extract_check_list, SolutionCheck, SolutionCheckResult};
@@ -212,7 +224,8 @@ mod tests {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
         let path = tmpdir.path().join("source.txt");
         std::fs::write(&path, source).unwrap();
-        extract_check_list(path)
+        let mut eval = EvaluationData::new(tmpdir.path()).0;
+        extract_check_list(path, &mut eval)
     }
 
     #[test]

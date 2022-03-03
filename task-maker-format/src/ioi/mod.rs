@@ -212,7 +212,7 @@ impl IOITask {
             task: Box::new(self.clone()),
         })?;
         eval.solutions =
-            config.find_solutions(&self.path, vec!["sol/*"], Some(self.grader_map.clone()));
+            config.find_solutions(&self.path, vec!["sol/*"], Some(self.grader_map.clone()), eval);
         self.sanity_checks
             .pre_hook(self, eval)
             .context("Sanity check pre-hooks failed")?;
