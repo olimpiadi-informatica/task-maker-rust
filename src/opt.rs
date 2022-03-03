@@ -26,17 +26,8 @@ pub struct Opt {
     #[structopt(long = "exclusive")]
     pub exclusive: bool,
 
-    /// Execute only the solutions whose names start with the filter
-    ///
-    /// Note that just the file name is checked (e.g. sol.cpp is the same as sol/sol.cpp). Without
-    /// specifying anything all the solutions are executed.
-    pub filter: Vec<String>,
-
-    /// Evaluate only the solution with the specified path
-    ///
-    /// The solution can reside anywhere in the filesystem.
-    #[structopt(long = "solution", short = "-s")]
-    pub solution: Vec<PathBuf>,
+    #[structopt(flatten)]
+    pub filter: FilterOpt,
 
     /// Force this seed instead of a random one in Terry.
     #[structopt(long)]
@@ -161,6 +152,21 @@ pub struct StorageOpt {
     pub min_cache: u64,
 }
 
+#[derive(StructOpt, Debug, Clone)]
+pub struct FilterOpt {
+    /// Execute only the solutions whose names start with the filter
+    ///
+    /// Note that just the file name is checked (e.g. sol.cpp is the same as sol/sol.cpp). Without
+    /// specifying anything all the solutions are executed.
+    pub filter: Vec<String>,
+
+    /// Evaluate only the solution with the specified path
+    ///
+    /// The solution can reside anywhere in the filesystem.
+    #[structopt(long, short)]
+    pub solution: Vec<PathBuf>,
+}
+
 /// Returns the long-help for the "skip sanity checks" option.
 fn skip_sanity_checks_long_help() -> &'static str {
     lazy_static! {
@@ -187,10 +193,10 @@ impl Opt {
     /// Make an `EvaluationConfig` from this command line options.
     pub fn to_config(&self) -> EvaluationConfig {
         EvaluationConfig {
-            solution_filter: self.filter.clone(),
+            solution_filter: self.filter.filter.clone(),
             booklet_solutions: self.booklet_solutions,
             no_statement: self.no_statement,
-            solution_paths: self.solution.clone(),
+            solution_paths: self.filter.solution.clone(),
             disabled_sanity_checks: self.skip_sanity_checks.clone(),
             seed: self.seed,
             dry_run: self.execution.dry_run,

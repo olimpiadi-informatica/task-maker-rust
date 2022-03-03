@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Error};
@@ -22,10 +22,10 @@ pub fn main_add_solution_checks(
 ) -> Result<(), Error> {
     opt.ui.disable_if_needed(&logger_opt);
     let eval_config = EvaluationConfig {
-        solution_filter: vec![],
+        solution_filter: opt.filter.filter,
         booklet_solutions: false,
         no_statement: true,
-        solution_paths: opt.solutions.iter().map(PathBuf::from).collect(),
+        solution_paths: opt.filter.solution,
         disabled_sanity_checks: Default::default(),
         seed: Default::default(),
         dry_run: true,

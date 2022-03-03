@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use crate::{ExecutionOpt, FindTaskOpt, LoggerOpt, StorageOpt, UIOpt};
+use crate::{ExecutionOpt, FilterOpt, FindTaskOpt, LoggerOpt, StorageOpt, UIOpt};
 
 #[derive(StructOpt, Debug)]
 #[structopt(
@@ -256,8 +256,8 @@ pub struct AddSolutionChecksOpt {
     #[structopt(flatten)]
     pub storage: StorageOpt,
 
-    /// Add the checks only to these solutions.
-    pub solutions: Vec<String>,
+    #[structopt(flatten)]
+    pub filter: FilterOpt,
 
     #[structopt(flatten)]
     pub execution: ExecutionOpt,
