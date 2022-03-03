@@ -151,16 +151,16 @@ fn extract_check_list<P: AsRef<Path>>(path: P) -> Result<Vec<SolutionCheck>, Err
         static ref FIND_CHECKS: Regex = Regex::new(r".*@check-.*").expect("Invalid regex");
         static ref EXTRACT_CHECKS: Regex = Regex::new(
             r"(?x)
-            @check-      # signal the start of a check
+            @check-     # signal the start of a check
             (?P<result>accepted|wrong-answer|time-limit-exceeded|memory-limit-exceeded|runtime-error)
             :
             (?P<subtasks>
               (?:
-                \s*  # spaces between subtask names
+                \s*     # spaces between subtask names
                 [^\s]+  # subtask name
               )*        # allow a check without any subtask listed
             )
-            \s*      # ignore spaces after the last subtask
+            \s*         # ignore spaces after the last subtask
         ")
         .expect("Invalid regex");
     }
