@@ -58,7 +58,7 @@ where
 
     // start the execution
     let executor = context.connect_executor(&opt.execution, &opt.storage)?;
-    let executor = executor.start_ui(&opt.ui, on_message)?;
+    let executor = executor.start_ui(&opt.ui.ui, on_message)?;
     executor.execute()?;
 
     Ok(Evaluation::Done)

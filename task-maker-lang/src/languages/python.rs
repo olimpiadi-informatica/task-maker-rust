@@ -50,6 +50,10 @@ impl Language for LanguagePython {
         false
     }
 
+    fn inline_comment_prefix(&self) -> Option<&'static str> {
+        Some("#")
+    }
+
     fn runtime_command(&self, path: &Path, write_to: Option<&Path>) -> ExecutionCommand {
         match self.version {
             LanguagePythonVersion::Autodetect => {

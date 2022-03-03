@@ -262,8 +262,9 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Error};
+use anyhow::{anyhow, bail, Context, Error};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use unic_ucd_category::GeneralCategory;
 
 pub(crate) use cases_gen::{is_gen_gen_deletable, TM_ALLOW_DELETE_COOKIE};
 use task_maker_lang::GraderMap;
@@ -280,6 +281,38 @@ use crate::{find_source_file, list_files, EvaluationConfig, WriteBinTo};
 mod cases_gen;
 mod gen_gen;
 mod static_inputs;
+
+/// The set of valid Unicode General Categories for the characters composing a subtask name.
+pub const VALID_SUBTASK_NAME_CHARACTER_CATEGORIES: &[GeneralCategory] = &[
+    // L group (included in XID_Start)
+    GeneralCategory::LowercaseLetter,
+    GeneralCategory::ModifierLetter,
+    GeneralCategory::OtherLetter,
+    GeneralCategory::TitlecaseLetter,
+    GeneralCategory::UppercaseLetter,
+    // Nd group (included in XID_Continue)
+    GeneralCategory::DecimalNumber,
+    // Nl group (included in XID_Start)
+    GeneralCategory::LetterNumber,
+    // Mc group (included in XID_Continue)
+    GeneralCategory::SpacingMark,
+    // Mn group (included in XID_Continue)
+    GeneralCategory::NonspacingMark,
+    // Pc group (included in XID_Continue)
+    GeneralCategory::ConnectorPunctuation,
+    // Additional groups with useful symbols, but usually not valid in identifiers:
+    GeneralCategory::OtherNumber,
+    GeneralCategory::DashPunctuation,
+    GeneralCategory::ClosePunctuation,
+    GeneralCategory::FinalPunctuation,
+    GeneralCategory::InitialPunctuation,
+    GeneralCategory::OtherPunctuation,
+    GeneralCategory::OpenPunctuation,
+    GeneralCategory::CurrencySymbol,
+    GeneralCategory::ModifierSymbol,
+    GeneralCategory::MathSymbol,
+    GeneralCategory::OtherSymbol,
+];
 
 /// Deserialized data from the task.yaml of a IOI format task.
 #[derive(Debug, Serialize, Deserialize)]
@@ -686,4 +719,39 @@ fn default_infile() -> String {
 /// The default value for the `outfile` field of task.yaml.
 fn default_outfile() -> String {
     "output.txt".into()
+}
+
+/// Normalize and validate the content of the subtask name.
+fn cleanup_subtask_name(id: &str) -> Result<String, Error> {
+    let id = id.trim();
+
+    let fail = |err| Err(anyhow!("'{}' is not a valid identifier: {}", id, err));
+
+    // Normalize the identifier to avoid similar but different characters.
+    use unicode_normalization::UnicodeNormalization;
+    let normalized = id.nfkc().collect::<String>();
+
+    if normalized.is_empty() {
+        return fail("must be non-empty");
+    }
+    if normalized.starts_with('-') {
+        return fail("must not start with a dash (-)");
+    }
+    for ch in normalized.chars() {
+        if ch == '*' {
+            return fail("must not contain asterisks (*)");
+        }
+        if ch == '?' {
+            return fail("must not contain question marks (?)");
+        }
+        let category = GeneralCategory::of(ch);
+        if !VALID_SUBTASK_NAME_CHARACTER_CATEGORIES.contains(&category) {
+            return fail(&format!(
+                "contains an invalid character '{}' ({})",
+                ch,
+                ch.escape_default()
+            ));
+        }
+    }
+    Ok(normalized)
 }

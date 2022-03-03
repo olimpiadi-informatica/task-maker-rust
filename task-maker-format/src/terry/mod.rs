@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Error;
+use itertools::Itertools;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
@@ -12,6 +13,7 @@ pub use task_info::*;
 use task_maker_dag::ExecutionDAGConfig;
 
 use crate::sanity_checks::SanityChecks;
+use crate::solution::SolutionInfo;
 use crate::terry::curses_ui::CursesUI;
 use crate::terry::dag::{Checker, InputGenerator, InputValidator, Solution};
 use crate::terry::format::parse_task;
@@ -170,8 +172,13 @@ impl TerryTask {
         eval.sender.send(UIMessage::TerryTask {
             task: Box::new(self.clone()),
         })?;
-        eval.solutions = config.find_solutions(&self.path, vec!["solutions/*"], None);
+        eval.solutions = config.find_solutions(&self.path, vec!["solutions/*"], None, eval);
         self.sanity_checks.pre_hook(self, eval)?;
+
+        let solution_info = eval.solutions.iter().map(SolutionInfo::from).collect_vec();
+        eval.sender.send(UIMessage::Solutions {
+            solutions: solution_info,
+        })?;
 
         let solutions = eval.solutions.clone();
         let mut rng = rand::thread_rng();

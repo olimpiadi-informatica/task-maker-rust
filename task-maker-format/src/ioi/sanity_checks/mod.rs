@@ -14,6 +14,7 @@ use std::collections::HashSet;
 mod att;
 mod sol;
 mod statement;
+mod subtasks;
 mod task;
 
 /// Make a new `SanityChecks` for a IOI task skipping the checks with the provided names.
@@ -36,6 +37,9 @@ fn get_sanity_check_list(skip: &[String]) -> Vec<Box<dyn SanityCheck<IOITask>>> 
         Box::new(statement::StatementValid::default()),
         Box::new(statement::StatementCompiled::default()),
         Box::new(statement::StatementGit::default()),
+        Box::new(subtasks::MissingSubtaskNames::default()),
+        Box::new(subtasks::SolutionsWithNoChecks::default()),
+        Box::new(subtasks::InvalidSubtaskName::default()),
     ];
     all.into_iter()
         .filter(|s| !skip.contains(&s.name().into()))

@@ -29,7 +29,6 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
-use crate::ioi::IOITask;
 pub use detect_format::find_task;
 pub use sanity_checks::get_sanity_check_names;
 pub use source_file::SourceFile;
@@ -39,7 +38,9 @@ use task_maker_dag::ExecutionDAG;
 use task_maker_lang::{GraderMap, LanguageManager};
 
 use crate::ioi::task_info::IOITaskInfo;
+use crate::ioi::IOITask;
 use crate::solution::Solution;
+pub use crate::solution::*;
 use crate::terry::{Seed, TerryTask};
 use crate::ui::UI;
 
@@ -193,6 +194,7 @@ impl EvaluationConfig {
         base_dir: &Path,
         patterns: Vec<&str>,
         grader_map: Option<Arc<GraderMap>>,
+        eval: &mut EvaluationData,
     ) -> Vec<Solution> {
         let solutions_paths = self.solution_paths(base_dir, patterns);
         let filter = self.solution_filters();
@@ -214,7 +216,7 @@ impl EvaluationConfig {
                     .iter()
                     .any(|filter| name.starts_with(filter.as_str()))
             })
-            .filter_map(|path| Solution::new(&path, base_dir, grader_map.clone()))
+            .filter_map(|path| Solution::new(&path, base_dir, grader_map.clone(), eval))
             .collect()
     }
 }

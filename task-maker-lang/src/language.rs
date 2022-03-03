@@ -28,6 +28,13 @@ pub trait Language: std::fmt::Debug + Send + Sync {
     /// some extra methods.
     fn need_compilation(&self) -> bool;
 
+    /// The prefix to put at the start of a line to mark the whole line as a comment.
+    ///
+    /// The return value should include a space character only if required by the language.
+    ///
+    /// If the language does not support inline comments, return `None`.
+    fn inline_comment_prefix(&self) -> Option<&'static str>;
+
     /// Return the `CompiledLanguageBuilder` for compiling a source file with this language.
     ///
     /// This method must return `Some` if and only if `need_compilation` returns `true`.

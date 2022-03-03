@@ -1,4 +1,5 @@
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use itertools::Itertools;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
@@ -6,7 +7,7 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 use task_maker_dag::ExecutionStatus;
 
 use crate::ioi::ui_state::{SolutionEvaluationState, TestcaseEvaluationStatus, UIState};
-use crate::ioi::{SolutionTestcaseEvaluationState, TestcaseId};
+use crate::ioi::{SolutionCheckOutcome, SolutionTestcaseEvaluationState, SubtaskId, TestcaseId};
 use crate::ui::{
     FinishUI as FinishUITrait, FinishUIUtils, UIExecutionStatus, BLUE, BOLD, GREEN, ORANGE, RED,
     YELLOW,
@@ -49,6 +50,9 @@ impl FinishUITrait<UIState> for FinishUI {
         if !state.evaluations.is_empty() {
             println!();
             ui.print_evaluations(state);
+            if state.task.subtasks.values().all(|st| st.name.is_some()) {
+                ui.print_subtask_checks_table(state);
+            }
             ui.print_summary(state);
         }
         FinishUIUtils::new(&mut ui.stream).print_warning_messages(&state.warnings);
@@ -442,5 +446,96 @@ impl FinishUI {
                 _ => cwrite!(self, RED, "{:?}", result.status),
             },
         }
+    }
+
+    /// Print the table with the summary of the subtask checks.
+    fn print_subtask_checks_table(&mut self, state: &UIState) {
+        let check_results = state.run_solution_checks();
+        let mut results: HashMap<PathBuf, HashMap<SubtaskId, Vec<SolutionCheckOutcome>>> =
+            Default::default();
+        for result in check_results {
+            let sol = results.entry(result.solution.clone()).or_default();
+            sol.entry(result.subtask_id).or_default().push(result);
+        }
+        let solutions = state
+            .solutions
+            .keys()
+            .filter(|&p| !p.is_symlink())
+            .sorted()
+            .collect_vec();
+
+        // The widths of the longest cell in each column. The first column contains the solution
+        // names.
+        let mut column_widths = vec![1; state.task.subtasks.len() + 1];
+
+        // Compute the widths of all the columns, based on the cell content.
+        for subtask in state.task.subtasks.values() {
+            let column_index = subtask.id as usize + 1;
+            column_widths[column_index] =
+                column_widths[column_index].max(subtask.name.as_ref().unwrap().len());
+        }
+        for &solution_name in solutions.iter() {
+            let solution = &state.solutions[solution_name];
+            column_widths[0] = column_widths[0].max(solution.name.len());
+            let solution_results = results.entry(solution_name.clone()).or_default();
+            for st_num in state.task.subtasks.keys() {
+                let subtask_results = solution_results.entry(*st_num).or_default();
+                let cell = subtask_results
+                    .iter()
+                    .map(|outcome| outcome.check.result.as_compact_str())
+                    .join(" ");
+                let column_index = *st_num as usize + 1;
+                column_widths[column_index] = column_widths[column_index].max(cell.len());
+            }
+        }
+
+        // Print the header.
+        cwriteln!(self, BLUE, "Subtask results");
+        print!("{:width$}", "", width = column_widths[0]);
+        for st_num in state.task.subtasks.keys().sorted() {
+            let subtask = &state.task.subtasks[st_num];
+            let width = column_widths[*st_num as usize + 1];
+            print!(" | ");
+            cwrite!(
+                self,
+                BOLD,
+                "{:width$}",
+                subtask.name.as_ref().unwrap(),
+                width = width
+            );
+        }
+        println!();
+
+        // Print the solution lines
+        for solution_name in solutions {
+            let solution = &state.solutions[solution_name];
+            print!("{:>width$}", solution.name, width = column_widths[0]);
+            let solution_results = &results[solution_name];
+            for st_num in state.task.subtasks.keys().sorted() {
+                print!(" | ");
+                let width = column_widths[*st_num as usize + 1];
+                let subtask_results = &solution_results[st_num];
+                if subtask_results.is_empty() {
+                    print!("{:width$}", "?", width = width);
+                } else {
+                    let mut printed = 0;
+                    for result in subtask_results {
+                        if printed > 0 {
+                            print!(" ");
+                            printed += 1;
+                        }
+                        let as_str = result.check.result.as_compact_str();
+                        let color = if result.success { &*GREEN } else { &*RED };
+                        cwrite!(self, color, "{}", as_str);
+                        printed += as_str.len();
+                    }
+                    let column_index = *st_num as usize + 1;
+                    let remaining = column_widths[column_index] - printed;
+                    print!("{:remaining$}", "", remaining = remaining);
+                }
+            }
+            println!();
+        }
+        println!();
     }
 }

@@ -5,6 +5,7 @@ use std::time::SystemTime;
 use task_maker_dag::{ExecutionResult, ExecutionStatus};
 use task_maker_exec::ExecutorStatus;
 
+use crate::solution::SolutionInfo;
 use crate::terry::finish_ui;
 use crate::terry::{Seed, SolutionOutcome, TerryTask};
 use crate::ui::{CompilationStatus, FinishUI, UIExecutionStatus, UIMessage, UIStateT};
@@ -27,8 +28,10 @@ pub struct UIState {
 }
 
 /// The state of the evaluation of a solution.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct SolutionState {
+    /// The information about this solution.
+    pub info: SolutionInfo,
     /// The status of the evaluation.
     pub status: SolutionStatus,
     /// The checker's outcome or its error.
@@ -78,6 +81,21 @@ impl Default for SolutionStatus {
     }
 }
 
+impl SolutionState {
+    fn new(info: SolutionInfo) -> Self {
+        Self {
+            info,
+            status: Default::default(),
+            outcome: Default::default(),
+            seed: Default::default(),
+            generator_result: Default::default(),
+            validator_result: Default::default(),
+            solution_result: Default::default(),
+            checker_result: Default::default(),
+        }
+    }
+}
+
 impl UIState {
     /// Make a new `UIState`.
     pub fn new(task: &TerryTask) -> UIState {
@@ -97,7 +115,10 @@ impl UIStateT for UIState {
     fn apply(&mut self, message: UIMessage) {
         macro_rules! process_step {
             ($self:expr, $solution:expr, $status:expr, $step_result:tt, $start_status:tt, $ok_status:tt, $name:literal) => {{
-                let sol = $self.solutions.entry($solution).or_default();
+                let sol = $self
+                    .solutions
+                    .get_mut(&$solution)
+                    .expect("Outcome of an unknown solution");
                 match $status {
                     UIExecutionStatus::Pending => sol.status = SolutionStatus::Pending,
                     UIExecutionStatus::Started { .. } => sol.status = SolutionStatus::$start_status,
@@ -123,6 +144,12 @@ impl UIStateT for UIState {
         match message {
             UIMessage::StopUI => {}
             UIMessage::ServerStatus { status } => self.executor_status = Some(status),
+            UIMessage::Solutions { solutions } => {
+                self.solutions = solutions
+                    .into_iter()
+                    .map(|info| (info.path.clone(), SolutionState::new(info)))
+                    .collect();
+            }
             UIMessage::Compilation { file, status } => self
                 .compilations
                 .entry(file)
@@ -179,7 +206,10 @@ impl UIStateT for UIState {
                 );
             }
             UIMessage::TerrySolutionOutcome { solution, outcome } => {
-                let sol = self.solutions.entry(solution).or_default();
+                let sol = self
+                    .solutions
+                    .get_mut(&solution)
+                    .expect("Outcome of an unknown solution");
                 sol.outcome = Some(outcome);
             }
             UIMessage::Warning { message } => {

@@ -515,8 +515,10 @@ where
             None
         };
         self.subtask_description = description.clone();
+        // FIXME: the cases.gen format does not yet support giving the subtasks a name.
         self.result.push(TaskInputEntry::Subtask(SubtaskInfo {
             id: self.subtask_id,
+            name: None,
             description,
             max_score: score,
             testcases: HashMap::new(),

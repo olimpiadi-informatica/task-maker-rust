@@ -1,3 +1,4 @@
+pub mod add_solution_checks;
 pub mod booklet;
 pub mod clear;
 pub mod fuzz_checker;

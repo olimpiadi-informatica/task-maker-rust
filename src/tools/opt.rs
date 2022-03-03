@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use crate::{ExecutionOpt, FindTaskOpt, LoggerOpt, StorageOpt};
+use crate::{ExecutionOpt, FilterOpt, FindTaskOpt, LoggerOpt, StorageOpt, UIOpt};
 
 #[derive(StructOpt, Debug)]
 #[structopt(
@@ -42,6 +42,8 @@ pub enum Tool {
     Booklet(BookletOpt),
     /// Fuzz the checker of a task.
     FuzzChecker(FuzzCheckerOpt),
+    /// Add the @check comments to the solutions.
+    AddSolutionChecks(AddSolutionChecksOpt),
     /// Run the sandbox instead of the normal task-maker.
     ///
     /// This option is left as undocumented as it's not part of the public API.
@@ -177,11 +179,8 @@ pub struct BookletOpt {
     #[structopt(long = "max-depth", default_value = "3")]
     pub max_depth: u32,
 
-    /// Which UI to use, available UIs are: print, raw, curses, json.
-    ///
-    /// Note that the JSON api is not stable yet.
-    #[structopt(long = "ui", default_value = "curses")]
-    pub ui: task_maker_format::ui::UIType,
+    #[structopt(flatten)]
+    pub ui: UIOpt,
 
     #[structopt(flatten)]
     pub execution: ExecutionOpt,
@@ -244,4 +243,28 @@ pub struct FuzzCheckerOpt {
 
     #[structopt(flatten)]
     pub storage: StorageOpt,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct AddSolutionChecksOpt {
+    #[structopt(flatten)]
+    pub find_task: FindTaskOpt,
+
+    #[structopt(flatten)]
+    pub ui: UIOpt,
+
+    #[structopt(flatten)]
+    pub storage: StorageOpt,
+
+    #[structopt(flatten)]
+    pub filter: FilterOpt,
+
+    #[structopt(flatten)]
+    pub execution: ExecutionOpt,
+
+    /// Write the @check directly to the solution files.
+    ///
+    /// Warning: while this is generally safe, make sure to have a way of reverting the changes.
+    #[structopt(long, short)]
+    pub in_place: bool,
 }
