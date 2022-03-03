@@ -28,6 +28,10 @@ impl Language for LanguageShell {
         false
     }
 
+    fn inline_comment_prefix(&self) -> Option<&'static str> {
+        Some("#")
+    }
+
     fn custom_limits(&self, limits: &mut ExecutionLimits) {
         limits.nproc = None;
     }
