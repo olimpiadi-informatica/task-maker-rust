@@ -5,10 +5,11 @@ use task_maker_format::{find_task, EvaluationConfig};
 
 use crate::context::RuntimeContext;
 use crate::tools::opt::BookletOpt;
-use crate::ToolsSandboxRunner;
+use crate::{LoggerOpt, ToolsSandboxRunner};
 use std::path::{Path, PathBuf};
 
-pub fn main_booklet(opt: BookletOpt) -> Result<(), Error> {
+pub fn main_booklet(mut opt: BookletOpt, logger_opt: LoggerOpt) -> Result<(), Error> {
+    opt.ui.disable_if_needed(&logger_opt);
     let eval_config = EvaluationConfig {
         solution_filter: vec![],
         booklet_solutions: opt.booklet_solutions,

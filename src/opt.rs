@@ -198,16 +198,22 @@ impl Opt {
     }
 
     pub fn enable_log(&mut self) {
-        // configure the logger based on the verbosity level
+        self.logger.enable_log();
+        self.ui.disable_if_needed(&self.logger);
+    }
+}
+
+impl UIOpt {
+    /// Disable the Curses UI and fallback to PrintUI if verbose output is enabled.
+    pub fn disable_if_needed(&mut self, logger: &LoggerOpt) {
         let mut show_warning = false;
-        if self.logger.verbose > 0 {
-            if let task_maker_format::ui::UIType::Curses = self.ui.ui {
+        if logger.should_diable_curses() {
+            if let task_maker_format::ui::UIType::Curses = self.ui {
                 // warning deferred to after the logger has been initialized
                 show_warning = true;
-                self.ui.ui = task_maker_format::ui::UIType::Print;
+                self.ui = task_maker_format::ui::UIType::Print;
             }
         }
-        self.logger.enable_log();
         if show_warning {
             warn!("Do not combine -v with curses ui, bad things will happen! Fallback to print ui");
         }
@@ -249,6 +255,10 @@ impl LoggerOpt {
             .format_timestamp_nanos()
             .init();
         better_panic::install();
+    }
+
+    pub fn should_diable_curses(&self) -> bool {
+        self.verbose > 0
     }
 }
 

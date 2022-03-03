@@ -12,8 +12,13 @@ use task_maker_lang::LanguageManager;
 
 use crate::context::RuntimeContext;
 use crate::tools::opt::AddSolutionChecksOpt;
+use crate::LoggerOpt;
 
-pub fn main_add_solution_checks(opt: AddSolutionChecksOpt) -> Result<(), Error> {
+pub fn main_add_solution_checks(
+    mut opt: AddSolutionChecksOpt,
+    logger_opt: LoggerOpt,
+) -> Result<(), Error> {
+    opt.ui.disable_if_needed(&logger_opt);
     let eval_config = EvaluationConfig {
         solution_filter: vec![],
         booklet_solutions: false,

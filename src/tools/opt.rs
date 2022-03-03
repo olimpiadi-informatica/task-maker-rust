@@ -260,8 +260,5 @@ pub struct AddSolutionChecksOpt {
     pub solutions: Vec<String>,
 
     #[structopt(flatten)]
-    pub logger: LoggerOpt,
-
-    #[structopt(flatten)]
     pub execution: ExecutionOpt,
 }
