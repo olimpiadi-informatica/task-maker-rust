@@ -70,7 +70,7 @@ impl SanityCheck<IOITask> for SolutionsWithNoChecks {
         }
         if !solutions.is_empty() {
             eval.sender.send_warning(format!(
-                "The following solutions are missing the subtask checks: {}",
+                "The following solutions are missing the subtask checks: {} (try running task-maker-tools add-solution-checks)",
                 solutions.join(", ")
             ))?;
         }
