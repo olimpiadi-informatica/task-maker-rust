@@ -1,6 +1,7 @@
 use structopt::StructOpt;
 
 use task_maker_rust::error::NiceError;
+use task_maker_rust::tools::add_solution_checks::main_add_solution_checks;
 use task_maker_rust::tools::booklet::main_booklet;
 use task_maker_rust::tools::clear::main_clear;
 use task_maker_rust::tools::fuzz_checker::main_fuzz_checker;
@@ -28,6 +29,7 @@ fn main() {
         Tool::TaskInfo(opt) => main_task_info(opt),
         Tool::Booklet(opt) => main_booklet(opt),
         Tool::FuzzChecker(opt) => main_fuzz_checker(opt),
+        Tool::AddSolutionChecks(opt) => main_add_solution_checks(opt),
         Tool::InternalSandbox => return task_maker_rust::main_sandbox(),
     }
     .nice_unwrap()

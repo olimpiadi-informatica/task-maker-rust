@@ -1,9 +1,10 @@
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Error};
+use anyhow::{bail, Error};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -71,6 +72,8 @@ pub struct SolutionCheck {
 }
 
 impl SolutionCheck {
+    /// Create a new [`SolutionCheck`] with the given result, that targets all the subtasks matching
+    /// `pattern`.
     pub fn new(result: SolutionCheckResult, pattern: impl Into<String>) -> Self {
         Self {
             result,
@@ -94,23 +97,30 @@ pub enum SolutionCheckResult {
     RuntimeError,
 }
 
-impl SolutionCheckResult {
-    pub fn from_str(s: &str) -> Option<Self> {
+impl FromStr for SolutionCheckResult {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "accepted" => Some(Self::Accepted),
-            "wrong-answer" => Some(Self::WrongAnswer),
-            "time-limit-exceeded" => Some(Self::TimeLimitExceeded),
-            "memory-limit-exceeded" => Some(Self::MemoryLimitExceeded),
-            "runtime-error" => Some(Self::RuntimeError),
-            _ => None,
+            "accepted" => Ok(Self::Accepted),
+            "wrong-answer" => Ok(Self::WrongAnswer),
+            "time-limit-exceeded" => Ok(Self::TimeLimitExceeded),
+            "memory-limit-exceeded" => Ok(Self::MemoryLimitExceeded),
+            "runtime-error" => Ok(Self::RuntimeError),
+            _ => bail!("Invalid check name: @check-{}", s),
         }
     }
+}
 
-    /// Check if this result is valid with respect to the actual outcomes.
-    pub fn check(&self, outcomes: &[SolutionCheckResult]) -> bool {
+impl SolutionCheckResult {
+    /// Get the string representation of this [`SolutionCheckResult`], as used in @check rules.
+    pub fn as_str(&self) -> &'static str {
         match self {
-            SolutionCheckResult::Accepted => outcomes.iter().all(|o| o == self),
-            _ => outcomes.iter().any(|o| o == self),
+            SolutionCheckResult::Accepted => "accepted",
+            SolutionCheckResult::WrongAnswer => "wrong-answer",
+            SolutionCheckResult::TimeLimitExceeded => "time-limit-exceeded",
+            SolutionCheckResult::MemoryLimitExceeded => "memory-limit-exceeded",
+            SolutionCheckResult::RuntimeError => "runtime-error",
         }
     }
 
@@ -124,6 +134,14 @@ impl SolutionCheckResult {
             SolutionCheckResult::TimeLimitExceeded => "TLE",
             SolutionCheckResult::MemoryLimitExceeded => "MLE",
             SolutionCheckResult::RuntimeError => "RE",
+        }
+    }
+
+    /// Check if this result is valid with respect to the actual outcomes.
+    pub fn check(&self, outcomes: &[SolutionCheckResult]) -> bool {
+        match self {
+            SolutionCheckResult::Accepted => outcomes.iter().all(|o| o == self),
+            _ => outcomes.iter().any(|o| o == self),
         }
     }
 }
@@ -160,8 +178,7 @@ fn extract_check_list<P: AsRef<Path>>(path: P) -> Result<Vec<SolutionCheck>, Err
         let captures = EXTRACT_CHECKS.captures_iter(line).next();
         if let Some(captures) = captures {
             let result = &captures["result"];
-            let result = SolutionCheckResult::from_str(result)
-                .ok_or_else(|| anyhow!("Invalid check result: {}", result))?;
+            let result = SolutionCheckResult::from_str(result)?;
             let patterns = &captures["subtasks"];
             for pattern in split_patterns(patterns) {
                 checks.push(SolutionCheck::new(result, pattern));

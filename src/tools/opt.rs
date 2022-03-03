@@ -42,6 +42,8 @@ pub enum Tool {
     Booklet(BookletOpt),
     /// Fuzz the checker of a task.
     FuzzChecker(FuzzCheckerOpt),
+    /// Add the @check comments to the solutions.
+    AddSolutionChecks(AddSolutionChecksOpt),
     /// Run the sandbox instead of the normal task-maker.
     ///
     /// This option is left as undocumented as it's not part of the public API.
@@ -241,4 +243,25 @@ pub struct FuzzCheckerOpt {
 
     #[structopt(flatten)]
     pub storage: StorageOpt,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct AddSolutionChecksOpt {
+    #[structopt(flatten)]
+    pub find_task: FindTaskOpt,
+
+    #[structopt(flatten)]
+    pub ui: UIOpt,
+
+    #[structopt(flatten)]
+    pub storage: StorageOpt,
+
+    /// Add the checks only to these solutions.
+    pub solutions: Vec<String>,
+
+    #[structopt(flatten)]
+    pub logger: LoggerOpt,
+
+    #[structopt(flatten)]
+    pub execution: ExecutionOpt,
 }

@@ -26,40 +26,40 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// First step of the execution: take a task and build the Execution DAG. This needs setting the
 /// first configurations of the environment.
 pub struct RuntimeContext {
-    task: TaskFormat,
-    eval: EvaluationData,
-    ui_receiver: UIChannelReceiver,
-    sandbox_runner: ToolsSandboxRunner,
+    pub task: TaskFormat,
+    pub eval: EvaluationData,
+    pub ui_receiver: UIChannelReceiver,
+    pub sandbox_runner: ToolsSandboxRunner,
 }
 
 /// Second step: connect to an executor (either local or remote). This opens the local store and
 /// setups the local executor if necessary.
 pub struct ConnectedExecutor {
     // fields from RuntimeContext
-    task: TaskFormat,
-    eval: EvaluationData,
-    ui_receiver: UIChannelReceiver,
+    pub task: TaskFormat,
+    pub eval: EvaluationData,
+    pub ui_receiver: UIChannelReceiver,
 
     // new fields
-    file_store: Arc<FileStore>,
-    tx: ChannelSender<ExecutorClientMessage>,
-    rx: ChannelReceiver<ExecutorServerMessage>,
-    local_executor: Option<JoinHandle<Result<(), Error>>>,
+    pub file_store: Arc<FileStore>,
+    pub tx: ChannelSender<ExecutorClientMessage>,
+    pub rx: ChannelReceiver<ExecutorServerMessage>,
+    pub local_executor: Option<JoinHandle<Result<(), Error>>>,
 }
 
 /// Third step: start the UI thread.
 pub struct ConnectedExecutorWithUI {
     // fields from ConnectedExecutor
-    task: TaskFormat,
-    eval: EvaluationData,
-    file_store: Arc<FileStore>,
-    tx: ChannelSender<ExecutorClientMessage>,
-    rx: ChannelReceiver<ExecutorServerMessage>,
-    local_executor: Option<JoinHandle<Result<(), Error>>>,
+    pub task: TaskFormat,
+    pub eval: EvaluationData,
+    pub file_store: Arc<FileStore>,
+    pub tx: ChannelSender<ExecutorClientMessage>,
+    pub rx: ChannelReceiver<ExecutorServerMessage>,
+    pub local_executor: Option<JoinHandle<Result<(), Error>>>,
 
     // new fields
-    ui_thread: JoinHandle<()>,
-    client_sender: Arc<Mutex<Option<ChannelSender<ExecutorClientMessage>>>>,
+    pub ui_thread: JoinHandle<()>,
+    pub client_sender: Arc<Mutex<Option<ChannelSender<ExecutorClientMessage>>>>,
 }
 
 impl RuntimeContext {
