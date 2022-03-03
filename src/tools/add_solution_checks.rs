@@ -8,8 +8,8 @@ use anyhow::{bail, Context, Error};
 use itertools::Itertools;
 
 use task_maker_format::ioi::UIState;
-use task_maker_format::ui::{StdoutPrinter, UIStateT, BLUE};
-use task_maker_format::{cwriteln, EvaluationConfig, SolutionCheckResult, TaskFormat};
+use task_maker_format::ui::{StdoutPrinter, UIStateT, BLUE, YELLOW};
+use task_maker_format::{cwrite, cwriteln, EvaluationConfig, SolutionCheckResult, TaskFormat};
 use task_maker_lang::LanguageManager;
 
 use crate::context::RuntimeContext;
@@ -73,6 +73,7 @@ pub fn main_add_solution_checks(
     cwriteln!(printer, BLUE, "Solution checks");
     let ui_state = ui_state.lock().unwrap().take().unwrap();
     let mut skipped = vec![];
+    let mut changes_to_write = false;
     for solution_name in ui_state.solutions.keys() {
         let solution = &ui_state.solutions[solution_name];
         if solution.path.is_symlink() {
@@ -82,21 +83,30 @@ pub fn main_add_solution_checks(
             skipped.push(&solution.name);
             continue;
         }
-        process_solution(&ui_state, solution_name, opt.in_place);
+        let has_changes = process_solution(&ui_state, solution_name, opt.in_place);
+        if has_changes && !opt.in_place {
+            changes_to_write = true;
+        }
         println!();
     }
 
     if !skipped.is_empty() {
+        cwrite!(printer, YELLOW, "Warning");
         println!(
-            "These solutions already have at least one check, so they have been skipped: {}",
+            ": These solutions already have at least one check, so they have been skipped: {}",
             skipped.iter().join(", ")
         );
+    }
+    if changes_to_write {
+        cwrite!(printer, BLUE, "Note");
+        println!(": The comments above have not been written to the solution files. To do this automatically pass -i.");
     }
 
     Ok(())
 }
 
-fn process_solution(state: &UIState, solution_name: &Path, in_place: bool) {
+/// Generate (and add with in_place) the @check comments to this solution.
+fn process_solution(state: &UIState, solution_name: &Path, in_place: bool) -> bool {
     let solution = &state.solutions[solution_name];
     let language = LanguageManager::detect_language(solution_name);
 
@@ -104,7 +114,7 @@ fn process_solution(state: &UIState, solution_name: &Path, in_place: bool) {
         solution_results
     } else {
         println!("Solution '{}' not evaluated, skipping", solution.name);
-        return;
+        return false;
     };
 
     let mut checks: HashMap<_, Vec<_>> = HashMap::new();
@@ -123,7 +133,7 @@ fn process_solution(state: &UIState, solution_name: &Path, in_place: bool) {
                 "Solution '{}' not evaluated on all the testcases, skipping.",
                 solution.name
             );
-            return;
+            return false;
         }
         let testcase_results: HashSet<_> =
             testcase_results.into_iter().map(Option::unwrap).collect();
@@ -163,7 +173,7 @@ fn process_solution(state: &UIState, solution_name: &Path, in_place: bool) {
         })
         .collect_vec();
     println!("{}\n{}", solution.name, comments.iter().join("\n"));
-    if in_place {
+    if in_place && !comments.is_empty() {
         if let Err(e) = write_comments_to_file(&solution.path, &comments).with_context(|| {
             format!(
                 "Failed to write @check comments to '{}'",
@@ -173,6 +183,8 @@ fn process_solution(state: &UIState, solution_name: &Path, in_place: bool) {
             eprintln!("Error: {:?}", e);
         }
     }
+
+    !comments.is_empty()
 }
 
 fn write_comments_to_file(path: &Path, comments: &[String]) -> Result<(), Error> {
