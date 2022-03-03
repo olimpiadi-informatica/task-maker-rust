@@ -26,7 +26,7 @@ impl SanityCheck<IOITask> for MissingSubtaskNames {
         }
         if !missing_name.is_empty() {
             eval.sender.send_warning(format!(
-                "These subtasks are missing a name: {}",
+                "These subtasks are missing a name (use '#STNAME: name' in gen/GEN): {}",
                 missing_name.join(", ")
             ))?;
         }
