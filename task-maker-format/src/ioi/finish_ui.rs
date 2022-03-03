@@ -50,10 +50,10 @@ impl FinishUITrait<UIState> for FinishUI {
         if !state.evaluations.is_empty() {
             println!();
             ui.print_evaluations(state);
-            ui.print_summary(state);
             if state.task.subtasks.values().all(|st| st.name.is_some()) {
                 ui.print_subtask_checks_table(state);
             }
+            ui.print_summary(state);
         }
         FinishUIUtils::new(&mut ui.stream).print_warning_messages(&state.warnings);
         FinishUIUtils::new(&mut ui.stream).print_error_messages(&state.errors);
