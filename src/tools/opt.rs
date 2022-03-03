@@ -261,4 +261,10 @@ pub struct AddSolutionChecksOpt {
 
     #[structopt(flatten)]
     pub execution: ExecutionOpt,
+
+    /// Write the @check directly to the solution files.
+    ///
+    /// Warning: while this is generally safe, make sure to have a way of reverting the changes.
+    #[structopt(long, short)]
+    pub in_place: bool,
 }

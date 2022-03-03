@@ -1,4 +1,6 @@
 use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -80,7 +82,7 @@ pub fn main_add_solution_checks(
             skipped.push(&solution.name);
             continue;
         }
-        process_solution(&ui_state, solution_name);
+        process_solution(&ui_state, solution_name, opt.in_place);
         println!();
     }
 
@@ -94,7 +96,7 @@ pub fn main_add_solution_checks(
     Ok(())
 }
 
-fn process_solution(state: &UIState, solution_name: &Path) {
+fn process_solution(state: &UIState, solution_name: &Path, in_place: bool) {
     let solution = &state.solutions[solution_name];
     let language = LanguageManager::detect_language(solution_name);
 
@@ -161,4 +163,43 @@ fn process_solution(state: &UIState, solution_name: &Path) {
         })
         .collect_vec();
     println!("{}\n{}", solution.name, comments.iter().join("\n"));
+    if in_place {
+        if let Err(e) = write_comments_to_file(&solution.path, &comments).with_context(|| {
+            format!(
+                "Failed to write @check comments to '{}'",
+                solution.path.display()
+            )
+        }) {
+            eprintln!("Error: {:?}", e);
+        }
+    }
+}
+
+fn write_comments_to_file(path: &Path, comments: &[String]) -> Result<(), Error> {
+    let mut file =
+        File::open(path).with_context(|| format!("Failed to open '{}'", path.display()))?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)
+        .context("Failed to read solution content")?;
+    drop(file);
+
+    // If the source file starts with the shebang, we cannot simply add the comments at the
+    // beginning.
+    let insert_position = if content.starts_with("#!") {
+        content.find('\n').map(|n| n + 1).unwrap_or(0)
+    } else {
+        0
+    };
+
+    let comments = comments.iter().join("\n") + "\n";
+    content.insert_str(insert_position, &comments);
+
+    let mut file = File::options()
+        .write(true)
+        .open(path)
+        .with_context(|| format!("Failed to open '{}' for writing", path.display()))?;
+    file.write_all(content.as_bytes())
+        .context("Failed to write the source file content")?;
+    eprintln!("Written!");
+    Ok(())
 }
