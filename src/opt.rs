@@ -19,11 +19,8 @@ pub struct Opt {
     #[structopt(flatten)]
     pub find_task: FindTaskOpt,
 
-    /// Which UI to use, available UIs are: print, raw, curses, json.
-    ///
-    /// Note that the JSON api is not stable yet.
-    #[structopt(long = "ui", default_value = "curses")]
-    pub ui: task_maker_format::ui::UIType,
+    #[structopt(flatten)]
+    pub ui: UIOpt,
 
     /// Do not run in parallel time critical executions on the same machine
     #[structopt(long = "exclusive")]
@@ -89,6 +86,15 @@ pub struct FindTaskOpt {
     /// Look at most for this number of parents for searching the task
     #[structopt(long = "max-depth", default_value = "3")]
     pub max_depth: u32,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct UIOpt {
+    /// Which UI to use, available UIs are: print, raw, curses, json.
+    ///
+    /// Note that the JSON api is not stable yet.
+    #[structopt(long = "ui", default_value = "curses")]
+    pub ui: task_maker_format::ui::UIType,
 }
 
 #[derive(StructOpt, Debug, Clone)]
@@ -195,10 +201,10 @@ impl Opt {
         // configure the logger based on the verbosity level
         let mut show_warning = false;
         if self.logger.verbose > 0 {
-            if let task_maker_format::ui::UIType::Curses = self.ui {
+            if let task_maker_format::ui::UIType::Curses = self.ui.ui {
                 // warning deferred to after the logger has been initialized
                 show_warning = true;
-                self.ui = task_maker_format::ui::UIType::Print;
+                self.ui.ui = task_maker_format::ui::UIType::Print;
             }
         }
         self.logger.enable_log();

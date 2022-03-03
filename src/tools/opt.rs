@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use crate::{ExecutionOpt, FindTaskOpt, LoggerOpt, StorageOpt};
+use crate::{ExecutionOpt, FindTaskOpt, LoggerOpt, StorageOpt, UIOpt};
 
 #[derive(StructOpt, Debug)]
 #[structopt(
@@ -177,11 +177,8 @@ pub struct BookletOpt {
     #[structopt(long = "max-depth", default_value = "3")]
     pub max_depth: u32,
 
-    /// Which UI to use, available UIs are: print, raw, curses, json.
-    ///
-    /// Note that the JSON api is not stable yet.
-    #[structopt(long = "ui", default_value = "curses")]
-    pub ui: task_maker_format::ui::UIType,
+    #[structopt(flatten)]
+    pub ui: UIOpt,
 
     #[structopt(flatten)]
     pub execution: ExecutionOpt,

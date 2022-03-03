@@ -45,7 +45,7 @@ pub fn main_booklet(opt: BookletOpt) -> Result<(), Error> {
 
     // start the execution
     let executor = context.connect_executor(&opt.execution, &opt.storage)?;
-    let executor = executor.start_ui(&opt.ui, |ui, mex| ui.on_message(mex))?;
+    let executor = executor.start_ui(&opt.ui.ui, |ui, mex| ui.on_message(mex))?;
     executor.execute()?;
 
     Ok(())
