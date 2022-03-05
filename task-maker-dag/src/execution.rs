@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::Error;
-use boxfnonce::BoxFnOnce;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 use uuid::Uuid;
@@ -21,13 +20,13 @@ pub type ExecutionUuid = Uuid;
 pub type WorkerUuid = Uuid;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) starts.
-pub type OnStartCallback = BoxFnOnce<'static, (WorkerUuid,), Result<(), Error>>;
+pub type OnStartCallback = Box<dyn FnOnce(WorkerUuid) -> Result<(), Error> + 'static>;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) ends.
-pub type OnDoneCallback = BoxFnOnce<'static, (ExecutionResult,), Result<(), Error>>;
+pub type OnDoneCallback = Box<dyn FnOnce(ExecutionResult) -> Result<(), Error> + 'static>;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) is skipped.
-pub type OnSkipCallback = BoxFnOnce<'static, (), Result<(), Error>>;
+pub type OnSkipCallback = Box<dyn FnOnce() -> Result<(), Error> + 'static>;
 
 /// Type of the priority value of an `Execution`.
 pub type Priority = i64;

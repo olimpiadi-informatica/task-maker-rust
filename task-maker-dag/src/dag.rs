@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use anyhow::{bail, Context, Error};
-use boxfnonce::BoxFnOnce;
 use serde::{Deserialize, Serialize};
 
 use task_maker_store::*;
@@ -211,7 +210,7 @@ impl ExecutionDAG {
     where
         F: (FnOnce(Vec<u8>) -> Result<(), Error>) + 'static,
     {
-        self.file_callback(file.into()).get_content = Some((limit, BoxFnOnce::from(callback)));
+        self.file_callback(file.into()).get_content = Some((limit, Box::new(callback)));
     }
 
     /// Add a callback that will be called when the execution starts.
@@ -221,7 +220,7 @@ impl ExecutionDAG {
     {
         self.execution_callback(execution)
             .on_start
-            .push(BoxFnOnce::from(callback));
+            .push(Box::new(callback));
     }
 
     /// Add a callback that will be called when the execution ends.
@@ -231,7 +230,7 @@ impl ExecutionDAG {
     {
         self.execution_callback(execution)
             .on_done
-            .push(BoxFnOnce::from(callback));
+            .push(Box::new(callback));
     }
 
     /// Add a callback that will be called when the execution is skipped.
@@ -241,7 +240,7 @@ impl ExecutionDAG {
     {
         self.execution_callback(execution)
             .on_skip
-            .push(BoxFnOnce::from(callback));
+            .push(Box::new(callback));
     }
 
     /// Get a mutable reference to the config of this DAG.

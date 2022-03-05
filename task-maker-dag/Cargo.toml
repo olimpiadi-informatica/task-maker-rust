@@ -8,8 +8,6 @@ edition = "2018"
 task-maker-store = { path = "../task-maker-store" }
 # Serialization/Deserialization
 serde = { version = "1.0", features = ["derive"] }
-# Support for Box<FnOnce<...>>
-boxfnonce = "0.1"
 # UUID generation
 uuid = { version = "0.7", features = ["v4", "serde"] }
 # Generic error utilities

@@ -129,7 +129,7 @@ impl ExecutorClient {
                     info!("Execution {} started on {}", uuid, worker);
                     if let Some(callbacks) = dag.execution_callbacks().get_mut(&uuid) {
                         for callback in callbacks.on_start.drain(..) {
-                            if let Err(e) = callback.call(worker) {
+                            if let Err(e) = callback(worker) {
                                 warn!("Start callback for {} failed: {:?}", uuid, e);
                                 return Err(e);
                             }
@@ -140,7 +140,7 @@ impl ExecutorClient {
                     info!("Execution {} completed with {:?}", uuid, result);
                     if let Some(callbacks) = dag.execution_callbacks().get_mut(&uuid) {
                         for callback in callbacks.on_done.drain(..) {
-                            if let Err(e) = callback.call(result.clone()) {
+                            if let Err(e) = callback(result.clone()) {
                                 warn!("Done callback for {} failed: {:?}", uuid, e);
                                 return Err(e);
                             }
@@ -151,7 +151,7 @@ impl ExecutorClient {
                     info!("Execution {} skipped", uuid);
                     if let Some(callbacks) = dag.execution_callbacks().get_mut(&uuid) {
                         for callback in callbacks.on_skip.drain(..) {
-                            if let Err(e) = callback.call() {
+                            if let Err(e) = callback() {
                                 warn!("Skip callback for {} failed: {:?}", uuid, e);
                                 return Err(e);
                             }
@@ -433,8 +433,7 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
         }
 
         if let Some(get_content) = callback.get_content.take().map(|(_, f)| f) {
-            get_content
-                .call(buffer)
+            get_content(buffer)
                 .with_context(|| format!("get_content callback for file {} failed", uuid))?;
         }
     } else {

@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use anyhow::Error;
-use boxfnonce::BoxFnOnce;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 use uuid::Uuid;
@@ -11,7 +10,7 @@ use uuid::Uuid;
 pub type FileUuid = Uuid;
 
 /// Type of the callback called when a file is returned to the client.
-pub type GetContentCallback = BoxFnOnce<'static, (Vec<u8>,), Result<(), Error>>;
+pub type GetContentCallback = Box<dyn FnOnce(Vec<u8>) -> Result<(), Error> + 'static>;
 
 /// Where to write the file to with some other information.
 #[derive(Debug, Clone)]

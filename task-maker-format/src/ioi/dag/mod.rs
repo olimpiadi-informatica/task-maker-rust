@@ -356,7 +356,7 @@ mod tests {
             .unwrap();
         let callbacks = eval.dag.execution_callbacks().drain().next().unwrap().1;
         callbacks.on_done.into_iter().for_each(|cb| {
-            cb.call(ExecutionResult {
+            cb(ExecutionResult {
                 status: ExecutionStatus::Success,
                 was_killed: false,
                 was_cached: false,
@@ -394,7 +394,7 @@ mod tests {
             .unwrap();
         let callbacks = eval.dag.execution_callbacks().drain().next().unwrap().1;
         callbacks.on_done.into_iter().for_each(|cb| {
-            cb.call(ExecutionResult {
+            cb(ExecutionResult {
                 status: ExecutionStatus::ReturnCode(1),
                 was_killed: false,
                 was_cached: false,
@@ -462,18 +462,15 @@ mod tests {
         let group = eval.dag.data.execution_groups.values().next().unwrap();
         let exec = group.executions[0].uuid;
         let on_done = eval.dag.execution_callbacks().get_mut(&exec).unwrap();
-        on_done
-            .on_done
-            .remove(0)
-            .call(ExecutionResult {
-                status: ExecutionStatus::Success,
-                was_killed: false,
-                was_cached: false,
-                resources: Default::default(),
-                stdout: Some("1.0\n\n".into()),
-                stderr: Some("Ok!\n\n".into()),
-            })
-            .unwrap();
+        on_done.on_done.remove(0)(ExecutionResult {
+            status: ExecutionStatus::Success,
+            was_killed: false,
+            was_cached: false,
+            resources: Default::default(),
+            stdout: Some("1.0\n\n".into()),
+            stderr: Some("Ok!\n\n".into()),
+        })
+        .unwrap();
 
         assert!(cb_called.load(Ordering::Relaxed));
     }
@@ -503,18 +500,15 @@ mod tests {
         let group = eval.dag.data.execution_groups.values().next().unwrap();
         let exec = group.executions[0].uuid;
         let on_done = eval.dag.execution_callbacks().get_mut(&exec).unwrap();
-        on_done
-            .on_done
-            .remove(0)
-            .call(ExecutionResult {
-                status: ExecutionStatus::Success,
-                was_killed: false,
-                was_cached: false,
-                resources: Default::default(),
-                stdout: Some("0.0\n\n".into()),
-                stderr: Some("Ko!\n\n".into()),
-            })
-            .unwrap();
+        on_done.on_done.remove(0)(ExecutionResult {
+            status: ExecutionStatus::Success,
+            was_killed: false,
+            was_cached: false,
+            resources: Default::default(),
+            stdout: Some("0.0\n\n".into()),
+            stderr: Some("Ko!\n\n".into()),
+        })
+        .unwrap();
 
         assert!(cb_called.load(Ordering::Relaxed));
     }
@@ -537,19 +531,16 @@ mod tests {
         let group = eval.dag.data.execution_groups.values().next().unwrap();
         let exec = group.executions[0].uuid;
         let on_done = eval.dag.execution_callbacks().get_mut(&exec).unwrap();
-        let err = on_done
-            .on_done
-            .remove(0)
-            .call(ExecutionResult {
-                status: ExecutionStatus::Success,
-                was_killed: false,
-                was_cached: false,
-                resources: Default::default(),
-                stdout: Some(":<\n\n".into()),
-                stderr: Some("Ko!\n\n".into()),
-            })
-            .unwrap_err()
-            .to_string();
+        let err = on_done.on_done.remove(0)(ExecutionResult {
+            status: ExecutionStatus::Success,
+            was_killed: false,
+            was_cached: false,
+            resources: Default::default(),
+            stdout: Some(":<\n\n".into()),
+            stderr: Some("Ko!\n\n".into()),
+        })
+        .unwrap_err()
+        .to_string();
 
         assert!(err.contains("Invalid score"), "Wrong error: {}", err);
     }

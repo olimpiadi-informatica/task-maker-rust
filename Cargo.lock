@@ -263,12 +263,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "boxfnonce"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5988cb1d626264ac94100be357308f29ff7cbdd3b36bda27f450a4ee3f713426"
-
-[[package]]
 name = "bumpalo"
 version = "3.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1942,7 +1936,6 @@ version = "0.5.3"
 dependencies = [
  "anyhow",
  "approx 0.3.2",
- "boxfnonce",
  "serde",
  "task-maker-store",
  "tempdir",
