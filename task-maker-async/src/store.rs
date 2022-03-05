@@ -18,17 +18,20 @@ type HashData = Vec<u8>;
 
 const LEASE_LENGTH: Duration = Duration::from_secs(2);
 
-const CHUNK_SIZE: usize = 1 << 12;
+const CHUNK_SIZE: usize = 4 * 1024; // 4 KiB
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InputFileHash(HashData);
+/// Hash that uniquely identifies the *content* of a given file_set.
+pub type DataIdentificationHash = HashData;
 
-/// Two-level hash; the outer hash has information about all properties of a computation that are
+/// Hash that uniquely identifies a *variant* of a given file_set.
+pub type VariantIdentificationHash = HashData;
+
+/// Two-level hash; the outer hash has information about all properties of a fileset that are
 /// expected to change the result (such as outer hashes of inputs, or the command line). The inner
 /// hash takes care of properties of the computation that should not change the outputs, such as
 /// time and memory limits; it also includes the first hash.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
-pub struct ComputationHash(HashData, HashData);
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub struct FileSetHash(DataIdentificationHash, VariantIdentificationHash);
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone)]
 enum HandleMode {
@@ -36,8 +39,8 @@ enum HandleMode {
     Write,
 }
 
-type FileSetHandleId = usize;
-type FileHandleId = usize;
+pub type FileSetHandleId = usize;
+pub type FileHandleId = usize;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct FileSetHandle {
@@ -61,7 +64,7 @@ pub struct FileHandle {
 pub enum FileSetFile {
     /// Outcome for a computation, input file for an input file.
     MainFile,
-    /// Metadata about how the fileset was obtained.
+    /// Metadata about how the file_set was obtained.
     Metadata,
     /// Any auxiliary file that can be attached to the main input file. For now only used for
     /// outputs of computations.
@@ -83,34 +86,39 @@ pub enum FileReadingOutcome {
 pub trait Store {
     /// Used by the client to upload inputs to the DAG. Returns a writing handle if the input file is
     /// not present, or a reading handle if it is.
-    async fn create_or_open_input_file(hash: InputFileHash) -> Result<FileSetHandle, Error>;
+    async fn create_or_open_input_file(
+        hash: DataIdentificationHash,
+    ) -> Result<FileSetHandle, Error>;
 
     // Creating a computation is not a RPC.
 
-    /// Opens a computed fileset for reading. Creates a lease for the computation data that will prevent it
+    /// Opens a computed file_set for reading. Creates a lease for the computation data that will prevent it
     /// from being dropped. If the computation is not present, waits until it is created.
-    async fn open_computation(hash: ComputationHash) -> Result<FileSetHandle, Error>;
+    async fn open_computation(
+        computation: DataIdentificationHash,
+        variant: VariantIdentificationHash,
+    ) -> Result<FileSetHandle, Error>;
 
-    /// Opens a file inside a fileset. Waits for the file to be created if it doesn't exist yet and
-    /// the fileset handle is a reading handle, creates the file otherwise.
+    /// Opens a file inside a file_set. Waits for the file to be created if it doesn't exist yet and
+    /// the file_set handle is a reading handle, creates the file otherwise.
     /// Returns an error if the handle is invalid.
     async fn open_file(handle: FileSetHandle, file: FileSetFile) -> Result<FileHandle, Error>;
 
-    /// Appends data to a file in a fileset that is open for writing. Refreshes the writing lease.
+    /// Appends data to a file in a file_set that is open for writing. Refreshes the writing lease.
     async fn append_chunk(file: FileHandle, data: Vec<u8>) -> Result<(), Error>;
 
     /// Finalizes a FileSet handle in writing mode. Terminates the writing lease and returns a reading
-    /// lease for the same FileSet. If finalizing an input fileset, returns an error if the hash of
+    /// lease for the same FileSet. If finalizing an input file_set, returns an error if the hash of
     /// its MainFile is not correct.
-    async fn finalize_fileset(handle: FileSetHandle) -> Result<FileSetHandle, Error>;
+    async fn finalize_file_set(handle: FileSetHandle) -> Result<FileSetHandle, Error>;
 
     /// Tries to read from a file. Refreshes the corresponding lease.
     async fn read_chunk(file: FileHandle, offset: usize) -> Result<FileReadingOutcome, Error>;
 
-    /// Refreshes the lease for the given fileset.
-    /// It is guaranteed that the fileset will not be deleted while there's an outstanding lease
+    /// Refreshes the lease for the given file_set.
+    /// It is guaranteed that the file_set will not be deleted while there's an outstanding lease
     /// to it. It is an error to refresh a lease of a non-existent input.
-    async fn refresh_fileset_lease(handle: FileSetHandle) -> Result<(), Error>;
+    async fn refresh_file_set_lease(handle: FileSetHandle) -> Result<(), Error>;
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -128,12 +136,12 @@ struct FileSet {
     finalized: bool,
 }
 
-type FileSetVariants = HashMap<HashData, FileSet>;
+type FileSetVariants = HashMap<VariantIdentificationHash, FileSet>;
 
 #[derive(Debug)]
 struct FileSetHandleInfo {
-    outer_hash: HashData,
-    inner_hash: HashData,
+    outer_hash: DataIdentificationHash,
+    inner_hash: VariantIdentificationHash,
     expiration: Instant,
     mode: HandleMode,
     file_handles: HashMap<FileHandleId, FileSetFile>,
@@ -141,7 +149,7 @@ struct FileSetHandleInfo {
 }
 
 struct StoreServiceImpl {
-    filesets: HashMap<HashData, FileSetVariants>,
+    file_sets: HashMap<DataIdentificationHash, FileSetVariants>,
     file_set_handles: HashMap<FileSetHandleId, FileSetHandleInfo>,
     next_handle: FileSetHandleId,
 }
@@ -149,16 +157,16 @@ struct StoreServiceImpl {
 impl StoreServiceImpl {
     fn new() -> Self {
         StoreServiceImpl {
-            filesets: HashMap::new(),
+            file_sets: HashMap::new(),
             file_set_handles: HashMap::new(),
             next_handle: 0,
         }
     }
 
-    fn new_handle(&mut self, hash: ComputationHash, mode: HandleMode) -> FileSetHandle {
+    fn new_handle(&mut self, hash: FileSetHash, mode: HandleMode) -> FileSetHandle {
         let handle = self.next_handle;
         self.next_handle += 1;
-        let ComputationHash(outer_hash, inner_hash) = hash;
+        let FileSetHash(outer_hash, inner_hash) = hash;
         let handle_info = FileSetHandleInfo {
             outer_hash,
             inner_hash,
@@ -171,15 +179,15 @@ impl StoreServiceImpl {
         FileSetHandle { id: handle, mode }
     }
 
-    fn create_or_open_fileset(
+    fn create_or_open_file_set(
         &mut self,
-        hash: ComputationHash,
+        hash: FileSetHash,
         kind: FileSetKind,
     ) -> Result<FileSetHandle, Error> {
-        let outer_comp = self.filesets.entry(hash.0.clone()).or_default();
+        let outer_comp = self.file_sets.entry(hash.0.clone()).or_default();
         if let Some(file_set) = outer_comp.get(&hash.1) {
             if file_set.kind != kind {
-                return Err(Error::HashCollision(hash));
+                return Err(Error::HashCollision(hash.0));
             }
             Ok(self.new_handle(hash, HandleMode::Read))
         } else {
@@ -195,11 +203,12 @@ impl StoreServiceImpl {
         }
     }
 
+    /// Clear all the writing leases that have expired, removing the corresponding files.
     fn clear_expired_leases(&mut self) {
         let time = Instant::now();
         for info in self.file_set_handles.values() {
             if info.expiration < time && info.mode == HandleMode::Write {
-                self.filesets
+                self.file_sets
                     .get_mut(&info.outer_hash)
                     .unwrap()
                     .remove(&info.inner_hash);
@@ -229,13 +238,13 @@ impl StoreServiceImpl {
     }
 
     fn append_to_file(&mut self, file: FileHandle, mut data: Vec<u8>) {
-        let fileset_info = self.file_set_handles.get(&file.file_set_handle.id).unwrap();
-        let file_info = fileset_info.file_handles.get(&file.id).unwrap();
+        let file_set_info = self.file_set_handles.get(&file.file_set_handle.id).unwrap();
+        let file_info = file_set_info.file_handles.get(&file.id).unwrap();
         // TODO(veluca): update hash if appending to an input file.
-        self.filesets
-            .get_mut(&fileset_info.outer_hash)
+        self.file_sets
+            .get_mut(&file_set_info.outer_hash)
             .unwrap()
-            .get_mut(&fileset_info.inner_hash)
+            .get_mut(&file_set_info.inner_hash)
             .unwrap()
             .files
             .get_mut(file_info)
@@ -248,36 +257,36 @@ impl StoreServiceImpl {
         file_set_handle: FileSetHandle,
         file: FileSetFile,
     ) -> Result<FileHandle, Error> {
-        let fileset_info = self.file_set_handles.get_mut(&file_set_handle.id).unwrap();
-        let fileset_group = self.filesets.get_mut(&fileset_info.outer_hash);
-        if fileset_group.is_none() {
+        let file_set_info = self.file_set_handles.get_mut(&file_set_handle.id).unwrap();
+        let file_set_group = self.file_sets.get_mut(&file_set_info.outer_hash);
+        if file_set_group.is_none() {
             return Err(Error::FileSetDropped(file_set_handle.id));
         }
-        let fileset = fileset_group.unwrap().get_mut(&fileset_info.inner_hash);
-        if fileset.is_none() {
+        let file_set = file_set_group.unwrap().get_mut(&file_set_info.inner_hash);
+        if file_set.is_none() {
             return Err(Error::FileSetDropped(file_set_handle.id));
         }
-        let fileset = fileset.unwrap();
-        if !fileset.finalized && file_set_handle.mode == HandleMode::Read {
+        let file_set = file_set.unwrap();
+        if !file_set.finalized && file_set_handle.mode == HandleMode::Read {
             return Err(Error::NotImplemented(
-                "Opening a file for reading in a non-finalized fileset is not implemented".into(),
+                "Opening a file for reading in a non-finalized file_set is not implemented".into(),
             ));
         }
         // TODO(veluca): error out if trying to obtain a second writing handle to the same file.
-        if !fileset.files.contains_key(&file) {
+        if !file_set.files.contains_key(&file) {
             if file_set_handle.mode == HandleMode::Read {
                 return Err(Error::NonExistentFile(file, file_set_handle.id));
-            } else if fileset.kind == FileSetKind::InputFile
+            } else if file_set.kind == FileSetKind::InputFile
                 && matches!(file, FileSetFile::AuxiliaryFile(_))
             {
                 return Err(Error::InvalidFileForInput(file));
             } else {
-                fileset.files.insert(file.clone(), vec![]);
+                file_set.files.insert(file.clone(), vec![]);
             }
         }
-        let file_handle = fileset_info.next_handle;
-        fileset_info.next_handle += 1;
-        fileset_info.file_handles.insert(file_handle, file);
+        let file_handle = file_set_info.next_handle;
+        file_set_info.next_handle += 1;
+        file_set_info.file_handles.insert(file_handle, file);
         Ok(FileHandle {
             file_set_handle,
             id: file_handle,
@@ -289,23 +298,23 @@ impl StoreServiceImpl {
         file: FileHandle,
         offset: usize,
     ) -> Result<FileReadingOutcome, Error> {
-        let fileset_info = self.file_set_handles.get(&file.file_set_handle.id).unwrap();
-        let file_info = fileset_info.file_handles.get(&file.id).unwrap();
-        let fileset_group = self.filesets.get(&fileset_info.outer_hash);
-        if fileset_group.is_none() {
+        let file_set_info = self.file_set_handles.get(&file.file_set_handle.id).unwrap();
+        let file_info = file_set_info.file_handles.get(&file.id).unwrap();
+        let file_set_group = self.file_sets.get(&file_set_info.outer_hash);
+        if file_set_group.is_none() {
             return Ok(FileReadingOutcome::Dropped);
         }
-        let fileset = fileset_group.unwrap().get(&fileset_info.inner_hash);
-        if fileset.is_none() {
+        let file_set = file_set_group.unwrap().get(&file_set_info.inner_hash);
+        if file_set.is_none() {
             return Ok(FileReadingOutcome::Dropped);
         }
-        let fileset = fileset.unwrap();
-        if !fileset.finalized {
+        let file_set = file_set.unwrap();
+        if !file_set.finalized {
             return Err(Error::NotImplemented(
-                "Reading from a non-finalized fileset is not implemented".into(),
+                "Reading from a non-finalized file_set is not implemented".into(),
             ));
         }
-        let file = fileset.files.get(file_info).unwrap();
+        let file = file_set.files.get(file_info).unwrap();
         if file.len() <= offset {
             return Ok(FileReadingOutcome::EndOfFile);
         }
@@ -327,26 +336,32 @@ impl StoreService {
     /// a writing handle that the workers can use. It is an error to create a computation if
     /// another computation with the same hash already exists, even if it is temporary (i.e. not
     /// finalized).
-    pub fn create_computation(&self, hash: ComputationHash) -> Result<FileSetHandle, Error> {
+    pub fn create_computation(
+        &self,
+        computation: DataIdentificationHash,
+        variant: VariantIdentificationHash,
+    ) -> Result<FileSetHandle, Error> {
         let mut service = self.service.lock().unwrap();
-        let handle = service.create_or_open_fileset(hash.clone(), FileSetKind::Computation)?;
+        let hash = FileSetHash(computation.clone(), variant.clone());
+        let handle = service.create_or_open_file_set(hash, FileSetKind::Computation)?;
         if handle.is_writable() {
             Ok(handle)
         } else {
-            Err(Error::ComputationExists(hash))
+            Err(Error::ComputationExists(computation, variant))
         }
     }
 
-    /// Lists all the finalized computations that are similar to the given computation, i.e. for
-    /// which the first part of the hash matches.
-    pub fn similar_computations(&self, hash: ComputationHash) -> Vec<ComputationHash> {
+    /// Lists all the finalized variants of the given computation.
+    pub fn list_variants(
+        &self,
+        computation: DataIdentificationHash,
+    ) -> Vec<VariantIdentificationHash> {
         let service = self.service.lock().unwrap();
-        let hash_top = hash.0;
-        match service.filesets.get(&hash_top) {
+        match service.file_sets.get(&computation) {
             Some(variants) => variants
                 .iter()
                 .filter_map(|(k, v)| if v.finalized { Some(k) } else { None })
-                .map(|x| ComputationHash(hash_top.clone(), x.clone()))
+                .cloned()
                 .collect(),
             None => vec![],
         }
@@ -409,26 +424,24 @@ impl Store for StoreService {
     async fn create_or_open_input_file(
         self,
         context: Context,
-        hash: InputFileHash,
+        hash: DataIdentificationHash,
     ) -> Result<FileSetHandle, Error> {
         let mut service = self.service.lock().unwrap();
-        service.create_or_open_fileset(
-            ComputationHash(hash.0.clone(), hash.0),
-            FileSetKind::InputFile,
-        )
+        service.create_or_open_file_set(FileSetHash(hash.clone(), hash), FileSetKind::InputFile)
     }
 
     async fn open_computation(
         self,
         context: Context,
-        hash: ComputationHash,
+        computation: DataIdentificationHash,
+        variant: VariantIdentificationHash,
     ) -> Result<FileSetHandle, Error> {
         let has_comp = {
             let service = self.service.lock().unwrap();
             service
-                .filesets
-                .get(&hash.0)
-                .and_then(|x| x.get(&hash.1))
+                .file_sets
+                .get(&computation)
+                .and_then(|x| x.get(&variant))
                 .is_some()
         };
 
@@ -440,17 +453,17 @@ impl Store for StoreService {
 
         let mut service = self.service.lock().unwrap();
         let file_set = service
-            .filesets
-            .get(&hash.0)
-            .and_then(|x| x.get(&hash.1))
+            .file_sets
+            .get(&computation)
+            .and_then(|x| x.get(&variant))
             .unwrap();
         if file_set.kind != FileSetKind::Computation {
-            return Err(Error::HashCollision(hash));
+            return Err(Error::HashCollision(computation));
         }
-        Ok(service.new_handle(hash, HandleMode::Read))
+        Ok(service.new_handle(FileSetHash(computation, variant), HandleMode::Read))
     }
 
-    async fn finalize_fileset(
+    async fn finalize_file_set(
         self,
         context: Context,
         handle: FileSetHandle,
@@ -460,7 +473,7 @@ impl Store for StoreService {
         }
         let mut service = self.service.lock().unwrap();
         let service = &mut *service;
-        // TODO(veluca): we should verify the hash of the file if this is a fileset.
+        // TODO(veluca): we should verify the hash of the file if this is a file_set.
         {
             let entry = service.validate_and_refresh(handle)?;
             entry
@@ -470,7 +483,7 @@ impl Store for StoreService {
 
         let handle_info = service.file_set_handles.get(&handle.id).unwrap();
         service
-            .filesets
+            .file_sets
             .get_mut(&handle_info.outer_hash)
             .unwrap()
             .get_mut(&handle_info.inner_hash)
@@ -483,7 +496,7 @@ impl Store for StoreService {
         })
     }
 
-    async fn refresh_fileset_lease(
+    async fn refresh_file_set_lease(
         self,
         context: Context,
         handle: FileSetHandle,
@@ -565,7 +578,7 @@ mod test {
 
         let hash = get_hash("input1");
         let resp = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?;
         let_assert!(Ok(fileset_handle) = resp);
         check!(fileset_handle.is_writable());
@@ -585,13 +598,11 @@ mod test {
             let_assert!(Ok(()) = resp);
         }
 
-        let resp = client.finalize_fileset(context, fileset_handle).await?;
+        let resp = client.finalize_file_set(context, fileset_handle).await?;
         let_assert!(Ok(fileset_handle) = resp);
         check!(!fileset_handle.is_writable());
 
-        let resp = client
-            .create_or_open_input_file(context, InputFileHash(hash))
-            .await?;
+        let resp = client.create_or_open_input_file(context, hash).await?;
         let_assert!(Ok(fileset_handle2) = resp);
         check!(!fileset_handle2.is_writable());
 
@@ -619,8 +630,9 @@ mod test {
     async fn test_read_not_existent() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        let comp_hash = ComputationHash(hash.clone(), hash);
-        let write_handle = server.create_computation(comp_hash.clone()).unwrap();
+        let write_handle = server
+            .create_computation(hash.clone(), hash.clone())
+            .unwrap();
         let file = client
             .open_file(
                 context,
@@ -630,11 +642,14 @@ mod test {
             .await?
             .unwrap();
         client
-            .finalize_fileset(context, write_handle)
+            .finalize_file_set(context, write_handle)
             .await?
             .unwrap();
 
-        let read_handle = client.open_computation(context, comp_hash).await?.unwrap();
+        let read_handle = client
+            .open_computation(context, hash.clone(), hash)
+            .await?
+            .unwrap();
         check!(!read_handle.is_writable());
 
         let file = FileSetFile::AuxiliaryFile("lolnope".into());
@@ -649,7 +664,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
         let file = client
@@ -661,12 +676,12 @@ mod test {
             .await?
             .unwrap();
         client
-            .finalize_fileset(context, write_handle)
+            .finalize_file_set(context, write_handle)
             .await?
             .unwrap();
 
         let read_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
         check!(!read_handle.is_writable());
@@ -688,7 +703,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
         let file = client
@@ -706,20 +721,20 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
         client
-            .finalize_fileset(context, write_handle)
+            .finalize_file_set(context, write_handle)
             .await?
             .unwrap();
 
         let read_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
         check!(!read_handle.is_writable());
-        let resp = client.finalize_fileset(context, read_handle).await?;
+        let resp = client.finalize_file_set(context, read_handle).await?;
         let_assert!(Err(Error::FinalizeRead(_)) = resp);
         Ok(())
     }
@@ -729,7 +744,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash))
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
         let file = FileSetFile::AuxiliaryFile("file".into());
@@ -745,7 +760,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
         let file = client
@@ -781,12 +796,12 @@ mod test {
             expected.append(&mut chunk);
         }
         client
-            .finalize_fileset(context, write_handle)
+            .finalize_file_set(context, write_handle)
             .await?
             .unwrap();
 
         let read_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
         check!(!read_handle.is_writable());
@@ -820,11 +835,11 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
         let read_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash))
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
 
@@ -848,7 +863,7 @@ mod test {
         for _ in 0..4 {
             tokio::time::sleep(LEASE_LENGTH / 2).await;
             client
-                .refresh_fileset_lease(context, read_handle)
+                .refresh_file_set_lease(context, read_handle)
                 .await?
                 .unwrap();
         }
@@ -864,7 +879,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
 
@@ -884,11 +899,11 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
         let read_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
 
@@ -908,7 +923,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
         let file_w = client
@@ -934,7 +949,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
         client
@@ -942,12 +957,12 @@ mod test {
             .await?
             .unwrap();
         client
-            .finalize_fileset(context, write_handle)
+            .finalize_file_set(context, write_handle)
             .await?
             .unwrap();
 
         let read_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
         let file = client
@@ -969,14 +984,14 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
 
         tokio::time::sleep(LEASE_LENGTH * 2).await;
         // now the lease is expired
 
-        let resp = client.refresh_fileset_lease(context, write_handle).await?;
+        let resp = client.refresh_file_set_lease(context, write_handle).await?;
         let_assert!(Err(Error::UnknownHandle(_)) = resp);
 
         Ok(())
@@ -987,12 +1002,10 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let input_file_handle = client
-            .create_or_open_input_file(context, InputFileHash(hash.clone()))
+            .create_or_open_input_file(context, hash.clone())
             .await?
             .unwrap();
-        let resp = client
-            .open_computation(context, ComputationHash(hash.clone(), hash))
-            .await?;
+        let resp = client.open_computation(context, hash.clone(), hash).await?;
         let_assert!(Err(Error::HashCollision(_)) = resp);
 
         Ok(())
@@ -1003,11 +1016,9 @@ mod test {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
         server
-            .create_computation(ComputationHash(hash.clone(), hash.clone()))
+            .create_computation(hash.clone(), hash.clone())
             .unwrap();
-        let resp = client
-            .create_or_open_input_file(context, InputFileHash(hash))
-            .await?;
+        let resp = client.create_or_open_input_file(context, hash).await?;
         let_assert!(Err(Error::HashCollision(_)) = resp);
 
         Ok(())
@@ -1017,10 +1028,13 @@ mod test {
     async fn test_computation_exists() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        let comp_hash = ComputationHash(hash.clone(), hash);
-        server.create_computation(comp_hash.clone()).unwrap();
-        let resp = server.create_computation(comp_hash);
-        let_assert!(Err(Error::ComputationExists(hash)) = resp);
+        server
+            .create_computation(hash.clone(), hash.clone())
+            .unwrap();
+        let resp = server.create_computation(hash.clone(), hash.clone());
+        let_assert!(Err(Error::ComputationExists(hash1, hash2)) = resp);
+        assert!(hash1 == hash);
+        assert!(hash2 == hash);
 
         Ok(())
     }
@@ -1030,15 +1044,13 @@ mod test {
     async fn test_wait_computation_creation() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        let comp_hash = ComputationHash(hash.clone(), hash);
-
-        let mut fut = Box::pin(client.open_computation(context, comp_hash.clone()));
+        let mut fut = Box::pin(client.open_computation(context, hash.clone(), hash.clone()));
         select! {
             _ = tokio::time::sleep(Duration::from_millis(100)) => {},
             resp = &mut fut => panic!("should be waiting for the computation, but got: {:?}", resp),
         }
 
-        let comp = server.create_computation(comp_hash).unwrap();
+        let comp = server.create_computation(hash.clone(), hash).unwrap();
 
         select! {
             _ = tokio::time::sleep(Duration::from_millis(100)) => panic!("the computation should be ready now"),
@@ -1049,7 +1061,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_similar_computations() -> Result<(), RpcError> {
+    async fn test_list_variants() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let outer1 = get_hash("outer1");
         let outer2 = get_hash("outer2");
@@ -1058,28 +1070,23 @@ mod test {
         for outer in [&outer1, &outer2] {
             for inner in [&inner1, &inner2] {
                 let handle = server
-                    .create_computation(ComputationHash(outer.clone(), inner.clone()))
+                    .create_computation(outer.clone(), inner.clone())
                     .unwrap();
                 client
-                    .finalize_fileset(context, handle)
+                    .finalize_file_set(context, handle)
                     .await
                     .unwrap()
                     .unwrap();
             }
         }
 
-        let mut similar =
-            server.similar_computations(ComputationHash(outer1.clone(), inner1.clone()));
-        let mut expected = vec![
-            ComputationHash(outer1.clone(), inner1.clone()),
-            ComputationHash(outer1.clone(), inner2.clone()),
-        ];
+        let mut similar = server.list_variants(outer1.clone());
+        let mut expected = vec![inner1.clone(), inner2.clone()];
         similar.sort();
         expected.sort();
         assert!(similar == expected);
 
-        let similar =
-            server.similar_computations(ComputationHash(get_hash("lolnope"), get_hash("nope")));
+        let similar = server.list_variants(get_hash("lolnope"));
         assert!(similar.is_empty());
 
         Ok(())
