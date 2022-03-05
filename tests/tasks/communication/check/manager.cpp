@@ -12,10 +12,10 @@ int main(int argc, char **argv) {
     FILE *fin, *fifo_in1, *fifo_out1, *fifo_in2, *fifo_out2;
 
     fin = fopen("input.txt", "r");
-    fifo_in1 = fopen(argv[1], "w");
-    fifo_out1 = fopen(argv[2], "r");
-    fifo_in2 = fopen(argv[3], "w");
-    fifo_out2 = fopen(argv[4], "r");
+    fifo_in1 = fopen(argv[2], "w");
+    fifo_out1 = fopen(argv[1], "r");
+    fifo_in2 = fopen(argv[4], "w");
+    fifo_out2 = fopen(argv[3], "r");
 
     int a, b, c, res;
     assert(3 == fscanf(fin, "%d %d %d", &a, &b, &c));

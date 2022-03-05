@@ -255,19 +255,51 @@ impl Sandbox {
         Ok(())
     }
 
-    /// Path of the file where the standard output is written to.
+    /// Path of the file where the standard output is written to (in the host).
     pub fn stdout_path(&self) -> PathBuf {
-        self.data.lock().unwrap().path().join("stdout")
+        let data = self.data.lock().unwrap();
+        let sandbox_root = data.path();
+        if let Some(path) = &data.execution.stdout_redirect_path {
+            sandbox_root.join(path)
+        } else {
+            sandbox_root.join("stdout")
+        }
     }
 
-    /// Path of the file where the standard error is written to.
+    /// Path of the file where the standard error is written to (in the host).
     pub fn stderr_path(&self) -> PathBuf {
-        self.data.lock().unwrap().path().join("stderr")
+        let data = self.data.lock().unwrap();
+        let sandbox_root = data.path();
+        if let Some(path) = &data.execution.stderr_redirect_path {
+            sandbox_root.join(path)
+        } else {
+            sandbox_root.join("stderr")
+        }
     }
 
-    /// Path of the file where that output file is written to.
+    /// Path of the file where that output file is written to (in the host).
     pub fn output_path(&self, output: &Path) -> PathBuf {
         self.data.lock().unwrap().path().join("box").join(output)
+    }
+
+    /// Find the path in the host corresponding to the path in the sandbox provided.
+    fn sandbox_to_host_path(
+        &self,
+        path_in_sandbox: &Path,
+        boxdir: &Path,
+        fifo_dir: Option<&Path>,
+    ) -> PathBuf {
+        if let Some(fifo_dir) = fifo_dir {
+            if let Ok(path) = path_in_sandbox.strip_prefix(FIFO_SANDBOX_DIR) {
+                return fifo_dir.join(path);
+            }
+        }
+        match path_in_sandbox.strip_prefix("/") {
+            // Absolute path -> go the box root
+            Ok(path) => boxdir.join(path),
+            // Relative path -> go to the /box directory
+            Err(_) => self.box_root(boxdir).join(path_in_sandbox),
+        }
     }
 
     /// Directory to use inside the sandbox as the root for the evaluation.
@@ -301,17 +333,23 @@ impl Sandbox {
         // the box directory must be writable otherwise the output files cannot be written
         config.mount(boxdir.join("box"), &box_root, true);
         config.env("PATH", std::env::var("PATH").unwrap_or_default());
-        if execution.stdin.is_some() {
+        if let Some(path) = &execution.stdin_redirect_path {
+            config.stdin(self.sandbox_to_host_path(path, boxdir, fifo_dir.as_deref()));
+        } else if execution.stdin.is_some() {
             config.stdin(boxdir.join("stdin"));
         } else {
             config.stdin("/dev/null");
         }
-        if execution.stdout.is_some() {
+        if let Some(path) = &execution.stdout_redirect_path {
+            config.stdout(self.sandbox_to_host_path(path, boxdir, fifo_dir.as_deref()));
+        } else if execution.stdout.is_some() {
             config.stdout(boxdir.join("stdout"));
         } else {
             config.stdout("/dev/null");
         }
-        if execution.stderr.is_some() {
+        if let Some(path) = &execution.stderr_redirect_path {
+            config.stderr(self.sandbox_to_host_path(path, boxdir, fifo_dir.as_deref()));
+        } else if execution.stderr.is_some() {
             config.stderr(boxdir.join("stderr"));
         } else {
             config.stderr("/dev/null");

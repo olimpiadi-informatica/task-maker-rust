@@ -33,18 +33,24 @@ pub use detect_format::find_task;
 pub use sanity_checks::get_sanity_check_names;
 pub use source_file::SourceFile;
 pub use tag::{Tag, VALID_TAGS};
+pub use task_format::*;
 use task_maker_dag::ExecutionDAG;
 use task_maker_lang::{GraderMap, LanguageManager};
 
 use crate::ioi::task_info::IOITaskInfo;
-use crate::terry::Seed;
+use crate::ioi::IOITask;
+use crate::solution::Solution;
+pub use crate::solution::*;
+use crate::terry::{Seed, TerryTask};
 use crate::ui::UI;
 
 mod detect_format;
 pub mod ioi;
 mod sanity_checks;
+mod solution;
 mod source_file;
 mod tag;
+mod task_format;
 pub mod terry;
 pub mod ui;
 
@@ -61,29 +67,6 @@ lazy_static! {
                 .join("data")
         }
     };
-}
-
-/// Trait that defines the capabilities of a task format, providing a UI and the parsing and
-/// execution abilities.
-pub trait TaskFormat {
-    /// Get the root directory of the task.
-    fn path(&self) -> &Path;
-
-    /// Get an appropriate `UI` for this task.
-    fn ui(&self, ui_type: &ui::UIType) -> Result<Box<dyn UI>, Error>;
-
-    /// Add the executions required for evaluating this task to the execution DAG.
-    fn build_dag(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error>;
-
-    /// Hook called after the execution completed, useful for sending messages to the UI about the
-    /// results of the sanity checks with data available only after the evaluation.
-    fn sanity_check_post_hook(&self, ui: &mut ui::UIMessageSender) -> Result<(), Error>;
-
-    /// Clean the task folder removing the files that can be generated automatically.
-    fn clean(&self) -> Result<(), Error>;
-
-    /// Get task information
-    fn task_info(&self) -> Result<TaskInfo, Error>;
 }
 
 /// Information about a parsed task, returned with the `--task-info` option.
@@ -122,6 +105,8 @@ pub struct EvaluationData {
     pub task_root: PathBuf,
     /// The DAG with the evaluation data.
     pub dag: ExecutionDAG,
+    /// The list of solutions to evaluate.
+    pub solutions: Vec<Solution>,
     /// The sender of the UI.
     pub sender: Arc<Mutex<ui::UIMessageSender>>,
 }
@@ -134,6 +119,7 @@ impl EvaluationData {
             EvaluationData {
                 task_root: task_root.into(),
                 dag: ExecutionDAG::new(),
+                solutions: Default::default(),
                 sender: Arc::new(Mutex::new(sender)),
             },
             receiver,
@@ -145,6 +131,20 @@ impl EvaluationData {
 pub trait UISender {
     /// Send that `UIMessage` to the UI.
     fn send(&self, message: ui::UIMessage) -> Result<(), Error>;
+
+    /// Send a warning to the UI.
+    fn send_warning(&self, message: impl Into<String>) -> Result<(), Error> {
+        self.send(ui::UIMessage::Warning {
+            message: message.into(),
+        })
+    }
+
+    /// Send an error to the UI.
+    fn send_error(&self, message: impl Into<String>) -> Result<(), Error> {
+        self.send(ui::UIMessage::Error {
+            message: message.into(),
+        })
+    }
 }
 
 /// Implement `.send(message)` for `Mutex<UIMessageSender>` in order to do
@@ -189,12 +189,13 @@ impl EvaluationConfig {
     /// If the configuration is set with a filter, it is applied.
     ///
     /// If the configuration is set to evaluate only some solutions, it is applied.
-    pub fn filter_solutions(
+    pub fn find_solutions(
         &self,
         base_dir: &Path,
         patterns: Vec<&str>,
         grader_map: Option<Arc<GraderMap>>,
-    ) -> Vec<SourceFile> {
+        eval: &mut EvaluationData,
+    ) -> Vec<Solution> {
         let solutions_paths = self.solution_paths(base_dir, patterns);
         let filter = self.solution_filters();
         let graders: HashSet<PathBuf> = if let Some(grader_map) = &grader_map {
@@ -215,14 +216,7 @@ impl EvaluationConfig {
                     .iter()
                     .any(|filter| name.starts_with(filter.as_str()))
             })
-            .map(|p| {
-                let write_to = base_dir
-                    .join("bin")
-                    .join("sol")
-                    .join(p.file_name().unwrap());
-                SourceFile::new(p, base_dir, grader_map.clone(), Some(write_to))
-            })
-            .flatten()
+            .filter_map(|path| Solution::new(&path, base_dir, grader_map.clone(), eval))
             .collect()
     }
 }
@@ -243,29 +237,48 @@ pub(crate) fn list_files<P: AsRef<Path>, S: AsRef<str>>(cwd: P, patterns: Vec<S>
     results
 }
 
+/// Information about where to write the binary of the `SourceFile` found by `find_source_file`.
+pub enum WriteBinTo {
+    /// Do not write the binary anywhere.
+    None,
+    /// Write the binary to a file in the same place as the source file, but without extension.
+    WithoutExtension,
+    /// Write the binary to this path, relative to the base path.
+    Path(PathBuf),
+}
+
+impl WriteBinTo {
+    /// Make a `WriteBinTo::Path`.
+    pub fn path<P: Into<PathBuf>>(path: P) -> Self {
+        Self::Path(path.into())
+    }
+}
+
 /// Make a `SourceFile` with each file that match the patterns provided, that is in a recognised
 /// language.
 pub(crate) fn find_source_file<
-    P: AsRef<Path>,
-    S: AsRef<str>,
-    P2: Into<PathBuf>,
-    P3: Into<PathBuf>,
+    CwdPath: AsRef<Path>,
+    Pattern: AsRef<str>,
+    BasePath: Into<PathBuf>,
 >(
-    cwd: P,
-    patterns: Vec<S>,
-    base_path: P3,
+    cwd: CwdPath,
+    patterns: Vec<Pattern>,
+    base_path: BasePath,
     grader_map: Option<Arc<GraderMap>>,
-    write_bin_to: Option<P2>,
+    write_bin_to: WriteBinTo,
 ) -> Vec<SourceFile> {
     let mut result = vec![];
     let base_path = base_path.into();
-    let write_bin_to = write_bin_to.map(|p| p.into());
     for path in list_files(cwd, patterns) {
         if path.exists() && LanguageManager::detect_language(&path).is_some() {
+            let write_bin_to = match &write_bin_to {
+                WriteBinTo::None => None,
+                WriteBinTo::WithoutExtension => Some(path.with_extension("")),
+                WriteBinTo::Path(path) => Some(base_path.join(path)),
+            };
             // SourceFile::new may fail if the language is unknown
             result.push(
-                SourceFile::new(&path, &base_path, grader_map.clone(), write_bin_to.clone())
-                    .unwrap(),
+                SourceFile::new(&path, &base_path, grader_map.clone(), write_bin_to).unwrap(),
             );
         }
     }
@@ -368,7 +381,7 @@ mod tests {
             vec!["foo/bar/*.py"],
             "",
             None,
-            None::<PathBuf>,
+            WriteBinTo::None,
         );
         assert_eq!(source.len(), 1);
         let source = source.pop().unwrap();
@@ -381,7 +394,7 @@ mod tests {
         std::fs::create_dir_all(tmpdir.path().join("foo")).unwrap();
         std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
         std::fs::write(tmpdir.path().join("foo/zzz.py"), "x").unwrap();
-        let source = find_source_file(tmpdir.path(), vec!["foo/*.py"], "", None, None::<PathBuf>);
+        let source = find_source_file(tmpdir.path(), vec!["foo/*.py"], "", None, WriteBinTo::None);
         assert_eq!(source.len(), 2);
     }
 
@@ -395,7 +408,7 @@ mod tests {
             vec!["foo/bar/*.py"],
             "",
             None,
-            None::<PathBuf>,
+            WriteBinTo::None,
         );
         assert!(source.is_empty());
     }

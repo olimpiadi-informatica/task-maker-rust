@@ -6,6 +6,7 @@ use task_maker_dag::*;
 use task_maker_exec::ExecutorStatus;
 
 use crate::ioi::*;
+use crate::solution::{SolutionCheck, SolutionCheckResult, SolutionInfo};
 use crate::ui::{CompilationStatus, UIExecutionStatus, UIMessage, UIStateT};
 
 /// Status of the generation of a testcase input and output.
@@ -62,6 +63,28 @@ pub enum TestcaseEvaluationStatus {
     Skipped,
 }
 
+impl From<&TestcaseEvaluationStatus> for Option<SolutionCheckResult> {
+    fn from(status: &TestcaseEvaluationStatus) -> Self {
+        match status {
+            TestcaseEvaluationStatus::Accepted(_) => Some(SolutionCheckResult::Accepted),
+            TestcaseEvaluationStatus::Partial(_) | TestcaseEvaluationStatus::WrongAnswer(_) => {
+                Some(SolutionCheckResult::WrongAnswer)
+            }
+            TestcaseEvaluationStatus::TimeLimitExceeded => {
+                Some(SolutionCheckResult::TimeLimitExceeded)
+            }
+            TestcaseEvaluationStatus::WallTimeLimitExceeded => {
+                Some(SolutionCheckResult::TimeLimitExceeded)
+            }
+            TestcaseEvaluationStatus::MemoryLimitExceeded => {
+                Some(SolutionCheckResult::MemoryLimitExceeded)
+            }
+            TestcaseEvaluationStatus::RuntimeError => Some(SolutionCheckResult::RuntimeError),
+            _ => None,
+        }
+    }
+}
+
 /// State of the generation of a testcases.
 #[derive(Debug, Clone)]
 pub struct TestcaseGenerationState {
@@ -93,6 +116,47 @@ pub struct SolutionTestcaseEvaluationState {
     pub results: Vec<Option<ExecutionResult>>,
     /// The result of the checker.
     pub checker: Option<ExecutionResult>,
+}
+
+impl SolutionTestcaseEvaluationState {
+    /// Checks whether the resources used by a solution on a testcase are close to the limits of
+    /// time or memory.
+    ///
+    /// The time 't' is close to the limit TL if:
+    ///   TL * threshold <= t <= TL / threshold  &&  t <= ceil(TL + extra time) - 0.1s
+    ///
+    /// The second condition guards against a value of extra time too small, which would mark every
+    /// TLE as "close to the limits".
+    ///
+    /// Memory limit is in MiB.
+    pub fn is_close_to_limits(
+        &self,
+        time_limit: Option<f64>,
+        extra_time: f64,
+        memory_limit: Option<u64>,
+        threshold: f64,
+    ) -> bool {
+        for result in self.results.iter().flatten() {
+            let resources = &result.resources;
+            if let Some(time_limit) = time_limit {
+                let lower_bound = time_limit * threshold;
+                let upper_bound = time_limit / threshold;
+                if lower_bound <= resources.cpu_time
+                    && resources.cpu_time <= upper_bound
+                    && resources.cpu_time <= (time_limit + extra_time).ceil() - 0.1
+                {
+                    return true;
+                }
+            }
+            if let Some(memory_limit) = memory_limit {
+                if resources.memory as f64 >= memory_limit as f64 * 1024.0 * threshold {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
 }
 
 /// State of the evaluation of a subtask.
@@ -173,8 +237,12 @@ pub struct BookletState {
 pub struct UIState {
     /// The task.
     pub task: IOITask,
+    /// The configuration of this evaluation.
+    pub config: ExecutionDAGConfig,
     /// The maximum score of this task.
     pub max_score: f64,
+    /// The set of solutions that will be evaluated.
+    pub solutions: HashMap<PathBuf, SolutionInfo>,
     /// The status of the compilations.
     pub compilations: HashMap<PathBuf, CompilationStatus>,
     /// The state of the generation of the testcases.
@@ -187,6 +255,8 @@ pub struct UIState {
     pub booklets: HashMap<String, BookletState>,
     /// All the emitted warnings.
     pub warnings: Vec<String>,
+    /// All the emitted errors.
+    pub errors: Vec<String>,
 }
 
 impl TestcaseEvaluationStatus {
@@ -250,9 +320,22 @@ impl TestcaseEvaluationStatus {
     }
 }
 
+/// The outcome of the execution of a check on a subtask.
+#[derive(Clone, Debug)]
+pub struct SolutionCheckOutcome {
+    /// The path of the solution.
+    pub solution: PathBuf,
+    /// The check that originated this outcome.
+    pub check: SolutionCheck,
+    /// The id of the subtask this outcome refers to.
+    pub subtask_id: SubtaskId,
+    /// Whether the check was successful or not.
+    pub success: bool,
+}
+
 impl UIState {
     /// Make a new `UIState`.
-    pub fn new(task: &IOITask) -> UIState {
+    pub fn new(task: &IOITask, config: ExecutionDAGConfig) -> UIState {
         let generations = task
             .subtasks
             .iter()
@@ -280,31 +363,77 @@ impl UIState {
             })
             .collect();
         UIState {
+            config,
             max_score: task.subtasks.values().map(|s| s.max_score).sum(),
             task: task.clone(),
+            solutions: HashMap::new(),
             compilations: HashMap::new(),
             generations,
             evaluations: HashMap::new(),
             executor_status: None,
             booklets: HashMap::new(),
             warnings: Vec::new(),
+            errors: Vec::new(),
         }
+    }
+
+    /// Evaluate the checks of all the solutions.
+    ///
+    /// This function should be called only after all the executions have completed.
+    pub fn run_solution_checks(&self) -> Vec<SolutionCheckOutcome> {
+        let mut result = vec![];
+        for (path, solution) in self.solutions.iter() {
+            for check in solution.checks.iter() {
+                let subtasks = self
+                    .task
+                    .find_subtasks_by_pattern_name(&check.subtask_name_pattern);
+                for subtask in subtasks {
+                    let solution_result = self.evaluations.get(path);
+                    // The solution was not run on this subtask.
+                    if solution_result.is_none() {
+                        continue;
+                    }
+                    let solution_result = solution_result.unwrap();
+                    let subtask_result = &solution_result.subtasks[&subtask.id];
+                    let testcase_results: Vec<Option<SolutionCheckResult>> = subtask_result
+                        .testcases
+                        .values()
+                        .map(|testcase| (&testcase.status).into())
+                        .collect_vec();
+                    // Not all the testcase results are valid.
+                    if testcase_results.iter().any(Option::is_none) {
+                        continue;
+                    }
+                    let testcase_results = testcase_results
+                        .into_iter()
+                        .map(Option::unwrap)
+                        .collect_vec();
+                    let success = check.result.check(&testcase_results);
+                    result.push(SolutionCheckOutcome {
+                        solution: path.clone(),
+                        check: check.clone(),
+                        subtask_id: subtask.id,
+                        success,
+                    })
+                }
+            }
+        }
+        result
     }
 }
 
 impl UIStateT for UIState {
-    fn from(message: &UIMessage) -> Self {
-        match message {
-            UIMessage::IOITask { task } => Self::new(task.as_ref()),
-            _ => unreachable!("Expecting IOITask, got {:?}", message),
-        }
-    }
-
     /// Apply a `UIMessage` to this state.
     fn apply(&mut self, message: UIMessage) {
         match message {
             UIMessage::StopUI => {}
             UIMessage::ServerStatus { status } => self.executor_status = Some(status),
+            UIMessage::Solutions { solutions } => {
+                self.solutions = solutions
+                    .into_iter()
+                    .map(|info| (info.path.clone(), info))
+                    .collect()
+            }
             UIMessage::Compilation { file, status } => self
                 .compilations
                 .entry(file)
@@ -579,6 +708,9 @@ impl UIStateT for UIState {
             }
             UIMessage::Warning { message } => {
                 self.warnings.push(message);
+            }
+            UIMessage::Error { message } => {
+                self.errors.push(message);
             }
             UIMessage::TerryTask { .. }
             | UIMessage::TerryGeneration { .. }

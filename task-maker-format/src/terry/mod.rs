@@ -4,21 +4,22 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Error;
+use itertools::Itertools;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
 pub use task_info::*;
+use task_maker_dag::ExecutionDAGConfig;
 
 use crate::sanity_checks::SanityChecks;
+use crate::solution::SolutionInfo;
 use crate::terry::curses_ui::CursesUI;
 use crate::terry::dag::{Checker, InputGenerator, InputValidator, Solution};
 use crate::terry::format::parse_task;
 use crate::terry::ui_state::UIState;
-use crate::ui::{JsonUI, PrintUI, RawUI, SilentUI, UIMessage, UIMessageSender, UIType, UI};
-use crate::{
-    list_files, EvaluationConfig, EvaluationData, SourceFile, TaskFormat, TaskInfo, UISender,
-};
+use crate::ui::{JsonUI, PrintUI, RawUI, SilentUI, UIMessage, UIType, UI};
+use crate::{list_files, EvaluationConfig, EvaluationData, SourceFile, TaskInfo, UISender};
 
 mod curses_ui;
 mod dag;
@@ -145,29 +146,41 @@ impl TerryTask {
     pub fn is_valid<P: AsRef<Path>>(path: P) -> bool {
         path.as_ref().join("task.yaml").exists()
     }
-}
 
-impl TaskFormat for TerryTask {
-    fn path(&self) -> &Path {
+    /// Get the root directory of the task.
+    pub fn path(&self) -> &Path {
         &self.path
     }
 
-    fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
+    /// Get an appropriate `UI` for this task.
+    pub fn ui(&self, ui_type: &UIType, _config: ExecutionDAGConfig) -> Result<Box<dyn UI>, Error> {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),
             UIType::Json => Ok(Box::new(JsonUI::new())),
             UIType::Silent => Ok(Box::new(SilentUI::new())),
-            UIType::Print => Ok(Box::new(PrintUI::<UIState>::new())),
+            UIType::Print => Ok(Box::new(PrintUI::new(UIState::new(self)))),
             UIType::Curses => Ok(Box::new(CursesUI::new(UIState::new(self))?)),
         }
     }
 
-    fn build_dag(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error> {
+    /// Add the executions required for evaluating this task to the execution DAG.
+    pub fn build_dag(
+        &self,
+        eval: &mut EvaluationData,
+        config: &EvaluationConfig,
+    ) -> Result<(), Error> {
         eval.sender.send(UIMessage::TerryTask {
             task: Box::new(self.clone()),
         })?;
+        eval.solutions = config.find_solutions(&self.path, vec!["solutions/*"], None, eval);
         self.sanity_checks.pre_hook(self, eval)?;
-        let solutions = config.filter_solutions(&self.path, vec!["solutions/*"], None);
+
+        let solution_info = eval.solutions.iter().map(SolutionInfo::from).collect_vec();
+        eval.sender.send(UIMessage::Solutions {
+            solutions: solution_info,
+        })?;
+
+        let solutions = eval.solutions.clone();
         let mut rng = rand::thread_rng();
         for solution in solutions {
             let seed = if let Some(seed) = config.seed {
@@ -177,14 +190,14 @@ impl TaskFormat for TerryTask {
             };
             let input_file = self.generator.generate_and_bind(
                 eval,
-                &solution,
+                &solution.source_file,
                 seed,
                 self.official_solution.clone(),
             )?;
             let validation_file = if let Some(validator) = self.validator.as_ref() {
                 Some(validator.validate_and_bind(
                     eval,
-                    &solution,
+                    &solution.source_file,
                     input_file,
                     self.official_solution.clone(),
                 )?)
@@ -192,12 +205,12 @@ impl TaskFormat for TerryTask {
                 None
             };
             let output_file =
-                Solution::solve_and_bind(eval, &solution, input_file, validation_file)?;
+                Solution::solve_and_bind(eval, &solution.source_file, input_file, validation_file)?;
             let sender = eval.sender.clone();
-            let solution_path = solution.path.clone();
+            let solution_path = solution.source_file.path.clone();
             self.checker.check_and_bind(
                 eval,
-                &solution,
+                &solution.source_file,
                 input_file,
                 output_file,
                 self.official_solution.clone(),
@@ -212,11 +225,14 @@ impl TaskFormat for TerryTask {
         Ok(())
     }
 
-    fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
-        self.sanity_checks.post_hook(self, ui)
+    /// Hook called after the execution completed, useful for sending messages to the UI about the
+    /// results of the sanity checks with data available only after the evaluation.
+    pub fn sanity_check_post_hook(&self, eval: &mut EvaluationData) -> Result<(), Error> {
+        self.sanity_checks.post_hook(self, eval)
     }
 
-    fn clean(&self) -> Result<(), Error> {
+    /// Clean the task folder removing the files that can be generated automatically.
+    pub fn clean(&self) -> Result<(), Error> {
         let all_managers: HashSet<PathBuf> = list_files(&self.path, vec!["managers/*.*"])
             .iter()
             .map(|f| f.file_stem().unwrap().into())
@@ -242,7 +258,8 @@ impl TaskFormat for TerryTask {
         Ok(())
     }
 
-    fn task_info(&self) -> Result<TaskInfo, Error> {
+    /// Get the task information.
+    pub fn task_info(&self) -> Result<TaskInfo, Error> {
         Ok(TaskInfo::Terry(task_info::TerryTaskInfo::new(self)?))
     }
 }

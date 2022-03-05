@@ -38,6 +38,7 @@ where
             self.index = 1;
             return Some(TaskInputEntry::Subtask(SubtaskInfo {
                 id: 0,
+                name: None,
                 description: Some("Static testcases".into()),
                 max_score: 100.0,
                 testcases: HashMap::new(),

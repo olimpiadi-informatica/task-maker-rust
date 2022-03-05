@@ -4,7 +4,6 @@ use task_maker_dag::File;
 
 use crate::sanity_checks::SanityCheck;
 use crate::terry::TerryTask;
-use crate::ui::UIMessage;
 use crate::{list_files, EvaluationData, UISender, DATA_DIR};
 use std::path::Path;
 
@@ -38,9 +37,10 @@ impl SanityCheck<TerryTask> for FuzzChecker {
         let sender = eval.sender.clone();
         eval.dag.on_execution_done(&gen.uuid, move |res| {
             if !res.status.is_success() {
-                sender.send(UIMessage::Warning {
-                    message: format!("Failed to generate input for FuzzChecker: {:?}", res.status),
-                })?;
+                sender.send_error(format!(
+                    "Failed to generate input for FuzzChecker: {:?}",
+                    res.status
+                ))?;
             }
             Ok(())
         });
@@ -60,13 +60,11 @@ impl SanityCheck<TerryTask> for FuzzChecker {
                 task.official_solution.clone(),
                 move |outcome| {
                     if let Err(e) = outcome {
-                        sender.send(UIMessage::Warning {
-                            message: format!(
-                                "Checker failed on bad output {}: {}",
-                                name2.display(),
-                                e
-                            ),
-                        })?;
+                        sender.send_error(format!(
+                            "Checker failed on bad output {}: {}",
+                            name2.display(),
+                            e
+                        ))?;
                     }
                     Ok(())
                 },
@@ -75,13 +73,11 @@ impl SanityCheck<TerryTask> for FuzzChecker {
             let name2 = name.to_owned();
             eval.dag.on_execution_done(&check.uuid, move |res| {
                 if !res.status.is_success() {
-                    sender.send(UIMessage::Warning {
-                        message: format!(
-                            "Checker failed on bad output {}: {:?}",
-                            name2.display(),
-                            res.status
-                        ),
-                    })?;
+                    sender.send_error(format!(
+                        "Checker failed on bad output {}: {:?}",
+                        name2.display(),
+                        res.status
+                    ))?;
                 }
                 Ok(())
             });

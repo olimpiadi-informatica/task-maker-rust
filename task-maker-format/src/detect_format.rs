@@ -9,18 +9,18 @@ pub fn find_task<P: Into<PathBuf>>(
     base: P,
     max_depth: u32,
     eval_config: &EvaluationConfig,
-) -> Result<Box<dyn TaskFormat>> {
+) -> Result<TaskFormat> {
     let mut base = base.into();
     if !base.is_absolute() {
         base = getcwd().join(base);
     }
     let mut fails = vec![];
     for _ in 0..max_depth {
-        let mut task: Option<Box<dyn TaskFormat>> = None;
+        let mut task = None;
         // try to parse a IOI task
         if ioi::IOITask::is_valid(&base) {
             match ioi::IOITask::new(&base, eval_config) {
-                Ok(ioi_task) => task = Some(Box::new(ioi_task)),
+                Ok(ioi_task) => task = Some(ioi_task.into()),
                 Err(err) => fails.push(("IOI", base.clone(), err)),
             }
         }
@@ -31,7 +31,7 @@ pub fn find_task<P: Into<PathBuf>>(
                     if task.is_some() {
                         bail!("Ambiguous task directory, can be either IOI and terry")
                     }
-                    task = Some(Box::new(terry_task))
+                    task = Some(terry_task.into())
                 }
                 Err(err) => fails.push(("Terry", base.clone(), err)),
             }

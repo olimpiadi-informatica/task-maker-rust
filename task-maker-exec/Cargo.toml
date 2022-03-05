@@ -1,8 +1,8 @@
 [package]
 name = "task-maker-exec"
-version = "0.5.1"
+version = "0.5.3"
 authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 task-maker-dag = { path = "../task-maker-dag" }

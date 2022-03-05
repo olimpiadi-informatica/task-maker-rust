@@ -8,7 +8,7 @@ pub use booklet::*;
 pub use statement::*;
 
 use crate::ioi::IOITask;
-use crate::{list_files, EvaluationConfig, TaskFormat};
+use crate::{list_files, EvaluationConfig};
 
 mod asy;
 mod booklet;

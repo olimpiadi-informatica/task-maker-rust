@@ -82,8 +82,6 @@ impl ExecutorClient {
         trace!("ExecutorClient started");
         ExecutorClient::start_evaluation(&mut dag, &sender)?;
 
-        let provided_files = &dag.data.provided_files;
-
         // setup the status poller that will send to the server a Status message every
         // STATUS_POLL_INTERVAL_MS milliseconds.
         let done = Arc::new(AtomicBool::new(false));
@@ -108,6 +106,7 @@ impl ExecutorClient {
                     let _lock = file_mode
                         .lock()
                         .map_err(|_| anyhow!("Failed to obtain file_mode lock"))?;
+                    let provided_files = &dag.data.provided_files;
                     handle_server_ask_file(uuid, provided_files, &sender).with_context(|| {
                         format!("Failed to process AskFile({}) from the server", uuid)
                     })?;
@@ -118,19 +117,19 @@ impl ExecutorClient {
                         missing_files = Some(missing - 1);
                     }
                     let iterator = ChannelFileIterator::new(receiver);
-                    process_provided_file(&mut dag.file_callbacks, uuid, success, iterator, None)
+                    process_provided_file(dag.file_callbacks(), uuid, success, iterator, None)
                         .with_context(|| {
-                        format!(
-                            "Failed to process ProvideFile({}, {}) from the server",
-                            uuid, success
-                        )
-                    })?;
+                            format!(
+                                "Failed to process ProvideFile({}, {}) from the server",
+                                uuid, success
+                            )
+                        })?;
                 }
                 Ok(ExecutorServerMessage::NotifyStart(uuid, worker)) => {
                     info!("Execution {} started on {}", uuid, worker);
-                    if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
+                    if let Some(callbacks) = dag.execution_callbacks().get_mut(&uuid) {
                         for callback in callbacks.on_start.drain(..) {
-                            if let Err(e) = callback.call(worker) {
+                            if let Err(e) = callback(worker) {
                                 warn!("Start callback for {} failed: {:?}", uuid, e);
                                 return Err(e);
                             }
@@ -139,9 +138,9 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::NotifyDone(uuid, result)) => {
                     info!("Execution {} completed with {:?}", uuid, result);
-                    if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
+                    if let Some(callbacks) = dag.execution_callbacks().get_mut(&uuid) {
                         for callback in callbacks.on_done.drain(..) {
-                            if let Err(e) = callback.call(result.clone()) {
+                            if let Err(e) = callback(result.clone()) {
                                 warn!("Done callback for {} failed: {:?}", uuid, e);
                                 return Err(e);
                             }
@@ -150,9 +149,9 @@ impl ExecutorClient {
                 }
                 Ok(ExecutorServerMessage::NotifySkip(uuid)) => {
                     info!("Execution {} skipped", uuid);
-                    if let Some(callbacks) = dag.execution_callbacks.get_mut(&uuid) {
+                    if let Some(callbacks) = dag.execution_callbacks().get_mut(&uuid) {
                         for callback in callbacks.on_skip.drain(..) {
-                            if let Err(e) = callback.call() {
+                            if let Err(e) = callback() {
                                 warn!("Skip callback for {} failed: {:?}", uuid, e);
                                 return Err(e);
                             }
@@ -184,7 +183,7 @@ impl ExecutorClient {
                                     )
                                 })?;
                             process_provided_file(
-                                &mut dag.file_callbacks,
+                                dag.file_callbacks(),
                                 uuid,
                                 success,
                                 iterator,
@@ -229,9 +228,9 @@ impl ExecutorClient {
     ) -> Result<(), Error> {
         // list all the files/executions that want callbacks
         let dag_callbacks = ExecutionDAGWatchSet {
-            executions: dag.execution_callbacks.keys().cloned().collect(),
-            files: dag.file_callbacks.keys().cloned().collect(),
-            urgent_files: dag.urgent_files.clone(),
+            executions: dag.execution_callbacks().keys().cloned().collect(),
+            files: dag.file_callbacks().keys().cloned().collect(),
+            urgent_files: dag.urgent_files().clone(),
         };
         for (uuid, file) in dag.data.provided_files.iter() {
             match file {
@@ -240,7 +239,7 @@ impl ExecutorClient {
                         format!("Failed to read local file: {}", local_path.display())
                     })?;
                     process_provided_file(
-                        &mut dag.file_callbacks,
+                        &mut dag.callbacks.as_mut().unwrap().file_callbacks,
                         *uuid,
                         true,
                         iterator,
@@ -250,7 +249,7 @@ impl ExecutorClient {
                 }
                 ProvidedFile::Content { content, .. } => {
                     process_provided_file(
-                        &mut dag.file_callbacks,
+                        &mut dag.callbacks.as_mut().unwrap().file_callbacks,
                         *uuid,
                         true,
                         vec![content.clone()],
@@ -434,8 +433,7 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
         }
 
         if let Some(get_content) = callback.get_content.take().map(|(_, f)| f) {
-            get_content
-                .call(buffer)
+            get_content(buffer)
                 .with_context(|| format!("get_content callback for file {} failed", uuid))?;
         }
     } else {

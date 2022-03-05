@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
+use termcolor::{ColorChoice, ColorSpec, StandardStream};
 
 use task_maker_dag::ExecutionStatus;
 
@@ -8,50 +8,24 @@ use crate::terry::CaseStatus;
 use crate::ui::*;
 
 lazy_static! {
-    static ref ERROR: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(Color::Red))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
-    static ref SUCCESS: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(Color::Green))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
-    static ref WARNING: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(Color::Yellow))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
-    static ref BOLD: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color.set_bold(true);
-        color
-    };
+    static ref ERROR: ColorSpec = RED.clone();
+    static ref SUCCESS: ColorSpec = GREEN.clone();
+    static ref WARNING: ColorSpec = YELLOW.clone();
 }
 
 /// A simple UI that will print to stdout the human readable messages. Useful
 /// for debugging or for when curses is not available.
 pub struct PrintUI<State: UIStateT> {
     stream: StandardStream,
-    state: Option<State>,
+    state: State,
 }
 
 impl<State: UIStateT> PrintUI<State> {
     /// Make a new PrintUI.
-    pub fn new() -> Self {
+    pub fn new(state: State) -> Self {
         PrintUI {
             stream: StandardStream::stdout(ColorChoice::Auto),
-            state: None,
+            state,
         }
     }
 
@@ -100,9 +74,7 @@ impl<State: UIStateT> PrintUI<State> {
 impl<State: UIStateT + Send> UI for PrintUI<State> {
     #[allow(clippy::cognitive_complexity)]
     fn on_message(&mut self, message: UIMessage) {
-        if let Some(state) = self.state.as_mut() {
-            state.apply(message.clone())
-        }
+        self.state.apply(message.clone());
         match message {
             UIMessage::StopUI => {}
             UIMessage::ServerStatus { status } => {
@@ -116,6 +88,12 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
                     } else {
                         println!(" - {} ({})", worker.name, worker.uuid);
                     }
+                }
+            }
+            UIMessage::Solutions { solutions } => {
+                println!("[SOLUTIONS] Solutions that will be evaluated:");
+                for solution in solutions {
+                    println!("  - {}", solution.path.display());
                 }
             }
             UIMessage::Compilation { file, status } => {
@@ -136,8 +114,6 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
                 }
             }
             UIMessage::IOITask { task } => {
-                self.state = Some(State::from(&UIMessage::IOITask { task: task.clone() }));
-
                 cwrite!(self, BOLD, "Task {} ({})\n", task.title, task.name);
                 println!("Path: {:?}", task.path);
                 println!("Subtasks");
@@ -290,9 +266,11 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
                 cwrite!(self, WARNING, "[WARNING] ");
                 print!("{}", message);
             }
-            UIMessage::TerryTask { task } => {
-                self.state = Some(State::from(&UIMessage::TerryTask { task }));
+            UIMessage::Error { message } => {
+                cwrite!(self, ERROR, "[ERROR]   ");
+                print!("{}", message);
             }
+            UIMessage::TerryTask { .. } => {}
             UIMessage::TerryGeneration {
                 solution,
                 seed,
@@ -372,14 +350,6 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
     fn finish(&mut self) {
         println!();
         println!();
-        if let Some(state) = self.state.as_mut() {
-            state.finish();
-        }
-    }
-}
-
-impl<State: UIStateT> Default for PrintUI<State> {
-    fn default() -> Self {
-        Self::new()
+        self.state.finish();
     }
 }

@@ -38,7 +38,7 @@ pub struct TestInterfaceSuccessful {
 impl TestInterface {
     pub fn run_local<P: Into<PathBuf>>(path: P) -> Self {
         let _ = env_logger::Builder::from_default_env()
-            .default_format_timestamp_nanos(true)
+            .format_timestamp_nanos()
             .is_test(true)
             .try_init();
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -55,7 +55,7 @@ impl TestInterface {
     /// Evaluate the task using a "remote" setup (spawning a local server and local workers).
     pub fn run_remote<P: Into<PathBuf>>(path: P) -> Self {
         let _ = env_logger::Builder::from_default_env()
-            .default_format_timestamp_nanos(true)
+            .format_timestamp_nanos()
             .is_test(true)
             .try_init();
         if !port_scanner::scan_port(27182) {
@@ -124,7 +124,6 @@ impl TestInterface {
         if !cache {
             args.push("--no-cache");
         }
-        args.push("--dry-run");
         args.push("-vv");
         let store_dir = format!("--store-dir={}", store_dir.to_string_lossy());
         args.push(&store_dir);
@@ -150,7 +149,7 @@ impl TestInterface {
             },
         )
         .unwrap();
-        let state = Arc::new(Mutex::new(UIState::new(&task)));
+        let state = Arc::new(Mutex::new(UIState::new(&task, Default::default())));
 
         let state2 = state.clone();
         let res = run_evaluation(opt, move |_, mex| state2.lock().unwrap().apply(mex));
@@ -518,6 +517,19 @@ impl TestInterfaceSuccessful {
             }
         }
         assert_eq!(id, fails.len(), "Too many testcases provided");
+        self
+    }
+
+    /// Check that a file is present in the task directory.
+    pub fn file_exists<P: AsRef<Path>>(self, path: P) -> Self {
+        let full_path = self.state.task.path.join(path.as_ref());
+        if !full_path.exists() {
+            panic!(
+                "File {} (at {}) does not exists",
+                path.as_ref().display(),
+                full_path.display()
+            );
+        }
         self
     }
 

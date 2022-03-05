@@ -1,4 +1,5 @@
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use itertools::Itertools;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
@@ -6,20 +7,21 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 use task_maker_dag::ExecutionStatus;
 
 use crate::ioi::ui_state::{SolutionEvaluationState, TestcaseEvaluationStatus, UIState};
-use crate::ioi::{SolutionTestcaseEvaluationState, TestcaseId};
+use crate::ioi::{SolutionCheckOutcome, SolutionTestcaseEvaluationState, SubtaskId, TestcaseId};
 use crate::ui::{
-    FinishUI as FinishUITrait, FinishUIUtils, UIExecutionStatus, BLUE, BOLD, GREEN, RED, YELLOW,
+    FinishUI as FinishUITrait, FinishUIUtils, UIExecutionStatus, BLUE, BOLD, GREEN, ORANGE, RED,
+    YELLOW,
 };
 use crate::{cwrite, cwriteln};
 
 /// Percentage threshold for showing a resource usage in bold for a solution. If the maximum
 /// cpu_time used by the solution among the testcases is X, all the cpu_time of that solution that
 /// are >= X*BOLD_RESOURCE_THRESHOLD will be shown in bold. Same for the memory usage.
-const BOLD_RESOURCE_THRESHOLD: f64 = 0.9;
+pub const BOLD_RESOURCE_THRESHOLD: f64 = 0.9;
 /// Percentage threshold for showing a resource usage in yellow for a solution. If the cpu_time of
 /// a solution is >= time limit of the task * YELLOW_RESOURCE_THRESHOLD, it is shown in yellow. Same
 /// for the memory usage.
-const YELLOW_RESOURCE_THRESHOLD: f64 = 0.6;
+pub const YELLOW_RESOURCE_THRESHOLD: f64 = 0.6;
 
 /// UI that prints to `stdout` the ending result of the evaluation of a IOI task.
 pub struct FinishUI {
@@ -48,9 +50,13 @@ impl FinishUITrait<UIState> for FinishUI {
         if !state.evaluations.is_empty() {
             println!();
             ui.print_evaluations(state);
+            if state.task.subtasks.values().all(|st| st.name.is_some()) {
+                ui.print_subtask_checks_table(state);
+            }
             ui.print_summary(state);
         }
-        FinishUIUtils::new(&mut ui.stream).print_messages(&state.warnings);
+        FinishUIUtils::new(&mut ui.stream).print_warning_messages(&state.warnings);
+        FinishUIUtils::new(&mut ui.stream).print_error_messages(&state.errors);
     }
 }
 
@@ -265,12 +271,12 @@ impl FinishUI {
                 let time_color = FinishUI::resource_color(
                     result.resources.cpu_time,
                     max_time * BOLD_RESOURCE_THRESHOLD,
-                    state.task.time_limit.unwrap_or(1.0 / 0.0) * YELLOW_RESOURCE_THRESHOLD,
+                    state.task.time_limit.unwrap_or(f64::INFINITY) * YELLOW_RESOURCE_THRESHOLD,
                 );
                 let memory_color = FinishUI::resource_color(
                     result.resources.memory as f64,
                     max_memory as f64 * BOLD_RESOURCE_THRESHOLD,
-                    state.task.memory_limit.unwrap_or(u64::max_value()) as f64
+                    state.task.memory_limit.unwrap_or(u64::MAX) as f64
                         * 1024.0
                         * YELLOW_RESOURCE_THRESHOLD,
                 );
@@ -347,16 +353,29 @@ impl FinishUI {
                 let normalized_score = subtask.normalized_score.unwrap_or(0.0);
                 let color = self.score_color(normalized_score);
                 cwrite!(self, color, "[");
+                let time_limit = state.task.time_limit;
+                let memory_limit = state.task.memory_limit;
+                let extra_time = state.config.extra_time;
                 for tc_num in subtask.testcases.keys().sorted() {
                     let testcase = &subtask.testcases[tc_num];
+                    let close_color = if testcase.is_close_to_limits(
+                        time_limit,
+                        extra_time,
+                        memory_limit,
+                        YELLOW_RESOURCE_THRESHOLD,
+                    ) {
+                        Some(&*ORANGE)
+                    } else {
+                        None
+                    };
                     use TestcaseEvaluationStatus::*;
                     match testcase.status {
-                        Accepted(_) => cwrite!(self, GREEN, "A"),
+                        Accepted(_) => cwrite!(self, close_color.unwrap_or(&*GREEN), "A"),
                         WrongAnswer(_) => cwrite!(self, RED, "W"),
-                        Partial(_) => cwrite!(self, YELLOW, "P"),
-                        TimeLimitExceeded => cwrite!(self, RED, "T"),
+                        Partial(_) => cwrite!(self, close_color.unwrap_or(&*YELLOW), "P"),
+                        TimeLimitExceeded => cwrite!(self, close_color.unwrap_or(&*RED), "T"),
                         WallTimeLimitExceeded => cwrite!(self, RED, "T"),
-                        MemoryLimitExceeded => cwrite!(self, RED, "M"),
+                        MemoryLimitExceeded => cwrite!(self, close_color.unwrap_or(&*RED), "M"),
                         RuntimeError => cwrite!(self, RED, "R"),
                         Failed => cwrite!(self, BOLD, "F"),
                         Skipped => cwrite!(self, BOLD, "S"),
@@ -427,5 +446,96 @@ impl FinishUI {
                 _ => cwrite!(self, RED, "{:?}", result.status),
             },
         }
+    }
+
+    /// Print the table with the summary of the subtask checks.
+    fn print_subtask_checks_table(&mut self, state: &UIState) {
+        let check_results = state.run_solution_checks();
+        let mut results: HashMap<PathBuf, HashMap<SubtaskId, Vec<SolutionCheckOutcome>>> =
+            Default::default();
+        for result in check_results {
+            let sol = results.entry(result.solution.clone()).or_default();
+            sol.entry(result.subtask_id).or_default().push(result);
+        }
+        let solutions = state
+            .solutions
+            .keys()
+            .filter(|&p| !p.is_symlink())
+            .sorted()
+            .collect_vec();
+
+        // The widths of the longest cell in each column. The first column contains the solution
+        // names.
+        let mut column_widths = vec![1; state.task.subtasks.len() + 1];
+
+        // Compute the widths of all the columns, based on the cell content.
+        for subtask in state.task.subtasks.values() {
+            let column_index = subtask.id as usize + 1;
+            column_widths[column_index] =
+                column_widths[column_index].max(subtask.name.as_ref().unwrap().len());
+        }
+        for &solution_name in solutions.iter() {
+            let solution = &state.solutions[solution_name];
+            column_widths[0] = column_widths[0].max(solution.name.len());
+            let solution_results = results.entry(solution_name.clone()).or_default();
+            for st_num in state.task.subtasks.keys() {
+                let subtask_results = solution_results.entry(*st_num).or_default();
+                let cell = subtask_results
+                    .iter()
+                    .map(|outcome| outcome.check.result.as_compact_str())
+                    .join(" ");
+                let column_index = *st_num as usize + 1;
+                column_widths[column_index] = column_widths[column_index].max(cell.len());
+            }
+        }
+
+        // Print the header.
+        cwriteln!(self, BLUE, "Subtask results");
+        print!("{:width$}", "", width = column_widths[0]);
+        for st_num in state.task.subtasks.keys().sorted() {
+            let subtask = &state.task.subtasks[st_num];
+            let width = column_widths[*st_num as usize + 1];
+            print!(" | ");
+            cwrite!(
+                self,
+                BOLD,
+                "{:width$}",
+                subtask.name.as_ref().unwrap(),
+                width = width
+            );
+        }
+        println!();
+
+        // Print the solution lines
+        for solution_name in solutions {
+            let solution = &state.solutions[solution_name];
+            print!("{:>width$}", solution.name, width = column_widths[0]);
+            let solution_results = &results[solution_name];
+            for st_num in state.task.subtasks.keys().sorted() {
+                print!(" | ");
+                let width = column_widths[*st_num as usize + 1];
+                let subtask_results = &solution_results[st_num];
+                if subtask_results.is_empty() {
+                    print!("{:width$}", "?", width = width);
+                } else {
+                    let mut printed = 0;
+                    for result in subtask_results {
+                        if printed > 0 {
+                            print!(" ");
+                            printed += 1;
+                        }
+                        let as_str = result.check.result.as_compact_str();
+                        let color = if result.success { &*GREEN } else { &*RED };
+                        cwrite!(self, color, "{}", as_str);
+                        printed += as_str.len();
+                    }
+                    let column_index = *st_num as usize + 1;
+                    let remaining = column_widths[column_index] - printed;
+                    print!("{:remaining$}", "", remaining = remaining);
+                }
+            }
+            println!();
+        }
+        println!();
     }
 }

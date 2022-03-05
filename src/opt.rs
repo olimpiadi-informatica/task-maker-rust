@@ -12,33 +12,22 @@ use task_maker_format::{EvaluationConfig, VALID_TAGS};
 #[derive(StructOpt, Debug)]
 #[structopt(
     name = "task-maker",
+    version = include_str!(concat!(env!("OUT_DIR"), "/version.txt")),
     setting = structopt::clap::AppSettings::ColoredHelp,
 )]
 pub struct Opt {
     #[structopt(flatten)]
     pub find_task: FindTaskOpt,
 
-    /// Which UI to use, available UIs are: print, raw, curses, json.
-    ///
-    /// Note that the JSON api is not stable yet.
-    #[structopt(long = "ui", default_value = "curses")]
-    pub ui: task_maker_format::ui::UIType,
+    #[structopt(flatten)]
+    pub ui: UIOpt,
 
     /// Do not run in parallel time critical executions on the same machine
     #[structopt(long = "exclusive")]
     pub exclusive: bool,
 
-    /// Execute only the solutions whose names start with the filter
-    ///
-    /// Note that just the file name is checked (e.g. sol.cpp is the same as sol/sol.cpp). Without
-    /// specifying anything all the solutions are executed.
-    pub filter: Vec<String>,
-
-    /// Evaluate only the solution with the specified path
-    ///
-    /// The solution can reside anywhere in the filesystem.
-    #[structopt(long = "solution", short = "-s")]
-    pub solution: Vec<PathBuf>,
+    #[structopt(flatten)]
+    pub filter: FilterOpt,
 
     /// Force this seed instead of a random one in Terry.
     #[structopt(long)]
@@ -88,6 +77,15 @@ pub struct FindTaskOpt {
     /// Look at most for this number of parents for searching the task
     #[structopt(long = "max-depth", default_value = "3")]
     pub max_depth: u32,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct UIOpt {
+    /// Which UI to use, available UIs are: print, raw, curses, json.
+    ///
+    /// Note that the JSON api is not stable yet.
+    #[structopt(long = "ui", default_value = "curses")]
+    pub ui: task_maker_format::ui::UIType,
 }
 
 #[derive(StructOpt, Debug, Clone)]
@@ -154,6 +152,21 @@ pub struct StorageOpt {
     pub min_cache: u64,
 }
 
+#[derive(StructOpt, Debug, Clone)]
+pub struct FilterOpt {
+    /// Execute only the solutions whose names start with the filter
+    ///
+    /// Note that just the file name is checked (e.g. sol.cpp is the same as sol/sol.cpp). Without
+    /// specifying anything all the solutions are executed.
+    pub filter: Vec<String>,
+
+    /// Evaluate only the solution with the specified path
+    ///
+    /// The solution can reside anywhere in the filesystem.
+    #[structopt(long, short)]
+    pub solution: Vec<PathBuf>,
+}
+
 /// Returns the long-help for the "skip sanity checks" option.
 fn skip_sanity_checks_long_help() -> &'static str {
     lazy_static! {
@@ -180,10 +193,10 @@ impl Opt {
     /// Make an `EvaluationConfig` from this command line options.
     pub fn to_config(&self) -> EvaluationConfig {
         EvaluationConfig {
-            solution_filter: self.filter.clone(),
+            solution_filter: self.filter.filter.clone(),
             booklet_solutions: self.booklet_solutions,
             no_statement: self.no_statement,
-            solution_paths: self.solution.clone(),
+            solution_paths: self.filter.solution.clone(),
             disabled_sanity_checks: self.skip_sanity_checks.clone(),
             seed: self.seed,
             dry_run: self.execution.dry_run,
@@ -191,16 +204,22 @@ impl Opt {
     }
 
     pub fn enable_log(&mut self) {
-        // configure the logger based on the verbosity level
+        self.logger.enable_log();
+        self.ui.disable_if_needed(&self.logger);
+    }
+}
+
+impl UIOpt {
+    /// Disable the Curses UI and fallback to PrintUI if verbose output is enabled.
+    pub fn disable_if_needed(&mut self, logger: &LoggerOpt) {
         let mut show_warning = false;
-        if self.logger.verbose > 0 {
+        if logger.should_diable_curses() {
             if let task_maker_format::ui::UIType::Curses = self.ui {
                 // warning deferred to after the logger has been initialized
                 show_warning = true;
                 self.ui = task_maker_format::ui::UIType::Print;
             }
         }
-        self.logger.enable_log();
         if show_warning {
             warn!("Do not combine -v with curses ui, bad things will happen! Fallback to print ui");
         }
@@ -230,24 +249,28 @@ impl LoggerOpt {
     pub fn enable_log(&self) {
         if self.verbose > 0 {
             std::env::set_var("RUST_BACKTRACE", "1");
-            match self.verbose {
-                0 => unreachable!(),
-                1 => std::env::set_var("RUST_LOG", "info,tabox=info"),
-                2 => std::env::set_var("RUST_LOG", "debug,tabox=debug"),
-                _ => std::env::set_var("RUST_LOG", "trace,tabox=trace"),
-            }
+        }
+        match self.verbose {
+            0 => std::env::set_var("RUST_LOG", "warn,tabox=warn"),
+            1 => std::env::set_var("RUST_LOG", "info,tabox=info"),
+            2 => std::env::set_var("RUST_LOG", "debug,tabox=debug"),
+            _ => std::env::set_var("RUST_LOG", "trace,tabox=trace"),
         }
 
         env_logger::Builder::from_default_env()
-            .default_format_timestamp_nanos(true)
+            .format_timestamp_nanos()
             .init();
         better_panic::install();
+    }
+
+    pub fn should_diable_curses(&self) -> bool {
+        self.verbose > 0
     }
 }
 
 impl FindTaskOpt {
     /// Use the specified options to find a task.
-    pub fn find_task(&self, eval_config: &EvaluationConfig) -> Result<Box<dyn TaskFormat>, Error> {
+    pub fn find_task(&self, eval_config: &EvaluationConfig) -> Result<TaskFormat, Error> {
         find_task(&self.task_dir, self.max_depth, eval_config).context("Invalid task directory")
     }
 }

@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::Error;
-use boxfnonce::BoxFnOnce;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 use uuid::Uuid;
@@ -21,13 +20,13 @@ pub type ExecutionUuid = Uuid;
 pub type WorkerUuid = Uuid;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) starts.
-pub type OnStartCallback = BoxFnOnce<'static, (WorkerUuid,), Result<(), Error>>;
+pub type OnStartCallback = Box<dyn FnOnce(WorkerUuid) -> Result<(), Error> + 'static>;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) ends.
-pub type OnDoneCallback = BoxFnOnce<'static, (ExecutionResult,), Result<(), Error>>;
+pub type OnDoneCallback = Box<dyn FnOnce(ExecutionResult) -> Result<(), Error> + 'static>;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) is skipped.
-pub type OnSkipCallback = BoxFnOnce<'static, (), Result<(), Error>>;
+pub type OnSkipCallback = Box<dyn FnOnce() -> Result<(), Error> + 'static>;
 
 /// Type of the priority value of an `Execution`.
 pub type Priority = i64;
@@ -151,6 +150,18 @@ pub struct Execution {
     pub inputs: HashMap<PathBuf, ExecutionInput>,
     /// List of the output files that should be capture from the sandbox.
     pub outputs: HashMap<PathBuf, File>,
+    /// When set, the standard input is redirected from this file. The path is relative to the
+    /// sandbox root.
+    ///
+    /// This is incompatible with `stdin`. Dependencies can still be achieved by providing the file
+    /// as an "input".
+    pub stdin_redirect_path: Option<PathBuf>,
+    /// When set, the standard output is redirected to this file. The path is relative to the
+    /// sandbox root.
+    pub stdout_redirect_path: Option<PathBuf>,
+    /// When set, the standard error is redirected to this file. The path is relative to the
+    /// sandbox root.
+    pub stderr_redirect_path: Option<PathBuf>,
 
     /// Environment variables to set.
     pub env: HashMap<String, String>,
@@ -391,6 +402,11 @@ impl ExecutionStatus {
     pub fn is_internal_error(&self) -> bool {
         matches!(self, ExecutionStatus::InternalError(_))
     }
+
+    /// Build a new `ExecutionStatus` as an `InternalError`.
+    pub fn internal_error<S: Into<String>>(error: S) -> Self {
+        Self::InternalError(error.into())
+    }
 }
 
 impl ExecutionCommand {
@@ -428,6 +444,9 @@ impl Execution {
             capture_stderr: None,
             inputs: HashMap::new(),
             outputs: HashMap::new(),
+            stdin_redirect_path: None,
+            stdout_redirect_path: None,
+            stderr_redirect_path: None,
 
             env: HashMap::new(),
             copy_env: Vec::new(),
@@ -515,7 +534,24 @@ impl Execution {
     /// assert_eq!(exec.stdin, Some(uuid));
     /// ```
     pub fn stdin<F: Into<FileUuid>>(&mut self, stdin: F) -> &mut Self {
+        assert!(self.stdin_redirect_path.is_none());
         self.stdin = Some(stdin.into());
+        self
+    }
+
+    /// Set the stdin redirection path.
+    ///
+    /// ```
+    /// use task_maker_dag::{Execution, ExecutionCommand, File};
+    /// use std::path::PathBuf;
+    ///
+    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
+    /// exec.stdin_redirect_path("/dev/urandom");
+    /// assert_eq!(exec.stdin_redirect_path.unwrap(), PathBuf::from("/dev/urandom"));
+    /// ```
+    pub fn stdin_redirect_path<P: Into<PathBuf>>(&mut self, path: P) -> &mut Self {
+        assert!(self.stdin.is_none());
+        self.stdin_redirect_path = Some(path.into());
         self
     }
 
@@ -538,6 +574,21 @@ impl Execution {
         self.stdout.clone().unwrap()
     }
 
+    /// Set the stdout redirection path.
+    ///
+    /// ```
+    /// use task_maker_dag::{Execution, ExecutionCommand, File};
+    /// use std::path::PathBuf;
+    ///
+    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
+    /// exec.stdout_redirect_path("output.txt");
+    /// assert_eq!(exec.stdout_redirect_path.unwrap(), PathBuf::from("output.txt"));
+    /// ```
+    pub fn stdout_redirect_path<P: Into<PathBuf>>(&mut self, path: P) -> &mut Self {
+        self.stdout_redirect_path = Some(path.into());
+        self
+    }
+
     /// Handle to the standard error of the execution. This should be called at least once before
     /// the evaluation starts in order to track the file. Calling this method more than once will
     /// return the same value.
@@ -555,6 +606,21 @@ impl Execution {
             self.stderr = Some(file);
         }
         self.stderr.clone().unwrap()
+    }
+
+    /// Set the stderr redirection path.
+    ///
+    /// ```
+    /// use task_maker_dag::{Execution, ExecutionCommand, File};
+    /// use std::path::PathBuf;
+    ///
+    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
+    /// exec.stderr_redirect_path("error.txt");
+    /// assert_eq!(exec.stderr_redirect_path.unwrap(), PathBuf::from("error.txt"));
+    /// ```
+    pub fn stderr_redirect_path<P: Into<PathBuf>>(&mut self, path: P) -> &mut Self {
+        self.stderr_redirect_path = Some(path.into());
+        self
     }
 
     /// Tell the executor to include the first `count` bytes of the standard output in the result.

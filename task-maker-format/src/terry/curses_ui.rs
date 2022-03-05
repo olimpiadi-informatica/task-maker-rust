@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use tui::layout::{Constraint, Direction, Layout, Rect};
-use tui::style::{Color, Modifier, Style};
+use tui::style::{Modifier, Style};
 use tui::widgets::{Block, Borders, Paragraph, Text, Widget};
 
 use crate::terry::finish_ui::FinishUI;
@@ -8,7 +8,7 @@ use crate::terry::ui_state::{SolutionState, SolutionStatus, UIState};
 use crate::terry::{CaseStatus, SolutionOutcome};
 use crate::ui::curses::{
     compilation_status_text, draw_compilations, inner_block, render_block, render_server_status,
-    CursesDrawer, CursesUI as GenericCursesUI, FrameType,
+    CursesDrawer, CursesUI as GenericCursesUI, FrameType, GREEN, RED, YELLOW,
 };
 use crate::ui::FinishUIUtils;
 
@@ -168,27 +168,15 @@ fn evaluation_outcome<'a>(outcome: Option<&Result<SolutionOutcome, String>>) -> 
                 .zip(outcome.feedback.cases.iter())
             {
                 match val.status {
-                    CaseStatus::Missing => res.push(Text::styled(
-                        "m ",
-                        Style::default().fg(Color::Yellow).modifier(Modifier::BOLD),
-                    )),
+                    CaseStatus::Missing => res.push(Text::styled("m ", *YELLOW)),
                     CaseStatus::Parsed => {
                         if feed.correct {
-                            res.push(Text::styled(
-                                "c ",
-                                Style::default().fg(Color::Green).modifier(Modifier::BOLD),
-                            ))
+                            res.push(Text::styled("c ", *GREEN))
                         } else {
-                            res.push(Text::styled(
-                                "w ",
-                                Style::default().fg(Color::Red).modifier(Modifier::BOLD),
-                            ))
+                            res.push(Text::styled("w ", *RED))
                         }
                     }
-                    CaseStatus::Invalid => res.push(Text::styled(
-                        "i ",
-                        Style::default().fg(Color::Red).modifier(Modifier::BOLD),
-                    )),
+                    CaseStatus::Invalid => res.push(Text::styled("i ", *RED)),
                 }
             }
             res
@@ -213,20 +201,11 @@ fn evaluation_score<'a>(max_score: f64, state: &SolutionState, loading: char) ->
             if let Some(Ok(outcome)) = &state.outcome {
                 let score = format!("{:>3.0}", outcome.score * max_score);
                 if abs_diff_eq!(outcome.score, 0.0) {
-                    Text::styled(
-                        score,
-                        Style::default().fg(Color::Red).modifier(Modifier::BOLD),
-                    )
+                    Text::styled(score, *RED)
                 } else if abs_diff_eq!(outcome.score, 1.0) {
-                    Text::styled(
-                        score,
-                        Style::default().fg(Color::Green).modifier(Modifier::BOLD),
-                    )
+                    Text::styled(score, *GREEN)
                 } else {
-                    Text::styled(
-                        score,
-                        Style::default().fg(Color::Yellow).modifier(Modifier::BOLD),
-                    )
+                    Text::styled(score, *YELLOW)
                 }
             } else {
                 Text::raw(format!(" {} ", loading))

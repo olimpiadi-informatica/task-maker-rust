@@ -21,22 +21,27 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, bail, Context, Error};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
+use unicode_normalization::UnicodeNormalization;
+use wildmatch::WildMatch;
 
 use curses_ui::CursesUI;
 pub use dag::*;
 pub use format::italian_yaml;
 pub use statement::*;
 pub use task_info::*;
+use task_maker_dag::ExecutionDAGConfig;
 use task_maker_lang::GraderMap;
 pub use ui_state::*;
 
 use crate::ioi::format::italian_yaml::TM_ALLOW_DELETE_COOKIE;
 use crate::ioi::italian_yaml::is_gen_gen_deletable;
 use crate::sanity_checks::SanityChecks;
+use crate::solution::SolutionInfo;
 use crate::ui::*;
-use crate::{EvaluationConfig, EvaluationData, TaskFormat, TaskInfo, UISender};
+use crate::{EvaluationConfig, EvaluationData, TaskInfo, UISender};
 
 mod curses_ui;
 mod dag;
@@ -114,6 +119,10 @@ pub struct IOITask {
 pub struct SubtaskInfo {
     /// The id of the subtask.
     pub id: SubtaskId,
+    /// The name of the subtask.
+    ///
+    /// This is what is used for running the solutions' checks.
+    pub name: Option<String>,
     /// Textual description of the subtask.
     pub description: Option<String>,
     /// The maximum score of the subtask, must be >= 0.
@@ -174,38 +183,59 @@ impl IOITask {
     pub fn is_valid<P: AsRef<Path>>(path: P) -> bool {
         path.as_ref().join("task.yaml").exists()
     }
-}
 
-impl TaskFormat for IOITask {
-    fn path(&self) -> &Path {
+    /// Get the root directory of the task.
+    pub fn path(&self) -> &Path {
         &self.path
     }
 
-    fn ui(&self, ui_type: &UIType) -> Result<Box<dyn UI>, Error> {
+    /// Get an appropriate `UI` for this task.
+    pub fn ui(&self, ui_type: &UIType, config: ExecutionDAGConfig) -> Result<Box<dyn UI>, Error> {
         match ui_type {
             UIType::Raw => Ok(Box::new(RawUI::new())),
-            UIType::Print => Ok(Box::new(PrintUI::<UIState>::new())),
+            UIType::Print => Ok(Box::new(PrintUI::new(UIState::new(self, config)))),
             UIType::Curses => Ok(Box::new(
-                CursesUI::new(UIState::new(self)).context("Cannot build curses UI")?,
+                CursesUI::new(UIState::new(self, config)).context("Cannot build curses UI")?,
             )),
             UIType::Json => Ok(Box::new(JsonUI::new())),
             UIType::Silent => Ok(Box::new(SilentUI::new())),
         }
     }
 
-    fn build_dag(&self, eval: &mut EvaluationData, config: &EvaluationConfig) -> Result<(), Error> {
+    /// Add the executions required for evaluating this task to the execution DAG.
+    pub fn build_dag(
+        &self,
+        eval: &mut EvaluationData,
+        config: &EvaluationConfig,
+    ) -> Result<(), Error> {
         eval.sender.send(UIMessage::IOITask {
             task: Box::new(self.clone()),
         })?;
+        eval.solutions = config.find_solutions(
+            &self.path,
+            vec!["sol/*"],
+            Some(self.grader_map.clone()),
+            eval,
+        );
         self.sanity_checks
             .pre_hook(self, eval)
             .context("Sanity check pre-hooks failed")?;
+
         let empty_score_manager = ScoreManager::new(self);
-        let solutions: Vec<_> = config
-            .filter_solutions(&self.path, vec!["sol/*"], Some(self.grader_map.clone()))
+        let solutions: Vec<_> = eval
+            .solutions
+            .clone()
             .into_iter()
             .map(|source| (source, Arc::new(Mutex::new(empty_score_manager.clone()))))
             .collect();
+
+        let solution_info = solutions
+            .iter()
+            .map(|(solution, _)| SolutionInfo::from(solution))
+            .collect_vec();
+        eval.sender.send(UIMessage::Solutions {
+            solutions: solution_info,
+        })?;
 
         self.task_type
             .prepare_dag(eval)
@@ -237,7 +267,7 @@ impl TaskFormat for IOITask {
                 for (solution, score_manager) in solutions.iter() {
                     trace!(
                         "Evaluation of the solution {:?} against subtask {} / testcase {}",
-                        solution.name(),
+                        solution.source_file.name(),
                         subtask.id,
                         testcase.id
                     );
@@ -248,7 +278,7 @@ impl TaskFormat for IOITask {
                             eval,
                             subtask.id,
                             testcase.id,
-                            solution,
+                            &solution.source_file,
                             input,
                             val_handle,
                             output,
@@ -266,11 +296,14 @@ impl TaskFormat for IOITask {
         Ok(())
     }
 
-    fn sanity_check_post_hook(&self, ui: &mut UIMessageSender) -> Result<(), Error> {
-        self.sanity_checks.post_hook(self, ui)
+    /// Hook called after the execution completed, useful for sending messages to the UI about the
+    /// results of the sanity checks with data available only after the evaluation.
+    pub fn sanity_check_post_hook(&self, eval: &mut EvaluationData) -> Result<(), Error> {
+        self.sanity_checks.post_hook(self, eval)
     }
 
-    fn clean(&self) -> Result<(), Error> {
+    /// Clean the task folder removing the files that can be generated automatically.
+    pub fn clean(&self) -> Result<(), Error> {
         for dir in &["input", "output"] {
             let dir = self.path.join(dir);
             if !dir.exists() {
@@ -355,10 +388,36 @@ impl TaskFormat for IOITask {
         Ok(())
     }
 
-    fn task_info(&self) -> Result<TaskInfo, Error> {
+    /// Get the task information.
+    pub fn task_info(&self) -> Result<TaskInfo, Error> {
         Ok(TaskInfo::IOI(
             task_info::IOITaskInfo::new(self).context("Cannot produce IOI task info")?,
         ))
+    }
+
+    /// Find the list of all the subtasks that match the given pattern.
+    fn find_subtasks_by_pattern_name(&self, pattern: impl AsRef<str>) -> Vec<&SubtaskInfo> {
+        // Normalize the pattern; the subtask names are already normalized.
+        let pattern = pattern.as_ref().nfkc().collect::<String>();
+        let pattern = WildMatch::new(&pattern);
+        let mut result = vec![];
+        for subtask in self.subtasks.values() {
+            if subtask.name_matches(&pattern) {
+                result.push(subtask);
+            }
+        }
+        result
+    }
+}
+
+impl SubtaskInfo {
+    /// Check if the pattern matches the subtaks name.
+    fn name_matches(&self, pattern: &WildMatch) -> bool {
+        if let Some(name) = &self.name {
+            pattern.matches(name)
+        } else {
+            false
+        }
     }
 }
 

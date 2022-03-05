@@ -26,40 +26,40 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// First step of the execution: take a task and build the Execution DAG. This needs setting the
 /// first configurations of the environment.
 pub struct RuntimeContext {
-    task: Box<dyn TaskFormat>,
-    eval: EvaluationData,
-    ui_receiver: UIChannelReceiver,
-    sandbox_runner: ToolsSandboxRunner,
+    pub task: TaskFormat,
+    pub eval: EvaluationData,
+    pub ui_receiver: UIChannelReceiver,
+    pub sandbox_runner: ToolsSandboxRunner,
 }
 
 /// Second step: connect to an executor (either local or remote). This opens the local store and
 /// setups the local executor if necessary.
 pub struct ConnectedExecutor {
     // fields from RuntimeContext
-    task: Box<dyn TaskFormat>,
-    eval: EvaluationData,
-    ui_receiver: UIChannelReceiver,
+    pub task: TaskFormat,
+    pub eval: EvaluationData,
+    pub ui_receiver: UIChannelReceiver,
 
     // new fields
-    file_store: Arc<FileStore>,
-    tx: ChannelSender<ExecutorClientMessage>,
-    rx: ChannelReceiver<ExecutorServerMessage>,
-    local_executor: Option<JoinHandle<Result<(), Error>>>,
+    pub file_store: Arc<FileStore>,
+    pub tx: ChannelSender<ExecutorClientMessage>,
+    pub rx: ChannelReceiver<ExecutorServerMessage>,
+    pub local_executor: Option<JoinHandle<Result<(), Error>>>,
 }
 
 /// Third step: start the UI thread.
 pub struct ConnectedExecutorWithUI {
     // fields from ConnectedExecutor
-    task: Box<dyn TaskFormat>,
-    eval: EvaluationData,
-    file_store: Arc<FileStore>,
-    tx: ChannelSender<ExecutorClientMessage>,
-    rx: ChannelReceiver<ExecutorServerMessage>,
-    local_executor: Option<JoinHandle<Result<(), Error>>>,
+    pub task: TaskFormat,
+    pub eval: EvaluationData,
+    pub file_store: Arc<FileStore>,
+    pub tx: ChannelSender<ExecutorClientMessage>,
+    pub rx: ChannelReceiver<ExecutorServerMessage>,
+    pub local_executor: Option<JoinHandle<Result<(), Error>>>,
 
     // new fields
-    ui_thread: JoinHandle<()>,
-    client_sender: Arc<Mutex<Option<ChannelSender<ExecutorClientMessage>>>>,
+    pub ui_thread: JoinHandle<()>,
+    pub client_sender: Arc<Mutex<Option<ChannelSender<ExecutorClientMessage>>>>,
 }
 
 impl RuntimeContext {
@@ -67,12 +67,12 @@ impl RuntimeContext {
     /// execution DAG for the execution. The closure is given a reference to the given task and a
     /// reference to the evaluation data.
     pub fn new<BuildDag>(
-        task: Box<dyn TaskFormat>,
+        task: TaskFormat,
         opt: &ExecutionOpt,
         build_dag: BuildDag,
     ) -> Result<Self, Error>
     where
-        BuildDag: FnOnce(&dyn TaskFormat, &mut EvaluationData) -> Result<(), Error>,
+        BuildDag: FnOnce(&TaskFormat, &mut EvaluationData) -> Result<(), Error>,
     {
         let (mut eval, ui_receiver) = EvaluationData::new(task.path());
 
@@ -95,7 +95,7 @@ impl RuntimeContext {
         }
 
         // build the execution dag
-        build_dag(task.as_ref(), &mut eval)?;
+        build_dag(&task, &mut eval)?;
 
         trace!("The DAG is: {:#?}", eval.dag);
         if opt.copy_dag {
@@ -196,17 +196,18 @@ impl ConnectedExecutor {
     ///
     /// The callback takes 2 parameters, a reference to the current UI and the message produced.
     pub fn start_ui<OnMessage>(
-        self,
+        mut self,
         ui_type: &UIType,
         mut on_message: OnMessage,
     ) -> Result<ConnectedExecutorWithUI, Error>
     where
         OnMessage: FnMut(&mut dyn UI, UIMessage) + Send + 'static,
     {
+        let config = self.eval.dag.config_mut().clone();
         // setup the UI thread
         let mut ui = self
             .task
-            .ui(ui_type)
+            .ui(ui_type, config)
             .context("This UI is not supported on this task type")?;
         let ui_receiver = self.ui_receiver;
         let ui_thread = std::thread::Builder::new()
@@ -258,12 +259,17 @@ impl ConnectedExecutor {
 
 impl ConnectedExecutorWithUI {
     /// Finally, start the execution and wait until it ends or it is stopped.
-    pub fn execute(self) -> Result<(), Error> {
+    pub fn execute(mut self) -> Result<(), Error> {
         let ui_sender = self.eval.sender.clone();
-        let EvaluationData { sender, dag, .. } = self.eval;
+        // Create a copy of the DAG, keeping the cloned object inside the EvaluationData, while the
+        // original is stored in `dag`. This because after cloning a ExecutionDAG the copies don't
+        // have access to the callbacks.
+        let mut dag = self.eval.dag.clone();
+        std::mem::swap(&mut dag, &mut self.eval.dag);
 
         let local_executor = self.local_executor;
         let ui_thread = self.ui_thread;
+        let sender = self.eval.sender.clone();
         defer! {
             // wait for the executor and the ui to exit
             if let Some(local_executor) = local_executor {
@@ -295,7 +301,7 @@ impl ConnectedExecutorWithUI {
         client_sender.lock().unwrap().take();
 
         self.task
-            .sanity_check_post_hook(&mut sender.lock().unwrap())
+            .sanity_check_post_hook(&mut self.eval)
             .context("Sanity checks failed")?;
         Ok(())
     }

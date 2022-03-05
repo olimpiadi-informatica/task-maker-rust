@@ -6,7 +6,7 @@ pub use input_generator::InputGenerator;
 pub use input_validator::{InputValidator, TM_VALIDATION_FILE_NAME};
 pub use output_generator::OutputGenerator;
 use task_maker_dag::Priority;
-pub use task_type::{BatchTypeData, CommunicationTypeData, TaskType};
+pub use task_type::{BatchTypeData, CommunicationTypeData, TaskType, UserIo};
 
 mod checker;
 mod input_generator;
@@ -161,7 +161,7 @@ mod tests {
         assert!(eval.dag.data.provided_files.contains_key(&out));
         assert!(eval
             .dag
-            .file_callbacks
+            .file_callbacks()
             .get(&out)
             .unwrap()
             .write_to
@@ -197,7 +197,7 @@ mod tests {
         assert_eq!(group.executions[0].stdout.as_ref().unwrap().uuid, out);
         assert!(eval
             .dag
-            .file_callbacks
+            .file_callbacks()
             .get(&out)
             .unwrap()
             .write_to
@@ -257,7 +257,7 @@ mod tests {
         assert!(eval.dag.data.provided_files.contains_key(&out));
         assert!(eval
             .dag
-            .file_callbacks
+            .file_callbacks()
             .get(&out)
             .unwrap()
             .write_to
@@ -303,7 +303,7 @@ mod tests {
         assert!(group.executions[0].dependencies().contains(&val.uuid));
         assert!(eval
             .dag
-            .file_callbacks
+            .file_callbacks()
             .get(&out)
             .unwrap()
             .write_to
@@ -354,9 +354,9 @@ mod tests {
         checker
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
-        let callbacks = eval.dag.execution_callbacks.into_iter().next().unwrap().1;
+        let callbacks = eval.dag.execution_callbacks().drain().next().unwrap().1;
         callbacks.on_done.into_iter().for_each(|cb| {
-            cb.call(ExecutionResult {
+            cb(ExecutionResult {
                 status: ExecutionStatus::Success,
                 was_killed: false,
                 was_cached: false,
@@ -392,9 +392,9 @@ mod tests {
         checker
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
-        let callbacks = eval.dag.execution_callbacks.into_iter().next().unwrap().1;
+        let callbacks = eval.dag.execution_callbacks().drain().next().unwrap().1;
         callbacks.on_done.into_iter().for_each(|cb| {
-            cb.call(ExecutionResult {
+            cb(ExecutionResult {
                 status: ExecutionStatus::ReturnCode(1),
                 was_killed: false,
                 was_cached: false,
@@ -460,20 +460,17 @@ mod tests {
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        let exec = &group.executions[0];
-        let on_done = eval.dag.execution_callbacks.get_mut(&exec.uuid).unwrap();
-        on_done
-            .on_done
-            .remove(0)
-            .call(ExecutionResult {
-                status: ExecutionStatus::Success,
-                was_killed: false,
-                was_cached: false,
-                resources: Default::default(),
-                stdout: Some("1.0\n\n".into()),
-                stderr: Some("Ok!\n\n".into()),
-            })
-            .unwrap();
+        let exec = group.executions[0].uuid;
+        let on_done = eval.dag.execution_callbacks().get_mut(&exec).unwrap();
+        on_done.on_done.remove(0)(ExecutionResult {
+            status: ExecutionStatus::Success,
+            was_killed: false,
+            was_cached: false,
+            resources: Default::default(),
+            stdout: Some("1.0\n\n".into()),
+            stderr: Some("Ok!\n\n".into()),
+        })
+        .unwrap();
 
         assert!(cb_called.load(Ordering::Relaxed));
     }
@@ -501,20 +498,17 @@ mod tests {
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        let exec = &group.executions[0];
-        let on_done = eval.dag.execution_callbacks.get_mut(&exec.uuid).unwrap();
-        on_done
-            .on_done
-            .remove(0)
-            .call(ExecutionResult {
-                status: ExecutionStatus::Success,
-                was_killed: false,
-                was_cached: false,
-                resources: Default::default(),
-                stdout: Some("0.0\n\n".into()),
-                stderr: Some("Ko!\n\n".into()),
-            })
-            .unwrap();
+        let exec = group.executions[0].uuid;
+        let on_done = eval.dag.execution_callbacks().get_mut(&exec).unwrap();
+        on_done.on_done.remove(0)(ExecutionResult {
+            status: ExecutionStatus::Success,
+            was_killed: false,
+            was_cached: false,
+            resources: Default::default(),
+            stdout: Some("0.0\n\n".into()),
+            stderr: Some("Ko!\n\n".into()),
+        })
+        .unwrap();
 
         assert!(cb_called.load(Ordering::Relaxed));
     }
@@ -535,21 +529,18 @@ mod tests {
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        let exec = &group.executions[0];
-        let on_done = eval.dag.execution_callbacks.get_mut(&exec.uuid).unwrap();
-        let err = on_done
-            .on_done
-            .remove(0)
-            .call(ExecutionResult {
-                status: ExecutionStatus::Success,
-                was_killed: false,
-                was_cached: false,
-                resources: Default::default(),
-                stdout: Some(":<\n\n".into()),
-                stderr: Some("Ko!\n\n".into()),
-            })
-            .unwrap_err()
-            .to_string();
+        let exec = group.executions[0].uuid;
+        let on_done = eval.dag.execution_callbacks().get_mut(&exec).unwrap();
+        let err = on_done.on_done.remove(0)(ExecutionResult {
+            status: ExecutionStatus::Success,
+            was_killed: false,
+            was_cached: false,
+            resources: Default::default(),
+            stdout: Some(":<\n\n".into()),
+            stderr: Some("Ko!\n\n".into()),
+        })
+        .unwrap_err()
+        .to_string();
 
         assert!(err.contains("Invalid score"), "Wrong error: {}", err);
     }

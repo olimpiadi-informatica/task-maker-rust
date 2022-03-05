@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use structopt::StructOpt;
 
-use crate::{ExecutionOpt, FindTaskOpt, LoggerOpt, StorageOpt};
+use crate::{ExecutionOpt, FilterOpt, FindTaskOpt, LoggerOpt, StorageOpt, UIOpt};
 
 #[derive(StructOpt, Debug)]
 #[structopt(
@@ -38,8 +38,12 @@ pub enum Tool {
     Sandbox(SandboxOpt),
     /// Obtain the information about a task.
     TaskInfo(TaskInfoOpt),
-    /// Compile just the booklet for a task or a context.
+    /// Compile just the booklet for a task or a contest.
     Booklet(BookletOpt),
+    /// Fuzz the checker of a task.
+    FuzzChecker(FuzzCheckerOpt),
+    /// Add the @check comments to the solutions.
+    AddSolutionChecks(AddSolutionChecksOpt),
     /// Run the sandbox instead of the normal task-maker.
     ///
     /// This option is left as undocumented as it's not part of the public API.
@@ -175,15 +179,92 @@ pub struct BookletOpt {
     #[structopt(long = "max-depth", default_value = "3")]
     pub max_depth: u32,
 
-    /// Which UI to use, available UIs are: print, raw, curses, json.
-    ///
-    /// Note that the JSON api is not stable yet.
-    #[structopt(long = "ui", default_value = "curses")]
-    pub ui: task_maker_format::ui::UIType,
+    #[structopt(flatten)]
+    pub ui: UIOpt,
 
     #[structopt(flatten)]
     pub execution: ExecutionOpt,
 
     #[structopt(flatten)]
     pub storage: StorageOpt,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct FuzzCheckerOpt {
+    #[structopt(flatten)]
+    pub find_task: FindTaskOpt,
+
+    /// Where to store fuzzing data.
+    ///
+    /// The path is relative to the task directory.
+    #[structopt(long, default_value = "fuzz")]
+    pub fuzz_dir: PathBuf,
+
+    /// Additional sanitizers to use.
+    ///
+    /// Comma separated list of sanitizers to use.
+    #[structopt(long, default_value = "address,undefined")]
+    pub sanitizers: String,
+
+    /// List of additional arguments to pass to the compiler.
+    ///
+    /// If nothing is listed here, -O2 and -g are passed.
+    pub extra_args: Vec<String>,
+
+    /// Number of fuzzing process to spawn.
+    ///
+    /// Defaults to the number of cores.
+    #[structopt(long, short)]
+    pub jobs: Option<usize>,
+
+    /// Maximum number of seconds the checker can run.
+    ///
+    /// If the checker takes longer than this, the fuzzer fails and the corresponding file is
+    /// emitted.
+    #[structopt(long, default_value = "2")]
+    pub checker_timeout: usize,
+
+    /// Maximum fuzzing time in seconds.
+    ///
+    /// Halt after fuzzing for this amount of time. Zero should not be used.
+    #[structopt(long, default_value = "60")]
+    pub max_time: usize,
+
+    /// Don't print the fuzzer output to the console, but redirect it to a file.
+    #[structopt(long)]
+    pub quiet: bool,
+
+    /// Don't run the evaluation for building the output files.
+    #[structopt(long)]
+    pub no_build: bool,
+
+    #[structopt(flatten)]
+    pub execution: ExecutionOpt,
+
+    #[structopt(flatten)]
+    pub storage: StorageOpt,
+}
+
+#[derive(StructOpt, Debug, Clone)]
+pub struct AddSolutionChecksOpt {
+    #[structopt(flatten)]
+    pub find_task: FindTaskOpt,
+
+    #[structopt(flatten)]
+    pub ui: UIOpt,
+
+    #[structopt(flatten)]
+    pub storage: StorageOpt,
+
+    #[structopt(flatten)]
+    pub filter: FilterOpt,
+
+    #[structopt(flatten)]
+    pub execution: ExecutionOpt,
+
+    /// Write the @check directly to the solution files.
+    ///
+    /// Warning: while this is generally safe, make sure to have a way of reverting the changes.
+    #[structopt(long, short)]
+    pub in_place: bool,
 }

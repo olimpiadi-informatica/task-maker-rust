@@ -6,7 +6,8 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 
 use anyhow::Error;
 use serde::{Deserialize, Serialize};
-use termcolor::{Color, ColorSpec, StandardStream};
+pub use termcolor::WriteColor;
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 use typescript_definitions::TypeScriptify;
 
 pub use json::JsonUI;
@@ -31,20 +32,40 @@ pub type UIChannelSender = Sender<UIMessage>;
 pub type UIChannelReceiver = Receiver<UIMessage>;
 
 lazy_static! {
+    /// Whether the terminal supports ANSI 256 colors.
+    static ref HAS_256: bool = {
+        if std::env::var("TM_ANSI256").as_deref() == Ok("true") {
+            if let Some(support) = supports_color::on(supports_color::Stream::Stdout) {
+                support.has_256
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    };
     /// The RED color to use with `cwrite!` and `cwriteln!`
     pub static ref RED: ColorSpec = {
         let mut color = ColorSpec::new();
         color
-            .set_fg(Some(Color::Red))
+            .set_fg(Some(if *HAS_256 { Color::Ansi256(196) } else { Color::Red }))
             .set_intense(true)
             .set_bold(true);
+        color
+    };
+    /// The RED color to use with `cwrite!` and `cwriteln!`, without bold.
+    pub static ref SOFT_RED: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color
+            .set_fg(Some(if *HAS_256 { Color::Ansi256(196) } else { Color::Red }))
+            .set_intense(true);
         color
     };
     /// The GREEN color to use with `cwrite!` and `cwriteln!`
     pub static ref GREEN: ColorSpec = {
         let mut color = ColorSpec::new();
         color
-            .set_fg(Some(Color::Green))
+            .set_fg(Some(if *HAS_256 { Color::Ansi256(118) } else { Color::Green }))
             .set_intense(true)
             .set_bold(true);
         color
@@ -53,7 +74,16 @@ lazy_static! {
     pub static ref YELLOW: ColorSpec = {
         let mut color = ColorSpec::new();
         color
-            .set_fg(Some(Color::Yellow))
+            .set_fg(Some(if *HAS_256 { Color::Ansi256(226) } else { Color::Yellow }))
+            .set_intense(true)
+            .set_bold(true);
+        color
+    };
+    /// The ORANGE color to use with `cwrite!` and `cwriteln!`.
+    pub static ref ORANGE: ColorSpec = {
+        let mut color = ColorSpec::new();
+        color
+            .set_fg(Some(if *HAS_256 { Color::Ansi256(214) } else { Color::Rgb(255, 165, 0) }))
             .set_intense(true)
             .set_bold(true);
         color
@@ -62,7 +92,7 @@ lazy_static! {
     pub static ref BLUE: ColorSpec = {
         let mut color = ColorSpec::new();
         color
-            .set_fg(Some(Color::Blue))
+            .set_fg(Some(if *HAS_256 { Color::Ansi256(33) } else { Color::Blue }))
             .set_intense(true)
             .set_bold(true);
         color
@@ -162,9 +192,6 @@ impl CompilationStatus {
 ///
 /// The `T` at the end is to disambiguate from `UIState` due to a strange behaviour of the compiler.
 pub trait UIStateT {
-    /// Construct an instance of this `UIStateT` form a message with the task information.
-    fn from(message: &UIMessage) -> Self;
-
     /// Apply a `UIMessage` to this state.
     fn apply(&mut self, message: UIMessage);
 
@@ -274,12 +301,25 @@ impl<'a> FinishUIUtils<'a> {
     }
 
     /// Print the warnings.
-    pub fn print_messages(&mut self, warnings: &[String]) {
+    pub fn print_warning_messages(&mut self, warnings: &[String]) {
         if !warnings.is_empty() {
-            cwriteln!(self, YELLOW, "Warnings:");
+            cwriteln!(self, YELLOW, "Warnings");
             for warning in warnings.iter() {
                 println!(" - {}", warning);
             }
+            println!();
+        }
+    }
+
+    /// Print the errors.
+    pub fn print_error_messages(&mut self, errors: &[String]) {
+        if !errors.is_empty() {
+            cwriteln!(self, RED, "Errors");
+            for error in errors.iter() {
+                cwrite!(self, RED, " - ");
+                cwriteln!(self, SOFT_RED, "{}", error);
+            }
+            println!();
         }
     }
 }
@@ -300,6 +340,20 @@ impl UIMessageSender {
     /// Send a message to the channel.
     pub fn send(&self, message: UIMessage) -> Result<(), Error> {
         self.sender.send(message).map_err(|e| e.into())
+    }
+
+    /// Send a warning message to the channel.
+    pub fn send_warning(&self, message: impl Into<String>) -> Result<(), Error> {
+        self.send(UIMessage::Warning {
+            message: message.into(),
+        })
+    }
+
+    /// Send an error message to the channel.
+    pub fn send_error(&self, message: impl Into<String>) -> Result<(), Error> {
+        self.send(UIMessage::Error {
+            message: message.into(),
+        })
     }
 }
 
@@ -341,6 +395,21 @@ impl std::str::FromStr for UIType {
     }
 }
 
+/// A simple printer that outputs to stdout. This can be used with `cwrite!` and `cwriteln!`.
+#[allow(dead_code)]
+pub struct StdoutPrinter {
+    /// The actual stream.
+    pub stream: StandardStream,
+}
+
+impl Default for StdoutPrinter {
+    fn default() -> Self {
+        Self {
+            stream: StandardStream::stdout(ColorChoice::Auto),
+        }
+    }
+}
+
 /// Write to `$self.stream`, in the color specified as second parameter. The arguments that follow
 /// will be passed to `write!`.
 ///
@@ -348,23 +417,23 @@ impl std::str::FromStr for UIType {
 /// #[macro_use]
 /// extern crate task_maker_format;
 ///
-/// use termcolor::{StandardStream, ColorSpec, ColorChoice};
+/// use termcolor::{ColorSpec, ColorChoice};
+/// use task_maker_format::ui::StdoutPrinter;
 /// use task_maker_format::cwrite;
 ///
 /// # fn main() {
-/// struct Printer { stream: StandardStream }
 /// let mut color = ColorSpec::new();
 /// color.set_bold(true);
 ///
-/// let mut printer = Printer { stream: StandardStream::stdout(ColorChoice::Auto) };
+/// let mut printer = StdoutPrinter::default();
 /// cwrite!(printer, color, "The output is {}", 42);
 /// # }
 /// ```
 #[macro_export]
 macro_rules! cwrite {
     ($self:expr, $color:expr, $($arg:tt)*) => {{
-        use termcolor::WriteColor;
         use std::io::Write;
+        use $crate::ui::WriteColor;
         $self.stream.set_color(&$color).unwrap();
         write!(&mut $self.stream, $($arg)*).unwrap();
         $self.stream.reset().unwrap();
@@ -377,24 +446,23 @@ macro_rules! cwrite {
 /// ```
 /// #[macro_use]
 /// extern crate task_maker_format;
-///
-/// use termcolor::{StandardStream, ColorSpec, ColorChoice};
-/// use task_maker_format::cwriteln;
+/// use termcolor::{ColorSpec, ColorChoice};
+/// use task_maker_format::ui::StdoutPrinter;
+/// use task_maker_format::cwrite;
 ///
 /// # fn main() {
-/// struct Printer { stream: StandardStream }
 /// let mut color = ColorSpec::new();
 /// color.set_bold(true);
 ///
-/// let mut printer = Printer { stream: StandardStream::stdout(ColorChoice::Auto) };
+/// let mut printer = StdoutPrinter::default();
 /// cwriteln!(printer, color, "The output is {}", 42);
 /// # }
 /// ```
 #[macro_export]
 macro_rules! cwriteln {
     ($self:expr, $color:expr, $($arg:tt)*) => {{
-        use termcolor::WriteColor;
         use std::io::Write;
+        use $crate::ui::WriteColor;
         $self.stream.set_color(&$color).unwrap();
         writeln!(&mut $self.stream, $($arg)*).unwrap();
         $self.stream.reset().unwrap();

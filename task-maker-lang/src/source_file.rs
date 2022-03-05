@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Error};
@@ -226,6 +226,16 @@ impl SourceFile {
             .to_string()
     }
 
+    /// The path to the file, relative to the `base_dir` if possible. If the file is not inside the
+    /// base dir, the full path is returned.
+    pub fn relative_path(&self) -> &Path {
+        if let Ok(path) = self.path.strip_prefix(&self.base_path) {
+            path
+        } else {
+            &self.path
+        }
+    }
+
     /// The optional destination of where to copy the executable if copy-exe option is set.
     ///
     /// ```
@@ -282,6 +292,11 @@ impl SourceFile {
                 .context("Failed to provide executable")?;
             Ok(None)
         }
+    }
+
+    /// The language of the source file.
+    pub fn language(&self) -> &dyn Language {
+        self.language.as_ref()
     }
 }
 

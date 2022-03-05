@@ -54,7 +54,7 @@ pub struct Worker {
     /// The function that spawns an actual sandbox.
     sandbox_runner: Arc<dyn SandboxRunner>,
     /// The join handle of the currently running sandbox, if any.
-    current_sandbox_thread: Option<JoinHandle<Result<(), Error>>>,
+    current_sandbox_thread: Option<JoinHandle<()>>,
 }
 
 /// An handle of the connection to the worker.
@@ -168,7 +168,7 @@ impl Worker {
         if let Some(join_handle) = self.current_sandbox_thread.take() {
             join_handle
                 .join()
-                .map_err(|e| anyhow!("Sandbox thread panicked: {:?}", e))?
+                .map_err(|e| anyhow!("Sandbox thread panicked: {:?}", e))
                 .context("Sandbox thread failed")?;
         }
         Ok(())
@@ -310,7 +310,7 @@ fn execute_job(
     sender: &ChannelSender<WorkerClientMessage>,
     sandbox_path: &Path,
     runner: Arc<dyn SandboxRunner>,
-) -> Result<JoinHandle<Result<(), Error>>, Error> {
+) -> Result<JoinHandle<()>, Error> {
     let (job, sandboxes, fifo_dir, server_asked_files) = {
         let mut current_job = current_job.lock().unwrap();
         let job = current_job
@@ -357,11 +357,9 @@ fn execute_job(
         (job, boxes, fifo_dir, receiver)
     };
     let sender = sender.clone();
+    let description = job.group.description.clone();
     let join_handle = std::thread::Builder::new()
-        .name(format!(
-            "Sandbox group manager for {}",
-            job.group.description
-        ))
+        .name(format!("Sandbox group manager for {}", description))
         .spawn(move || {
             sandbox_group_manager(
                 current_job,
@@ -372,6 +370,9 @@ fn execute_job(
                 runner,
                 fifo_dir,
             )
+            .with_context(|| format!("Sandbox group for {} failed", description))
+            // FIXME: find a better way to propagate the error to the server
+            .unwrap();
         })?;
     Ok(join_handle)
 }
@@ -407,10 +408,14 @@ fn sandbox_group_manager(
             },
         };
         let exec = &job.group.executions[0];
-        let result = compute_execution_result(exec, result, &sandbox)
-            .context("Cannot compute execution result")?;
-        get_result_outputs(exec, &sandbox, &mut outputs, &mut output_paths)
-            .context("Cannot get result outputs")?;
+        let mut result = compute_execution_result(exec, result, &sandbox);
+        get_result_outputs(
+            exec,
+            &sandbox,
+            &mut outputs,
+            &mut output_paths,
+            &mut result.status,
+        );
 
         results[0] = Some(result);
     // this is the complex case: more than an execution (therefore more than a sandbox)
@@ -442,8 +447,7 @@ fn sandbox_group_manager(
                     let exec = &job.group.executions[index];
                     let sandbox = &sandboxes[index];
 
-                    let result = compute_execution_result(exec, result, sandbox)
-                        .context("Cannot compute execution result")?;
+                    let mut result = compute_execution_result(exec, result, sandbox);
                     // if the process didn't exit successfully, kill the remaining sandboxes
                     if !result.status.is_success() {
                         for (i, (res, sandbox)) in results.iter().zip(sandboxes.iter()).enumerate()
@@ -455,8 +459,13 @@ fn sandbox_group_manager(
                         }
                     }
 
-                    get_result_outputs(exec, sandbox, &mut outputs, &mut output_paths)
-                        .context("Cannot get result outputs")?;
+                    get_result_outputs(
+                        exec,
+                        sandbox,
+                        &mut outputs,
+                        &mut output_paths,
+                        &mut result.status,
+                    );
 
                     results[index] = Some(result);
                     missing -= 1;
@@ -551,29 +560,44 @@ fn compute_execution_result(
     execution: &Execution,
     result: SandboxResult,
     sandbox: &Sandbox,
-) -> Result<ExecutionResult, Error> {
+) -> ExecutionResult {
     match result {
         SandboxResult::Success {
             exit_status,
             signal,
             resources,
             was_killed,
-        } => Ok(ExecutionResult {
-            status: execution.status(exit_status, signal, &resources),
-            resources,
-            stdout: capture_stream(&sandbox.stdout_path(), execution.capture_stdout)?,
-            was_killed,
-            was_cached: false,
-            stderr: capture_stream(&sandbox.stderr_path(), execution.capture_stderr)?,
-        }),
-        SandboxResult::Failed { error } => Ok(ExecutionResult {
+        } => {
+            let stdout = capture_stream(&sandbox.stdout_path(), execution.capture_stdout);
+            let stderr = capture_stream(&sandbox.stderr_path(), execution.capture_stderr);
+            let status = match (&stdout, &stderr) {
+                (Ok(_), Ok(_)) => execution.status(exit_status, signal, &resources),
+                (Err(err), _) => ExecutionStatus::internal_error(format!(
+                    "Failed to read stdout file: {:?}",
+                    err
+                )),
+                (_, Err(err)) => ExecutionStatus::internal_error(format!(
+                    "Failed to read stderr file: {:?}",
+                    err
+                )),
+            };
+            ExecutionResult {
+                status,
+                resources,
+                stdout: stdout.ok().unwrap_or_default(),
+                was_killed,
+                was_cached: false,
+                stderr: stderr.ok().unwrap_or_default(),
+            }
+        }
+        SandboxResult::Failed { error } => ExecutionResult {
             status: ExecutionStatus::InternalError(error),
             resources: ExecutionResourcesUsage::default(),
             stdout: None,
             was_killed: false,
             was_cached: false,
             stderr: None,
-        }),
+        },
     }
 }
 
@@ -583,45 +607,40 @@ fn get_result_outputs(
     sandbox: &Sandbox,
     outputs: &mut HashMap<FileUuid, FileStoreKey>,
     output_paths: &mut HashMap<FileUuid, PathBuf>,
-) -> Result<(), Error> {
+    status: &mut ExecutionStatus,
+) {
+    let mut add_file = |file: FileUuid, path: PathBuf| {
+        if path.exists() {
+            let key = FileStoreKey::from_file(&path);
+            match key {
+                Ok(key) => {
+                    outputs.insert(file, key);
+                    output_paths.insert(file, path);
+                }
+                Err(e) => {
+                    *status = ExecutionStatus::internal_error(format!(
+                        "Failed to get store key for {} at {}: {:?}",
+                        file,
+                        path.display(),
+                        e
+                    ));
+                }
+            }
+        } else {
+            outputs.insert(file, FileStoreKey::from_content(&[]));
+            output_paths.insert(file, "/dev/null".into());
+        }
+    };
+
     if let Some(stdout) = &exec.stdout {
-        let path = sandbox.stdout_path();
-        outputs.insert(
-            stdout.uuid,
-            FileStoreKey::from_file(&path).context("Failed to get store key for stdout")?,
-        );
-        output_paths.insert(stdout.uuid, path);
+        add_file(stdout.uuid, sandbox.stdout_path());
     }
     if let Some(stderr) = &exec.stderr {
-        let path = sandbox.stderr_path();
-        outputs.insert(
-            stderr.uuid,
-            FileStoreKey::from_file(&path).context("Failed to get store key for stderr")?,
-        );
-        output_paths.insert(stderr.uuid, path);
+        add_file(stderr.uuid, sandbox.stderr_path());
     }
     for (path, file) in exec.outputs.iter() {
-        let path = sandbox.output_path(path);
-        // the sandbox process may want to remove a file, consider missing files as empty
-        if path.exists() {
-            outputs.insert(
-                file.uuid,
-                FileStoreKey::from_file(&path).with_context(|| {
-                    format!("Failed to get store key for output file {}", path.display())
-                })?,
-            );
-            output_paths.insert(file.uuid, path.clone());
-        } else {
-            // FIXME: /dev/null may not be used
-            outputs.insert(
-                file.uuid,
-                FileStoreKey::from_file("/dev/null")
-                    .context("Failed to get store key of /dev/null")?,
-            );
-            output_paths.insert(file.uuid, "/dev/null".into());
-        }
+        add_file(file.uuid, sandbox.output_path(path));
     }
-    Ok(())
 }
 
 /// If `count` is `None` do not read anything, otherwise read at most that number of bytes from the

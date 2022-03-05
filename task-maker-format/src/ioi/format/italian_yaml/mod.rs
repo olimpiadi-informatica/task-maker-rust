@@ -262,8 +262,9 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Error};
+use anyhow::{anyhow, bail, Context, Error};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use unic_ucd_category::GeneralCategory;
 
 pub(crate) use cases_gen::{is_gen_gen_deletable, TM_ALLOW_DELETE_COOKIE};
 use task_maker_lang::GraderMap;
@@ -274,12 +275,44 @@ use crate::ioi::{
     make_task_booklets, Checker, IOITask, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo,
     TaskType, TestcaseId, TestcaseInfo, TestcaseScoreAggregator,
 };
-use crate::ioi::{BatchTypeData, CommunicationTypeData};
-use crate::{find_source_file, list_files, EvaluationConfig};
+use crate::ioi::{BatchTypeData, CommunicationTypeData, UserIo};
+use crate::{find_source_file, list_files, EvaluationConfig, WriteBinTo};
 
 mod cases_gen;
 mod gen_gen;
 mod static_inputs;
+
+/// The set of valid Unicode General Categories for the characters composing a subtask name.
+pub const VALID_SUBTASK_NAME_CHARACTER_CATEGORIES: &[GeneralCategory] = &[
+    // L group (included in XID_Start)
+    GeneralCategory::LowercaseLetter,
+    GeneralCategory::ModifierLetter,
+    GeneralCategory::OtherLetter,
+    GeneralCategory::TitlecaseLetter,
+    GeneralCategory::UppercaseLetter,
+    // Nd group (included in XID_Continue)
+    GeneralCategory::DecimalNumber,
+    // Nl group (included in XID_Start)
+    GeneralCategory::LetterNumber,
+    // Mc group (included in XID_Continue)
+    GeneralCategory::SpacingMark,
+    // Mn group (included in XID_Continue)
+    GeneralCategory::NonspacingMark,
+    // Pc group (included in XID_Continue)
+    GeneralCategory::ConnectorPunctuation,
+    // Additional groups with useful symbols, but usually not valid in identifiers:
+    GeneralCategory::OtherNumber,
+    GeneralCategory::DashPunctuation,
+    GeneralCategory::ClosePunctuation,
+    GeneralCategory::FinalPunctuation,
+    GeneralCategory::InitialPunctuation,
+    GeneralCategory::OtherPunctuation,
+    GeneralCategory::OpenPunctuation,
+    GeneralCategory::CurrencySymbol,
+    GeneralCategory::ModifierSymbol,
+    GeneralCategory::MathSymbol,
+    GeneralCategory::OtherSymbol,
+];
 
 /// Deserialized data from the task.yaml of a IOI format task.
 #[derive(Debug, Serialize, Deserialize)]
@@ -320,6 +353,11 @@ struct TaskYAML {
 
     /// Number of solution processes to spawn in parallel in a communication task.
     pub num_processes: Option<u8>,
+    /// The type of communication for the solution in a communication task.
+    ///
+    /// Can be either "std_io" for using stdin/stdout, or "fifo_io" for using pipes given in argv.
+    /// Defaults to "fifo_io".
+    pub user_io: Option<String>,
 }
 
 /// The iterator item type when following the task input testcases.
@@ -392,7 +430,7 @@ pub fn parse_task<P: AsRef<Path>>(
                     .context("Failed to detect output generator")?,
             )
         } else {
-            Box::new(|_| OutputGenerator::NotAvailable)
+            Box::new(|_| OutputGenerator::StaticFile("/dev/null".into()))
         };
 
     let inputs = if cases_gen.exists() {
@@ -494,7 +532,7 @@ fn detect_validator(task_dir: PathBuf) -> Result<impl Fn(SubtaskId) -> InputVali
         ],
         &task_dir,
         None,
-        Some(task_dir.join("bin").join("validator")),
+        WriteBinTo::path("bin/validator"),
     );
     if validators.len() > 1 {
         let paths = validators.iter().map(|s| s.name()).collect::<Vec<_>>();
@@ -532,7 +570,7 @@ fn detect_output_generator(
         ],
         &task_dir,
         Some(grader_map),
-        Some(task_dir.join("bin").join("official_solution")),
+        WriteBinTo::path("bin/official_solution"),
     );
     if official_solutions.len() > 1 {
         let paths = official_solutions
@@ -560,7 +598,7 @@ fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> Result<
         vec!["check/checker.*", "cor/correttore.*"],
         task_dir,
         None,
-        Some(task_dir.join("check").join("checker")),
+        WriteBinTo::WithoutExtension,
     );
     if checkers.len() > 1 {
         let paths = checkers.iter().map(|s| s.name()).collect::<Vec<_>>();
@@ -569,10 +607,15 @@ fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> Result<
     let checker = checkers
         .pop()
         .map(|mut c| {
-            // always copy the custom checker
+            // Always copy the custom checker.
             c.copy_exe();
+
             // Link the checker statically. This makes sure that it will work also outside this machine.
-            c.link_static();
+            // Doesn't work on MacOS, see https://github.com/edomora97/task-maker-rust/pull/29
+            if cfg!(not(target_os = "macos")) {
+                c.link_static();
+            }
+
             Checker::Custom(Arc::new(c))
         })
         .unwrap_or(Checker::WhiteDiff);
@@ -599,7 +642,7 @@ fn parse_communication_task_data(
         vec!["check/manager.*", "cor/manager.*"],
         task_dir,
         None,
-        Some(task_dir.join("bin").join("manager")),
+        WriteBinTo::WithoutExtension,
     );
     if managers.len() > 1 {
         let paths = managers.iter().map(|s| s.name()).collect::<Vec<_>>();
@@ -610,12 +653,27 @@ fn parse_communication_task_data(
     } else {
         return Ok(None);
     };
+
+    // Always copy the manager.
+    manager.copy_exe();
+
     // Link the manager statically. This makes sure that it will work also outside this machine.
-    manager.link_static();
+    // Doesn't work on MacOS, see https://github.com/edomora97/task-maker-rust/pull/29
+    if cfg!(not(target_os = "macos")) {
+        manager.link_static();
+    }
+
+    let user_io = match yaml.user_io.as_deref() {
+        None => UserIo::FifoIo,
+        Some("std_io") => UserIo::StdIo,
+        Some("fifo_io") => UserIo::FifoIo,
+        Some(other) => bail!("Unsupported value \"{}\" for user_io in task.yaml", other),
+    };
 
     Ok(Some(TaskType::Communication(CommunicationTypeData {
         manager: Arc::new(manager),
         num_processes: yaml.num_processes.unwrap_or(1),
+        user_io,
     })))
 }
 
@@ -661,4 +719,39 @@ fn default_infile() -> String {
 /// The default value for the `outfile` field of task.yaml.
 fn default_outfile() -> String {
     "output.txt".into()
+}
+
+/// Normalize and validate the content of the subtask name.
+fn cleanup_subtask_name(id: &str) -> Result<String, Error> {
+    let id = id.trim();
+
+    let fail = |err| Err(anyhow!("'{}' is not a valid identifier: {}", id, err));
+
+    // Normalize the identifier to avoid similar but different characters.
+    use unicode_normalization::UnicodeNormalization;
+    let normalized = id.nfkc().collect::<String>();
+
+    if normalized.is_empty() {
+        return fail("must be non-empty");
+    }
+    if normalized.starts_with('-') {
+        return fail("must not start with a dash (-)");
+    }
+    for ch in normalized.chars() {
+        if ch == '*' {
+            return fail("must not contain asterisks (*)");
+        }
+        if ch == '?' {
+            return fail("must not contain question marks (?)");
+        }
+        let category = GeneralCategory::of(ch);
+        if !VALID_SUBTASK_NAME_CHARACTER_CATEGORIES.contains(&category) {
+            return fail(&format!(
+                "contains an invalid character '{}' ({})",
+                ch,
+                ch.escape_default()
+            ));
+        }
+    }
+    Ok(normalized)
 }

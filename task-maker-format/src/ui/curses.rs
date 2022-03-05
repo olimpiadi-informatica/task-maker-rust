@@ -33,6 +33,24 @@ pub(crate) const ROTATION_DELAY: u64 = 1;
 pub(crate) type FrameType<'a> =
     Frame<'a, TermionBackend<AlternateScreen<MouseTerminal<RawTerminal<io::Stdout>>>>>;
 
+lazy_static! {
+    pub static ref GREEN: Style = Style::default()
+        .fg(Color::LightGreen)
+        .modifier(Modifier::BOLD);
+    pub static ref RED: Style = Style::default()
+        .fg(Color::LightRed)
+        .modifier(Modifier::BOLD);
+    pub static ref BLUE: Style = Style::default()
+        .fg(Color::LightBlue)
+        .modifier(Modifier::BOLD);
+    pub static ref YELLOW: Style = Style::default()
+        .fg(Color::LightYellow)
+        .modifier(Modifier::BOLD);
+    pub static ref ORANGE: Style = Style::default()
+        .fg(Color::Rgb(255, 165, 0))
+        .modifier(Modifier::BOLD);
+}
+
 /// A generic animated UI for tasks, dynamically refreshing using curses as a backend.
 ///
 /// - `State` is the type of `UIState` for this UI.
@@ -222,15 +240,9 @@ pub(crate) fn compilation_status_text(status: &CompilationStatus, loading: char)
     match status {
         CompilationStatus::Pending => Text::raw("... "),
         CompilationStatus::Running => Text::raw(format!("{}   ", loading)),
-        CompilationStatus::Done { .. } => Text::styled(
-            "OK  ",
-            Style::default().fg(Color::Green).modifier(Modifier::BOLD),
-        ),
-        CompilationStatus::Failed { .. } => Text::styled(
-            "FAIL",
-            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
-        ),
-        CompilationStatus::Skipped => Text::styled("skip", Style::default().fg(Color::Yellow)),
+        CompilationStatus::Done { .. } => Text::styled("OK  ", *GREEN),
+        CompilationStatus::Failed { .. } => Text::styled("FAIL", *RED),
+        CompilationStatus::Skipped => Text::styled("skip", *YELLOW),
     }
 }
 
@@ -238,7 +250,7 @@ pub(crate) fn compilation_status_text(status: &CompilationStatus, loading: char)
 pub(crate) fn render_block<S: AsRef<str>>(frame: &mut FrameType, rect: Rect, title: S) {
     Block::default()
         .title(title.as_ref())
-        .title_style(Style::default().fg(Color::Blue).modifier(Modifier::BOLD))
+        .title_style(*BLUE)
         .borders(Borders::ALL)
         .render(frame, rect);
 }

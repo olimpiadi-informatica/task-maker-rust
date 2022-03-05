@@ -6,8 +6,8 @@ int op(int code, int a, int b);
 
 int main(int argc, char **argv) {
     FILE *fifo_in, *fifo_out;
-    fifo_in = fopen(argv[2], "r");
-    fifo_out = fopen(argv[1], "w");
+    fifo_in = fopen(argv[1], "r");
+    fifo_out = fopen(argv[2], "w");
     int code = atoi(argv[3]);
 
     int a, b;

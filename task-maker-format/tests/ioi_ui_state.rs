@@ -11,7 +11,7 @@ mod utils;
 #[test]
 fn test_ui_state_server_status() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let status = ExecutorStatus {
         connected_workers: vec![],
         ready_execs: 1,
@@ -27,7 +27,7 @@ fn test_ui_state_server_status() {
 #[test]
 fn test_ui_state_compilation_skipped() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     ui.apply(UIMessage::Compilation {
         file: file.clone(),
@@ -39,7 +39,7 @@ fn test_ui_state_compilation_skipped() {
 #[test]
 fn test_ui_state_compilation_success() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     let result = utils::good_result();
     ui.apply(UIMessage::Compilation {
@@ -61,7 +61,7 @@ fn test_ui_state_compilation_success() {
 #[test]
 fn test_ui_state_compilation_failure() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     let result = utils::bad_result();
     ui.apply(UIMessage::Compilation {
@@ -83,7 +83,7 @@ fn test_ui_state_compilation_failure() {
 #[test]
 fn test_ui_state_compilation_stdout() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     let content = "ciao".to_string();
     let mut result = utils::bad_result();
@@ -107,7 +107,7 @@ fn test_ui_state_compilation_stdout() {
 #[test]
 fn test_ui_state_compilation_stderr() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     let content = "ciao".to_string();
     let mut result = utils::good_result();
@@ -131,7 +131,7 @@ fn test_ui_state_compilation_stderr() {
 #[test]
 fn test_ui_state_generation_skipped() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     ui.apply(UIMessage::IOIGeneration {
         subtask: 0,
         testcase: 0,
@@ -146,7 +146,7 @@ fn test_ui_state_generation_skipped() {
 #[test]
 fn test_ui_state_generation_started() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     ui.apply(UIMessage::IOIGeneration {
         subtask: 0,
         testcase: 0,
@@ -163,7 +163,7 @@ fn test_ui_state_generation_started() {
 #[test]
 fn test_ui_state_generation_generated() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     ui.apply(UIMessage::IOIGeneration {
         subtask: 0,
         testcase: 0,
@@ -180,7 +180,7 @@ fn test_ui_state_generation_generated() {
 #[test]
 fn test_ui_state_generation_failed() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     ui.apply(UIMessage::IOIGeneration {
         subtask: 0,
         testcase: 0,
@@ -197,7 +197,7 @@ fn test_ui_state_generation_failed() {
 #[test]
 fn test_ui_state_validation_skipped() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     ui.apply(UIMessage::IOIValidation {
         subtask: 0,
         testcase: 0,
@@ -212,7 +212,7 @@ fn test_ui_state_validation_skipped() {
 #[test]
 fn test_ui_state_validation_started() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     ui.apply(UIMessage::IOIValidation {
         subtask: 0,
         testcase: 0,
@@ -229,7 +229,7 @@ fn test_ui_state_validation_started() {
 #[test]
 fn test_ui_state_validation_validated() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     ui.apply(UIMessage::IOIValidation {
         subtask: 0,
         testcase: 0,
@@ -246,7 +246,7 @@ fn test_ui_state_validation_validated() {
 #[test]
 fn test_ui_state_validation_failed() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     ui.apply(UIMessage::IOIValidation {
         subtask: 0,
         testcase: 0,
@@ -263,7 +263,7 @@ fn test_ui_state_validation_failed() {
 #[test]
 fn test_ui_state_solution_skipped() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     ui.apply(UIMessage::IOISolution {
         subtask: 0,
         testcase: 0,
@@ -278,7 +278,7 @@ fn test_ui_state_solution_skipped() {
 #[test]
 fn test_ui_state_solution_started() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     ui.apply(UIMessage::IOISolution {
         subtask: 0,
         testcase: 0,
@@ -295,7 +295,7 @@ fn test_ui_state_solution_started() {
 #[test]
 fn test_ui_state_solution_validated() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     ui.apply(UIMessage::IOISolution {
         subtask: 0,
         testcase: 0,
@@ -312,7 +312,7 @@ fn test_ui_state_solution_validated() {
 #[test]
 fn test_ui_state_solution_failed() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     ui.apply(UIMessage::IOISolution {
         subtask: 0,
         testcase: 0,
@@ -329,7 +329,7 @@ fn test_ui_state_solution_failed() {
 #[test]
 fn test_ui_state_evaluation_skipped() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     ui.apply(UIMessage::IOIEvaluation {
         subtask: 0,
@@ -348,7 +348,7 @@ fn test_ui_state_evaluation_skipped() {
 #[test]
 fn test_ui_state_evaluation_started() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     ui.apply(UIMessage::IOIEvaluation {
         subtask: 0,
@@ -369,7 +369,7 @@ fn test_ui_state_evaluation_started() {
 #[test]
 fn test_ui_state_evaluation_solved() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     ui.apply(UIMessage::IOIEvaluation {
         subtask: 0,
@@ -390,7 +390,7 @@ fn test_ui_state_evaluation_solved() {
 #[test]
 fn test_ui_state_evaluation_return_code() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     let mut result = utils::bad_result();
     result.status = ExecutionStatus::ReturnCode(123);
@@ -411,7 +411,7 @@ fn test_ui_state_evaluation_return_code() {
 #[test]
 fn test_ui_state_evaluation_signal() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     let mut result = utils::bad_result();
     result.status = ExecutionStatus::Signal(1, "BOH".to_string());
@@ -432,7 +432,7 @@ fn test_ui_state_evaluation_signal() {
 #[test]
 fn test_ui_state_evaluation_time_limit() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     let mut result = utils::bad_result();
     result.status = ExecutionStatus::TimeLimitExceeded;
@@ -453,7 +453,7 @@ fn test_ui_state_evaluation_time_limit() {
 #[test]
 fn test_ui_state_evaluation_sys_limit() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     let mut result = utils::bad_result();
     result.status = ExecutionStatus::SysTimeLimitExceeded;
@@ -474,7 +474,7 @@ fn test_ui_state_evaluation_sys_limit() {
 #[test]
 fn test_ui_state_evaluation_wall_limit() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     let mut result = utils::bad_result();
     result.status = ExecutionStatus::WallTimeLimitExceeded;
@@ -495,7 +495,7 @@ fn test_ui_state_evaluation_wall_limit() {
 #[test]
 fn test_ui_state_evaluation_memory_limit() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     let mut result = utils::bad_result();
     result.status = ExecutionStatus::MemoryLimitExceeded;
@@ -516,7 +516,7 @@ fn test_ui_state_evaluation_memory_limit() {
 #[test]
 fn test_ui_state_evaluation_internal_error() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     let mut result = utils::bad_result();
     result.status = ExecutionStatus::InternalError("foo".into());
@@ -537,7 +537,7 @@ fn test_ui_state_evaluation_internal_error() {
 #[test]
 fn test_ui_state_checker_skipped() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     ui.apply(UIMessage::IOIEvaluation {
         subtask: 0,
@@ -564,7 +564,7 @@ fn test_ui_state_checker_skipped() {
 #[test]
 fn test_ui_state_checker_started() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     ui.apply(UIMessage::IOIChecker {
         subtask: 0,
@@ -583,7 +583,7 @@ fn test_ui_state_checker_started() {
 #[test]
 fn test_ui_state_checker_done() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     let result = utils::good_result();
     ui.apply(UIMessage::IOIChecker {
@@ -603,7 +603,7 @@ fn test_ui_state_checker_done() {
 #[test]
 fn test_ui_state_testcase_score_wrong_answer() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     ui.apply(UIMessage::IOITestcaseScore {
         subtask: 0,
@@ -625,7 +625,7 @@ fn test_ui_state_testcase_score_wrong_answer() {
 #[test]
 fn test_ui_state_testcase_score_partial() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     ui.apply(UIMessage::IOITestcaseScore {
         subtask: 0,
@@ -647,7 +647,7 @@ fn test_ui_state_testcase_score_partial() {
 #[test]
 fn test_ui_state_testcase_score_accepted() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     ui.apply(UIMessage::IOITestcaseScore {
         subtask: 0,
@@ -669,7 +669,7 @@ fn test_ui_state_testcase_score_accepted() {
 #[test]
 fn test_ui_state_subtask_score() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     ui.apply(UIMessage::IOISubtaskScore {
         subtask: 0,
@@ -683,7 +683,7 @@ fn test_ui_state_subtask_score() {
 #[test]
 fn test_ui_state_task_score() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
     ui.apply(UIMessage::IOITaskScore {
         solution: file.clone(),
@@ -695,7 +695,7 @@ fn test_ui_state_task_score() {
 #[test]
 fn test_ui_state_booklet() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let file = "file".to_string();
     ui.apply(UIMessage::IOIBooklet {
         name: file.clone(),
@@ -708,7 +708,7 @@ fn test_ui_state_booklet() {
 #[test]
 fn test_ui_state_booklet_dep() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     let booklet = "booklet".to_string();
     let file = "file".to_string();
     ui.apply(UIMessage::IOIBookletDependency {
@@ -732,7 +732,7 @@ fn test_ui_state_booklet_dep() {
 #[test]
 fn test_ui_state_warning() {
     let task = utils::new_task();
-    let mut ui = UIState::new(&task);
+    let mut ui = UIState::new(&task, Default::default());
     ui.apply(UIMessage::Warning {
         message: "test".to_string(),
     });

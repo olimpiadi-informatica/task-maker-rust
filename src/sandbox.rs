@@ -32,7 +32,8 @@ pub fn main_sandbox() {
                 .expect("Failed to print result");
         }
         Err(e) => {
-            serde_json::to_writer(stdout(), &RawSandboxResult::Error(e.to_string()))
+            let err = format!("Error: {:?}", e);
+            serde_json::to_writer(stdout(), &RawSandboxResult::Error(err))
                 .expect("Failed to print result");
         }
     }

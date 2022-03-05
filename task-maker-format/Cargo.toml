@@ -1,8 +1,8 @@
 [package]
 name = "task-maker-format"
-version = "0.5.1"
+version = "0.5.3"
 authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 task-maker-dag = { path = "../task-maker-dag" }
@@ -19,6 +19,8 @@ anyhow = { version = "1.0", features = ["backtrace"] }
 itertools = "0.8"
 # Utilities for writing to the terminal with colors
 termcolor = "1"
+# Checks if the terminal supports the colors
+supports-color = "1"
 # Logging
 log = "0.4"
 # Globbing files
@@ -50,6 +52,12 @@ derivative = "2.1"
 nix = "0.17"
 # Typescript definition generation
 typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs"}
+# Unicode normalization for subtask names.
+unicode-normalization = "0.1"
+# Unicode General Category for subtask names.
+unic-ucd-category = "0.9.0"
+# Wildcard match for subtask names.
+wildmatch = "2.1.0"
 
 [dev-dependencies]
 tempdir = "0.3"

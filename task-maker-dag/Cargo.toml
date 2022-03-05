@@ -1,15 +1,13 @@
 [package]
 name = "task-maker-dag"
-version = "0.5.1"
+version = "0.5.3"
 authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 task-maker-store = { path = "../task-maker-store" }
 # Serialization/Deserialization
 serde = { version = "1.0", features = ["derive"] }
-# Support for Box<FnOnce<...>>
-boxfnonce = "0.1"
 # UUID generation
 uuid = { version = "0.7", features = ["v4", "serde"] }
 # Generic error utilities

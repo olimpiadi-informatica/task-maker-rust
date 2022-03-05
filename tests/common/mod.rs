@@ -10,7 +10,7 @@ use task_maker_rust::ToolsSandboxRunner;
 
 pub fn setup() {
     let _ = env_logger::Builder::from_default_env()
-        .default_format_timestamp_nanos(true)
+        .format_timestamp_nanos()
         .is_test(true)
         .try_init();
     std::env::set_var(

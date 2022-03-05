@@ -4,14 +4,15 @@ members = ["task-maker-*"]
 
 [package]
 name = "task-maker-rust"
-version = "0.5.1"
+version = "0.5.3"
 description = "Tool for building tasks for informatics competitions, with support for cache, distributed computations and more"
 readme = "README.md"
 authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
-edition = "2018"
+edition = "2021"
 documentation = "https://edomora97.github.io/task-maker-rust/"
 repository = "https://github.com/edomora97/task-maker-rust"
 license = "MPL-2.0"
+default-run = "task-maker"
 
 [package.metadata.deb]
 extended-description = "Tool for building tasks for informatics competitions, with support for cache, distributed computations and more"
@@ -43,7 +44,7 @@ task-maker-format = { path = "./task-maker-format" }
 
 # Logging and setting up the global logger
 log = "0.4"
-env_logger = "0.6"
+env_logger = "0.9"
 # Argument parsing
 structopt = "0.3"
 num_cpus = "1.10"
@@ -74,14 +75,17 @@ scopeguard = "1.0"
 url = "2.1"
 # Temporary directory for sandboxes
 tempdir = "0.3"
+# Regex
+regex = "1"
 
 # Typescript definition generation
 typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs"}
-regex = "1"
 
 [dev-dependencies]
 approx = "0.5.0"
 port_scanner = "0.1.5"
+# Resolve executable names in $PATH
+which = "2.0"
 
 [[bin]]
 name = "task-maker"

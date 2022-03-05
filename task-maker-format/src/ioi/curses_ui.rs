@@ -7,11 +7,14 @@ use tui::widgets::{Block, Borders, Paragraph, Text, Widget};
 
 use task_maker_dag::ExecutionStatus;
 
-use crate::ioi::finish_ui::FinishUI;
-use crate::ioi::{SubtaskId, TestcaseEvaluationStatus, TestcaseGenerationStatus, UIState};
+use crate::ioi::finish_ui::{FinishUI, YELLOW_RESOURCE_THRESHOLD};
+use crate::ioi::{
+    SolutionTestcaseEvaluationState, SubtaskId, TestcaseEvaluationStatus, TestcaseGenerationStatus,
+    UIState,
+};
 use crate::ui::curses::{
     compilation_status_text, draw_compilations, inner_block, render_block, render_server_status,
-    CursesDrawer, CursesUI as GenericCursesUI, FrameType,
+    CursesDrawer, CursesUI as GenericCursesUI, FrameType, GREEN, ORANGE, RED, YELLOW,
 };
 use crate::ui::UIExecutionStatus;
 
@@ -171,15 +174,9 @@ fn ui_execution_status_text(status: &UIExecutionStatus, loading: char) -> Text {
         UIExecutionStatus::Started { .. } => Text::raw(format!("{}", loading)),
         UIExecutionStatus::Skipped => Text::raw("S"),
         UIExecutionStatus::Done { result } => match &result.status {
-            ExecutionStatus::Success => Text::styled(
-                "S",
-                Style::default().fg(Color::Green).modifier(Modifier::BOLD),
-            ),
+            ExecutionStatus::Success => Text::styled("S", *GREEN),
             ExecutionStatus::InternalError(_) => Text::raw("I"),
-            _ => Text::styled(
-                "F",
-                Style::default().fg(Color::Red).modifier(Modifier::BOLD),
-            ),
+            _ => Text::styled("F", *RED),
         },
     }
 }
@@ -211,25 +208,13 @@ fn generation_status_text(status: &TestcaseGenerationStatus, loading: char) -> T
     match status {
         TestcaseGenerationStatus::Pending => Text::raw("."),
         TestcaseGenerationStatus::Generating => Text::raw(format!("{}", loading)),
-        TestcaseGenerationStatus::Generated => Text::styled(
-            "G",
-            Style::default().fg(Color::Green).modifier(Modifier::BOLD),
-        ),
+        TestcaseGenerationStatus::Generated => Text::styled("G", *GREEN),
         TestcaseGenerationStatus::Validating => Text::raw(format!("{}", loading)),
-        TestcaseGenerationStatus::Validated => Text::styled(
-            "V",
-            Style::default().fg(Color::Green).modifier(Modifier::BOLD),
-        ),
+        TestcaseGenerationStatus::Validated => Text::styled("V", *GREEN),
         TestcaseGenerationStatus::Solving => Text::raw(format!("{}", loading)),
-        TestcaseGenerationStatus::Solved => Text::styled(
-            "S",
-            Style::default().fg(Color::Green).modifier(Modifier::BOLD),
-        ),
-        TestcaseGenerationStatus::Failed => Text::styled(
-            "F",
-            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
-        ),
-        TestcaseGenerationStatus::Skipped => Text::styled("s", Style::default().fg(Color::Yellow)),
+        TestcaseGenerationStatus::Solved => Text::styled("S", *GREEN),
+        TestcaseGenerationStatus::Failed => Text::styled("F", *RED),
+        TestcaseGenerationStatus::Skipped => Text::styled("s", *YELLOW),
     }
 }
 
@@ -279,20 +264,11 @@ fn evaluation_score<'a>(state: &'a UIState, solution: &Path, loading: char) -> T
     };
     if let Some(score) = sol_state.score {
         if score == 0.0 {
-            Text::styled(
-                format!(" {:>3.0} ", score),
-                Style::default().fg(Color::Red).modifier(Modifier::BOLD),
-            )
+            Text::styled(format!(" {:>3.0} ", score), *RED)
         } else if (score - state.max_score).abs() < 0.001 {
-            Text::styled(
-                format!(" {:>3.0} ", score),
-                Style::default().fg(Color::Green).modifier(Modifier::BOLD),
-            )
+            Text::styled(format!(" {:>3.0} ", score), *GREEN)
         } else {
-            Text::styled(
-                format!(" {:>3.0} ", score),
-                Style::default().fg(Color::Yellow).modifier(Modifier::BOLD),
-            )
+            Text::styled(format!(" {:>3.0} ", score), *YELLOW)
         }
     } else {
         let has_skipped = sol_state.subtasks.values().any(|st| {
@@ -335,58 +311,58 @@ fn subtask_evaluation_status_text<'a>(
     let subtask = &solution.subtasks[&subtask];
     let par_style = if let Some(normalized_score) = subtask.normalized_score {
         if abs_diff_eq!(normalized_score, 1.0) {
-            Style::default().fg(Color::Green).modifier(Modifier::BOLD)
+            *GREEN
         } else if abs_diff_eq!(normalized_score, 0.0) {
-            Style::default().fg(Color::Red).modifier(Modifier::BOLD)
+            *RED
         } else {
-            Style::default().fg(Color::Yellow).modifier(Modifier::BOLD)
+            *YELLOW
         }
     } else {
         Style::default()
     };
     texts.push(Text::styled("[", par_style));
     for (_, testcase) in subtask.testcases.iter().sorted_by_key(|(k, _)| *k) {
-        texts.push(testcase_evaluation_status_text(&testcase.status, loading));
+        texts.push(testcase_evaluation_status_text(testcase, loading, state));
     }
     texts.push(Text::styled("]", par_style));
     texts
 }
 
 /// Get the colored character corresponding to the status of the evaluation of a testcase.
-fn testcase_evaluation_status_text(status: &TestcaseEvaluationStatus, loading: char) -> Text {
-    match status {
+fn testcase_evaluation_status_text<'a>(
+    testcase: &'a SolutionTestcaseEvaluationState,
+    loading: char,
+    state: &'a UIState,
+) -> Text<'a> {
+    let time_limit = state.task.time_limit;
+    let memory_limit = state.task.memory_limit;
+    let extra_time = state.config.extra_time;
+    let close_color = if testcase.is_close_to_limits(
+        time_limit,
+        extra_time,
+        memory_limit,
+        YELLOW_RESOURCE_THRESHOLD,
+    ) {
+        Some(*ORANGE)
+    } else {
+        None
+    };
+    match &testcase.status {
         TestcaseEvaluationStatus::Pending => Text::raw("."),
         TestcaseEvaluationStatus::Solving => Text::raw(format!("{}", loading)),
         TestcaseEvaluationStatus::Solved => Text::raw("s"),
         TestcaseEvaluationStatus::Checking => Text::raw(format!("{}", loading)),
-        TestcaseEvaluationStatus::Accepted(_) => Text::styled(
-            "A",
-            Style::default().fg(Color::Green).modifier(Modifier::BOLD),
-        ),
-        TestcaseEvaluationStatus::WrongAnswer(_) => Text::styled(
-            "W",
-            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
-        ),
-        TestcaseEvaluationStatus::Partial(_) => Text::styled(
-            "P",
-            Style::default().fg(Color::Yellow).modifier(Modifier::BOLD),
-        ),
-        TestcaseEvaluationStatus::TimeLimitExceeded => Text::styled(
-            "T",
-            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
-        ),
-        TestcaseEvaluationStatus::WallTimeLimitExceeded => Text::styled(
-            "T",
-            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
-        ),
-        TestcaseEvaluationStatus::MemoryLimitExceeded => Text::styled(
-            "M",
-            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
-        ),
-        TestcaseEvaluationStatus::RuntimeError => Text::styled(
-            "R",
-            Style::default().fg(Color::Red).modifier(Modifier::BOLD),
-        ),
+        TestcaseEvaluationStatus::Accepted(_) => Text::styled("A", close_color.unwrap_or(*GREEN)),
+        TestcaseEvaluationStatus::WrongAnswer(_) => Text::styled("W", *RED),
+        TestcaseEvaluationStatus::Partial(_) => Text::styled("P", *YELLOW),
+        TestcaseEvaluationStatus::TimeLimitExceeded => {
+            Text::styled("T", close_color.unwrap_or(*RED))
+        }
+        TestcaseEvaluationStatus::WallTimeLimitExceeded => Text::styled("T", *RED),
+        TestcaseEvaluationStatus::MemoryLimitExceeded => {
+            Text::styled("M", close_color.unwrap_or(*RED))
+        }
+        TestcaseEvaluationStatus::RuntimeError => Text::styled("R", *RED),
         TestcaseEvaluationStatus::Failed => Text::styled(
             "F",
             Style::default()

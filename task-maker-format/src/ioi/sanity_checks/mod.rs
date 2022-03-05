@@ -8,13 +8,13 @@ use task_maker_lang::LanguageManager;
 
 use crate::ioi::IOITask;
 use crate::sanity_checks::{SanityCheck, SanityChecks};
-use crate::ui::UIMessage;
 use crate::{list_files, EvaluationData, UISender};
 use std::collections::HashSet;
 
 mod att;
 mod sol;
 mod statement;
+mod subtasks;
 mod task;
 
 /// Make a new `SanityChecks` for a IOI task skipping the checks with the provided names.
@@ -35,7 +35,11 @@ fn get_sanity_check_list(skip: &[String]) -> Vec<Box<dyn SanityCheck<IOITask>>> 
         Box::new(sol::SolSymlink::default()),
         Box::new(statement::StatementSubtasks::default()),
         Box::new(statement::StatementValid::default()),
+        Box::new(statement::StatementCompiled::default()),
         Box::new(statement::StatementGit::default()),
+        Box::new(subtasks::MissingSubtaskNames::default()),
+        Box::new(subtasks::SolutionsWithNoChecks::default()),
+        Box::new(subtasks::InvalidSubtaskName::default()),
     ];
     all.into_iter()
         .filter(|s| !skip.contains(&s.name().into()))
@@ -89,13 +93,11 @@ fn check_missing_graders<P: AsRef<Path>>(
     for grader in graders {
         if !grader.exists() {
             let name = Path::new(grader.file_name().unwrap());
-            eval.sender.send(UIMessage::Warning {
-                message: format!(
-                    "Missing grader at {}/{}",
-                    folder.as_ref().display(),
-                    name.display()
-                ),
-            })?;
+            eval.sender.send_error(format!(
+                "Missing grader at {}/{}",
+                folder.as_ref().display(),
+                name.display()
+            ))?;
         }
     }
     Ok(())

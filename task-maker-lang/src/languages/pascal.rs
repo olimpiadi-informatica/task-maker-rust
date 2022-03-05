@@ -32,6 +32,10 @@ impl Language for LanguagePascal {
         true
     }
 
+    fn inline_comment_prefix(&self) -> Option<&'static str> {
+        Some("//")
+    }
+
     fn compilation_builder(
         &self,
         source: &Path,

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
 pub use batch::BatchTypeData;
-pub use communication::CommunicationTypeData;
+pub use communication::{CommunicationTypeData, UserIo};
 use task_maker_dag::FileUuid;
 
 use crate::ioi::{Checker, IOITask, ScoreManager, SubtaskId, TestcaseId};

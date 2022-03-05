@@ -5,7 +5,6 @@ use std::sync::Mutex;
 use anyhow::Error;
 use itertools::Itertools;
 
-use crate::ui::{UIMessage, UIMessageSender};
 use crate::{EvaluationData, UISender};
 
 /// Trait that describes the behavior of a sanity check.
@@ -20,7 +19,7 @@ pub trait SanityCheck<Task>: Send + Sync + std::fmt::Debug {
     }
 
     /// This function will be called after the execution of the DAG completes.
-    fn post_hook(&mut self, _task: &Task, _ui: &mut UIMessageSender) -> Result<(), Error> {
+    fn post_hook(&mut self, _task: &Task, _eval: &mut EvaluationData) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -56,9 +55,8 @@ impl<Task> SanityChecks<Task> {
         let mut state = self.state.lock().unwrap();
         for check in state.sanity_checks.iter_mut() {
             if let Err(e) = check.pre_hook(task, eval) {
-                eval.sender.send(UIMessage::Warning {
-                    message: format!("Sanity check {} failed: {}", check.name(), e),
-                })?;
+                eval.sender
+                    .send_error(format!("Sanity check {} failed: {}", check.name(), e))?;
             }
         }
         Ok(())
@@ -66,13 +64,12 @@ impl<Task> SanityChecks<Task> {
 
     /// Function called after the evaluation completes. This will check that the produced assets are
     /// valid and the executions added by the pre_hook produced the correct results.
-    pub fn post_hook(&self, task: &Task, ui: &mut UIMessageSender) -> Result<(), Error> {
+    pub fn post_hook(&self, task: &Task, eval: &mut EvaluationData) -> Result<(), Error> {
         let mut state = self.state.lock().unwrap();
         for check in state.sanity_checks.iter_mut() {
-            if let Err(e) = check.post_hook(task, ui) {
-                ui.send(UIMessage::Warning {
-                    message: format!("Sanity check {} failed: {}", check.name(), e),
-                })?;
+            if let Err(e) = check.post_hook(task, eval) {
+                eval.sender
+                    .send_error(format!("Sanity check {} failed: {}", check.name(), e))?;
             }
         }
         Ok(())

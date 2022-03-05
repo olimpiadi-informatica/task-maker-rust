@@ -13,7 +13,7 @@ jobs:
     name: Build & Publish (Linux)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - name: Build deb file
         run: |
           docker run --rm -v $(pwd):/source ghcr.io/edomora97/task-maker-rust-release-linux
@@ -22,33 +22,3 @@ jobs:
         with:
           name: Ubuntu deb
           path: "target/debian/*.deb"
-
-  macOS:
-    name: Build & Publish (macOS)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v1
-      - name: Build
-        run: |
-          set -ex
-
-          # the release may not have been published yet, use last commit instead
-          export version=$(git rev-parse HEAD)
-          sed -i "" "s/ARCHIVE_VERSION/$version/g" ./tools/homebrew/task-maker-rust.rb
-          curl -L -o archive.tar.gz "https://github.com/edomora97/task-maker-rust/archive/$version.tar.gz"
-          # export version=$(cargo pkgid task-maker-rust | cut -d'#' -f 2)
-          # sed -i "" "s/ARCHIVE_VERSION/v$version/g" ./tools/homebrew/task-maker-rust.rb
-          # curl -L -o archive.tar.gz "https://github.com/edomora97/task-maker-rust/archive/v$version.tar.gz"
-          export hash=$(shasum -a 256 archive.tar.gz | grep -o "[0-9a-f]*" | head -n 1)
-          sed -i "" "s/ARCHIVE_SHA256/$hash/g" ./tools/homebrew/task-maker-rust.rb
-
-          brew update
-          mkdir -p $(brew --prefix)/Homebrew/Library/Taps/homebrew/homebrew-core/Formula/
-          cp ./tools/homebrew/task-maker-rust.rb $(brew --prefix)/Homebrew/Library/Taps/homebrew/homebrew-core/Formula/
-          brew install --verbose --build-bottle --formula task-maker-rust
-          brew bottle --force-core-tap task-maker-rust
-      - name: Upload the artifacts
-        uses: actions/upload-artifact@v2
-        with:
-          name: MacOS bottle
-          path: "*.bottle.tar.gz"
