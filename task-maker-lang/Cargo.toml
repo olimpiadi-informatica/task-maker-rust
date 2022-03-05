@@ -2,7 +2,7 @@
 name = "task-maker-lang"
 version = "0.5.3"
 authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 task-maker-dag = { path = "../task-maker-dag" }
