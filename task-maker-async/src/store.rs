@@ -14,22 +14,23 @@ use tokio_util::sync::CancellationToken;
 
 use crate::error::Error;
 
-type HashData = Vec<u8>;
+// TODO(veluca): change this when implementing hashing properly.
+type HashData = [u8; 8];
 
 const LEASE_LENGTH: Duration = Duration::from_secs(2);
 
 const CHUNK_SIZE: usize = 4 * 1024; // 4 KiB
 
-/// Hash that uniquely identifies the *content* of a given file_set.
+/// Hash that uniquely identifies the *content* of a given fileset.
 pub type DataIdentificationHash = HashData;
 
-/// Hash that uniquely identifies a *variant* of a given file_set.
+/// Hash that uniquely identifies a *variant* of a given fileset.
 pub type VariantIdentificationHash = HashData;
 
-/// Two-level hash; the outer hash has information about all properties of a fileset that are
-/// expected to change the result (such as outer hashes of inputs, or the command line). The inner
-/// hash takes care of properties of the computation that should not change the outputs, such as
-/// time and memory limits; it also includes the first hash.
+/// Two-level hash; the DataIdentificationHash has information about all properties of a fileset
+/// that are expected to change the result (such as data hashes of inputs, or the command line).
+/// The VariantIdentificationHash takes care of properties of the computation that should not
+/// change the outputs, such as time and memory limits; it also includes the first hash.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct FileSetHash(DataIdentificationHash, VariantIdentificationHash);
 
@@ -64,7 +65,7 @@ pub struct FileHandle {
 pub enum FileSetFile {
     /// Outcome for a computation, input file for an input file.
     MainFile,
-    /// Metadata about how the file_set was obtained.
+    /// Metadata about how the fileset was obtained.
     Metadata,
     /// Any auxiliary file that can be attached to the main input file. For now only used for
     /// outputs of computations.
@@ -92,32 +93,32 @@ pub trait Store {
 
     // Creating a computation is not a RPC.
 
-    /// Opens a computed file_set for reading. Creates a lease for the computation data that will prevent it
+    /// Opens a computed fileset for reading. Creates a lease for the computation data that will prevent it
     /// from being dropped. If the computation is not present, waits until it is created.
     async fn open_computation(
         computation: DataIdentificationHash,
         variant: VariantIdentificationHash,
     ) -> Result<FileSetHandle, Error>;
 
-    /// Opens a file inside a file_set. Waits for the file to be created if it doesn't exist yet and
-    /// the file_set handle is a reading handle, creates the file otherwise.
+    /// Opens a file inside a fileset. Waits for the file to be created if it doesn't exist yet and
+    /// the fileset handle is a reading handle, creates the file otherwise.
     /// Returns an error if the handle is invalid.
     async fn open_file(handle: FileSetHandle, file: FileSetFile) -> Result<FileHandle, Error>;
 
-    /// Appends data to a file in a file_set that is open for writing. Refreshes the writing lease.
+    /// Appends data to a file in a fileset that is open for writing. Refreshes the writing lease.
     async fn append_chunk(file: FileHandle, data: Vec<u8>) -> Result<(), Error>;
 
     /// Finalizes a FileSet handle in writing mode. Terminates the writing lease and returns a reading
-    /// lease for the same FileSet. If finalizing an input file_set, returns an error if the hash of
+    /// lease for the same FileSet. If finalizing an input fileset, returns an error if the hash of
     /// its MainFile is not correct.
     async fn finalize_file_set(handle: FileSetHandle) -> Result<FileSetHandle, Error>;
 
     /// Tries to read from a file. Refreshes the corresponding lease.
     async fn read_chunk(file: FileHandle, offset: usize) -> Result<FileReadingOutcome, Error>;
 
-    /// Refreshes the lease for the given file_set.
-    /// It is guaranteed that the file_set will not be deleted while there's an outstanding lease
-    /// to it. It is an error to refresh a lease of a non-existent input.
+    /// Refreshes the lease for the given fileset.
+    /// It is guaranteed that the fileset will not be deleted while there's an outstanding lease
+    /// to it.
     async fn refresh_file_set_lease(handle: FileSetHandle) -> Result<(), Error>;
 }
 
@@ -140,8 +141,8 @@ type FileSetVariants = HashMap<VariantIdentificationHash, FileSet>;
 
 #[derive(Debug)]
 struct FileSetHandleInfo {
-    outer_hash: DataIdentificationHash,
-    inner_hash: VariantIdentificationHash,
+    data_hash: DataIdentificationHash,
+    variant_hash: VariantIdentificationHash,
     expiration: Instant,
     mode: HandleMode,
     file_handles: HashMap<FileHandleId, FileSetFile>,
@@ -166,10 +167,10 @@ impl StoreServiceImpl {
     fn new_handle(&mut self, hash: FileSetHash, mode: HandleMode) -> FileSetHandle {
         let handle = self.next_handle;
         self.next_handle += 1;
-        let FileSetHash(outer_hash, inner_hash) = hash;
+        let FileSetHash(data_hash, variant_hash) = hash;
         let handle_info = FileSetHandleInfo {
-            outer_hash,
-            inner_hash,
+            data_hash,
+            variant_hash,
             expiration: Instant::now() + LEASE_LENGTH,
             mode,
             file_handles: HashMap::new(),
@@ -184,15 +185,15 @@ impl StoreServiceImpl {
         hash: FileSetHash,
         kind: FileSetKind,
     ) -> Result<FileSetHandle, Error> {
-        let outer_comp = self.file_sets.entry(hash.0.clone()).or_default();
-        if let Some(file_set) = outer_comp.get(&hash.1) {
+        let data_comp = self.file_sets.entry(hash.0).or_default();
+        if let Some(file_set) = data_comp.get(&hash.1) {
             if file_set.kind != kind {
                 return Err(Error::HashCollision(hash.0));
             }
             Ok(self.new_handle(hash, HandleMode::Read))
         } else {
-            outer_comp.insert(
-                hash.1.clone(),
+            data_comp.insert(
+                hash.1,
                 FileSet {
                     files: HashMap::new(),
                     kind,
@@ -209,9 +210,9 @@ impl StoreServiceImpl {
         for info in self.file_set_handles.values() {
             if info.expiration < time && info.mode == HandleMode::Write {
                 self.file_sets
-                    .get_mut(&info.outer_hash)
+                    .get_mut(&info.data_hash)
                     .unwrap()
-                    .remove(&info.inner_hash);
+                    .remove(&info.variant_hash);
             }
         }
         self.file_set_handles
@@ -242,9 +243,9 @@ impl StoreServiceImpl {
         let file_info = file_set_info.file_handles.get(&file.id).unwrap();
         // TODO(veluca): update hash if appending to an input file.
         self.file_sets
-            .get_mut(&file_set_info.outer_hash)
+            .get_mut(&file_set_info.data_hash)
             .unwrap()
-            .get_mut(&file_set_info.inner_hash)
+            .get_mut(&file_set_info.variant_hash)
             .unwrap()
             .files
             .get_mut(file_info)
@@ -258,11 +259,11 @@ impl StoreServiceImpl {
         file: FileSetFile,
     ) -> Result<FileHandle, Error> {
         let file_set_info = self.file_set_handles.get_mut(&file_set_handle.id).unwrap();
-        let file_set_group = self.file_sets.get_mut(&file_set_info.outer_hash);
+        let file_set_group = self.file_sets.get_mut(&file_set_info.data_hash);
         if file_set_group.is_none() {
             return Err(Error::FileSetDropped(file_set_handle.id));
         }
-        let file_set = file_set_group.unwrap().get_mut(&file_set_info.inner_hash);
+        let file_set = file_set_group.unwrap().get_mut(&file_set_info.variant_hash);
         if file_set.is_none() {
             return Err(Error::FileSetDropped(file_set_handle.id));
         }
@@ -300,11 +301,11 @@ impl StoreServiceImpl {
     ) -> Result<FileReadingOutcome, Error> {
         let file_set_info = self.file_set_handles.get(&file.file_set_handle.id).unwrap();
         let file_info = file_set_info.file_handles.get(&file.id).unwrap();
-        let file_set_group = self.file_sets.get(&file_set_info.outer_hash);
+        let file_set_group = self.file_sets.get(&file_set_info.data_hash);
         if file_set_group.is_none() {
             return Ok(FileReadingOutcome::Dropped);
         }
-        let file_set = file_set_group.unwrap().get(&file_set_info.inner_hash);
+        let file_set = file_set_group.unwrap().get(&file_set_info.variant_hash);
         if file_set.is_none() {
             return Ok(FileReadingOutcome::Dropped);
         }
@@ -342,7 +343,7 @@ impl StoreService {
         variant: VariantIdentificationHash,
     ) -> Result<FileSetHandle, Error> {
         let mut service = self.service.lock().unwrap();
-        let hash = FileSetHash(computation.clone(), variant.clone());
+        let hash = FileSetHash(computation, variant);
         let handle = service.create_or_open_file_set(hash, FileSetKind::Computation)?;
         if handle.is_writable() {
             Ok(handle)
@@ -427,7 +428,7 @@ impl Store for StoreService {
         hash: DataIdentificationHash,
     ) -> Result<FileSetHandle, Error> {
         let mut service = self.service.lock().unwrap();
-        service.create_or_open_file_set(FileSetHash(hash.clone(), hash), FileSetKind::InputFile)
+        service.create_or_open_file_set(FileSetHash(hash, hash), FileSetKind::InputFile)
     }
 
     async fn open_computation(
@@ -484,9 +485,9 @@ impl Store for StoreService {
         let handle_info = service.file_set_handles.get(&handle.id).unwrap();
         service
             .file_sets
-            .get_mut(&handle_info.outer_hash)
+            .get_mut(&handle_info.data_hash)
             .unwrap()
-            .get_mut(&handle_info.inner_hash)
+            .get_mut(&handle_info.variant_hash)
             .unwrap()
             .finalized = true;
 
@@ -577,9 +578,7 @@ mod test {
         let (client, context, _server) = spawn();
 
         let hash = get_hash("input1");
-        let resp = client
-            .create_or_open_input_file(context, hash.clone())
-            .await?;
+        let resp = client.create_or_open_input_file(context, hash).await?;
         let_assert!(Ok(fileset_handle) = resp);
         check!(fileset_handle.is_writable());
 
@@ -630,9 +629,7 @@ mod test {
     async fn test_read_not_existent() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        let write_handle = server
-            .create_computation(hash.clone(), hash.clone())
-            .unwrap();
+        let write_handle = server.create_computation(hash, hash).unwrap();
         let file = client
             .open_file(
                 context,
@@ -646,10 +643,7 @@ mod test {
             .await?
             .unwrap();
 
-        let read_handle = client
-            .open_computation(context, hash.clone(), hash)
-            .await?
-            .unwrap();
+        let read_handle = client.open_computation(context, hash, hash).await?.unwrap();
         check!(!read_handle.is_writable());
 
         let file = FileSetFile::AuxiliaryFile("lolnope".into());
@@ -1063,15 +1057,13 @@ mod test {
     #[tokio::test]
     async fn test_list_variants() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
-        let outer1 = get_hash("outer1");
-        let outer2 = get_hash("outer2");
-        let inner1 = get_hash("inner1");
-        let inner2 = get_hash("inner2");
-        for outer in [&outer1, &outer2] {
-            for inner in [&inner1, &inner2] {
-                let handle = server
-                    .create_computation(outer.clone(), inner.clone())
-                    .unwrap();
+        let data1 = get_hash("data1");
+        let data2 = get_hash("data2");
+        let variant1 = get_hash("variant1");
+        let variant2 = get_hash("variant2");
+        for data in [data1, data2] {
+            for variant in [variant1, variant2] {
+                let handle = server.create_computation(data, variant).unwrap();
                 client
                     .finalize_file_set(context, handle)
                     .await
@@ -1080,8 +1072,8 @@ mod test {
             }
         }
 
-        let mut similar = server.list_variants(outer1.clone());
-        let mut expected = vec![inner1.clone(), inner2.clone()];
+        let mut similar = server.list_variants(data1);
+        let mut expected = vec![variant1, variant2];
         similar.sort();
         expected.sort();
         assert!(similar == expected);

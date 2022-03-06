@@ -16,7 +16,7 @@ pub trait Server {
     /// the Store.
     async fn evaluate(dag: ExecutionDAGData) -> Result<(), Error>;
 
-    /// Asks the server for work to do. Returns a ComputationWriteHandle to be used to store the
+    /// Asks the server for work to do. Returns a FileSetHandle to be used to store the
     /// outputs in the Store. id is an identifier of the worker that calls the method.
     async fn get_work(id: usize) -> (ExecutionGroup, FileSetHandle);
 
