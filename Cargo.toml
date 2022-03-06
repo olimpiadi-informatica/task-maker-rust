@@ -41,6 +41,7 @@ task-maker-cache = { path = "./task-maker-cache" }
 task-maker-exec = { path = "./task-maker-exec" }
 task-maker-lang = { path = "./task-maker-lang" } # needed only by typescriptify
 task-maker-format = { path = "./task-maker-format" }
+task-maker-async = { path = "./task-maker-async" }
 
 # Logging and setting up the global logger
 log = "0.4"
