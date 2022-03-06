@@ -100,8 +100,8 @@ pub trait Store {
         variant: VariantIdentificationHash,
     ) -> Result<FileSetHandle, Error>;
 
-    /// Opens a file inside a fileset. Waits for the file to be created if it doesn't exist yet and
-    /// the fileset handle is a reading handle, creates the file otherwise.
+    /// Opens a file inside a file set. If the handle is read-only, and the file does not exists,
+    /// it blocks until it is created. If the handle is a writing handle, it creates the file.
     /// Returns an error if the handle is invalid.
     async fn open_file(handle: FileSetHandle, file: FileSetFile) -> Result<FileHandle, Error>;
 
@@ -570,7 +570,7 @@ mod test {
         // TODO: this is just a mock of the hash
         let mut hasher = DefaultHasher::default();
         data.hash(&mut hasher);
-        hasher.finish().to_le_bytes().into()
+        hasher.finish().to_le_bytes()
     }
 
     #[tokio::test]
@@ -658,7 +658,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
         let file = client
@@ -675,7 +675,7 @@ mod test {
             .unwrap();
 
         let read_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
         check!(!read_handle.is_writable());
@@ -697,7 +697,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
         let file = client
@@ -715,7 +715,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
         client
@@ -724,7 +724,7 @@ mod test {
             .unwrap();
 
         let read_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
         check!(!read_handle.is_writable());
@@ -754,7 +754,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
         let file = client
@@ -795,7 +795,7 @@ mod test {
             .unwrap();
 
         let read_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
         check!(!read_handle.is_writable());
@@ -829,7 +829,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
         let read_handle = client
@@ -873,7 +873,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
 
@@ -893,11 +893,11 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
         let read_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
 
@@ -917,7 +917,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
         let file_w = client
@@ -943,7 +943,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
         client
@@ -956,7 +956,7 @@ mod test {
             .unwrap();
 
         let read_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
         let file = client
@@ -978,7 +978,7 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let write_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
 
@@ -996,10 +996,10 @@ mod test {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
         let input_file_handle = client
-            .create_or_open_input_file(context, hash.clone())
+            .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
-        let resp = client.open_computation(context, hash.clone(), hash).await?;
+        let resp = client.open_computation(context, hash, hash).await?;
         let_assert!(Err(Error::HashCollision(_)) = resp);
 
         Ok(())
@@ -1009,9 +1009,7 @@ mod test {
     async fn test_hash_collision2() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        server
-            .create_computation(hash.clone(), hash.clone())
-            .unwrap();
+        server.create_computation(hash, hash).unwrap();
         let resp = client.create_or_open_input_file(context, hash).await?;
         let_assert!(Err(Error::HashCollision(_)) = resp);
 
@@ -1022,10 +1020,8 @@ mod test {
     async fn test_computation_exists() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        server
-            .create_computation(hash.clone(), hash.clone())
-            .unwrap();
-        let resp = server.create_computation(hash.clone(), hash.clone());
+        server.create_computation(hash, hash).unwrap();
+        let resp = server.create_computation(hash, hash);
         let_assert!(Err(Error::ComputationExists(hash1, hash2)) = resp);
         assert!(hash1 == hash);
         assert!(hash2 == hash);
@@ -1038,13 +1034,13 @@ mod test {
     async fn test_wait_computation_creation() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        let mut fut = Box::pin(client.open_computation(context, hash.clone(), hash.clone()));
+        let mut fut = Box::pin(client.open_computation(context, hash, hash));
         select! {
             _ = tokio::time::sleep(Duration::from_millis(100)) => {},
             resp = &mut fut => panic!("should be waiting for the computation, but got: {:?}", resp),
         }
 
-        let comp = server.create_computation(hash.clone(), hash).unwrap();
+        let comp = server.create_computation(hash, hash).unwrap();
 
         select! {
             _ = tokio::time::sleep(Duration::from_millis(100)) => panic!("the computation should be ready now"),
@@ -1074,8 +1070,8 @@ mod test {
 
         let mut similar = server.list_variants(data1);
         let mut expected = vec![variant1, variant2];
-        similar.sort();
-        expected.sort();
+        similar.sort_unstable();
+        expected.sort_unstable();
         assert!(similar == expected);
 
         let similar = server.list_variants(get_hash("lolnope"));
