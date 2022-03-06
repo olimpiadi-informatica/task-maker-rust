@@ -74,7 +74,7 @@ fn check_missing_graders<P: AsRef<Path>>(
         .any(|p| p == "stub");
     let mut by_ext = HashMap::new();
     for file in list_files(task.path.join(folder.as_ref()), vec!["*.*"]) {
-        let file = file.strip_prefix(&task.path).unwrap_or(&file);
+        let file = task.path_of(&file);
         let stem = match file.file_stem() {
             Some(stem) => stem,
             None => continue,

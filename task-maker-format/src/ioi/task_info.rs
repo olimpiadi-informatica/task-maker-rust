@@ -109,7 +109,7 @@ impl IOITaskInfo {
                     content_type: mime_guess::from_path(&booklet.dest)
                         .first()
                         .map_or("UNKNOWN".into(), |t| t.to_string()),
-                    path: booklet.dest.strip_prefix(&task.path).unwrap().into(),
+                    path: task.path_of(&booklet.dest).into(),
                 })
                 .collect(),
             attachments: task
@@ -126,7 +126,7 @@ impl IOITaskInfo {
                                 content_type: mime_guess::from_path(path)
                                     .first()
                                     .map_or("UNKNOWN".into(), |t| t.to_string()),
-                                path: entry.path().strip_prefix(&task.path).unwrap().into(),
+                                path: task.path_of(&entry.path()).into(),
                             }
                         })
                         .collect()

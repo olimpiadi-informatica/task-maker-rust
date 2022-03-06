@@ -45,7 +45,7 @@ impl SanityCheck<IOITask> for AttTemplates {
             let att_name = format!("att/{}.{}", task.name, ext);
             let template = task.path.join(&att_name);
             if !template.exists() {
-                let grader_name = grader.strip_prefix(&task.path).unwrap_or(grader);
+                let grader_name = task.path_of(grader);
                 eval.add_diagnostic(
                     Diagnostic::warning(format!("Missing template at {}", att_name))
                         .with_note(format!("Because of {}", grader_name.display())),
@@ -76,16 +76,15 @@ impl SanityCheck<IOITask> for AttSampleFiles {
                     eval.add_diagnostic(
                         Diagnostic::error(format!(
                             "Sample case {} is a broken link",
-                            sample.strip_prefix(&task.path).unwrap().display()
+                            task.path_of(&sample).display()
                         ))
                         .with_note(format!("It points to {}", content.display())),
                     )?;
                 }
             } else {
-                let path = sample.strip_prefix(&task.path).unwrap_or(&sample);
                 eval.add_diagnostic(Diagnostic::warning(format!(
                     "Sample case {} is not a symlink",
-                    path.display()
+                    task.path_of(&sample).display()
                 )).with_help("Move this file in the statement folder and symlink it here. This way the sample file can be included in the compiled statement."))?;
             }
         }
@@ -116,7 +115,7 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
         let official_solution = &task_type.output_generator;
         let samples = get_sample_files(task, eval).context("Failed to get sample files")?;
         for (input, output) in samples {
-            let input_name = input.strip_prefix(&task.path).unwrap().to_owned();
+            let input_name = task.path_of(&input).to_owned();
             let input_handle = File::new(format!("Sample input file at {}", input_name.display()));
             let input_uuid = input_handle.uuid;
             eval.dag
@@ -157,7 +156,7 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
             }
 
             if let Some(solution) = &official_solution {
-                let output_name = output.strip_prefix(&task.path).unwrap().to_owned();
+                let output_name = task.path_of(&output).to_owned();
                 let output_handle =
                     File::new(format!("Sample output file at {}", output_name.display()));
                 let output_uuid = output_handle.uuid;
@@ -265,7 +264,7 @@ fn get_sample_files(
         }
         let paths = files
             .iter()
-            .map(|p| p.strip_prefix(&task.path).unwrap_or(p).to_string_lossy())
+            .map(|p| task.path_of(p).to_string_lossy())
             .join(", ");
         eval.add_diagnostic(
             Diagnostic::error(format!("Sample input {} is present more than once", num))
@@ -284,7 +283,7 @@ fn get_sample_files(
         }
         let paths = files
             .iter()
-            .map(|p| p.strip_prefix(&task.path).unwrap_or(p).to_string_lossy())
+            .map(|p| task.path_of(p).to_string_lossy())
             .join(", ");
         eval.add_diagnostic(
             Diagnostic::error(format!("Sample output {} is present more than once", num))
@@ -292,24 +291,22 @@ fn get_sample_files(
         )?;
     }
     let mut samples = Vec::new();
-    for (num, input) in inputs {
+    for (num, inputs) in inputs {
         let output = if let Some(output) = outputs.remove(&num) {
             output[0].clone()
         } else {
-            let input = input[0].strip_prefix(&task.path).unwrap_or(&input[0]);
             eval.add_diagnostic(Diagnostic::error(format!(
                 "Sample input file {} does not have its output file",
-                input.display()
+                task.path_of(&inputs[0]).display()
             )))?;
             continue;
         };
-        samples.push((input[0].clone(), output));
+        samples.push((inputs[0].clone(), output));
     }
-    for (_, output) in outputs {
-        let output = output[0].strip_prefix(&task.path).unwrap_or(&output[0]);
+    for (_, outputs) in outputs {
         eval.add_diagnostic(Diagnostic::error(format!(
             "Sample output file {} does not have its input file",
-            output.display()
+            task.path_of(&outputs[0]).display()
         )))?;
     }
     Ok(samples)

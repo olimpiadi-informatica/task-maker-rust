@@ -189,6 +189,11 @@ impl IOITask {
         &self.path
     }
 
+    /// Get the path relative to the task's root.
+    pub fn path_of<'a>(&self, path: &'a Path) -> &'a Path {
+        path.strip_prefix(&self.path).unwrap_or(path)
+    }
+
     /// Get an appropriate `UI` for this task.
     pub fn ui(&self, ui_type: &UIType, config: ExecutionDAGConfig) -> Result<Box<dyn UI>, Error> {
         match ui_type {

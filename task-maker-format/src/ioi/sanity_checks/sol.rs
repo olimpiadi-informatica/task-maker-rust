@@ -32,10 +32,9 @@ impl SanityCheck<IOITask> for SolSymlink {
     fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         for solution in list_files(&task.path, vec!["sol/solution.*", "sol/soluzione.*"]) {
             if solution.read_link().is_err() {
-                let solution = solution.strip_prefix(&task.path).unwrap_or(&solution);
                 eval.add_diagnostic(Diagnostic::warning(format!(
                     "Solution {} is not a symlink",
-                    solution.display()
+                    task.path_of(&solution).display()
                 )))?;
             }
         }

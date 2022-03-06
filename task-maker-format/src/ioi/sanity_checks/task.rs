@@ -42,7 +42,7 @@ impl SanityCheck<IOITask> for BrokenSymlinks {
             if !file.exists() && file.read_link().is_ok() {
                 eval.sender.send_warning(format!(
                     "{} is a broken link",
-                    file.strip_prefix(&task.path).unwrap().display()
+                    task.path_of(&file).display()
                 ))?;
             }
         }

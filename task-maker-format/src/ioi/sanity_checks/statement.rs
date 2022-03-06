@@ -36,10 +36,7 @@ impl SanityCheck<IOITask> for StatementSubtasks {
                 continue;
             }
             let statement = &booklet.statements[0];
-            let statement_path = statement
-                .path
-                .strip_prefix(&task.path)
-                .unwrap_or(&statement.path);
+            let statement_path = task.path_of(&statement.path);
             let source = statement.tex();
             let subtasks = match extract_subtasks(source) {
                 None => continue,
@@ -130,20 +127,18 @@ impl SanityCheck<IOITask> for StatementValid {
                     };
 
                     if invalid {
-                        let path = path.strip_prefix(&task.path).unwrap_or(&path);
                         eval.add_diagnostic(Diagnostic::error(format!(
                             "Invalid PDF file at {}",
-                            path.display()
+                            task.path_of(&path).display()
                         )))?;
                     }
                     return Ok(());
                 }
                 // broken symlink
                 else if path.read_link().is_ok() {
-                    let path = path.strip_prefix(&task.path).unwrap_or(&path);
                     eval.add_diagnostic(Diagnostic::error(format!(
                         "Statement {} is a broken link",
-                        path.display()
+                        task.path_of(&path).display()
                     )))?;
                 }
             }
@@ -195,16 +190,15 @@ impl SanityCheck<IOITask> for StatementCompiled {
 
         // We didn't find any compiled booklet referring to the official statement, this means that
         // the statement that will be used isn't the one compiled by us.
-        let path = path.strip_prefix(&task.path).unwrap_or(&path);
         let booklet_dest = booklet_dest
             .iter()
-            .map(|p| p.strip_prefix(&task.path).unwrap_or(p))
+            .map(|p| task.path_of(p))
             .map(|p| p.to_string_lossy())
             .join(", ");
         eval.add_diagnostic(
             Diagnostic::warning(format!(
                 "The official statement at {} is not the one compiled by task-maker",
-                path.display()
+                task.path_of(&path).display()
             ))
             .with_help(format!(
                 "Maybe it should be a symlink to one of the compiled PDF ({})",
@@ -229,7 +223,7 @@ impl SanityCheck<IOITask> for StatementGit {
             None => return Ok(()),
             Some(path) => path,
         };
-        let path = path.strip_prefix(&task.path).unwrap();
+        let path = task.path_of(&path);
         let raw_path = path.as_os_str().as_bytes();
         let mut command = Command::new("git");
         command.arg("ls-files").arg("-z").current_dir(&task.path);
