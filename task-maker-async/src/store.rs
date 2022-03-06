@@ -262,12 +262,10 @@ impl StoreServiceImpl {
             .get_mut(&file_set_info.variant_hash)
             .unwrap();
 
-        if file_set.kind == FileSetKind::InputFile && *file_info == FileSetFile::MainFile {
-            file_set_info
-                .main_file_hasher
-                .as_mut()
-                .unwrap()
-                .update(&data);
+        if *file_info == FileSetFile::MainFile {
+            if let Some(hasher) = file_set_info.main_file_hasher.as_mut() {
+                hasher.update(&data);
+            }
         }
 
         file_set.files.get_mut(file_info).unwrap().append(&mut data);
@@ -304,7 +302,7 @@ impl StoreServiceImpl {
                 file_set.files.insert(file.clone(), vec![]);
             }
         } else if file_set_handle.mode == HandleMode::Write {
-            return Err(Error::MultipleWrites(file.clone(), file_set_handle.id));
+            return Err(Error::MultipleWrites(file, file_set_handle.id));
         }
         let file_handle = file_set_info.next_handle;
         file_set_info.next_handle += 1;
