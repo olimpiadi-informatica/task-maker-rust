@@ -138,20 +138,6 @@ pub trait UISender {
     /// Send that `UIMessage` to the UI.
     fn send(&self, message: ui::UIMessage) -> Result<(), Error>;
 
-    /// Send a warning to the UI.
-    fn send_warning(&self, message: impl Into<String>) -> Result<(), Error> {
-        self.send(ui::UIMessage::Warning {
-            message: message.into(),
-        })
-    }
-
-    /// Send an error to the UI.
-    fn send_error(&self, message: impl Into<String>) -> Result<(), Error> {
-        self.send(ui::UIMessage::Error {
-            message: message.into(),
-        })
-    }
-
     /// Send a diagnostic message to the UI.
     fn add_diagnostic(&self, diagnostic: Diagnostic) -> Result<(), Error> {
         self.send(ui::UIMessage::Diagnostic { diagnostic })

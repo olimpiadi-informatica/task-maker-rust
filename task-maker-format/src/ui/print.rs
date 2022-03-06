@@ -262,14 +262,6 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
                     num_steps
                 ));
             }
-            UIMessage::Warning { message } => {
-                cwrite!(self, WARNING, "[WARNING] ");
-                print!("{}", message);
-            }
-            UIMessage::Error { message } => {
-                cwrite!(self, ERROR, "[ERROR]   ");
-                print!("{}", message);
-            }
             UIMessage::Diagnostic { diagnostic } => {
                 println!("[DIAGNOSTIC]");
                 println!("{}", diagnostic);

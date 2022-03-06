@@ -29,8 +29,7 @@ impl FinishUITrait<UIState> for FinishUI {
         ui.print_evaluations(state);
         ui.print_summary(state);
         println!();
-        FinishUIUtils::new(&mut ui.stream).print_warning_messages(&state.warnings);
-        FinishUIUtils::new(&mut ui.stream).print_error_messages(&state.errors);
+        FinishUIUtils::new(&mut ui.stream).print_diagnostic_messages(&state.diagnostics);
     }
 }
 

@@ -302,29 +302,6 @@ impl<'a> FinishUIUtils<'a> {
             .unwrap_or(0)
     }
 
-    /// Print the warnings.
-    pub fn print_warning_messages(&mut self, warnings: &[String]) {
-        if !warnings.is_empty() {
-            cwriteln!(self, YELLOW, "Warnings");
-            for warning in warnings.iter() {
-                println!(" - {}", warning);
-            }
-            println!();
-        }
-    }
-
-    /// Print the errors.
-    pub fn print_error_messages(&mut self, errors: &[String]) {
-        if !errors.is_empty() {
-            cwriteln!(self, RED, "Errors");
-            for error in errors.iter() {
-                cwrite!(self, RED, " - ");
-                cwriteln!(self, SOFT_RED, "{}", error);
-            }
-            println!();
-        }
-    }
-
     /// Print the diagnostics.
     pub fn print_diagnostic_messages(&mut self, diagnostics: &DiagnosticContext) {
         let diagnostics = diagnostics.diagnostics();
@@ -352,20 +329,6 @@ impl UIMessageSender {
     /// Send a message to the channel.
     pub fn send(&self, message: UIMessage) -> Result<(), Error> {
         self.sender.send(message).map_err(|e| e.into())
-    }
-
-    /// Send a warning message to the channel.
-    pub fn send_warning(&self, message: impl Into<String>) -> Result<(), Error> {
-        self.send(UIMessage::Warning {
-            message: message.into(),
-        })
-    }
-
-    /// Send an error message to the channel.
-    pub fn send_error(&self, message: impl Into<String>) -> Result<(), Error> {
-        self.send(UIMessage::Error {
-            message: message.into(),
-        })
     }
 }
 
