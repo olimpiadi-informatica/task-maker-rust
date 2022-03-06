@@ -4,6 +4,7 @@ use std::collections::{hash_map::Entry, HashMap};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use blake3::Hasher;
 use serde::{Deserialize, Serialize};
 use tarpc::context::Context;
 use tarpc::server::{BaseChannel, Channel};
@@ -14,8 +15,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::error::Error;
 
-// TODO(veluca): change this when implementing hashing properly.
-type HashData = [u8; 8];
+type HashData = [u8; 32];
 
 const LEASE_LENGTH: Duration = Duration::from_secs(2);
 
@@ -122,7 +122,7 @@ pub trait Store {
     async fn refresh_file_set_lease(handle: FileSetHandle) -> Result<(), Error>;
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 enum FileSetKind {
     Computation,
     InputFile,
@@ -146,6 +146,7 @@ struct FileSetHandleInfo {
     expiration: Instant,
     mode: HandleMode,
     file_handles: HashMap<FileHandleId, FileSetFile>,
+    main_file_hasher: Option<Hasher>,
     next_handle: FileHandleId,
 }
 
@@ -164,7 +165,12 @@ impl StoreServiceImpl {
         }
     }
 
-    fn new_handle(&mut self, hash: FileSetHash, mode: HandleMode) -> FileSetHandle {
+    fn new_handle(
+        &mut self,
+        hash: FileSetHash,
+        mode: HandleMode,
+        kind: FileSetKind,
+    ) -> FileSetHandle {
         let handle = self.next_handle;
         self.next_handle += 1;
         let FileSetHash(data_hash, variant_hash) = hash;
@@ -174,6 +180,11 @@ impl StoreServiceImpl {
             expiration: Instant::now() + LEASE_LENGTH,
             mode,
             file_handles: HashMap::new(),
+            main_file_hasher: if kind == FileSetKind::InputFile {
+                Some(Hasher::new())
+            } else {
+                None
+            },
             next_handle: 0,
         };
         self.file_set_handles.insert(handle, handle_info);
@@ -190,7 +201,7 @@ impl StoreServiceImpl {
             if file_set.kind != kind {
                 return Err(Error::HashCollision(hash.0));
             }
-            Ok(self.new_handle(hash, HandleMode::Read))
+            Ok(self.new_handle(hash, HandleMode::Read, kind))
         } else {
             data_comp.insert(
                 hash.1,
@@ -200,7 +211,7 @@ impl StoreServiceImpl {
                     finalized: false,
                 },
             );
-            Ok(self.new_handle(hash, HandleMode::Write))
+            Ok(self.new_handle(hash, HandleMode::Write, kind))
         }
     }
 
@@ -239,18 +250,25 @@ impl StoreServiceImpl {
     }
 
     fn append_to_file(&mut self, file: FileHandle, mut data: Vec<u8>) {
-        let file_set_info = self.file_set_handles.get(&file.file_set_handle.id).unwrap();
+        let file_set_info = self
+            .file_set_handles
+            .get_mut(&file.file_set_handle.id)
+            .unwrap();
         let file_info = file_set_info.file_handles.get(&file.id).unwrap();
-        // TODO(veluca): update hash if appending to an input file.
-        self.file_sets
+        let file_set = self
+            .file_sets
             .get_mut(&file_set_info.data_hash)
             .unwrap()
             .get_mut(&file_set_info.variant_hash)
-            .unwrap()
-            .files
-            .get_mut(file_info)
-            .unwrap()
-            .append(&mut data);
+            .unwrap();
+
+        if *file_info == FileSetFile::MainFile {
+            if let Some(hasher) = file_set_info.main_file_hasher.as_mut() {
+                hasher.update(&data);
+            }
+        }
+
+        file_set.files.get_mut(file_info).unwrap().append(&mut data);
     }
 
     fn open_file(
@@ -273,7 +291,6 @@ impl StoreServiceImpl {
                 "Opening a file for reading in a non-finalized file_set is not implemented".into(),
             ));
         }
-        // TODO(veluca): error out if trying to obtain a second writing handle to the same file.
         if !file_set.files.contains_key(&file) {
             if file_set_handle.mode == HandleMode::Read {
                 return Err(Error::NonExistentFile(file, file_set_handle.id));
@@ -284,6 +301,8 @@ impl StoreServiceImpl {
             } else {
                 file_set.files.insert(file.clone(), vec![]);
             }
+        } else if file_set_handle.mode == HandleMode::Write {
+            return Err(Error::MultipleWrites(file, file_set_handle.id));
         }
         let file_handle = file_set_info.next_handle;
         file_set_info.next_handle += 1;
@@ -461,7 +480,11 @@ impl Store for StoreService {
         if file_set.kind != FileSetKind::Computation {
             return Err(Error::HashCollision(computation));
         }
-        Ok(service.new_handle(FileSetHash(computation, variant), HandleMode::Read))
+        Ok(service.new_handle(
+            FileSetHash(computation, variant),
+            HandleMode::Read,
+            FileSetKind::Computation,
+        ))
     }
 
     async fn finalize_file_set(
@@ -474,7 +497,7 @@ impl Store for StoreService {
         }
         let mut service = self.service.lock().unwrap();
         let service = &mut *service;
-        // TODO(veluca): we should verify the hash of the file if this is a file_set.
+
         {
             let entry = service.validate_and_refresh(handle)?;
             entry
@@ -482,7 +505,15 @@ impl Store for StoreService {
                 .and_modify(|v| v.file_handles.clear());
         }
 
-        let handle_info = service.file_set_handles.get(&handle.id).unwrap();
+        let handle_info = service.file_set_handles.get_mut(&handle.id).unwrap();
+
+        if let Some(hasher) = handle_info.main_file_hasher.take() {
+            let hash = hasher.finalize();
+            if *hash.as_bytes() != handle_info.data_hash {
+                return Err(Error::InvalidHash(handle_info.data_hash, *hash.as_bytes()));
+            }
+        }
+
         service
             .file_sets
             .get_mut(&handle_info.data_hash)
@@ -549,9 +580,6 @@ impl Store for StoreService {
 
 #[cfg(test)]
 mod test {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
     use assert2::{assert, check, let_assert};
     use tarpc::client::RpcError;
     use tarpc::context;
@@ -566,34 +594,40 @@ mod test {
         (client, context, server)
     }
 
-    fn get_hash<T: Hash>(data: T) -> HashData {
-        // TODO: this is just a mock of the hash
-        let mut hasher = DefaultHasher::default();
-        data.hash(&mut hasher);
-        hasher.finish().to_le_bytes()
+    fn get_hash(data: &str) -> HashData {
+        *blake3::hash(data.as_bytes()).as_bytes()
     }
 
     #[tokio::test]
     async fn test_write_and_read_files() -> Result<(), RpcError> {
         let (client, context, _server) = spawn();
 
-        let hash = get_hash("input1");
+        let data = "input1";
+        let hash = get_hash(data);
         let resp = client.create_or_open_input_file(context, hash).await?;
         let_assert!(Ok(fileset_handle) = resp);
         check!(fileset_handle.is_writable());
 
         for (i, file_type) in [(0, FileSetFile::MainFile), (1, FileSetFile::Metadata)] {
-            let resp = client.open_file(context, fileset_handle, file_type).await?;
+            let resp = client
+                .open_file(context, fileset_handle, file_type.clone())
+                .await?;
             let_assert!(Ok(file_handle) = resp);
 
-            let resp = client
-                .append_chunk(context, file_handle, vec![i, i, i])
-                .await?;
-            let_assert!(Ok(()) = resp);
+            let resp = if file_type == FileSetFile::MainFile {
+                client
+                    .append_chunk(context, file_handle, data.as_bytes().to_vec())
+                    .await?
+            } else {
+                let resp = client
+                    .append_chunk(context, file_handle, vec![i, i, i])
+                    .await?;
+                let_assert!(Ok(()) = resp);
 
-            let resp = client
-                .append_chunk(context, file_handle, vec![42, 42])
-                .await?;
+                client
+                    .append_chunk(context, file_handle, vec![42, 42])
+                    .await?
+            };
             let_assert!(Ok(()) = resp);
         }
 
@@ -617,11 +651,11 @@ mod test {
 
         let resp = client.read_chunk(context, file_handle1, 0).await?;
         let_assert!(Ok(FileReadingOutcome::Data(data1)) = resp);
-        assert!(data1 == vec![0, 0, 0, 42, 42]);
+        assert!(data1[..] == *data.as_bytes());
 
         let resp = client.read_chunk(context, file_handle2, 0).await?;
         let_assert!(Ok(FileReadingOutcome::Data(data2)) = resp);
-        assert!(data2 == vec![0, 0, 0, 42, 42]);
+        assert!(data2[..] == *data.as_bytes());
         Ok(())
     }
 
@@ -656,7 +690,8 @@ mod test {
     #[tokio::test]
     async fn test_write_with_readonly() -> Result<(), RpcError> {
         let (client, context, _server) = spawn();
-        let hash = get_hash("comp1");
+        let data = "comp1";
+        let hash = get_hash(data);
         let write_handle = client
             .create_or_open_input_file(context, hash)
             .await?
@@ -666,7 +701,7 @@ mod test {
             .await?
             .unwrap();
         client
-            .append_chunk(context, file, vec![1, 2, 3])
+            .append_chunk(context, file, data.as_bytes().to_vec())
             .await?
             .unwrap();
         client
@@ -713,9 +748,18 @@ mod test {
     #[tokio::test]
     async fn test_finalize_with_readonly() -> Result<(), RpcError> {
         let (client, context, _server) = spawn();
-        let hash = get_hash("comp1");
+        let data = "comp1";
+        let hash = get_hash(data);
         let write_handle = client
             .create_or_open_input_file(context, hash)
+            .await?
+            .unwrap();
+        let file_handle = client
+            .open_file(context, write_handle, FileSetFile::MainFile)
+            .await?
+            .unwrap();
+        client
+            .append_chunk(context, file_handle, data.as_bytes().to_vec())
             .await?
             .unwrap();
         client
@@ -751,12 +795,9 @@ mod test {
 
     #[tokio::test]
     async fn test_chunked_read() -> Result<(), RpcError> {
-        let (client, context, _server) = spawn();
+        let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        let write_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
+        let write_handle = server.create_computation(hash, hash).unwrap();
         let file = client
             .open_file(context, write_handle, FileSetFile::MainFile)
             .await?
@@ -794,10 +835,7 @@ mod test {
             .await?
             .unwrap();
 
-        let read_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
+        let read_handle = client.open_computation(context, hash, hash).await?.unwrap();
         check!(!read_handle.is_writable());
         let file = client
             .open_file(context, read_handle, FileSetFile::MainFile)
@@ -941,13 +979,18 @@ mod test {
     #[tokio::test]
     async fn test_read_lease_expired() -> Result<(), RpcError> {
         let (client, context, _server) = spawn();
-        let hash = get_hash("comp1");
+        let data = "comp1";
+        let hash = get_hash(data);
         let write_handle = client
             .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
-        client
+        let file_handle = client
             .open_file(context, write_handle, FileSetFile::MainFile)
+            .await?
+            .unwrap();
+        client
+            .append_chunk(context, file_handle, data.as_bytes().to_vec())
             .await?
             .unwrap();
         client

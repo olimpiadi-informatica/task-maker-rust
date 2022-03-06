@@ -24,6 +24,10 @@ pub enum Error {
     NonExistentFile(FileSetFile, FileSetHandleId),
     #[error("{0:?} is not a valid file type for an input file.")]
     InvalidFileForInput(FileSetFile),
+    #[error("Invalid hash {1:?} for input file {0:?}.")]
+    InvalidHash(DataIdentificationHash, DataIdentificationHash),
+    #[error("{0:?} is already open for writing in fileset {1}.")]
+    MultipleWrites(FileSetFile, FileSetHandleId),
     #[error("Not implemented: {0}")]
     NotImplemented(String),
 }
