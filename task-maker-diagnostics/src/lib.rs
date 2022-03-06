@@ -1,7 +1,11 @@
+mod span;
+
 use std::fmt::{Display, Formatter};
 
 use colored::{Color, Colorize};
 use serde::{Deserialize, Serialize};
+
+pub use span::CodeSpan;
 
 #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum DiagnosticLevel {
@@ -38,6 +42,7 @@ pub struct Diagnostic {
     note: Option<String>,
     help: Option<String>,
     help_attachment: Option<Vec<u8>>,
+    code_span: Option<CodeSpan>,
 }
 
 impl Diagnostic {
@@ -48,6 +53,7 @@ impl Diagnostic {
             note: None,
             help: None,
             help_attachment: None,
+            code_span: None,
         }
     }
 
@@ -58,6 +64,7 @@ impl Diagnostic {
             note: None,
             help: None,
             help_attachment: None,
+            code_span: None,
         }
     }
 
@@ -73,6 +80,11 @@ impl Diagnostic {
 
     pub fn with_help_attachment(mut self, attachment: Vec<u8>) -> Self {
         self.help_attachment = Some(attachment);
+        self
+    }
+
+    pub fn with_code_span(mut self, code_span: CodeSpan) -> Self {
+        self.code_span = Some(code_span);
         self
     }
 
@@ -114,6 +126,11 @@ impl Diagnostic {
                 for (index, line) in lines.iter().enumerate() {
                     writeln!(f, "{:>pad$} | {}", index + 1, line, pad = pad)?;
                 }
+            }
+        }
+        if let Some(code_span) = &self.code_span {
+            for line in code_span.to_string(self.level).lines() {
+                writeln!(f, "{:>pad$} {}", "", line, pad = pad + 1)?;
             }
         }
         Ok(())

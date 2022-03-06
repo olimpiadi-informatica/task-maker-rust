@@ -1958,6 +1958,7 @@ dependencies = [
 name = "task-maker-diagnostics"
 version = "0.5.3"
 dependencies = [
+ "anyhow",
  "colored",
  "serde",
 ]
