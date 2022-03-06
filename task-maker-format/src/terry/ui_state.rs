@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 use task_maker_dag::{ExecutionResult, ExecutionStatus};
+use task_maker_diagnostics::DiagnosticContext;
 use task_maker_exec::ExecutorStatus;
 
 use crate::solution::SolutionInfo;
@@ -25,6 +26,8 @@ pub struct UIState {
     pub warnings: Vec<String>,
     /// All the emitted errors.
     pub errors: Vec<String>,
+    /// Diagnostics context.
+    pub diagnostics: DiagnosticContext,
 }
 
 /// The state of the evaluation of a solution.
@@ -106,6 +109,7 @@ impl UIState {
             executor_status: None,
             warnings: Vec::new(),
             errors: Vec::new(),
+            diagnostics: Default::default(),
         }
     }
 }
@@ -217,6 +221,9 @@ impl UIStateT for UIState {
             }
             UIMessage::Error { message } => {
                 self.errors.push(message);
+            }
+            UIMessage::Diagnostic { diagnostic } => {
+                self.diagnostics.add_diagnostic(diagnostic);
             }
             UIMessage::IOITask { .. }
             | UIMessage::IOIGeneration { .. }

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 use task_maker_dag::*;
+use task_maker_diagnostics::DiagnosticContext;
 use task_maker_exec::ExecutorStatus;
 
 use crate::ioi::*;
@@ -257,6 +258,8 @@ pub struct UIState {
     pub warnings: Vec<String>,
     /// All the emitted errors.
     pub errors: Vec<String>,
+    /// Diagnostic context.
+    pub diagnostics: DiagnosticContext,
 }
 
 impl TestcaseEvaluationStatus {
@@ -374,6 +377,7 @@ impl UIState {
             booklets: HashMap::new(),
             warnings: Vec::new(),
             errors: Vec::new(),
+            diagnostics: Default::default(),
         }
     }
 
@@ -711,6 +715,9 @@ impl UIStateT for UIState {
             }
             UIMessage::Error { message } => {
                 self.errors.push(message);
+            }
+            UIMessage::Diagnostic { diagnostic } => {
+                self.diagnostics.add_diagnostic(diagnostic);
             }
             UIMessage::TerryTask { .. }
             | UIMessage::TerryGeneration { .. }

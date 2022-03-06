@@ -270,6 +270,10 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
                 cwrite!(self, ERROR, "[ERROR]   ");
                 print!("{}", message);
             }
+            UIMessage::Diagnostic { diagnostic } => {
+                println!("[DIAGNOSTIC]");
+                println!("{}", diagnostic);
+            }
             UIMessage::TerryTask { .. } => {}
             UIMessage::TerryGeneration {
                 solution,

@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 use anyhow::Error;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 pub use termcolor::WriteColor;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
@@ -15,6 +16,7 @@ pub use print::PrintUI;
 pub use raw::RawUI;
 pub use silent::SilentUI;
 use task_maker_dag::{ExecutionResourcesUsage, ExecutionResult, ExecutionStatus, WorkerUuid};
+use task_maker_diagnostics::DiagnosticContext;
 pub use ui_message::UIMessage;
 
 use crate::{cwrite, cwriteln};
@@ -320,6 +322,16 @@ impl<'a> FinishUIUtils<'a> {
                 cwriteln!(self, SOFT_RED, "{}", error);
             }
             println!();
+        }
+    }
+
+    /// Print the diagnostics.
+    pub fn print_diagnostic_messages(&mut self, diagnostics: &DiagnosticContext) {
+        let diagnostics = diagnostics.diagnostics();
+        if !diagnostics.is_empty() {
+            for diagnostic in diagnostics.iter().sorted_by_key(|d| d.level()) {
+                println!("{}", diagnostic);
+            }
         }
     }
 }

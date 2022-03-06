@@ -35,6 +35,7 @@ pub use source_file::SourceFile;
 pub use tag::{Tag, VALID_TAGS};
 pub use task_format::*;
 use task_maker_dag::ExecutionDAG;
+use task_maker_diagnostics::Diagnostic;
 use task_maker_lang::{GraderMap, LanguageManager};
 
 use crate::ioi::task_info::IOITaskInfo;
@@ -125,6 +126,11 @@ impl EvaluationData {
             receiver,
         )
     }
+
+    /// Add a diagnostic message to the UI.
+    pub fn add_diagnostic(&self, diagnostic: Diagnostic) -> Result<(), Error> {
+        self.sender.add_diagnostic(diagnostic)
+    }
 }
 
 /// What can send [`UIMessage`](ui/enum.UIMessage.html)s.
@@ -144,6 +150,11 @@ pub trait UISender {
         self.send(ui::UIMessage::Error {
             message: message.into(),
         })
+    }
+
+    /// Send a diagnostic message to the UI.
+    fn add_diagnostic(&self, diagnostic: Diagnostic) -> Result<(), Error> {
+        self.send(ui::UIMessage::Diagnostic { diagnostic })
     }
 }
 
