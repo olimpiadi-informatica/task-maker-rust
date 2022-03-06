@@ -87,7 +87,14 @@ impl Diagnostic {
             self.message
         )?;
         if let Some(note) = &self.note {
-            writeln!(f, "{:>pad$}: {}", "Note".bold(), note, pad = pad)?;
+            write!(f, "{:>pad$}: ", "Note".bold(), pad = pad)?;
+            let mut lines = note.lines();
+            if let Some(line) = lines.next() {
+                writeln!(f, "{}", line)?;
+            }
+            for line in lines {
+                writeln!(f, "{:>pad$}  {}", "", line, pad = pad)?;
+            }
         }
         if let Some(help) = &self.help {
             writeln!(f, "{:>pad$}: {}", "Help".bold(), help, pad = pad)?;

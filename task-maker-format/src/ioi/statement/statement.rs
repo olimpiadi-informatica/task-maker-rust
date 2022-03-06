@@ -240,7 +240,7 @@ impl Statement {
 }
 
 impl StatementConfig {
-    /// Make a new `StatementConfig` from an instace of a `ioi::Task`.
+    /// Make a new `StatementConfig` from an instance of a `ioi::IOITask`.
     pub fn from_task(task: &IOITask) -> Self {
         StatementConfig {
             name: task.name.clone(),
