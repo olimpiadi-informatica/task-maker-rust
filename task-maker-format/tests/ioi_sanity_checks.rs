@@ -209,7 +209,7 @@ fn test_sanity_checks_statement_subtasks_oii_wrong() {
     let warnings = get_warnings(&task);
     has_warning(
         &warnings,
-        "The subtasks in the statement file.tex don't match the tasks's ones",
+        "The score of subtask 1 in file.tex doesn't match the task's one",
     );
 }
 
@@ -232,7 +232,7 @@ fn test_sanity_checks_statement_subtasks_oii_out_of_order() {
     let warnings = get_warnings(&task);
     has_warning(
         &warnings,
-        "The subtasks in the statement file.tex are non-sequentially numbered",
+        "The subtasks in file.tex are not sequentially numbered",
     );
 }
 
@@ -255,7 +255,7 @@ fn test_sanity_checks_statement_subtasks_ois_wrong() {
     let warnings = get_warnings(&task);
     has_warning(
         &warnings,
-        "The subtasks in the statement file.tex don't match the tasks's ones",
+        "The score of subtask 1 in file.tex doesn't match the task's one",
     );
 }
 

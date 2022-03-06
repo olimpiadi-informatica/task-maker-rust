@@ -6,10 +6,11 @@ use std::process::Command;
 use anyhow::{Context, Error};
 use itertools::Itertools;
 use regex::Regex;
+use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::{IOITask, SubtaskId};
 use crate::sanity_checks::SanityCheck;
-use crate::{EvaluationData, UISender};
+use crate::EvaluationData;
 
 /// Check that the subtasks in the statement are consistent with the ones of the task.
 #[derive(Debug, Default)]
@@ -35,38 +36,59 @@ impl SanityCheck<IOITask> for StatementSubtasks {
                 continue;
             }
             let statement = &booklet.statements[0];
+            let statement_path = statement
+                .path
+                .strip_prefix(&task.path)
+                .unwrap_or(&statement.path);
             let source = statement.tex();
             let subtasks = match extract_subtasks(source) {
                 None => continue,
                 Some(subtasks) => subtasks,
             };
-            let mut non_sequential = false;
-            let mut wrong = false;
             for (expected, actual) in expected_subtasks.iter().zip(subtasks.iter()) {
                 if expected.id != actual.id {
-                    non_sequential = true;
+                    eval.add_diagnostic(
+                        Diagnostic::error(format!(
+                            "The subtasks in {} are not sequentially numbered",
+                            statement_path.display()
+                        ))
+                        .with_note(format!(
+                            "Expecting subtask {}, found subtask {}",
+                            expected.id, actual.id
+                        )),
+                    )?;
                     break;
                 }
                 if let Some(actual_score) = actual.score {
                     if approx::abs_diff_ne!(expected.score.unwrap(), actual_score) {
-                        wrong = true;
+                        eval.add_diagnostic(
+                            Diagnostic::error(format!(
+                                "The score of subtask {} in {} doesn't match the task's one",
+                                actual.id,
+                                statement_path.display()
+                            ))
+                            .with_note(format!(
+                                "Expecting {}, found {}",
+                                expected.score.unwrap(),
+                                actual_score
+                            )),
+                        )?;
                         break;
                     }
                 }
             }
             if expected_subtasks.len() != subtasks.len() {
-                wrong = true;
-            }
-            if non_sequential {
-                eval.sender.send_error(format!(
-                    "The subtasks in the statement {} are non-sequentially numbered",
-                    statement.path.strip_prefix(&task.path).unwrap().display()
-                ))?;
-            } else if wrong {
-                eval.sender.send_error(format!(
-                    "The subtasks in the statement {} don't match the tasks's ones",
-                    statement.path.strip_prefix(&task.path).unwrap().display()
-                ))?;
+                eval.add_diagnostic(
+                    Diagnostic::error(format!(
+                        "Wrong number of subtasks in {}",
+                        statement_path.display()
+                    ))
+                    .with_note(format!(
+                        "Expecting {} subtasks, found {}",
+                        expected_subtasks.len(),
+                        subtasks.len()
+                    )),
+                )?;
             }
         }
         Ok(())
@@ -85,8 +107,11 @@ impl SanityCheck<IOITask> for StatementValid {
     fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         match find_statement_pdf(task) {
             None => {
-                eval.sender.send_error(
-                    "Missing statement file (statement/statement.pdf or testo/testo.pdf)",
+                eval.add_diagnostic(
+                    Diagnostic::error(
+                        "Missing statement file (statement/statement.pdf or testo/testo.pdf)",
+                    )
+                    .with_note("Without that file cms will not be able to import the task"),
                 )?;
             }
             Some(path) => {
@@ -105,19 +130,21 @@ impl SanityCheck<IOITask> for StatementValid {
                     };
 
                     if invalid {
-                        eval.sender.send_error(format!(
+                        let path = path.strip_prefix(&task.path).unwrap_or(&path);
+                        eval.add_diagnostic(Diagnostic::error(format!(
                             "Invalid PDF file at {}",
-                            path.strip_prefix(&task.path).unwrap().display()
-                        ))?;
+                            path.display()
+                        )))?;
                     }
                     return Ok(());
                 }
                 // broken symlink
                 else if path.read_link().is_ok() {
-                    eval.sender.send_error(format!(
+                    let path = path.strip_prefix(&task.path).unwrap_or(&path);
+                    eval.add_diagnostic(Diagnostic::error(format!(
                         "Statement {} is a broken link",
-                        path.strip_prefix(&task.path).unwrap().display()
-                    ))?;
+                        path.display()
+                    )))?;
                 }
             }
         }
@@ -153,6 +180,7 @@ impl SanityCheck<IOITask> for StatementCompiled {
             _ => return Ok(()),
         };
 
+        let mut booklet_dest = vec![];
         for booklet in &task.booklets {
             let dest = match booklet.dest.canonicalize() {
                 Ok(dest) => dest,
@@ -162,14 +190,28 @@ impl SanityCheck<IOITask> for StatementCompiled {
             if dest == target {
                 return Ok(());
             }
+            booklet_dest.push(dest);
         }
 
         // We didn't find any compiled booklet referring to the official statement, this means that
         // the statement that will be used isn't the one compiled by us.
-        return eval.sender.send_warning(format!(
-            "The official statement at {} is not the one compiled by task-maker",
-            path.strip_prefix(&task.path).unwrap().display()
-        ));
+        let path = path.strip_prefix(&task.path).unwrap_or(&path);
+        let booklet_dest = booklet_dest
+            .iter()
+            .map(|p| p.strip_prefix(&task.path).unwrap_or(p))
+            .map(|p| p.to_string_lossy())
+            .join(", ");
+        eval.add_diagnostic(
+            Diagnostic::warning(format!(
+                "The official statement at {} is not the one compiled by task-maker",
+                path.display()
+            ))
+            .with_help(format!(
+                "Maybe it should be a symlink to one of the compiled PDF ({})",
+                booklet_dest
+            )),
+        )?;
+        Ok(())
     }
 }
 
@@ -183,34 +225,31 @@ impl SanityCheck<IOITask> for StatementGit {
     }
 
     fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
-        match find_statement_pdf(task) {
+        let path = match find_statement_pdf(task) {
             None => return Ok(()),
-            Some(path) => {
-                let path = path.strip_prefix(&task.path).unwrap();
-                let raw_path = path.as_os_str().as_bytes();
-                let mut command = Command::new("git");
-                command.arg("ls-files").arg("-z").current_dir(&task.path);
-                match command.output() {
-                    // git not available
-                    Err(_) => return Ok(()),
-                    Ok(output) => {
-                        // not a git repo
-                        if !output.status.success() {
-                            return Ok(());
-                        }
-                        // file not know to git
-                        if !output.stdout.is_empty()
-                            && !output.stdout.split(|&b| b == 0).any(|p| p == raw_path)
-                        {
-                            eval.sender.send_error(format!(
-                                "File {} is not known to git",
-                                path.display()
-                            ))?;
-                        }
-                    }
-                }
-            }
+            Some(path) => path,
+        };
+        let path = path.strip_prefix(&task.path).unwrap();
+        let raw_path = path.as_os_str().as_bytes();
+        let mut command = Command::new("git");
+        command.arg("ls-files").arg("-z").current_dir(&task.path);
+        let output = match command.output() {
+            // git not available
+            Err(_) => return Ok(()),
+            Ok(output) => output,
+        };
+        // not a git repo
+        if !output.status.success() {
+            return Ok(());
         }
+        // file not know to git
+        if !output.stdout.is_empty() && !output.stdout.split(|&b| b == 0).any(|p| p == raw_path) {
+            eval.add_diagnostic(
+                Diagnostic::error(format!("File {} is not known to git", path.display()))
+                    .with_help(format!("Try git add -f {}", path.display())),
+            )?;
+        }
+
         Ok(())
     }
 }
@@ -221,6 +260,7 @@ struct ExtractedSubtask {
     id: SubtaskId,
     /// The score of the subtask, if present.
     score: Option<f64>,
+    // TODO: add span to the source file
 }
 
 /// Extract from the OII's usual format the subtasks. They are for example:
