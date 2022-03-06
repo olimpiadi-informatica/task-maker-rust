@@ -1,11 +1,12 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Error};
 use regex::Regex;
 
 use task_maker_dag::{Execution, ExecutionCommand, File};
-use task_maker_diagnostics::Diagnostic;
+use task_maker_diagnostics::{CodeSpan, Diagnostic};
 
 use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, Tag};
 
@@ -18,6 +19,20 @@ lazy_static! {
 }
 
 pub struct AsyFile;
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct AsyDependency {
+    pub sandbox_path: PathBuf,
+    pub local_path: PathBuf,
+    pub code_span: CodeSpan,
+}
+
+#[allow(clippy::derive_hash_xor_eq)]
+impl Hash for AsyDependency {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.sandbox_path.hash(state);
+    }
+}
 
 impl AsyFile {
     /// Compile the asy file and return the handle to the compiled and cropped pdf file.
@@ -75,20 +90,30 @@ impl AsyFile {
                 source_path.display()
             )
         })?;
-        for (sandbox, local) in deps {
-            if local.exists() {
-                let file = File::new(format!("Dependency {:?} of {}", sandbox, name));
-                comp.input(&file, sandbox, false);
+        for dep in deps {
+            if dep.local_path.exists() {
+                let file = File::new(format!(
+                    "Dependency {} of {}",
+                    dep.sandbox_path.display(),
+                    name
+                ));
+                comp.input(&file, &dep.sandbox_path, false);
                 eval.dag
-                    .provide_file(file, local)
+                    .provide_file(file, &dep.local_path)
                     .context("Failed to provide asy dependency")?;
             } else {
-                // TODO: add span of where the dependency comes from
-                eval.add_diagnostic(Diagnostic::warning(format!(
-                    "Failed to read {} used by {} because it was not found",
-                    local.display(),
-                    name
-                )))?;
+                let path = dep
+                    .local_path
+                    .strip_prefix(&eval.task_root)
+                    .unwrap_or(&dep.local_path);
+                eval.add_diagnostic(
+                    Diagnostic::warning(format!(
+                        "Failed to read {} used by {} because it was not found",
+                        path.display(),
+                        name
+                    ))
+                    .with_code_span(dep.code_span),
+                )?;
             }
         }
         let compiled = comp.output("output.pdf");
@@ -137,14 +162,22 @@ impl AsyFile {
 
     /// Recursively search for the asy dependencies of the specified file, where the sandbox
     /// directory is at the specified prefix.
-    fn find_asy_deps(path: &Path, prefix: &Path) -> Result<HashMap<PathBuf, PathBuf>, Error> {
+    fn find_asy_deps(path: &Path, prefix: &Path) -> Result<HashSet<AsyDependency>, Error> {
         let dir = path
             .parent()
             .ok_or_else(|| anyhow!("File {:?} does not have a parent", path))?;
         let content = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read asy content from {}", path.display()))?;
-        let mut result = HashMap::new();
+        let mut result = HashSet::new();
         for include in ASY_INCLUDE.captures_iter(&content) {
+            let match_ = include.get(1).unwrap();
+            let code_span = CodeSpan::from_str(
+                path,
+                &content,
+                match_.start(),
+                match_.end() - match_.start(),
+            )
+            .context("Failed to build code span")?;
             let include = &include[1];
             // the filename might already have the ".asy" extension
             let extensions = ["", ".asy"];
@@ -161,10 +194,23 @@ impl AsyFile {
                     path, sandbox_path, local_path
                 );
                 result.extend(AsyFile::find_asy_deps(&local_path, prefix)?.into_iter());
-                result.insert(sandbox_path.into(), local_path);
+                result.insert(AsyDependency {
+                    sandbox_path: sandbox_path.into(),
+                    local_path,
+                    code_span,
+                });
+                break;
             }
         }
         for graphic in ASY_GRAPHIC.captures_iter(&content) {
+            let match_ = graphic.get(1).unwrap();
+            let code_span = CodeSpan::from_str(
+                path,
+                &content,
+                match_.start(),
+                match_.end() - match_.start(),
+            )
+            .context("Failed to build code span")?;
             let graphic = &graphic[1];
             let local_path = dir.join(graphic);
             let sandbox_path = local_path.strip_prefix(prefix)?;
@@ -174,7 +220,11 @@ impl AsyFile {
                 sandbox_path,
                 local_path
             );
-            result.insert(sandbox_path.into(), local_path);
+            result.insert(AsyDependency {
+                sandbox_path: sandbox_path.into(),
+                local_path,
+                code_span,
+            });
         }
         Ok(result)
     }
@@ -192,13 +242,27 @@ mod tests {
     fn test_find_asy_deps() {
         let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
         let path = tmpdir.path().join("file.asy");
+        let file_content = "import foo;";
+        write(&path, file_content).unwrap();
+
         let foo_path = tmpdir.path().join("foo.asy");
-        write(&path, "import foo;").unwrap();
-        write(&foo_path, "import math;\ngraphic('img.png');").unwrap();
+        let foo_content = "import math;\ngraphic('img.png');";
+        write(&foo_path, foo_content).unwrap();
         let deps = AsyFile::find_asy_deps(&path, tmpdir.path()).unwrap();
-        assert_that!(deps).has_length(2);
-        assert_that(&deps[Path::new("foo.asy")]).is_equal_to(&foo_path);
-        assert_that(&deps[Path::new("img.png")]).is_equal_to(tmpdir.path().join("img.png"));
+
+        assert_that!(deps.len()).is_equal_to(2);
+        let dep1 = AsyDependency {
+            sandbox_path: PathBuf::from("foo.asy"),
+            local_path: foo_path.clone(),
+            code_span: CodeSpan::from_str(&path, file_content, 7, 3).unwrap(),
+        };
+        assert!(deps.contains(&dep1), "{:#?} vs {:#?}", deps, dep1);
+        let dep2 = AsyDependency {
+            sandbox_path: PathBuf::from("img.png"),
+            local_path: tmpdir.path().join("img.png"),
+            code_span: CodeSpan::from_str(&foo_path, foo_content, 22, 7).unwrap(),
+        };
+        assert!(deps.contains(&dep2), "{:#?} vs {:#?}", deps, dep2);
     }
 
     #[test]
