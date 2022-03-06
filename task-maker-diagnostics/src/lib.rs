@@ -1,5 +1,7 @@
-use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
+
+use colored::{Color, Colorize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum DiagnosticLevel {
@@ -12,6 +14,13 @@ impl DiagnosticLevel {
         match self {
             DiagnosticLevel::Error => "Error",
             DiagnosticLevel::Warning => "Warning",
+        }
+    }
+
+    pub fn color(&self) -> Color {
+        match self {
+            DiagnosticLevel::Warning => Color::BrightYellow,
+            DiagnosticLevel::Error => Color::BrightRed,
         }
     }
 }
@@ -71,12 +80,17 @@ impl Diagnostic {
         // TODO: additional printing options (e.g. no colors, compact, ...)
         let level = self.level.as_str();
         let pad = level.len();
-        writeln!(f, "{}: {}", level, self.message)?;
+        writeln!(
+            f,
+            "{}: {}",
+            level.color(self.level.color()).bold(),
+            self.message
+        )?;
         if let Some(note) = &self.note {
-            writeln!(f, "{:>pad$}: {}", "Note", note, pad = pad)?;
+            writeln!(f, "{:>pad$}: {}", "Note".bold(), note, pad = pad)?;
         }
         if let Some(help) = &self.help {
-            writeln!(f, "{:>pad$}: {}", "Help", help, pad = pad)?;
+            writeln!(f, "{:>pad$}: {}", "Help".bold(), help, pad = pad)?;
         }
         if let Some(attachment) = &self.help_attachment {
             let attachment = String::from_utf8_lossy(attachment);
