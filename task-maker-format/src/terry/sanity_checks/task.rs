@@ -1,8 +1,9 @@
 use anyhow::Error;
+use task_maker_diagnostics::Diagnostic;
 
 use crate::sanity_checks::SanityCheck;
 use crate::terry::TerryTask;
-use crate::{EvaluationData, UISender};
+use crate::EvaluationData;
 
 /// Check that the validator is present.
 #[derive(Debug, Default)]
@@ -15,7 +16,7 @@ impl SanityCheck<TerryTask> for ValidatorPresent {
 
     fn pre_hook(&mut self, task: &TerryTask, eval: &mut EvaluationData) -> Result<(), Error> {
         if task.validator.is_none() {
-            eval.sender.send_warning("Validator not present")?;
+            eval.add_diagnostic(Diagnostic::warning("Validator not present"))?;
         }
         Ok(())
     }

@@ -5,8 +5,9 @@ use anyhow::{anyhow, Context, Error};
 use regex::Regex;
 
 use task_maker_dag::{Execution, ExecutionCommand, File};
+use task_maker_diagnostics::Diagnostic;
 
-use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, Tag, UISender};
+use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, Tag};
 
 lazy_static! {
     static ref ASY_INCLUDE: Regex =
@@ -82,8 +83,12 @@ impl AsyFile {
                     .provide_file(file, local)
                     .context("Failed to provide asy dependency")?;
             } else {
-                eval.sender
-                    .send_error(format!("Dependency {:?} of {:?} not found", local, name))?;
+                // TODO: add span of where the dependency comes from
+                eval.add_diagnostic(Diagnostic::warning(format!(
+                    "Failed to read {} used by {} because it was not found",
+                    local.display(),
+                    name
+                )))?;
             }
         }
         let compiled = comp.output("output.pdf");

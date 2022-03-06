@@ -7,10 +7,11 @@ use std::sync::Arc;
 use anyhow::{bail, Error};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use task_maker_diagnostics::Diagnostic;
 
 use task_maker_lang::GraderMap;
 
-use crate::{EvaluationData, SourceFile, UISender};
+use crate::{EvaluationData, SourceFile};
 
 /// A solution to evaluate. This includes the source file and some additional metadata.
 #[derive(Clone, Debug)]
@@ -192,11 +193,12 @@ fn extract_check_list<P: AsRef<Path>>(
                 checks.push(SolutionCheck::new(result, pattern));
             }
         } else {
-            let _ = eval.sender.send_error(format!(
+            // TODO: add span of the check
+            let _ = eval.add_diagnostic(Diagnostic::error(format!(
                 "In '{}' the check '{}' is not valid",
                 path.display(),
                 line
-            ));
+            )));
         }
     }
     Ok(checks)

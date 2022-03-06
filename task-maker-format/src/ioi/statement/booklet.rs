@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{Execution, ExecutionCommand, File};
+use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::statement::statement::Statement;
 use crate::ui::UIMessageSender;
@@ -246,7 +247,7 @@ impl Booklet {
             errors.insert(format!("Latex error at line {}: {}", &cap[2][2..], &cap[1]));
         }
         for message in errors {
-            sender.send_warning(message)?;
+            sender.add_diagnostic(Diagnostic::warning(message))?;
         }
         Ok(())
     }

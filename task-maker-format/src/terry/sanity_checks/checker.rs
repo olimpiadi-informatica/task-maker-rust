@@ -6,6 +6,7 @@ use crate::sanity_checks::SanityCheck;
 use crate::terry::TerryTask;
 use crate::{list_files, EvaluationData, UISender, DATA_DIR};
 use std::path::Path;
+use task_maker_diagnostics::Diagnostic;
 
 /// Fuzz the checker with some nasty output files making sure it doesn't crash.
 ///
@@ -28,19 +29,28 @@ impl SanityCheck<TerryTask> for FuzzChecker {
             return Ok(());
         }
         // keep the seed fixed for the cache
-        let (input, gen) = task.generator.generate(
+        let seed = 42;
+        let (input, mut gen) = task.generator.generate(
             eval,
             "Generation of input for FuzzChecker".into(),
-            42,
+            seed,
             task.official_solution.clone(),
         )?;
+        gen.capture_stderr(1024);
         let sender = eval.sender.clone();
         eval.dag.on_execution_done(&gen.uuid, move |res| {
             if !res.status.is_success() {
-                sender.send_error(format!(
-                    "Failed to generate input for FuzzChecker: {:?}",
-                    res.status
-                ))?;
+                let mut diagnostic = Diagnostic::error(format!(
+                    "Failed to generate input for FuzzChecker with seed {}",
+                    seed
+                ))
+                .with_note(format!("The generator failed with: {:?}", res.status));
+                if let Some(stderr) = res.stderr {
+                    diagnostic = diagnostic
+                        .with_help("The generator stderr is:")
+                        .with_help_attachment(stderr);
+                }
+                sender.add_diagnostic(diagnostic)?;
             }
             Ok(())
         });
@@ -52,7 +62,7 @@ impl SanityCheck<TerryTask> for FuzzChecker {
             eval.dag.provide_file(output_file, &output)?;
             let sender = eval.sender.clone();
             let name2 = name.to_owned();
-            let check = task.checker.check(
+            let mut check = task.checker.check(
                 eval,
                 format!("Checking bad input {}", name.display()),
                 input,
@@ -60,24 +70,32 @@ impl SanityCheck<TerryTask> for FuzzChecker {
                 task.official_solution.clone(),
                 move |outcome| {
                     if let Err(e) = outcome {
-                        sender.send_error(format!(
+                        sender.add_diagnostic(Diagnostic::error(format!(
                             "Checker failed on bad output {}: {}",
                             name2.display(),
                             e
-                        ))?;
+                        )))?;
                     }
                     Ok(())
                 },
             )?;
+            check.capture_stderr(1024);
             let sender = eval.sender.clone();
             let name2 = name.to_owned();
             eval.dag.on_execution_done(&check.uuid, move |res| {
                 if !res.status.is_success() {
-                    sender.send_error(format!(
+                    let mut diagnostic = Diagnostic::error(format!(
                         "Checker failed on bad output {}: {:?}",
                         name2.display(),
                         res.status
-                    ))?;
+                    ))
+                    .with_note(format!("The checker failed with: {:?}", res.status));
+                    if let Some(stderr) = res.stderr {
+                        diagnostic = diagnostic
+                            .with_help("The checker's stderr is:")
+                            .with_help_attachment(stderr);
+                    }
+                    sender.add_diagnostic(diagnostic)?;
                 }
                 Ok(())
             });

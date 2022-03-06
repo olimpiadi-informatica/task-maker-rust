@@ -1,8 +1,9 @@
 use anyhow::Error;
 use itertools::Itertools;
+use task_maker_diagnostics::Diagnostic;
 
 use crate::sanity_checks::SanityCheck;
-use crate::{EvaluationData, IOITask, UISender};
+use crate::{EvaluationData, IOITask};
 
 /// Check that all the subtasks have a name.
 #[derive(Debug, Default)]
@@ -25,10 +26,14 @@ impl SanityCheck<IOITask> for MissingSubtaskNames {
             }
         }
         if !missing_name.is_empty() {
-            eval.sender.send_warning(format!(
-                "These subtasks are missing a name (use '#STNAME: name' in gen/GEN): {}",
-                missing_name.join(", ")
-            ))?;
+            // TODO: add spans of the subtasks
+            eval.add_diagnostic(
+                Diagnostic::warning(format!(
+                    "These subtasks are missing a name: {}",
+                    missing_name.join(", ")
+                ))
+                .with_help("Use '#STNAME: name' in gen/GEN"),
+            )?;
         }
         Ok(())
     }
@@ -69,10 +74,13 @@ impl SanityCheck<IOITask> for SolutionsWithNoChecks {
             ))
         }
         if !solutions.is_empty() {
-            eval.sender.send_warning(format!(
-                "The following solutions are missing the subtask checks: {} (try running task-maker-tools add-solution-checks)",
-                solutions.join(", ")
-            ))?;
+            eval.add_diagnostic(
+                Diagnostic::warning(format!(
+                    "The following solutions are missing the subtask checks: {}",
+                    solutions.join(", ")
+                ))
+                .with_help("Try running task-maker-tools add-solution-checks"),
+            )?;
         }
         Ok(())
     }
@@ -98,12 +106,14 @@ impl SanityCheck<IOITask> for InvalidSubtaskName {
             for check in &solution.checks {
                 let subtasks = task.find_subtasks_by_pattern_name(&check.subtask_name_pattern);
                 if subtasks.is_empty() {
-                    eval.sender.send_error(format!(
-                        "Invalid subtask name '{}' in solution '{}' (valid names are: {})",
-                        check.subtask_name_pattern,
-                        solution.source_file.relative_path().display(),
-                        subtask_names
-                    ))?;
+                    eval.add_diagnostic(
+                        Diagnostic::error(format!(
+                            "Invalid subtask name '{}' in solution '{}'",
+                            check.subtask_name_pattern,
+                            solution.source_file.relative_path().display()
+                        ))
+                        .with_note(format!("The valid names are: {}", subtask_names)),
+                    )?;
                 }
             }
         }
