@@ -8,8 +8,9 @@ use task_maker_lang::LanguageManager;
 
 use crate::ioi::IOITask;
 use crate::sanity_checks::{SanityCheck, SanityChecks};
-use crate::{list_files, EvaluationData, UISender};
-use std::collections::HashSet;
+use crate::{list_files, EvaluationData};
+use std::collections::HashMap;
+use task_maker_diagnostics::Diagnostic;
 
 mod att;
 mod sol;
@@ -71,8 +72,9 @@ fn check_missing_graders<P: AsRef<Path>>(
         .all_paths()
         .filter_map(|p| p.file_stem())
         .any(|p| p == "stub");
-    let mut graders = HashSet::new();
+    let mut by_ext = HashMap::new();
     for file in list_files(task.path.join(folder.as_ref()), vec!["*.*"]) {
+        let file = file.strip_prefix(&task.path).unwrap_or(&file);
         let stem = match file.file_stem() {
             Some(stem) => stem,
             None => continue,
@@ -83,21 +85,18 @@ fn check_missing_graders<P: AsRef<Path>>(
         }
         if let Some(lang) = LanguageManager::detect_language(&file) {
             let ext = lang.extensions()[0];
-            if is_stub {
-                graders.insert(file.with_file_name(format!("stub.{}", ext)));
-            } else {
-                graders.insert(file.with_file_name(format!("grader.{}", ext)));
-            }
+            let name = format!("{}.{}", if is_stub { "stub" } else { "grader" }, ext);
+            let grader_name = file.with_file_name(name);
+            let grader_path = task.path.join(&grader_name);
+            by_ext.insert(ext, (grader_path, grader_name, file.to_owned()));
         }
     }
-    for grader in graders {
-        if !grader.exists() {
-            let name = Path::new(grader.file_name().unwrap());
-            eval.sender.send_error(format!(
-                "Missing grader at {}/{}",
-                folder.as_ref().display(),
-                name.display()
-            ))?;
+    for (_ext, (grader_path, grader_name, cause_name)) in by_ext {
+        if !grader_path.exists() {
+            eval.add_diagnostic(
+                Diagnostic::error(format!("Missing grader at {}", grader_name.display()))
+                    .with_note(format!("Because of {}", cause_name.display())),
+            )?;
         }
     }
     Ok(())
