@@ -1,6 +1,6 @@
 use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Error};
@@ -104,12 +104,17 @@ impl SanityCheck<IOITask> for StatementValid {
     fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         match find_statement_pdf(task) {
             None => {
-                eval.add_diagnostic(
-                    Diagnostic::error(
-                        "Missing statement file (statement/statement.pdf or testo/testo.pdf)",
-                    )
-                    .with_note("Without that file cms will not be able to import the task"),
-                )?;
+                let mut diagnostic = Diagnostic::error(
+                    "Missing statement file (statement/statement.pdf or testo/testo.pdf)",
+                )
+                .with_note("Without that file cms will not be able to import the task");
+                if let Some(booklet) = task.booklets.first() {
+                    let name = booklet.dest.file_name().unwrap();
+                    let name = Path::new(name);
+                    diagnostic = diagnostic
+                        .with_help(format!("Try: ln -s {} testo/testo.pdf", name.display()));
+                };
+                eval.add_diagnostic(diagnostic)?;
             }
             Some(path) => {
                 // normal file or valid symlink
