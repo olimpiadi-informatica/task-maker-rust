@@ -7,17 +7,27 @@ use colored::Colorize;
 
 use crate::DiagnosticLevel;
 
+/// A [`CodeSpan`] represent a slice of code.
+///
+/// At the moment the slice must not span on multiple lines.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub struct CodeSpan {
+    /// The path of the file where this span comes from.
     file_name: PathBuf,
+    /// The line number inside the file.
     line_number: NonZeroUsize,
+    /// The offset of the first byte of the span, relative to the start of the file.
     file_offset: usize,
+    /// The offset of the first byte of the span, relative to the start of the line.
     line_offset: usize,
+    /// The length of the span.
     len: usize,
+    /// The content of the line.
     line: String,
 }
 
 impl CodeSpan {
+    /// Create a new [`CodeSpan`] from the content of a file, and the start-length pair.
     pub fn from_str(
         file_name: impl Into<PathBuf>,
         content: impl AsRef<str>,
@@ -53,10 +63,12 @@ impl CodeSpan {
         bail!("The offset exceeds the length of the file")
     }
 
+    /// Get the content of the span as a `&str`.
     pub fn as_str(&self) -> &str {
         &self.line[self.line_offset..self.line_offset + self.len]
     }
 
+    /// Obtain a string (with colors) of this span.
     pub fn to_string(&self, level: DiagnosticLevel) -> String {
         let mut result = String::new();
 
