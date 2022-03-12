@@ -114,13 +114,14 @@ impl Diagnostic {
         if let Some(attachment) = &self.help_attachment {
             let attachment = String::from_utf8_lossy(attachment);
             let lines: Vec<_> = attachment.lines().collect();
-            if lines.len() > 5 {
-                for index in [0, 1] {
-                    writeln!(f, "{:>pad$} | {}", index + 1, lines[index], pad = pad)?;
+            let context_lines = 2;
+            if lines.len() > context_lines + 1 + context_lines {
+                for (index, line) in lines.iter().enumerate().take(context_lines) {
+                    writeln!(f, "{:>pad$} | {}", index + 1, line, pad = pad)?;
                 }
                 writeln!(f, "{:>pad$} |", "...", pad = pad)?;
-                for index in [lines.len() - 2, lines.len() - 1] {
-                    writeln!(f, "{:>pad$} | {}", index + 1, lines[index], pad = pad)?;
+                for (index, line) in lines.iter().enumerate().skip(lines.len() - context_lines) {
+                    writeln!(f, "{:>pad$} | {}", index + 1, line, pad = pad)?;
                 }
             } else {
                 for (index, line) in lines.iter().enumerate() {
