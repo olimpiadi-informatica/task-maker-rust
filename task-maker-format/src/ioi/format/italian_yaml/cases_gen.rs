@@ -6,9 +6,10 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
+use anyhow::{anyhow, bail, Context, Error};
 use pest::Parser;
 
-use anyhow::{anyhow, bail, Context, Error};
+use task_maker_diagnostics::CodeSpan;
 
 use crate::ioi::format::italian_yaml::TaskInputEntry;
 use crate::ioi::{
@@ -95,6 +96,10 @@ where
     /// The function to call for getting the `OutputGenerator` for a given testcase.
     #[derivative(Debug = "ignore")]
     get_output_gen: O,
+    /// The path to the cases.gen file.
+    file_path: PathBuf,
+    /// The content of the cases.gen file.
+    file_content: String,
     /// The resulting `TaskInputEntry` that will be produced after the parsing of the `cases.gen`
     /// file.
     result: Vec<TaskInputEntry>,
@@ -148,6 +153,8 @@ where
         let mut cases = CasesGen {
             task_dir: task_dir.into(),
             get_output_gen: output_gen,
+            file_path: path.into(),
+            file_content: content.clone(),
             result: vec![],
             constraints: vec![],
             subtask_constraints: vec![],
@@ -498,6 +505,7 @@ where
 
     /// Parse a `:SUBTASK` command.
     fn parse_subtask(&mut self, line: Pair) -> Result<(), Error> {
+        let span = line.as_span();
         let line: Vec<_> = line.into_inner().collect();
         self.current_generator = self.default_generator.clone();
         self.current_validator = self.default_validator.clone();
@@ -522,6 +530,15 @@ where
             description,
             max_score: score,
             testcases: HashMap::new(),
+            span: Some(
+                CodeSpan::from_str(
+                    &self.file_path,
+                    &self.file_content,
+                    span.start(),
+                    span.end() - span.start(),
+                )
+                .expect("Failed to extract span of subtask"),
+            ),
         }));
         self.subtask_id += 1;
         Ok(())
@@ -746,10 +763,9 @@ impl Debug for Constraint {
 mod tests {
     use std::path::Path;
 
+    use anyhow::Error;
     use spectral::{assert_that, AssertionFailure, Spec};
     use tempdir::TempDir;
-
-    use anyhow::Error;
 
     use crate::ioi::format::italian_yaml::cases_gen::{
         CasesGen, ConstraintOperand, ConstraintOperator,

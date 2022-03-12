@@ -5,6 +5,8 @@ use std::sync::Arc;
 use anyhow::{anyhow, bail, Context, Error};
 use pest::Parser;
 
+use task_maker_diagnostics::CodeSpan;
+
 use crate::ioi::format::italian_yaml::TaskInputEntry;
 use crate::ioi::italian_yaml::cleanup_subtask_name;
 use crate::ioi::{
@@ -53,6 +55,7 @@ where
         description: None,
         max_score: 100.0,
         testcases: HashMap::new(),
+        span: None,
     });
 
     let mut generators = find_source_file(
@@ -79,6 +82,7 @@ where
     for line in file.into_inner() {
         match line.as_rule() {
             parser::Rule::line => {
+                let span = line.as_span();
                 let line = line
                     .into_inner()
                     .next()
@@ -97,6 +101,15 @@ where
                             description: None,
                             max_score: score.parse::<f64>().context("Invalid subtask score")?,
                             testcases: HashMap::new(),
+                            span: Some(
+                                CodeSpan::from_str(
+                                    &path,
+                                    &content,
+                                    span.start(),
+                                    span.end() - span.start(),
+                                )
+                                .expect("Failed to get span of subtask"),
+                            ),
                         }));
                         subtask_id += 1;
                     }

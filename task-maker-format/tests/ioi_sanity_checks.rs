@@ -205,7 +205,7 @@ fn test_sanity_checks_statement_subtasks_oii_wrong() {
     let warnings = get_warnings(&task);
     has_warning(
         &warnings,
-        "The score of subtask 1 in file.tex doesn't match the task's one",
+        "The score of subtask 2 in file.tex doesn't match the task's one",
     );
 }
 

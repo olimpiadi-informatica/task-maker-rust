@@ -42,6 +42,7 @@ where
                 description: Some("Static testcases".into()),
                 max_score: 100.0,
                 testcases: HashMap::new(),
+                span: None,
             }));
         }
         let id = self.index - 1; // offset caused by the first iteration
@@ -84,12 +85,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::fs;
+
+    use tempdir::TempDir;
+
+    use TaskInputEntry::*;
+
     use crate::ioi::format::italian_yaml::TaskInputEntry;
     use crate::ioi::{InputValidator, OutputGenerator, SubtaskId, TestcaseId};
-    use std::fs;
-    use tempdir::TempDir;
-    use TaskInputEntry::*;
+
+    use super::*;
 
     fn get_validator(_subtask: SubtaskId) -> InputValidator {
         InputValidator::AssumeValid

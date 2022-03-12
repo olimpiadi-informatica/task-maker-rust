@@ -33,6 +33,7 @@ pub use format::italian_yaml;
 pub use statement::*;
 pub use task_info::*;
 use task_maker_dag::ExecutionDAGConfig;
+use task_maker_diagnostics::CodeSpan;
 use task_maker_lang::GraderMap;
 pub use ui_state::*;
 
@@ -129,6 +130,8 @@ pub struct SubtaskInfo {
     pub max_score: f64,
     /// The testcases inside this subtask.
     pub testcases: HashMap<TestcaseId, TestcaseInfo>,
+    /// The span of the definition of this subtask.
+    pub span: Option<CodeSpan>,
 }
 
 /// A testcase of a IOI task.

@@ -6,7 +6,7 @@ use std::process::Command;
 use anyhow::{Context, Error};
 use itertools::Itertools;
 use regex::Regex;
-use task_maker_diagnostics::Diagnostic;
+use task_maker_diagnostics::{CodeSpan, Diagnostic};
 
 use crate::ioi::{IOITask, SubtaskId};
 use crate::sanity_checks::SanityCheck;
@@ -28,6 +28,8 @@ impl SanityCheck<IOITask> for StatementSubtasks {
             .map(|(st_num, st)| ExtractedSubtask {
                 id: *st_num,
                 score: Some(st.max_score),
+                subtask_id_span: st.span.clone(),
+                subtask_score_span: st.span.clone(),
             })
             .sorted_by_key(|st| st.id)
             .collect_vec();
@@ -38,38 +40,44 @@ impl SanityCheck<IOITask> for StatementSubtasks {
             let statement = &booklet.statements[0];
             let statement_path = task.path_of(&statement.path);
             let source = statement.tex();
-            let subtasks = match extract_subtasks(source) {
+            let subtasks = match extract_subtasks(statement_path, source) {
                 None => continue,
                 Some(subtasks) => subtasks,
             };
+            let one_based = if subtasks[0].id == 1 { 1 } else { 0 };
             for (expected, actual) in expected_subtasks.iter().zip(subtasks.iter()) {
-                if expected.id != actual.id {
-                    eval.add_diagnostic(
-                        Diagnostic::error(format!(
-                            "The subtasks in {} are not sequentially numbered",
-                            statement_path.display()
-                        ))
-                        .with_note(format!(
-                            "Expecting subtask {}, found subtask {}",
-                            expected.id, actual.id
-                        )),
-                    )?;
+                let expected_id = expected.id + one_based;
+                if expected_id != actual.id {
+                    let mut diagnostic = Diagnostic::error(format!(
+                        "The subtasks in {} are not sequentially numbered",
+                        statement_path.display()
+                    ))
+                    .with_note(format!(
+                        "Expecting subtask {}, found subtask {}",
+                        expected_id, actual.id
+                    ));
+                    if let Some(span) = &actual.subtask_id_span {
+                        diagnostic = diagnostic.with_code_span(span.clone());
+                    }
+                    eval.add_diagnostic(diagnostic)?;
                     break;
                 }
                 if let Some(actual_score) = actual.score {
                     if approx::abs_diff_ne!(expected.score.unwrap(), actual_score) {
-                        eval.add_diagnostic(
-                            Diagnostic::error(format!(
-                                "The score of subtask {} in {} doesn't match the task's one",
-                                actual.id,
-                                statement_path.display()
-                            ))
-                            .with_note(format!(
-                                "Expecting {}, found {}",
-                                expected.score.unwrap(),
-                                actual_score
-                            )),
-                        )?;
+                        let mut diagnostic = Diagnostic::error(format!(
+                            "The score of subtask {} in {} doesn't match the task's one",
+                            actual.id,
+                            statement_path.display()
+                        ))
+                        .with_note(format!(
+                            "Expecting {}, found {}",
+                            expected.score.unwrap(),
+                            actual_score
+                        ));
+                        if let Some(span) = &actual.subtask_score_span {
+                            diagnostic = diagnostic.with_code_span(span.clone());
+                        }
+                        eval.add_diagnostic(diagnostic)?;
                         break;
                     }
                 }
@@ -259,7 +267,10 @@ struct ExtractedSubtask {
     id: SubtaskId,
     /// The score of the subtask, if present.
     score: Option<f64>,
-    // TODO: add span to the source file
+    /// Span of where the subtask id comes from.
+    subtask_id_span: Option<CodeSpan>,
+    /// Span of where the subtask score comes from.
+    subtask_score_span: Option<CodeSpan>,
 }
 
 /// Extract from the OII's usual format the subtasks. They are for example:
@@ -267,20 +278,28 @@ struct ExtractedSubtask {
 /// `\item \textbf{\makebox[2cm][l]{Subtask 2} [20 punti]}: $L\leq 10$.`
 ///
 /// The regex is pretty powerful and tries to match as many variations as possible.
-fn check_subtasks_oii(text: &str) -> Option<Vec<ExtractedSubtask>> {
+fn check_subtasks_oii(path: &Path, text: &str) -> Option<Vec<ExtractedSubtask>> {
     lazy_static! {
         static ref FIND_SUBTASKS: Regex =
-            Regex::new(r".*\{Subtask ([0-9]+)\} *\[(?:\\phantom\{[^\}]+\})?([0-9]+).*\].*")
+            Regex::new(r".*\{(Subtask ([0-9]+))\} *\[((?:\\phantom\{[^\}]+\})?([0-9]+).*)\].*")
                 .expect("Invalid regex");
     }
     let mut result = Vec::new();
     for subtask in FIND_SUBTASKS.captures_iter(text) {
-        let num = subtask[1].parse::<SubtaskId>();
-        let score = subtask[2].parse::<f64>();
+        let id_span = subtask.get(1).and_then(|span| {
+            CodeSpan::from_str(path, text, span.start(), span.end() - span.start()).ok()
+        });
+        let score_span = subtask.get(3).and_then(|span| {
+            CodeSpan::from_str(path, text, span.start(), span.end() - span.start()).ok()
+        });
+        let num = subtask[2].parse::<SubtaskId>();
+        let score = subtask[4].parse::<f64>();
         if let (Ok(num), Ok(score)) = (num, score) {
             result.push(ExtractedSubtask {
                 id: num,
                 score: Some(score),
+                subtask_id_span: id_span,
+                subtask_score_span: score_span,
             });
         } else {
             return None;
@@ -296,15 +315,20 @@ fn check_subtasks_oii(text: &str) -> Option<Vec<ExtractedSubtask>> {
 /// Extract from the OII's new format the subtasks. They are for example:
 ///
 /// `\item \subtask $L\leq 10$.`
-fn check_subtasks_oii_new(text: &str) -> Option<Vec<ExtractedSubtask>> {
+fn check_subtasks_oii_new(path: &Path, text: &str) -> Option<Vec<ExtractedSubtask>> {
     lazy_static! {
-        static ref FIND_SUBTASKS: Regex = Regex::new(r".*\\subtask.*").expect("Invalid regex");
+        static ref FIND_SUBTASKS: Regex = Regex::new(r"(.*\\subtask.*)").expect("Invalid regex");
     }
     let mut result = Vec::new();
-    for (index, _) in FIND_SUBTASKS.captures_iter(text).enumerate() {
+    for (index, captures) in FIND_SUBTASKS.captures_iter(text).enumerate() {
+        let span = captures.get(1).and_then(|span| {
+            CodeSpan::from_str(path, text, span.start(), span.end() - span.start()).ok()
+        });
         result.push(ExtractedSubtask {
             id: index as SubtaskId,
             score: None,
+            subtask_id_span: span,
+            subtask_score_span: None,
         });
     }
     if result.is_empty() {
@@ -317,18 +341,23 @@ fn check_subtasks_oii_new(text: &str) -> Option<Vec<ExtractedSubtask>> {
 /// Extract from the OIS's usual format the subtasks. They are for example:
 ///
 /// `\OISubtask{10}{1}{$N \le 10$.}`
-fn check_subtasks_ois(text: &str) -> Option<Vec<ExtractedSubtask>> {
+fn check_subtasks_ois(path: &Path, text: &str) -> Option<Vec<ExtractedSubtask>> {
     lazy_static! {
         static ref FIND_SUBTASKS: Regex =
             Regex::new(r".*\\OISubtask\{(\d+)\}\{\d+\}\{.+\}.*").expect("Invalid regex");
     }
     let mut result = Vec::new();
     for (index, subtask) in FIND_SUBTASKS.captures_iter(text).enumerate() {
+        let span = subtask.get(1).and_then(|span| {
+            CodeSpan::from_str(path, text, span.start(), span.end() - span.start()).ok()
+        });
         let score = subtask[1].parse::<f64>();
         if let Ok(score) = score {
             result.push(ExtractedSubtask {
                 id: index as SubtaskId,
                 score: Some(score),
+                subtask_id_span: None,
+                subtask_score_span: span,
             });
         } else {
             return None;
@@ -341,25 +370,16 @@ fn check_subtasks_ois(text: &str) -> Option<Vec<ExtractedSubtask>> {
     }
 }
 
-/// Try to extract from the tex file the list of statements, starting with zero. If the list is
-/// empty, `None` is returned.
-fn extract_subtasks(tex: String) -> Option<Vec<ExtractedSubtask>> {
-    let mut subtasks = if let Some(subtasks) = check_subtasks_oii(&tex) {
+/// Try to extract from the tex file the list of statements. If the list is empty, `None` is
+/// returned.
+fn extract_subtasks(path: &Path, tex: String) -> Option<Vec<ExtractedSubtask>> {
+    let subtasks = if let Some(subtasks) = check_subtasks_oii(path, &tex) {
         subtasks
-    } else if let Some(subtasks) = check_subtasks_oii_new(&tex) {
+    } else if let Some(subtasks) = check_subtasks_oii_new(path, &tex) {
         subtasks
     } else {
-        check_subtasks_ois(&tex)?
+        check_subtasks_ois(path, &tex)?
     };
-    // subtasks 1-based
-    if subtasks[0].id == 1 {
-        for subtask in subtasks.iter_mut() {
-            // make the subtasks 0-based
-            if subtask.id > 0 {
-                subtask.id -= 1;
-            }
-        }
-    }
     Some(subtasks)
 }
 
