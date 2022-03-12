@@ -10,6 +10,7 @@ use tarpc::context::Context;
 use tarpc::server::{BaseChannel, Channel};
 use tarpc::{ClientMessage, Response, Transport};
 use tokio::select;
+use tokio::sync::oneshot::{channel, Sender};
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 
@@ -31,7 +32,7 @@ pub type VariantIdentificationHash = HashData;
 /// that are expected to change the result (such as data hashes of inputs, or the command line).
 /// The VariantIdentificationHash takes care of properties of the computation that should not
 /// change the outputs, such as time and memory limits; it also includes the first hash.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct FileSetHash(DataIdentificationHash, VariantIdentificationHash);
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone)]
@@ -154,6 +155,7 @@ struct StoreServiceImpl {
     file_sets: HashMap<DataIdentificationHash, FileSetVariants>,
     file_set_handles: HashMap<FileSetHandleId, FileSetHandleInfo>,
     next_handle: FileSetHandleId,
+    waiting_computation_readers: HashMap<FileSetHash, Vec<Sender<()>>>,
 }
 
 impl StoreServiceImpl {
@@ -162,6 +164,7 @@ impl StoreServiceImpl {
             file_sets: HashMap::new(),
             file_set_handles: HashMap::new(),
             next_handle: 0,
+            waiting_computation_readers: HashMap::new(),
         }
     }
 
@@ -364,6 +367,12 @@ impl StoreService {
         let mut service = self.service.lock().unwrap();
         let hash = FileSetHash(computation, variant);
         let handle = service.create_or_open_file_set(hash, FileSetKind::Computation)?;
+        // Notify waiters.
+        if let Some(x) = service.waiting_computation_readers.get_mut(&hash) {
+            x.drain(..).for_each(|waiter| {
+                waiter.send(()).unwrap();
+            })
+        }
         if handle.is_writable() {
             Ok(handle)
         } else {
@@ -456,19 +465,29 @@ impl Store for StoreService {
         computation: DataIdentificationHash,
         variant: VariantIdentificationHash,
     ) -> Result<FileSetHandle, Error> {
-        let has_comp = {
-            let service = self.service.lock().unwrap();
-            service
-                .file_sets
-                .get(&computation)
-                .and_then(|x| x.get(&variant))
-                .is_some()
-        };
+        loop {
+            let receiver = {
+                let mut service = self.service.lock().unwrap();
+                if service
+                    .file_sets
+                    .get(&computation)
+                    .and_then(|x| x.get(&variant))
+                    .is_some()
+                {
+                    break;
+                }
 
-        if !has_comp {
-            return Err(Error::NotImplemented(
-                "Waiting for computation creation is not yet implemented".into(),
-            ));
+                let (sender, receiver) = channel();
+                service
+                    .waiting_computation_readers
+                    .entry(FileSetHash(computation, variant))
+                    .or_default()
+                    .push(sender);
+                receiver
+            };
+            if receiver.await.is_err() {
+                panic!("The sender should never be dropped");
+            }
         }
 
         let mut service = self.service.lock().unwrap();
@@ -1073,7 +1092,6 @@ mod test {
     }
 
     #[tokio::test]
-    #[ignore] // because waiting for computation creation is not implemented yet
     async fn test_wait_computation_creation() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
