@@ -102,15 +102,13 @@ where
                             description: None,
                             max_score: score.parse::<f64>().context("Invalid subtask score")?,
                             testcases: HashMap::new(),
-                            span: Some(
-                                CodeSpan::from_str(
-                                    path,
-                                    &content,
-                                    span.start(),
-                                    span.end() - span.start(),
-                                )
-                                .expect("Failed to get span of subtask"),
-                            ),
+                            span: CodeSpan::from_str(
+                                path,
+                                &content,
+                                span.start(),
+                                span.end() - span.start(),
+                            )
+                            .ok(),
                         }));
                         subtask_id += 1;
                     }

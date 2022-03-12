@@ -530,15 +530,13 @@ where
             description,
             max_score: score,
             testcases: HashMap::new(),
-            span: Some(
-                CodeSpan::from_str(
-                    &self.file_path,
-                    &self.file_content,
-                    span.start(),
-                    span.end() - span.start(),
-                )
-                .expect("Failed to extract span of subtask"),
-            ),
+            span: CodeSpan::from_str(
+                &self.file_path,
+                &self.file_content,
+                span.start(),
+                span.end() - span.start(),
+            )
+            .ok(),
         }));
         self.subtask_id += 1;
         Ok(())

@@ -200,16 +200,15 @@ fn extract_check_list<P: AsRef<Path>>(
             // file_offset includes the current line length.
             let offset = file_offset - 1 - line.len() + found.start();
             let len = found.end() - found.start();
-            let span = CodeSpan::from_str(path, &content, offset, len)
-                .expect("Bug generating code span for solution check");
-            let _ = eval.add_diagnostic(
-                Diagnostic::error(format!(
-                    "In '{}' the check '{}' is not valid",
-                    path.display(),
-                    line
-                ))
-                .with_code_span(span),
-            );
+            let mut diagnostic = Diagnostic::error(format!(
+                "In '{}' the check '{}' is not valid",
+                path.display(),
+                line
+            ));
+            if let Ok(span) = CodeSpan::from_str(path, &content, offset, len) {
+                diagnostic = diagnostic.with_code_span(span);
+            }
+            let _ = eval.add_diagnostic(diagnostic);
         }
     }
     Ok(checks)
