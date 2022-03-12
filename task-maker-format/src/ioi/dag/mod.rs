@@ -86,6 +86,7 @@ impl TestcaseScoreAggregator {
 
 #[cfg(test)]
 mod tests {
+    use itertools::Itertools;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
@@ -94,6 +95,7 @@ mod tests {
     use task_maker_lang::GraderMap;
 
     use crate::ioi::IOITask;
+    use crate::ui::UIMessage;
     use crate::{EvaluationData, SourceFile, Tag};
 
     use super::*;
@@ -520,7 +522,7 @@ mod tests {
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
         let checker = Checker::Custom(Arc::new(source));
-        let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
+        let (mut eval, recv) = EvaluationData::new(tmpdir.path());
         let input = File::new("input").uuid;
         let output = File::new("output").uuid;
         let test = File::new("test").uuid;
@@ -531,7 +533,7 @@ mod tests {
         let group = eval.dag.data.execution_groups.values().next().unwrap();
         let exec = group.executions[0].uuid;
         let on_done = eval.dag.execution_callbacks().get_mut(&exec).unwrap();
-        let err = on_done.on_done.remove(0)(ExecutionResult {
+        on_done.on_done.remove(0)(ExecutionResult {
             status: ExecutionStatus::Success,
             was_killed: false,
             was_cached: false,
@@ -539,9 +541,20 @@ mod tests {
             stdout: Some(":<\n\n".into()),
             stderr: Some("Ko!\n\n".into()),
         })
-        .unwrap_err()
-        .to_string();
+        .unwrap();
+        drop(eval);
 
-        assert!(err.contains("Invalid score"), "Wrong error: {}", err);
+        let diagnostics = recv
+            .into_iter()
+            .flat_map(|m| match m {
+                UIMessage::Diagnostic { diagnostic } => Some(diagnostic),
+                _ => None,
+            })
+            .collect_vec();
+        let diagnostics = diagnostics
+            .iter()
+            .map(|d| d.message())
+            .any(|m| m.contains("Checker returned an invalid score"));
+        assert!(diagnostics);
     }
 }

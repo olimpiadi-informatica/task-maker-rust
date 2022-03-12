@@ -545,4 +545,22 @@ impl TestInterfaceSuccessful {
         }
         None
     }
+
+    /// Check that there is a diagnostic containing the message.
+    pub fn has_diagnostic(self, message: impl AsRef<str>) -> Self {
+        let message = message.as_ref();
+        if !self
+            .state
+            .diagnostics
+            .diagnostics()
+            .iter()
+            .any(|d| d.message().contains(message))
+        {
+            panic!(
+                "Expecting the diagnostics to contain {}, but they don't",
+                message
+            );
+        }
+        self
+    }
 }

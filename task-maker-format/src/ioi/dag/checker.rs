@@ -1,15 +1,16 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Context, Error};
+use anyhow::{anyhow, Context, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{Execution, ExecutionCommand, ExecutionStatus, FileUuid, Priority};
+use task_maker_diagnostics::Diagnostic;
 
-use crate::bind_exec_callbacks;
-use crate::ioi::{SubtaskId, TestcaseId, EVALUATION_PRIORITY};
+use crate::ioi::{SubtaskId, TestcaseId, EVALUATION_PRIORITY, STDERR_CONTENT_LENGTH};
 use crate::ui::UIMessage;
+use crate::{bind_exec_callbacks, UISender};
 use crate::{EvaluationData, SourceFile, Tag};
 
 /// Which tool to use to compute the score on a testcase given the input file, the _correct_ output
@@ -79,7 +80,7 @@ impl Checker {
                 let mut exec = source_file
                     .execute(
                         eval,
-                        description,
+                        &description,
                         vec!["input", "correct_output", "test_output"],
                     )
                     .context("Failed to execute checker source file")?;
@@ -88,8 +89,9 @@ impl Checker {
                     .input(test_output, "test_output", false)
                     .tag(Tag::Checking.into())
                     .capture_stdout(128)
-                    .capture_stderr(1024)
+                    .capture_stderr(STDERR_CONTENT_LENGTH)
                     .priority(EVALUATION_PRIORITY - testcase_id as Priority);
+                let sender = eval.sender.clone();
                 eval.dag.on_execution_done(&exec.uuid, move |res| {
                     let stdout = res
                         .stdout
@@ -100,19 +102,31 @@ impl Checker {
                     let message = String::from_utf8_lossy(&stderr).trim().to_string();
                     let message = Self::translate_checker_message(message);
                     if !res.status.is_success() {
-                        bail!(
-                            "Checker failed exiting with {:?}, stderr: {}",
-                            res.status,
-                            message
-                        );
+                        let diagnostic = Diagnostic::error(format!(
+                            "Checker failed while computing a score for testcase {}",
+                            testcase_id
+                        ))
+                        .with_note(description)
+                        .with_help(format!("The checker crashed with: {:?}", res.status))
+                        .with_help_attachment(stderr);
+                        sender.add_diagnostic(diagnostic)?;
+                        return Ok(());
                     }
                     let score = String::from_utf8_lossy(&stdout);
-                    let score: f64 = score.trim().parse().with_context(|| {
-                        format!(
-                            "Invalid score {:?} from checker (stderr: {})",
-                            score, message
-                        )
-                    })?;
+                    let score: f64 = match score.trim().parse() {
+                        Ok(score) => score,
+                        Err(e) => {
+                            let diagnostic = Diagnostic::error(format!(
+                                "Checker returned an invalid score ({:?}) for testcase {}",
+                                score, testcase_id
+                            ))
+                            .with_note(description)
+                            .with_help(format!("The parse error is: {:?}", e))
+                            .with_help_attachment(stdout);
+                            sender.add_diagnostic(diagnostic)?;
+                            return Ok(());
+                        }
+                    };
                     callback(score, message)
                 });
                 Ok(exec)
