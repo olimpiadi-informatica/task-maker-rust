@@ -6,10 +6,11 @@ use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{Execution, File, FileUuid, Priority};
+use task_maker_diagnostics::Diagnostic;
 
-use crate::ioi::{IOITask, SubtaskId, TestcaseId, GENERATION_PRIORITY};
+use crate::ioi::{IOITask, SubtaskId, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
 use crate::ui::UIMessage;
-use crate::{bind_exec_callbacks, bind_exec_io};
+use crate::{bind_exec_callbacks, bind_exec_io, UISender};
 use crate::{EvaluationData, SourceFile, Tag};
 
 /// The source of the output files. It can either be a statically provided output file or a custom
@@ -94,12 +95,25 @@ impl OutputGenerator {
             input,
             validation_handle,
         )?;
-        if let Some(sol) = sol {
+        if let Some(mut sol) = sol {
+            sol.capture_stderr(STDERR_CONTENT_LENGTH);
             bind_exec_callbacks!(eval, sol.uuid, |status| UIMessage::IOISolution {
                 subtask: subtask_id,
                 testcase: testcase_id,
                 status
             })?;
+            let sender = eval.sender.clone();
+            eval.dag.on_execution_done(&sol.uuid, move |result| {
+                if !result.status.is_success() {
+                    let mut diagnostic =
+                        Diagnostic::error(format!("Failed to generate output {}", testcase_id));
+                    if let Some(stderr) = result.stderr {
+                        diagnostic = diagnostic.with_help_attachment(stderr);
+                    }
+                    sender.add_diagnostic(diagnostic)?;
+                }
+                Ok(())
+            });
             eval.dag.add_execution(sol);
         }
         if let Some(output) = output {
