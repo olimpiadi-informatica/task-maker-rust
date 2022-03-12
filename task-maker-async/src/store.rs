@@ -370,7 +370,7 @@ impl StoreService {
         // Notify waiters.
         if let Some(x) = service.waiting_computation_readers.get_mut(&hash) {
             x.drain(..).for_each(|waiter| {
-                waiter.send(()).unwrap();
+                let _ = waiter.send(());
             })
         }
         if handle.is_writable() {
