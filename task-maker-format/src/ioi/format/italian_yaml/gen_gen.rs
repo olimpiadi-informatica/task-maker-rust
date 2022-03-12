@@ -95,6 +95,7 @@ where
                             .next()
                             .ok_or_else(|| anyhow!("Corrupted parser"))?
                             .as_str();
+                        let path = path.strip_prefix(task_dir).unwrap_or(path);
                         entries.push(TaskInputEntry::Subtask(SubtaskInfo {
                             id: subtask_id,
                             name: None,
@@ -103,7 +104,7 @@ where
                             testcases: HashMap::new(),
                             span: Some(
                                 CodeSpan::from_str(
-                                    &path,
+                                    path,
                                     &content,
                                     span.start(),
                                     span.end() - span.start(),

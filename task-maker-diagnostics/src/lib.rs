@@ -42,7 +42,7 @@ pub struct Diagnostic {
     note: Option<String>,
     help: Option<String>,
     help_attachment: Option<Vec<u8>>,
-    code_span: Option<CodeSpan>,
+    code_spans: Vec<CodeSpan>,
 }
 
 impl Diagnostic {
@@ -53,7 +53,7 @@ impl Diagnostic {
             note: None,
             help: None,
             help_attachment: None,
-            code_span: None,
+            code_spans: Default::default(),
         }
     }
 
@@ -64,7 +64,7 @@ impl Diagnostic {
             note: None,
             help: None,
             help_attachment: None,
-            code_span: None,
+            code_spans: Default::default(),
         }
     }
 
@@ -84,7 +84,7 @@ impl Diagnostic {
     }
 
     pub fn with_code_span(mut self, code_span: CodeSpan) -> Self {
-        self.code_span = Some(code_span);
+        self.code_spans.push(code_span);
         self
     }
 
@@ -128,7 +128,7 @@ impl Diagnostic {
                 }
             }
         }
-        if let Some(code_span) = &self.code_span {
+        for code_span in &self.code_spans {
             for line in code_span.to_string(self.level).lines() {
                 writeln!(f, "{:>pad$} {}", "", line, pad = pad + 1)?;
             }

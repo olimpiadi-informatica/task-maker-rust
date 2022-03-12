@@ -19,21 +19,28 @@ impl SanityCheck<IOITask> for MissingSubtaskNames {
         for subtask_id in task.subtasks.keys().sorted() {
             let subtask = &task.subtasks[subtask_id];
             if subtask.name.is_none() {
-                missing_name.push(format!(
-                    "Subtask {} ({} points)",
-                    subtask.id, subtask.max_score
+                missing_name.push((
+                    format!("Subtask {} ({} points)", subtask.id, subtask.max_score),
+                    subtask.span.clone(),
                 ));
             }
         }
         if !missing_name.is_empty() {
-            // TODO: add spans of the subtasks
-            eval.add_diagnostic(
-                Diagnostic::warning(format!(
-                    "These subtasks are missing a name: {}",
-                    missing_name.join(", ")
-                ))
-                .with_help("Use '#STNAME: name' in gen/GEN"),
-            )?;
+            let message = format!(
+                "These subtasks are missing a name: {}",
+                missing_name.iter().map(|(name, _)| name).join(", ")
+            );
+            let mut diagnostic = Diagnostic::warning(message);
+            if missing_name.iter().any(|(_, span)| span.is_some()) {
+                diagnostic = diagnostic
+                    .with_help("Add '#STNAME: name' in gen/GEN after each subtask definition:");
+            }
+            for (_, span) in missing_name {
+                if let Some(span) = span {
+                    diagnostic = diagnostic.with_code_span(span);
+                }
+            }
+            eval.add_diagnostic(diagnostic)?;
         }
         Ok(())
     }
