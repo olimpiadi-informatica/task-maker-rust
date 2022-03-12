@@ -6,11 +6,12 @@ use anyhow::{Context, Error};
 use serde::{Deserialize, Serialize};
 
 use task_maker_dag::*;
+use task_maker_diagnostics::Diagnostic;
 use task_maker_lang::GraderMap;
 
-use crate::bind_exec_callbacks;
 use crate::ui::*;
 use crate::EvaluationData;
+use crate::{bind_exec_callbacks, UISender};
 
 /// Wrapper around [`task_maker_lang::SourceFile`](../task_maker_lang/struct.SourceFile.html) that
 /// also sends to the UI the messages about the compilation, making the compilation completely
@@ -89,6 +90,23 @@ impl SourceFile {
                 path
             )
             .context("Failed to bind exec callbacks")?;
+            let path = self
+                .path
+                .strip_prefix(&self.base_path)
+                .unwrap_or(&self.path)
+                .to_owned();
+            let sender = eval.sender.clone();
+            eval.dag.on_execution_done(&comp_uuid, move |result| {
+                if !result.status.is_success() {
+                    let mut diagnostic =
+                        Diagnostic::error(format!("Failed to compile {}", path.display()));
+                    if let Some(stderr) = result.stderr {
+                        diagnostic = diagnostic.with_help_attachment(stderr);
+                    }
+                    sender.add_diagnostic(diagnostic)?;
+                }
+                Ok(())
+            });
         }
         Ok(())
     }
