@@ -114,7 +114,7 @@ impl Diagnostic {
         if let Some(attachment) = &self.help_attachment {
             let attachment = String::from_utf8_lossy(attachment);
             let lines: Vec<_> = attachment.lines().collect();
-            if lines.len() > 4 {
+            if lines.len() > 5 {
                 for index in [0, 1] {
                     writeln!(f, "{:>pad$} | {}", index + 1, lines[index], pad = pad)?;
                 }

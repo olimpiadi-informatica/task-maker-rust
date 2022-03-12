@@ -6,10 +6,11 @@ use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{Execution, File, FileUuid, Priority};
+use task_maker_diagnostics::Diagnostic;
 
-use crate::bind_exec_callbacks;
 use crate::ioi::{SubtaskId, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
 use crate::ui::UIMessage;
+use crate::{bind_exec_callbacks, UISender};
 use crate::{EvaluationData, SourceFile, Tag};
 
 /// The source of the input files. It can either be a statically provided input file or a custom
@@ -87,7 +88,7 @@ impl InputGenerator {
                 .join(format!("input{}.txt", testcase_id)),
             false,
         );
-        // if there is an execution, bind its callbacks and store the input file
+        // If there is an execution, bind its callbacks and store the input file.
         if let Some(mut gen) = gen {
             gen.capture_stderr(STDERR_CONTENT_LENGTH);
             bind_exec_callbacks!(eval, gen.uuid, |status| UIMessage::IOIGeneration {
@@ -95,6 +96,20 @@ impl InputGenerator {
                 testcase: testcase_id,
                 status
             })?;
+            let sender = eval.sender.clone();
+            let args = gen.args.join(" ");
+            eval.dag.on_execution_done(&gen.uuid, move |result| {
+                if !result.status.is_success() {
+                    let mut diagnostic =
+                        Diagnostic::error(format!("Failed to generate input {}", testcase_id))
+                            .with_note(format!("Generator arguments are: {}", args));
+                    if let Some(stderr) = result.stderr {
+                        diagnostic = diagnostic.with_help_attachment(stderr);
+                    }
+                    sender.add_diagnostic(diagnostic)?;
+                }
+                Ok(())
+            });
             eval.dag.add_execution(gen);
         }
         Ok(input)
