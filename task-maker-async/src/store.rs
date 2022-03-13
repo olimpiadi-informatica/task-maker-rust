@@ -1,6 +1,7 @@
 #![allow(dead_code, unused_variables)]
 
 use std::collections::{hash_map::Entry, HashMap};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -62,6 +63,14 @@ pub struct FileHandle {
     id: FileHandleId,
 }
 
+/// Identifier for a file in an execution.
+#[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, Clone)]
+pub enum ExecutionFile {
+    Stdout,
+    Stderr,
+    File(PathBuf),
+}
+
 #[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, Clone)]
 pub enum FileSetFile {
     /// Outcome for a computation, input file for an input file.
@@ -70,7 +79,8 @@ pub enum FileSetFile {
     Metadata,
     /// Any auxiliary file that can be attached to the main input file. For now only used for
     /// outputs of computations.
-    AuxiliaryFile(String),
+    /// The first element of the tuple identifies the execution within an execution group.
+    AuxiliaryFile(String, ExecutionFile),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -298,7 +308,7 @@ impl StoreServiceImpl {
             if file_set_handle.mode == HandleMode::Read {
                 return Err(Error::NonExistentFile(file, file_set_handle.id));
             } else if file_set.kind == FileSetKind::InputFile
-                && matches!(file, FileSetFile::AuxiliaryFile(_))
+                && matches!(file, FileSetFile::AuxiliaryFile(_, _))
             {
                 return Err(Error::InvalidFileForInput(file));
             } else {
@@ -687,7 +697,7 @@ mod test {
             .open_file(
                 context,
                 write_handle,
-                FileSetFile::AuxiliaryFile("file".into()),
+                FileSetFile::AuxiliaryFile("execution".into(), ExecutionFile::Stdout),
             )
             .await?
             .unwrap();
@@ -699,7 +709,7 @@ mod test {
         let read_handle = client.open_computation(context, hash, hash).await?.unwrap();
         check!(!read_handle.is_writable());
 
-        let file = FileSetFile::AuxiliaryFile("lolnope".into());
+        let file = FileSetFile::AuxiliaryFile("lolnope".into(), ExecutionFile::Stdout);
         let resp = client.open_file(context, read_handle, file.clone()).await?;
         let_assert!(Err(Error::NonExistentFile(file, _)) = resp);
 
@@ -804,7 +814,7 @@ mod test {
             .create_or_open_input_file(context, hash)
             .await?
             .unwrap();
-        let file = FileSetFile::AuxiliaryFile("file".into());
+        let file = FileSetFile::AuxiliaryFile("execution".into(), ExecutionFile::Stdout);
         let resp = client
             .open_file(context, write_handle, file.clone())
             .await?;
