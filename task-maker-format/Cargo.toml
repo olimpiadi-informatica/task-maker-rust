@@ -8,6 +8,7 @@ edition = "2021"
 task-maker-dag = { path = "../task-maker-dag" }
 task-maker-lang = { path = "../task-maker-lang" }
 task-maker-exec = { path = "../task-maker-exec" }
+task-maker-diagnostics = { path = "../task-maker-diagnostics" }
 
 # Serialization/Deserialization
 serde = { version = "1.0", features = ["derive"] }

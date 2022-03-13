@@ -7,10 +7,11 @@ use std::sync::Arc;
 use anyhow::{bail, Error};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use task_maker_diagnostics::{CodeSpan, Diagnostic};
 
 use task_maker_lang::GraderMap;
 
-use crate::{EvaluationData, SourceFile, UISender};
+use crate::{EvaluationData, SourceFile};
 
 /// A solution to evaluate. This includes the source file and some additional metadata.
 #[derive(Clone, Debug)]
@@ -156,7 +157,7 @@ fn extract_check_list<P: AsRef<Path>>(
     eval: &mut EvaluationData,
 ) -> Result<Vec<SolutionCheck>, Error> {
     lazy_static! {
-        static ref FIND_CHECKS: Regex = Regex::new(r".*@check-.*").expect("Invalid regex");
+        static ref FIND_CHECKS: Regex = Regex::new(r".*(@check-.*)").expect("Invalid regex");
         static ref EXTRACT_CHECKS: Regex = Regex::new(
             r"(?x)
             @check-     # signal the start of a check
@@ -179,10 +180,13 @@ fn extract_check_list<P: AsRef<Path>>(
     file.read_to_string(&mut content)?;
 
     let mut checks = vec![];
-    for line in content.lines() {
-        if !FIND_CHECKS.is_match(line) {
-            continue;
-        }
+    let mut file_offset = 0;
+    for line in content.split('\n') {
+        file_offset += line.len() + 1; // Includes the \n.
+        let found = match FIND_CHECKS.captures(line).and_then(|c| c.get(1)) {
+            None => continue,
+            Some(found) => found,
+        };
         let captures = EXTRACT_CHECKS.captures_iter(line).next();
         if let Some(captures) = captures {
             let result = &captures["result"];
@@ -192,11 +196,19 @@ fn extract_check_list<P: AsRef<Path>>(
                 checks.push(SolutionCheck::new(result, pattern));
             }
         } else {
-            let _ = eval.sender.send_error(format!(
+            let path = path.strip_prefix(&eval.task_root).unwrap_or(path);
+            // file_offset includes the current line length.
+            let offset = file_offset - 1 - line.len() + found.start();
+            let len = found.end() - found.start();
+            let mut diagnostic = Diagnostic::error(format!(
                 "In '{}' the check '{}' is not valid",
                 path.display(),
                 line
             ));
+            if let Ok(span) = CodeSpan::from_str(path, &content, offset, len) {
+                diagnostic = diagnostic.with_code_span(span);
+            }
+            let _ = eval.add_diagnostic(diagnostic);
         }
     }
     Ok(checks)

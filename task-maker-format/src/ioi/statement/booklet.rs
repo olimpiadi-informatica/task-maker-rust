@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{Execution, ExecutionCommand, File};
+use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::statement::statement::Statement;
 use crate::ui::UIMessageSender;
@@ -182,9 +183,10 @@ impl Booklet {
         }
         let sender = eval.sender.clone();
         exec.capture_stdout(1024 * 1024 * 1024);
-        eval.dag.on_execution_done(&exec.uuid, |res| {
+        let dest = self.dest.file_name().unwrap().to_owned();
+        eval.dag.on_execution_done(&exec.uuid, move |res| {
             if let Some(content) = &res.stdout {
-                Booklet::emit_warnings(content, sender)?;
+                Booklet::emit_warnings(dest, content, sender)?;
             }
             Ok(())
         });
@@ -234,7 +236,11 @@ impl Booklet {
     }
 
     /// Given the content of the log from latexmk, extract the errors and emit them as warnings.
-    fn emit_warnings(content: &[u8], sender: Arc<Mutex<UIMessageSender>>) -> Result<(), Error> {
+    fn emit_warnings(
+        booklet_name: impl AsRef<Path>,
+        content: &[u8],
+        sender: Arc<Mutex<UIMessageSender>>,
+    ) -> Result<(), Error> {
         lazy_static! {
             static ref FIND_ERRORS: Regex =
                 Regex::new(r"(?ms)^!(?: LaTeX Error:)? ([^\n]+).*?(^l\.\d+)")
@@ -243,10 +249,28 @@ impl Booklet {
         // latexmk sometimes emit the same warning more than once
         let mut errors = HashSet::new();
         for cap in FIND_ERRORS.captures_iter(&String::from_utf8_lossy(content)) {
-            errors.insert(format!("Latex error at line {}: {}", &cap[2][2..], &cap[1]));
+            let line = cap[2][2..].parse::<i32>().ok();
+            errors.insert((line, cap[1].to_string()));
         }
-        for message in errors {
-            sender.send_warning(message)?;
+        if !errors.is_empty() {
+            let note = errors
+                .into_iter()
+                .sorted()
+                .map(|(line, error)| {
+                    if let Some(line) = line {
+                        format!("Line {}: {}", line, error)
+                    } else {
+                        error
+                    }
+                })
+                .join("\n");
+            sender.add_diagnostic(
+                Diagnostic::warning(format!(
+                    "Found Latex errors while compiling the booklet {}",
+                    booklet_name.as_ref().display()
+                ))
+                .with_note(note),
+            )?;
         }
         Ok(())
     }

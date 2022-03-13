@@ -12,9 +12,8 @@ fn get_warnings(task: &IOITask) -> Vec<String> {
     task.sanity_checks.pre_hook(task, &mut eval).unwrap();
     let mut res = vec![];
     while let Ok(mex) = recv.try_recv() {
-        match mex {
-            UIMessage::Warning { message } | UIMessage::Error { message } => res.push(message),
-            _ => {}
+        if let UIMessage::Diagnostic { diagnostic } = mex {
+            res.push(diagnostic.to_string())
         }
     }
     res
@@ -25,9 +24,8 @@ fn get_post_warnings(task: &IOITask) -> Vec<String> {
     task.sanity_checks.post_hook(task, &mut eval).unwrap();
     let mut res = vec![];
     while let Ok(mex) = recv.try_recv() {
-        match mex {
-            UIMessage::Warning { message } | UIMessage::Error { message } => res.push(message),
-            _ => {}
+        if let UIMessage::Diagnostic { diagnostic } = mex {
+            res.push(diagnostic.to_string())
         }
     }
     res
@@ -123,7 +121,7 @@ fn test_sanity_checks_duplicate_att_input() {
     std::fs::write(tmpdir.path().join("att/input0.txt"), "x").unwrap();
     std::fs::write(tmpdir.path().join("att/task.input0.txt"), "x").unwrap();
     let warnings = get_warnings(&task);
-    has_warning(&warnings, "Duplicate sample input file with number 0");
+    has_warning(&warnings, "Sample input 0 is present more than once");
 }
 
 #[test]
@@ -134,7 +132,7 @@ fn test_sanity_checks_duplicate_att_output() {
     std::fs::write(tmpdir.path().join("att/output0.txt"), "x").unwrap();
     std::fs::write(tmpdir.path().join("att/task.output0.txt"), "x").unwrap();
     let warnings = get_warnings(&task);
-    has_warning(&warnings, "Duplicate sample output file with number 0");
+    has_warning(&warnings, "Sample output 0 is present more than once");
 }
 
 #[test]
@@ -207,7 +205,7 @@ fn test_sanity_checks_statement_subtasks_oii_wrong() {
     let warnings = get_warnings(&task);
     has_warning(
         &warnings,
-        "The subtasks in the statement file.tex don't match the tasks's ones",
+        "The score of subtask 2 in file.tex doesn't match the task's one",
     );
 }
 
@@ -230,7 +228,7 @@ fn test_sanity_checks_statement_subtasks_oii_out_of_order() {
     let warnings = get_warnings(&task);
     has_warning(
         &warnings,
-        "The subtasks in the statement file.tex are non-sequentially numbered",
+        "The subtasks in file.tex are not sequentially numbered",
     );
 }
 
@@ -253,7 +251,7 @@ fn test_sanity_checks_statement_subtasks_ois_wrong() {
     let warnings = get_warnings(&task);
     has_warning(
         &warnings,
-        "The subtasks in the statement file.tex don't match the tasks's ones",
+        "The score of subtask 1 in file.tex doesn't match the task's one",
     );
 }
 

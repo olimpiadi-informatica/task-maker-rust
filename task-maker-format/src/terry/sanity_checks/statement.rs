@@ -1,8 +1,9 @@
 use anyhow::Error;
+use task_maker_diagnostics::Diagnostic;
 
 use crate::sanity_checks::SanityCheck;
 use crate::terry::TerryTask;
-use crate::{EvaluationData, UISender};
+use crate::EvaluationData;
 
 /// Check that the statement file is present.
 #[derive(Debug, Default)]
@@ -15,8 +16,7 @@ impl SanityCheck<TerryTask> for StatementPresent {
 
     fn pre_hook(&mut self, task: &TerryTask, eval: &mut EvaluationData) -> Result<(), Error> {
         if !task.path.join("statement/statement.md").exists() {
-            eval.sender
-                .send_error("statement/statement.md does not exist")?;
+            eval.add_diagnostic(Diagnostic::error("statement/statement.md does not exist"))?;
         }
         Ok(())
     }

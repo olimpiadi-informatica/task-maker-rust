@@ -728,14 +728,3 @@ fn test_ui_state_booklet_dep() {
         UIExecutionStatus::Pending
     );
 }
-
-#[test]
-fn test_ui_state_warning() {
-    let task = utils::new_task();
-    let mut ui = UIState::new(&task, Default::default());
-    ui.apply(UIMessage::Warning {
-        message: "test".to_string(),
-    });
-    assert_eq!(ui.warnings.len(), 1);
-    assert_eq!(ui.warnings[0], "test");
-}

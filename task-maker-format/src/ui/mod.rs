@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 use anyhow::Error;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 pub use termcolor::WriteColor;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
@@ -15,6 +16,7 @@ pub use print::PrintUI;
 pub use raw::RawUI;
 pub use silent::SilentUI;
 use task_maker_dag::{ExecutionResourcesUsage, ExecutionResult, ExecutionStatus, WorkerUuid};
+use task_maker_diagnostics::DiagnosticContext;
 pub use ui_message::UIMessage;
 
 use crate::{cwrite, cwriteln};
@@ -300,26 +302,13 @@ impl<'a> FinishUIUtils<'a> {
             .unwrap_or(0)
     }
 
-    /// Print the warnings.
-    pub fn print_warning_messages(&mut self, warnings: &[String]) {
-        if !warnings.is_empty() {
-            cwriteln!(self, YELLOW, "Warnings");
-            for warning in warnings.iter() {
-                println!(" - {}", warning);
+    /// Print the diagnostics.
+    pub fn print_diagnostic_messages(&mut self, diagnostics: &DiagnosticContext) {
+        let diagnostics = diagnostics.diagnostics();
+        if !diagnostics.is_empty() {
+            for diagnostic in diagnostics.iter().sorted_by_key(|d| d.level()) {
+                println!("{}", diagnostic);
             }
-            println!();
-        }
-    }
-
-    /// Print the errors.
-    pub fn print_error_messages(&mut self, errors: &[String]) {
-        if !errors.is_empty() {
-            cwriteln!(self, RED, "Errors");
-            for error in errors.iter() {
-                cwrite!(self, RED, " - ");
-                cwriteln!(self, SOFT_RED, "{}", error);
-            }
-            println!();
         }
     }
 }
@@ -340,20 +329,6 @@ impl UIMessageSender {
     /// Send a message to the channel.
     pub fn send(&self, message: UIMessage) -> Result<(), Error> {
         self.sender.send(message).map_err(|e| e.into())
-    }
-
-    /// Send a warning message to the channel.
-    pub fn send_warning(&self, message: impl Into<String>) -> Result<(), Error> {
-        self.send(UIMessage::Warning {
-            message: message.into(),
-        })
-    }
-
-    /// Send an error message to the channel.
-    pub fn send_error(&self, message: impl Into<String>) -> Result<(), Error> {
-        self.send(UIMessage::Error {
-            message: message.into(),
-        })
     }
 }
 

@@ -1,0 +1,12 @@
+[package]
+name = "task-maker-diagnostics"
+version = "0.5.3"
+edition = "2021"
+
+[dependencies]
+# Serialization/Deserialization
+serde = { version = "1.0", features = ["derive"] }
+# Utilities for writing to the terminal with colors
+colored = "2"
+# Generic error utilities
+anyhow = "1"

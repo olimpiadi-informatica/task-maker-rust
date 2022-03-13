@@ -2,9 +2,11 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Error};
+use itertools::Itertools;
 use regex::Regex;
 
 use task_maker_dag::File;
+use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::sanity_checks::check_missing_graders;
 use crate::ioi::{IOITask, TaskType, TestcaseId};
@@ -40,10 +42,14 @@ impl SanityCheck<IOITask> for AttTemplates {
                 .extension()
                 .ok_or_else(|| anyhow!("Grader has no extension"))?
                 .to_string_lossy();
-            let template = task.path.join("att").join(format!("{}.{}", task.name, ext));
+            let att_name = format!("att/{}.{}", task.name, ext);
+            let template = task.path.join(&att_name);
             if !template.exists() {
-                eval.sender
-                    .send_warning(format!("Missing template at att/{}.{}", task.name, ext))?;
+                let grader_name = task.path_of(grader);
+                eval.add_diagnostic(
+                    Diagnostic::warning(format!("Missing template at {}", att_name))
+                        .with_note(format!("Because of {}", grader_name.display())),
+                )?;
             }
         }
         Ok(())
@@ -64,23 +70,26 @@ impl SanityCheck<IOITask> for AttSampleFiles {
         for sample in list_files(&task.path, vec!["att/*input*.txt", "att/*output*.txt"]) {
             no_sample = false;
             // check if the file is a symlink
-            if sample.read_link().is_ok() {
+            if let Ok(content) = sample.read_link() {
                 // check if the symlink is broken
                 if sample.canonicalize().is_err() {
-                    eval.sender.send_error(format!(
-                        "Sample case {} is a broken link",
-                        sample.strip_prefix(&task.path).unwrap().display()
-                    ))?;
+                    eval.add_diagnostic(
+                        Diagnostic::error(format!(
+                            "Sample case {} is a broken link",
+                            task.path_of(&sample).display()
+                        ))
+                        .with_note(format!("It points to {}", content.display())),
+                    )?;
                 }
             } else {
-                eval.sender.send_warning(format!(
+                eval.add_diagnostic(Diagnostic::warning(format!(
                     "Sample case {} is not a symlink",
-                    sample.strip_prefix(&task.path).unwrap().display()
-                ))?;
+                    task.path_of(&sample).display()
+                )).with_help("Move this file in the statement folder and symlink it here. This way the sample file can be included in the compiled statement."))?;
             }
         }
         if no_sample {
-            eval.sender.send_warning("No sample file in att/")?;
+            eval.add_diagnostic(Diagnostic::warning("No sample file in att/"))?;
         }
         Ok(())
     }
@@ -106,7 +115,7 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
         let official_solution = &task_type.output_generator;
         let samples = get_sample_files(task, eval).context("Failed to get sample files")?;
         for (input, output) in samples {
-            let input_name = input.strip_prefix(&task.path).unwrap().to_owned();
+            let input_name = task.path_of(&input).to_owned();
             let input_handle = File::new(format!("Sample input file at {}", input_name.display()));
             let input_uuid = input_handle.uuid;
             eval.dag
@@ -123,15 +132,23 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
                     input_uuid,
                 )
                 .context("Failed to validate sample input file")?;
-            if let Some(val) = val {
+            if let Some(mut val) = val {
                 let input_name = input_name.clone();
                 let sender = eval.sender.clone();
+                val.capture_stderr(1024);
                 eval.dag.on_execution_done(&val.uuid, move |res| {
                     if !res.status.is_success() {
-                        sender.send_error(format!(
+                        let mut diagnostic = Diagnostic::error(format!(
                             "Sample input file {} is not valid",
                             input_name.display()
-                        ))?;
+                        ))
+                        .with_note(format!("The validator failed with: {:?}", res.status));
+                        if let Some(stderr) = res.stderr {
+                            diagnostic = diagnostic
+                                .with_help("The validator stderr is:")
+                                .with_help_attachment(stderr);
+                        }
+                        sender.add_diagnostic(diagnostic)?;
                     }
                     Ok(())
                 });
@@ -139,7 +156,7 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
             }
 
             if let Some(solution) = &official_solution {
-                let output_name = output.strip_prefix(&task.path).unwrap().to_owned();
+                let output_name = task.path_of(&output).to_owned();
                 let output_handle =
                     File::new(format!("Sample output file at {}", output_name.display()));
                 let output_uuid = output_handle.uuid;
@@ -164,15 +181,22 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
                     .context("Failed to generate correct sample output file")?;
                 let correct_output =
                     correct_output.ok_or_else(|| anyhow!("Missing official solution"))?;
-                if let Some(sol) = sol {
+                if let Some(mut sol) = sol {
+                    sol.capture_stderr(1024);
                     let sender = eval.sender.clone();
-                    let output_name = output_name.clone();
                     eval.dag.on_execution_done(&sol.uuid, move |res| {
                         if !res.status.is_success() {
-                            sender.send_error(format!(
+                            let mut diagnostic = Diagnostic::error(format!(
                                 "Solution failed on sample input file {}",
-                                output_name.display()
-                            ))?;
+                                input_name.display()
+                            ))
+                            .with_note(format!("The solution failed with: {:?}", res.status));
+                            if let Some(stderr) = res.stderr {
+                                diagnostic = diagnostic
+                                    .with_help("The solution stderr is:")
+                                    .with_help_attachment(stderr);
+                            }
+                            sender.add_diagnostic(diagnostic)?;
                         }
                         Ok(())
                     });
@@ -192,12 +216,12 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
                         output_uuid,
                         move |score, message| {
                             if abs_diff_ne!(score, 1.0) {
-                                sender.send_warning(format!(
+                                sender.add_diagnostic(Diagnostic::warning(format!(
                                     "Sample output file {} scores {}: {}",
                                     output_name.display(),
                                     score,
                                     message
-                                ))?;
+                                )))?;
                             }
                             Ok(())
                         },
@@ -228,50 +252,62 @@ fn get_sample_files(
         }
         None
     };
-    let mut inputs = HashMap::new();
+    let mut inputs: HashMap<_, Vec<_>> = HashMap::new();
     for input in list_files(&task.path, vec!["att/*input*.txt"]) {
         if let Some(num) = extract_num(&input) {
-            if let Some(i) = inputs.insert(num, input.clone()) {
-                eval.sender.send_error(format!(
-                    "Duplicate sample input file with number {}: {} and {}",
-                    num,
-                    input.strip_prefix(&task.path).unwrap().display(),
-                    i.strip_prefix(&task.path).unwrap().display()
-                ))?;
-            }
+            inputs.entry(num).or_default().push(input);
         }
     }
-    let mut outputs = HashMap::new();
+    for (num, files) in inputs.iter().sorted() {
+        if files.len() == 1 {
+            continue;
+        }
+        let paths = files
+            .iter()
+            .map(|p| task.path_of(p).to_string_lossy())
+            .join(", ");
+        eval.add_diagnostic(
+            Diagnostic::error(format!("Sample input {} is present more than once", num))
+                .with_note(format!("Found at: {}", paths)),
+        )?;
+    }
+    let mut outputs: HashMap<_, Vec<_>> = HashMap::new();
     for output in list_files(&task.path, vec!["att/*output*.txt"]) {
         if let Some(num) = extract_num(&output) {
-            if let Some(o) = outputs.insert(num, output.clone()) {
-                eval.sender.send_error(format!(
-                    "Duplicate sample output file with number {}: {} and {}",
-                    num,
-                    output.strip_prefix(&task.path).unwrap().display(),
-                    o.strip_prefix(&task.path).unwrap().display()
-                ))?;
-            }
+            outputs.entry(num).or_default().push(output);
         }
     }
+    for (num, files) in outputs.iter().sorted() {
+        if files.len() == 1 {
+            continue;
+        }
+        let paths = files
+            .iter()
+            .map(|p| task.path_of(p).to_string_lossy())
+            .join(", ");
+        eval.add_diagnostic(
+            Diagnostic::error(format!("Sample output {} is present more than once", num))
+                .with_note(format!("Found at: {}", paths)),
+        )?;
+    }
     let mut samples = Vec::new();
-    for (num, input) in inputs {
+    for (num, inputs) in inputs {
         let output = if let Some(output) = outputs.remove(&num) {
-            output
+            output[0].clone()
         } else {
-            eval.sender.send_warning(format!(
+            eval.add_diagnostic(Diagnostic::error(format!(
                 "Sample input file {} does not have its output file",
-                input.strip_prefix(&task.path).unwrap().display()
-            ))?;
+                task.path_of(&inputs[0]).display()
+            )))?;
             continue;
         };
-        samples.push((input, output));
+        samples.push((inputs[0].clone(), output));
     }
-    for (_, output) in outputs {
-        eval.sender.send_warning(format!(
+    for (_, outputs) in outputs {
+        eval.add_diagnostic(Diagnostic::error(format!(
             "Sample output file {} does not have its input file",
-            output.strip_prefix(&task.path).unwrap().display()
-        ))?;
+            task.path_of(&outputs[0]).display()
+        )))?;
     }
     Ok(samples)
 }

@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
+use task_maker_diagnostics::Diagnostic;
 use typescript_definitions::TypeScriptify;
 
 use task_maker_exec::ExecutorStatus;
@@ -208,15 +209,9 @@ pub enum UIMessage {
         outcome: Result<SolutionOutcome, String>,
     },
 
-    /// A warning has been emitted.
-    Warning {
-        /// The message of the warning.
-        message: String,
-    },
-
-    /// An error has been emitted.
-    Error {
-        /// The message of the error.
-        message: String,
+    /// A diagnostic message has been emitted.
+    Diagnostic {
+        /// The diagnostic message.
+        diagnostic: Diagnostic,
     },
 }

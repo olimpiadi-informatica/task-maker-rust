@@ -4,8 +4,9 @@ use std::sync::Mutex;
 
 use anyhow::Error;
 use itertools::Itertools;
+use task_maker_diagnostics::Diagnostic;
 
-use crate::{EvaluationData, UISender};
+use crate::EvaluationData;
 
 /// Trait that describes the behavior of a sanity check.
 pub trait SanityCheck<Task>: Send + Sync + std::fmt::Debug {
@@ -55,8 +56,11 @@ impl<Task> SanityChecks<Task> {
         let mut state = self.state.lock().unwrap();
         for check in state.sanity_checks.iter_mut() {
             if let Err(e) = check.pre_hook(task, eval) {
-                eval.sender
-                    .send_error(format!("Sanity check {} failed: {}", check.name(), e))?;
+                eval.add_diagnostic(Diagnostic::warning(format!(
+                    "Sanity check {} failed: {}",
+                    check.name(),
+                    e
+                )))?;
             }
         }
         Ok(())
@@ -68,8 +72,11 @@ impl<Task> SanityChecks<Task> {
         let mut state = self.state.lock().unwrap();
         for check in state.sanity_checks.iter_mut() {
             if let Err(e) = check.post_hook(task, eval) {
-                eval.sender
-                    .send_error(format!("Sanity check {} failed: {}", check.name(), e))?;
+                eval.add_diagnostic(Diagnostic::warning(format!(
+                    "Sanity check {} failed: {}",
+                    check.name(),
+                    e
+                )))?;
             }
         }
         Ok(())

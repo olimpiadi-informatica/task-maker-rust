@@ -5,10 +5,11 @@ use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{Execution, FileUuid, Priority};
+use task_maker_diagnostics::Diagnostic;
 
-use crate::bind_exec_callbacks;
 use crate::ioi::{SubtaskId, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
 use crate::ui::UIMessage;
+use crate::{bind_exec_callbacks, UISender};
 use crate::{EvaluationData, SourceFile, Tag};
 
 /// The file name of the input file that the `InputValidator` has to validate. This file will be
@@ -83,6 +84,18 @@ impl InputValidator {
                 testcase: testcase_id,
                 status
             })?;
+            let sender = eval.sender.clone();
+            eval.dag.on_execution_done(&val.uuid, move |result| {
+                if !result.status.is_success() {
+                    let mut diagnostic =
+                        Diagnostic::error(format!("Failed to validate input {}", testcase_id));
+                    if let Some(stderr) = result.stderr {
+                        diagnostic = diagnostic.with_help_attachment(stderr);
+                    }
+                    sender.add_diagnostic(diagnostic)?;
+                }
+                Ok(())
+            });
             eval.dag.add_execution(val);
         }
         Ok(handle)
