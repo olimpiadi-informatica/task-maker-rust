@@ -2373,6 +2373,7 @@ name = "task-maker-async"
 version = "0.1.0"
 dependencies = [
  "assert2",
+ "bincode",
  "blake3",
  "futures",
  "serde",
