@@ -69,14 +69,17 @@ pub enum InputFilePermissions {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
+pub struct ExecutionInputFileInfo {
+    data_hash: DataIdentificationHash,
+    variant_hash: VariantIdentificationHash,
+    file_id: FileSetFile,
+    permissions: InputFilePermissions,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub enum ExecutionFileMode {
     /// Input file to be read from the store.
-    Input(
-        DataIdentificationHash,
-        VariantIdentificationHash,
-        FileSetFile,
-        InputFilePermissions,
-    ),
+    Input(ExecutionInputFileInfo),
     /// Output file to be written to the store.
     Output,
     /// Fifo; executions within the same execution group that share the same Fifo name will share
@@ -141,10 +144,15 @@ impl ExecutionGroup {
             for (path, file) in ex.files.iter() {
                 hasher.update(&serialize(path).unwrap());
                 match file {
-                    ExecutionFileMode::Input(data, _, f, perm) => {
-                        hasher.update(&serialize(data).unwrap());
-                        hasher.update(&serialize(f).unwrap());
-                        hasher.update(&serialize(perm).unwrap());
+                    ExecutionFileMode::Input(ExecutionInputFileInfo {
+                        data_hash,
+                        file_id,
+                        permissions,
+                        variant_hash: _,
+                    }) => {
+                        hasher.update(&serialize(data_hash).unwrap());
+                        hasher.update(&serialize(file_id).unwrap());
+                        hasher.update(&serialize(permissions).unwrap());
                     }
                     _ => {
                         hasher.update(&serialize(file).unwrap());
