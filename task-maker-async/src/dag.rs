@@ -3,7 +3,6 @@
 use crate::store::{DataIdentificationHash, FileSetFile, VariantIdentificationHash};
 use bincode::serialize;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 use task_maker_dag::ExecutionCommand;
@@ -96,10 +95,11 @@ pub struct Execution {
     pub args: Vec<String>,
 
     /// All files (input, output and fifo) that are necessary for running this execution.
-    pub files: HashMap<ExecutionPath, ExecutionFileMode>,
+    /// ExecutionPath must not be repeated.
+    pub files: Vec<(ExecutionPath, ExecutionFileMode)>,
 
-    /// Environment variables to set.
-    pub env: HashMap<String, String>,
+    /// Environment variables to set (list of (Key, Value) pairs). The key must not be repeated.
+    pub env: Vec<(String, String)>,
     /// Environment variables to copy from the sandbox host.
     pub copy_env: Vec<String>,
 
