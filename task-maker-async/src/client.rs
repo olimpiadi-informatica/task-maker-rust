@@ -1,5 +1,9 @@
 #![allow(dead_code)]
-use std::{collections::HashMap, io::Read, sync::Arc};
+use std::{
+    collections::HashMap,
+    io::{self, Read},
+    sync::Arc,
+};
 
 use futures::future::try_join_all;
 use tarpc::context;
@@ -71,6 +75,45 @@ struct FileIdentificationInfo {
     file: FileSetFile,
 }
 
+enum ProvidedFileChunkIterator {
+    LocalFile(std::fs::File),
+    Content(Option<Vec<u8>>),
+}
+
+impl ProvidedFileChunkIterator {
+    fn new(file: &ProvidedFile) -> Result<ProvidedFileChunkIterator, io::Error> {
+        match file {
+            ProvidedFile::LocalFile {
+                local_path: path, ..
+            } => Ok(ProvidedFileChunkIterator::LocalFile(std::fs::File::open(
+                path,
+            )?)),
+            ProvidedFile::Content { content: data, .. } => {
+                Ok(ProvidedFileChunkIterator::Content(Some(data.clone())))
+            }
+        }
+    }
+}
+
+impl Iterator for ProvidedFileChunkIterator {
+    type Item = Result<Vec<u8>, io::Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            ProvidedFileChunkIterator::LocalFile(f) => {
+                let mut buf = [0; BUF_SIZE];
+                let n = f.read(&mut buf);
+                match n {
+                    Err(e) => Some(Err(e)),
+                    Ok(0) => None,
+                    Ok(n) => Some(Ok(buf[..n].to_vec())),
+                }
+            }
+            ProvidedFileChunkIterator::Content(v) => v.take().map(|x| Ok(x)),
+        }
+    }
+}
+
 async fn ensure_input_available(
     file: &ProvidedFile,
     fileset_keepalive: &FileSetHandleKeepalive,
@@ -78,32 +121,13 @@ async fn ensure_input_available(
     store: &StoreClient,
 ) -> Result<(), Error> {
     let mut hasher = blake3::Hasher::new();
-    let file_info;
-    match file {
-        ProvidedFile::LocalFile {
-            file,
-            local_path: path,
-            ..
-        } => {
-            file_info = file;
-            let mut f = std::fs::File::open(path)?;
-            let mut buf = [0; BUF_SIZE];
-            loop {
-                let n = f.read(&mut buf)?;
-                hasher.update(&buf[..n]);
-                if n == 0 {
-                    break;
-                }
-            }
-        }
-        ProvidedFile::Content {
-            file,
-            content: data,
-            ..
-        } => {
-            file_info = file;
-            hasher.update(&data);
-        }
+    let file_info = match file {
+        ProvidedFile::LocalFile { file, .. } => file,
+        ProvidedFile::Content { file, .. } => file,
+    };
+
+    for data in ProvidedFileChunkIterator::new(file)? {
+        hasher.update(&data?);
     }
 
     let hash = *hasher.finalize().as_bytes();
@@ -139,29 +163,11 @@ async fn ensure_input_available(
         let file_handle = store
             .open_file(context::current(), handle, FileSetFile::MainFile)
             .await??;
-        match file {
-            ProvidedFile::LocalFile {
-                local_path: path, ..
-            } => {
-                let mut f = std::fs::File::open(path)?;
-                let mut buf = [0; BUF_SIZE];
-                loop {
-                    let n = f.read(&mut buf)?;
-                    store
-                        .append_chunk(context::current(), file_handle, buf[..n].to_vec())
-                        .await??;
-                    if n == 0 {
-                        break;
-                    }
-                }
-            }
-            ProvidedFile::Content { content: data, .. } => {
-                store
-                    .append_chunk(context::current(), file_handle, data.clone())
-                    .await??;
-            }
+        for data in ProvidedFileChunkIterator::new(file)? {
+            store
+                .append_chunk(context::current(), file_handle, data?)
+                .await??;
         }
-
         handle = store
             .finalize_file_set(context::current(), handle)
             .await??;
