@@ -573,32 +573,31 @@ impl Store for StoreService {
         context: Context,
         handle: FileSetHandle,
     ) -> Result<(), Error> {
-        loop {
-            let receiver = {
-                let mut service = self.service.lock().unwrap();
-                let entry = service.validate_and_refresh(handle)?;
-                let (data_hash, variant_hash) = if let Entry::Occupied(file_set_entry) = &entry {
-                    let fs = file_set_entry.get();
-                    (fs.data_hash, fs.variant_hash)
-                } else {
-                    panic!("validate_and_refresh cannot return a non-occupied entry");
-                };
-                let file_set = service
-                    .file_sets
-                    .get_mut(&data_hash)
-                    .and_then(|x| x.get_mut(&variant_hash));
-                let file_set = file_set.unwrap();
-                if file_set.finalized {
-                    break;
-                }
-
-                let (sender, receiver) = channel();
-                file_set.finalization_waiters.push(sender);
-                receiver
+        let receiver = {
+            let mut service = self.service.lock().unwrap();
+            let entry = service.validate_and_refresh(handle)?;
+            let (data_hash, variant_hash) = if let Entry::Occupied(file_set_entry) = &entry {
+                let fs = file_set_entry.get();
+                (fs.data_hash, fs.variant_hash)
+            } else {
+                panic!("validate_and_refresh cannot return a non-occupied entry");
             };
-            if receiver.await.is_err() {
-                panic!("The sender should never be dropped");
+            let file_set = service
+                .file_sets
+                .get_mut(&data_hash)
+                .unwrap()
+                .get_mut(&variant_hash)
+                .unwrap();
+            if file_set.finalized {
+                return Ok(());
             }
+
+            let (sender, receiver) = channel();
+            file_set.finalization_waiters.push(sender);
+            receiver
+        };
+        if receiver.await.is_err() {
+            panic!("The sender should never be dropped");
         }
         Ok(())
     }
