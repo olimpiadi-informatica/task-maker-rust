@@ -19,7 +19,7 @@ use crate::error::Error;
 
 type HashData = [u8; 32];
 
-const LEASE_LENGTH: Duration = Duration::from_secs(2);
+pub const LEASE_LENGTH: Duration = Duration::from_secs(2);
 
 const CHUNK_SIZE: usize = 4 * 1024; // 4 KiB
 
@@ -66,6 +66,7 @@ pub struct FileHandle {
 /// Identifier for a file in an execution.
 #[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, Clone)]
 pub enum ExecutionFile {
+    Outcome,
     Stdout,
     Stderr,
     File(PathBuf),
@@ -73,7 +74,8 @@ pub enum ExecutionFile {
 
 #[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, Clone)]
 pub enum FileSetFile {
-    /// Outcome for a computation, input file for an input file.
+    /// Input file for an input file, overall execution group outcome for a computation (serialized
+    /// bincode for Result<(), String>).
     MainFile,
     /// Metadata about how the fileset was obtained.
     Metadata,
@@ -124,6 +126,9 @@ pub trait Store {
     /// its MainFile is not correct.
     async fn finalize_file_set(handle: FileSetHandle) -> Result<FileSetHandle, Error>;
 
+    /// Waits until the file set is finalized. The given handle must be a reading handle.
+    async fn wait_until_finalized(handle: FileSetHandle) -> Result<(), Error>;
+
     /// Tries to read from a file. Refreshes the corresponding lease.
     async fn read_chunk(file: FileHandle, offset: usize) -> Result<FileReadingOutcome, Error>;
 
@@ -145,6 +150,7 @@ type FileContents = Vec<u8>;
 struct FileSet {
     files: HashMap<FileSetFile, FileContents>,
     kind: FileSetKind,
+    finalization_waiters: Vec<Sender<()>>,
     finalized: bool,
 }
 
@@ -221,6 +227,7 @@ impl StoreServiceImpl {
                 FileSet {
                     files: HashMap::new(),
                     kind,
+                    finalization_waiters: vec![],
                     finalized: false,
                 },
             );
@@ -543,18 +550,56 @@ impl Store for StoreService {
             }
         }
 
-        service
+        let file_set = service
             .file_sets
             .get_mut(&handle_info.data_hash)
             .unwrap()
             .get_mut(&handle_info.variant_hash)
-            .unwrap()
-            .finalized = true;
+            .unwrap();
+
+        file_set.finalized = true;
+        file_set.finalization_waiters.drain(..).for_each(|waiter| {
+            let _ = waiter.send(());
+        });
 
         Ok(FileSetHandle {
             id: handle.id,
             mode: HandleMode::Read,
         })
+    }
+
+    async fn wait_until_finalized(
+        self,
+        context: Context,
+        handle: FileSetHandle,
+    ) -> Result<(), Error> {
+        let receiver = {
+            let mut service = self.service.lock().unwrap();
+            let entry = service.validate_and_refresh(handle)?;
+            let (data_hash, variant_hash) = if let Entry::Occupied(file_set_entry) = &entry {
+                let fs = file_set_entry.get();
+                (fs.data_hash, fs.variant_hash)
+            } else {
+                panic!("validate_and_refresh cannot return a non-occupied entry");
+            };
+            let file_set = service
+                .file_sets
+                .get_mut(&data_hash)
+                .unwrap()
+                .get_mut(&variant_hash)
+                .unwrap();
+            if file_set.finalized {
+                return Ok(());
+            }
+
+            let (sender, receiver) = channel();
+            file_set.finalization_waiters.push(sender);
+            receiver
+        };
+        if receiver.await.is_err() {
+            panic!("The sender should never be dropped");
+        }
+        Ok(())
     }
 
     async fn refresh_file_set_lease(
