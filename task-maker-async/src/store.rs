@@ -19,7 +19,7 @@ use crate::error::Error;
 
 type HashData = [u8; 32];
 
-const LEASE_LENGTH: Duration = Duration::from_secs(2);
+pub const LEASE_LENGTH: Duration = Duration::from_secs(2);
 
 const CHUNK_SIZE: usize = 4 * 1024; // 4 KiB
 

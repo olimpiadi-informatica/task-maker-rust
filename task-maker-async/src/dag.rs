@@ -8,12 +8,12 @@ use std::time::Duration;
 use task_maker_dag::ExecutionCommand;
 
 /// Higher value = executed first.
-type Priority = u32;
+type Priority = i64;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExecutionDAGOptions {
-    keep_sandboxes: bool,
-    priority: Priority,
+    pub keep_sandboxes: bool,
+    pub priority: Priority,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
