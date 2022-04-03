@@ -193,6 +193,8 @@ struct StdoutStderrSize {
     stderr: Option<usize>,
 }
 
+/// Returns None if the execution cannot be created yet or has been created already,
+/// Some(converted_execution) otherwise.
 fn prepare_execution_group(
     execution_group: &TMRExecutionGroup,
     dag: &TMRExecutionDAG,
@@ -200,6 +202,11 @@ fn prepare_execution_group(
     execution_uuid_to_hash: &mut HashMap<ExecutionUuid, FileIdentificationInfo>,
     execution_uuid_to_stdout_stderr_size: &mut HashMap<ExecutionUuid, StdoutStderrSize>,
 ) -> Option<ExecutionGroup> {
+    let is_done = execution_group
+        .executions
+        .iter()
+        .map(|x| x.uuid)
+        .any(|x| execution_uuid_to_hash.contains_key(&x));
     let can_process = execution_group
         .executions
         .iter()
@@ -210,7 +217,7 @@ fn prepare_execution_group(
                 .chain(x.stdin.iter().cloned())
         })
         .all(|x| file_uuid_to_hash.contains_key(&x));
-    if !can_process {
+    if !can_process || is_done {
         return None;
     }
 
@@ -288,6 +295,23 @@ fn prepare_execution_group(
             files.push((ExecutionPath::Stderr, ExecutionFileMode::Fifo(name)));
         }
 
+        for fifo in &execution_group.fifo {
+            let name = fifo
+                .sandbox_path()
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string();
+            files.push((
+                ExecutionPath::Path(fifo.sandbox_path()),
+                ExecutionFileMode::Fifo(name),
+            ));
+        }
+
+        // Ensure file order is deterministic across runs, as hash values will depend on it.
+        files.sort();
+
         execution_uuid_to_stdout_stderr_size.insert(
             execution.uuid,
             StdoutStderrSize {
@@ -295,9 +319,6 @@ fn prepare_execution_group(
                 stderr: execution.capture_stderr,
             },
         );
-
-        // Ensure file order is deterministic across runs, as hash values will depend on it.
-        files.sort();
 
         Execution {
             name: execution.description.clone(),
