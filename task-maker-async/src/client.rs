@@ -109,7 +109,7 @@ impl Iterator for ProvidedFileChunkIterator {
                     Ok(n) => Some(Ok(buf[..n].to_vec())),
                 }
             }
-            ProvidedFileChunkIterator::Content(v) => v.take().map(|x| Ok(x)),
+            ProvidedFileChunkIterator::Content(v) => v.take().map(Ok),
         }
     }
 }
