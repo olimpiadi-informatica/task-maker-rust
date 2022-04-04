@@ -64,18 +64,24 @@ pub struct FileHandle {
 }
 
 /// Identifier for a file in an execution.
-#[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, Clone, PartialOrd, Ord)]
 pub enum ExecutionFile {
-    Outcome,
+    Outcome, // serialized task_maker_dag::ExecutionResult, with stdout/stderr set to None.
     Stdout,
     Stderr,
     File(PathBuf),
 }
 
 #[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, Clone)]
+pub enum ComputationOutcome {
+    Executed,
+    Skipped,
+}
+
+#[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, Clone, PartialOrd, Ord)]
 pub enum FileSetFile {
     /// Input file for an input file, overall execution group outcome for a computation (serialized
-    /// bincode for Result<(), String>).
+    /// bincode for ComputationOutcome).
     MainFile,
     /// Metadata about how the fileset was obtained.
     Metadata,
@@ -506,6 +512,8 @@ impl Store for StoreService {
                 panic!("The sender should never be dropped");
             }
         }
+        // TODO(veluca): here, we rely on this future being resumed before enough time passes for
+        // the newly created writing handle to be dropped. We should not rely on this.
 
         let mut service = self.service.lock().unwrap();
         let file_set = service

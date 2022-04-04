@@ -54,7 +54,7 @@ pub struct ExecutionConstraints {
     pub extra_readable_dirs: Vec<PathBuf>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ExecutionPath {
     Stdin,
     Stdout,
@@ -62,21 +62,21 @@ pub enum ExecutionPath {
     Path(PathBuf),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InputFilePermissions {
     Default,
     Executable,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ExecutionInputFileInfo {
-    data_hash: DataIdentificationHash,
-    variant_hash: VariantIdentificationHash,
-    file_id: FileSetFile,
-    permissions: InputFilePermissions,
+    pub data_hash: DataIdentificationHash,
+    pub variant_hash: VariantIdentificationHash,
+    pub file_id: FileSetFile,
+    pub permissions: InputFilePermissions,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ExecutionFileMode {
     /// Input file to be read from the store.
     Input(ExecutionInputFileInfo),

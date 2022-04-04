@@ -2383,6 +2383,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-util",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -2410,7 +2411,7 @@ dependencies = [
  "task-maker-store",
  "tempdir",
  "typescript-definitions",
- "uuid",
+ "uuid 0.7.4",
 ]
 
 [[package]]
@@ -2446,7 +2447,7 @@ dependencies = [
  "tempdir",
  "thiserror",
  "typescript-definitions",
- "uuid",
+ "uuid 0.7.4",
  "which",
 ]
 
@@ -2946,6 +2947,15 @@ checksum = "90dbc611eb48397705a6b0f6e917da23ae517e4d127123d2cf7674206627d32a"
 dependencies = [
  "rand 0.6.5",
  "serde",
+]
+
+[[package]]
+name = "uuid"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
+dependencies = [
+ "getrandom 0.2.3",
 ]
 
 [[package]]
