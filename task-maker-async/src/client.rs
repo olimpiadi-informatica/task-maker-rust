@@ -101,7 +101,7 @@ async fn ensure_input_available(
 
     match file {
         ProvidedFile::Content { content: data, .. } => {
-            hasher.update(&data);
+            hasher.update(data);
         }
         ProvidedFile::LocalFile {
             local_path: path, ..
