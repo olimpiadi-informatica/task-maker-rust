@@ -347,13 +347,10 @@ impl FileStore {
         if let Ok(metadata) = metadata {
             let created = metadata.created();
             let modified = metadata.modified();
-            match (created, modified) {
-                (Ok(created), Ok(modified)) => {
-                    if created == modified {
-                        return true;
-                    }
+            if let (Ok(created), Ok(modified)) = (created, modified) {
+                if created == modified {
+                    return true;
                 }
-                (_, _) => {}
             }
         }
         match FileStoreKey::from_file(&path) {
