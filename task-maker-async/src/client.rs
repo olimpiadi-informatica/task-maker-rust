@@ -1,18 +1,22 @@
 #![allow(dead_code)]
 use std::{
-    collections::HashMap,
-    io::{self, Read},
-    sync::Arc,
-    time::Duration,
+    collections::HashMap, os::unix::prelude::PermissionsExt, path::Path, sync::Arc, time::Duration,
 };
 
-use futures::future::try_join_all;
+use futures::future::{try_join3, try_join_all};
 use tarpc::context;
 use task_maker_dag::{
-    CacheMode, ExecutionDAG as TMRExecutionDAG, ExecutionGroup as TMRExecutionGroup,
-    ExecutionInput, ExecutionUuid, FileUuid, ProvidedFile,
+    CacheMode, ExecutionCallbacks, ExecutionDAG as TMRExecutionDAG,
+    ExecutionGroup as TMRExecutionGroup, ExecutionInput, ExecutionResult, ExecutionUuid,
+    FileCallbacks, FileUuid, ProvidedFile, WorkerUuid,
 };
-use tokio::{select, sync::Mutex, time::interval};
+use tokio::{
+    fs::{create_dir_all, File},
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, SeekFrom},
+    select,
+    sync::Mutex,
+    time::interval,
+};
 use tokio_util::sync::CancellationToken;
 
 use anyhow::{anyhow, Error};
@@ -25,8 +29,8 @@ use crate::{
     },
     server::ServerClient,
     store::{
-        DataIdentificationHash, ExecutionFile, FileSetFile, FileSetHandle, StoreClient,
-        VariantIdentificationHash, LEASE_LENGTH,
+        ComputationOutcome, DataIdentificationHash, ExecutionFile, FileHandle, FileReadingOutcome,
+        FileSetFile, FileSetHandle, StoreClient, VariantIdentificationHash, LEASE_LENGTH,
     },
 };
 
@@ -83,45 +87,6 @@ struct FileIdentificationInfo {
     file_id: FileSetFile,
 }
 
-enum ProvidedFileChunkIterator {
-    LocalFile(std::fs::File),
-    Content(Option<Vec<u8>>),
-}
-
-impl ProvidedFileChunkIterator {
-    fn new(file: &ProvidedFile) -> Result<ProvidedFileChunkIterator, io::Error> {
-        match file {
-            ProvidedFile::LocalFile {
-                local_path: path, ..
-            } => Ok(ProvidedFileChunkIterator::LocalFile(std::fs::File::open(
-                path,
-            )?)),
-            ProvidedFile::Content { content: data, .. } => {
-                Ok(ProvidedFileChunkIterator::Content(Some(data.clone())))
-            }
-        }
-    }
-}
-
-impl Iterator for ProvidedFileChunkIterator {
-    type Item = Result<Vec<u8>, io::Error>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            ProvidedFileChunkIterator::LocalFile(f) => {
-                let mut buf = [0; BUF_SIZE];
-                let n = f.read(&mut buf);
-                match n {
-                    Err(e) => Some(Err(e)),
-                    Ok(0) => None,
-                    Ok(n) => Some(Ok(buf[..n].to_vec())),
-                }
-            }
-            ProvidedFileChunkIterator::Content(v) => v.take().map(Ok),
-        }
-    }
-}
-
 async fn ensure_input_available(
     file: &ProvidedFile,
     fileset_keepalive: &FileSetHandleKeepalive,
@@ -134,8 +99,18 @@ async fn ensure_input_available(
         ProvidedFile::Content { file, .. } => file,
     };
 
-    for data in ProvidedFileChunkIterator::new(file)? {
-        hasher.update(&data?);
+    match file {
+        ProvidedFile::Content { content: data, .. } => {
+            hasher.update(data);
+        }
+        ProvidedFile::LocalFile {
+            local_path: path, ..
+        } => {
+            let mut f = File::open(path).await?;
+            let mut buf = [0; BUF_SIZE];
+            let n = f.read(&mut buf).await?;
+            hasher.update(&buf[..n]);
+        }
     }
 
     let hash = *hasher.finalize().as_bytes();
@@ -171,10 +146,23 @@ async fn ensure_input_available(
         let file_handle = store
             .open_file(context::current(), handle, FileSetFile::MainFile)
             .await??;
-        for data in ProvidedFileChunkIterator::new(file)? {
-            store
-                .append_chunk(context::current(), file_handle, data?)
-                .await??;
+
+        match file {
+            ProvidedFile::Content { content: data, .. } => {
+                store
+                    .append_chunk(context::current(), file_handle, data.clone())
+                    .await??;
+            }
+            ProvidedFile::LocalFile {
+                local_path: path, ..
+            } => {
+                let mut f = File::open(path).await?;
+                let mut buf = [0; BUF_SIZE];
+                let n = f.read(&mut buf).await?;
+                store
+                    .append_chunk(context::current(), file_handle, buf[..n].to_vec())
+                    .await??;
+            }
         }
         handle = store
             .finalize_file_set(context::current(), handle)
@@ -430,6 +418,233 @@ fn prepare_execution_group(
     Some(ret)
 }
 
+async fn read_file_to_memory(
+    store: &StoreClient,
+    file: &FileHandle,
+    size_limit: Option<usize>,
+) -> Result<Vec<u8>, Error> {
+    let mut result = vec![];
+    loop {
+        if let Some(limit) = size_limit {
+            if result.len() >= limit {
+                break;
+            }
+        }
+        let chunk = store
+            .read_chunk(context::current(), *file, result.len())
+            .await??;
+        match chunk {
+            FileReadingOutcome::Dropped => {
+                result.clear();
+            }
+            FileReadingOutcome::EndOfFile => {
+                break;
+            }
+            FileReadingOutcome::Data(chunk) => {
+                result.extend(chunk);
+            }
+        };
+    }
+    Ok(result)
+}
+
+async fn write_file_to_disk(
+    store: &StoreClient,
+    file: &FileHandle,
+    destination: &Path,
+    make_executable: bool,
+) -> Result<(), Error> {
+    create_dir_all(destination.parent().unwrap()).await?;
+    let mut destination = File::create(destination).await?;
+    if make_executable {
+        destination
+            .set_permissions(PermissionsExt::from_mode(0o755))
+            .await?;
+    }
+    loop {
+        let chunk = store
+            .read_chunk(
+                context::current(),
+                *file,
+                destination.stream_position().await? as usize,
+            )
+            .await??;
+        match chunk {
+            FileReadingOutcome::Dropped => {
+                destination.set_len(0).await?;
+                destination.seek(SeekFrom::Start(0)).await?;
+            }
+            FileReadingOutcome::EndOfFile => {
+                break;
+            }
+            FileReadingOutcome::Data(chunk) => {
+                destination.write_all(&chunk).await?;
+            }
+        };
+    }
+    Ok(())
+}
+
+async fn get_execution_result(
+    store: &StoreClient,
+    file_set_handle: &FileSetHandle,
+    execution_name: String,
+    stdout_stderr_size: StdoutStderrSize,
+) -> Result<ExecutionResult, Error> {
+    let result = store
+        .open_file(
+            context::current(),
+            *file_set_handle,
+            FileSetFile::AuxiliaryFile(execution_name.clone(), ExecutionFile::Outcome),
+        )
+        .await??;
+    let mut result: ExecutionResult =
+        bincode::deserialize(&read_file_to_memory(store, &result, None).await?)?;
+
+    if let Some(stdout_size) = stdout_stderr_size.stdout {
+        let out = store
+            .open_file(
+                context::current(),
+                *file_set_handle,
+                FileSetFile::AuxiliaryFile(execution_name.clone(), ExecutionFile::Stdout),
+            )
+            .await??;
+        result.stdout = Some(read_file_to_memory(store, &out, Some(stdout_size)).await?);
+    }
+
+    if let Some(stderr_size) = stdout_stderr_size.stderr {
+        let out = store
+            .open_file(
+                context::current(),
+                *file_set_handle,
+                FileSetFile::AuxiliaryFile(execution_name.clone(), ExecutionFile::Stderr),
+            )
+            .await??;
+        result.stderr = Some(read_file_to_memory(store, &out, Some(stderr_size)).await?);
+    }
+
+    Ok(result)
+}
+
+async fn execution_callback(
+    store: &StoreClient,
+    execution: FileIdentificationInfo,
+    callback: ExecutionCallbacks,
+    stdout_stderr_size: StdoutStderrSize,
+) -> Result<(), Error> {
+    let file_set_handle = store
+        .open_computation(
+            context::current(),
+            execution.data_hash,
+            execution.variant_hash,
+        )
+        .await??;
+
+    let worker_uuid = WorkerUuid::new_v4(); // TODO(veluca): this is not a true worker id.
+
+    for cb in callback.on_start.into_iter() {
+        cb(worker_uuid)?;
+    }
+
+    store
+        .wait_until_finalized(context::current(), file_set_handle)
+        .await??;
+
+    let status = store
+        .open_file(context::current(), file_set_handle, FileSetFile::MainFile)
+        .await??;
+
+    let status: ComputationOutcome =
+        bincode::deserialize(&read_file_to_memory(store, &status, None).await?)?;
+
+    match status {
+        ComputationOutcome::Skipped => {
+            for cb in callback.on_skip.into_iter() {
+                cb()?;
+            }
+        }
+        ComputationOutcome::Executed => {
+            let name = if let FileSetFile::AuxiliaryFile(name, _) = execution.file_id {
+                name
+            } else {
+                panic!("Invalid execution FileIdentificationInfo");
+            };
+
+            let result =
+                get_execution_result(store, &file_set_handle, name, stdout_stderr_size).await?;
+            for cb in callback.on_done.into_iter() {
+                cb(result.clone())?;
+            }
+        }
+    };
+
+    Ok(())
+}
+
+async fn file_callback(
+    store: &StoreClient,
+    file: FileIdentificationInfo,
+    callback: FileCallbacks,
+) -> Result<(), Error> {
+    let file_set_handle = store
+        .open_computation(context::current(), file.data_hash, file.variant_hash)
+        .await??;
+
+    store
+        .wait_until_finalized(context::current(), file_set_handle)
+        .await??;
+
+    let status = store
+        .open_file(context::current(), file_set_handle, FileSetFile::MainFile)
+        .await??;
+
+    let status: ComputationOutcome =
+        bincode::deserialize(&read_file_to_memory(store, &status, None).await?)?;
+
+    if status != ComputationOutcome::Executed {
+        // Nothing to do.
+        return Ok(());
+    }
+
+    let execution_name = if let FileSetFile::AuxiliaryFile(name, _) = &file.file_id {
+        name
+    } else {
+        panic!("Invalid execution FileIdentificationInfo");
+    };
+
+    let result = get_execution_result(
+        store,
+        &file_set_handle,
+        execution_name.clone(),
+        StdoutStderrSize {
+            stdout: None,
+            stderr: None,
+        },
+    )
+    .await?;
+
+    if let Some(write_to) = callback.write_to {
+        let file = store
+            .open_file(context::current(), file_set_handle, file.file_id.clone())
+            .await??;
+        if write_to.allow_failure || result.status.is_success() {
+            write_file_to_disk(store, &file, &write_to.dest, write_to.executable).await?;
+        }
+    }
+
+    if result.status.is_success() {
+        if let Some((size, cb)) = callback.get_content {
+            let file = store
+                .open_file(context::current(), file_set_handle, file.file_id)
+                .await??;
+            let file = read_file_to_memory(store, &file, Some(size)).await?;
+            cb(file)?;
+        }
+    }
+
+    Ok(())
+}
+
 async fn evaluate_dag_async(
     dag: TMRExecutionDAG,
     store: &StoreClient,
@@ -449,14 +664,14 @@ async fn evaluate_dag_async(
     let mut execution_uuid_to_hash = HashMap::new();
     let mut execution_uuid_to_stdout_stderr_size = HashMap::new();
 
+    let mut file_uuid_to_hash = file_uuid_to_hash.lock().await;
+
     // Prepare the execution groups for the async DAG. TODO(veluca): be less quadratic.
     loop {
         let num_groups = execution_groups.len();
         if num_groups == dag.data.execution_groups.len() {
             break;
         }
-
-        let mut locked_file_info = file_uuid_to_hash.lock().await;
 
         execution_groups.extend(
             dag.data
@@ -466,7 +681,7 @@ async fn evaluate_dag_async(
                     prepare_execution_group(
                         execution_group,
                         &dag,
-                        &mut locked_file_info,
+                        &mut file_uuid_to_hash,
                         &mut execution_uuid_to_hash,
                         &mut execution_uuid_to_stdout_stderr_size,
                     )
@@ -479,19 +694,60 @@ async fn evaluate_dag_async(
         }
     }
 
-    // TODO(veluca): setup urgent callbacks.
-    server
-        .evaluate(
-            context::current(),
-            ExecutionDAG { execution_groups },
-            ExecutionDAGOptions {
-                keep_sandboxes: dag.data.config.keep_sandboxes,
-                priority: dag.data.config.priority,
-            },
-        )
-        .await??;
+    let mut callbacks = dag.callbacks.unwrap();
 
-    // TODO(veluca): call non-urgent callbacks.
+    let wait_execution_callbacks = try_join_all(callbacks.execution_callbacks.into_iter().map(
+        |(uuid, callback)| {
+            execution_callback(
+                store,
+                execution_uuid_to_hash.remove(&uuid).unwrap(),
+                callback,
+                execution_uuid_to_stdout_stderr_size.remove(&uuid).unwrap(),
+            )
+        },
+    ));
+
+    let wait_urgent_file_callbacks = try_join_all(callbacks.urgent_files.into_iter().map(|uuid| {
+        file_callback(
+            store,
+            file_uuid_to_hash.remove(&uuid).unwrap(),
+            callbacks.file_callbacks.remove(&uuid).unwrap(),
+        )
+    }));
+
+    let wait_eval_done = async {
+        server
+            .evaluate(
+                context::current(),
+                ExecutionDAG { execution_groups },
+                ExecutionDAGOptions {
+                    keep_sandboxes: dag.data.config.keep_sandboxes,
+                    priority: dag.data.config.priority,
+                },
+            )
+            .await
+            // Flatten to Result<(), Error>
+            .map_err(anyhow::Error::new)
+            .and_then(|x| Ok(x?))
+    };
+
+    try_join3(
+        wait_eval_done,
+        wait_urgent_file_callbacks,
+        wait_execution_callbacks,
+    )
+    .await?;
+
+    // Run non-urgent file callbacks.
+    try_join_all(
+        callbacks
+            .file_callbacks
+            .into_iter()
+            .map(|(uuid, callback)| {
+                file_callback(store, file_uuid_to_hash.remove(&uuid).unwrap(), callback)
+            }),
+    )
+    .await?;
 
     Ok(())
 }
