@@ -1,11 +1,6 @@
 #![allow(dead_code)]
 use std::{
-    collections::HashMap,
-    fs::Permissions,
-    io::{self, Read, Seek, Write},
-    path::Path,
-    sync::Arc,
-    time::Duration,
+    collections::HashMap, os::unix::prelude::PermissionsExt, path::Path, sync::Arc, time::Duration,
 };
 
 use futures::future::{try_join3, try_join_all};
@@ -15,7 +10,13 @@ use task_maker_dag::{
     ExecutionGroup as TMRExecutionGroup, ExecutionInput, ExecutionResult, ExecutionUuid,
     FileCallbacks, FileUuid, ProvidedFile, WorkerUuid,
 };
-use tokio::{select, sync::Mutex, time::interval};
+use tokio::{
+    fs::{create_dir_all, File},
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, SeekFrom},
+    select,
+    sync::Mutex,
+    time::interval,
+};
 use tokio_util::sync::CancellationToken;
 
 use anyhow::{anyhow, Error};
@@ -86,45 +87,6 @@ struct FileIdentificationInfo {
     file_id: FileSetFile,
 }
 
-enum ProvidedFileChunkIterator {
-    LocalFile(std::fs::File),
-    Content(Option<Vec<u8>>),
-}
-
-impl ProvidedFileChunkIterator {
-    fn new(file: &ProvidedFile) -> Result<ProvidedFileChunkIterator, io::Error> {
-        match file {
-            ProvidedFile::LocalFile {
-                local_path: path, ..
-            } => Ok(ProvidedFileChunkIterator::LocalFile(std::fs::File::open(
-                path,
-            )?)),
-            ProvidedFile::Content { content: data, .. } => {
-                Ok(ProvidedFileChunkIterator::Content(Some(data.clone())))
-            }
-        }
-    }
-}
-
-impl Iterator for ProvidedFileChunkIterator {
-    type Item = Result<Vec<u8>, io::Error>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            ProvidedFileChunkIterator::LocalFile(f) => {
-                let mut buf = [0; BUF_SIZE];
-                let n = f.read(&mut buf);
-                match n {
-                    Err(e) => Some(Err(e)),
-                    Ok(0) => None,
-                    Ok(n) => Some(Ok(buf[..n].to_vec())),
-                }
-            }
-            ProvidedFileChunkIterator::Content(v) => v.take().map(Ok),
-        }
-    }
-}
-
 async fn ensure_input_available(
     file: &ProvidedFile,
     fileset_keepalive: &FileSetHandleKeepalive,
@@ -137,8 +99,18 @@ async fn ensure_input_available(
         ProvidedFile::Content { file, .. } => file,
     };
 
-    for data in ProvidedFileChunkIterator::new(file)? {
-        hasher.update(&data?);
+    match file {
+        ProvidedFile::Content { content: data, .. } => {
+            hasher.update(&data);
+        }
+        ProvidedFile::LocalFile {
+            local_path: path, ..
+        } => {
+            let mut f = File::open(path).await?;
+            let mut buf = [0; BUF_SIZE];
+            let n = f.read(&mut buf).await?;
+            hasher.update(&buf[..n]);
+        }
     }
 
     let hash = *hasher.finalize().as_bytes();
@@ -174,10 +146,23 @@ async fn ensure_input_available(
         let file_handle = store
             .open_file(context::current(), handle, FileSetFile::MainFile)
             .await??;
-        for data in ProvidedFileChunkIterator::new(file)? {
-            store
-                .append_chunk(context::current(), file_handle, data?)
-                .await??;
+
+        match file {
+            ProvidedFile::Content { content: data, .. } => {
+                store
+                    .append_chunk(context::current(), file_handle, data.clone())
+                    .await??;
+            }
+            ProvidedFile::LocalFile {
+                local_path: path, ..
+            } => {
+                let mut f = File::open(path).await?;
+                let mut buf = [0; BUF_SIZE];
+                let n = f.read(&mut buf).await?;
+                store
+                    .append_chunk(context::current(), file_handle, buf[..n].to_vec())
+                    .await??;
+            }
         }
         handle = store
             .finalize_file_set(context::current(), handle)
@@ -463,37 +448,37 @@ async fn read_file_to_memory(
     Ok(result)
 }
 
-// TODO(veluca): consider using the tokio versions of file io.
 async fn write_file_to_disk(
     store: &StoreClient,
     file: &FileHandle,
     destination: &Path,
     make_executable: bool,
 ) -> Result<(), Error> {
-    std::fs::create_dir_all(destination.parent().unwrap())?;
-    let mut destination = std::fs::File::create(destination)?;
+    create_dir_all(destination.parent().unwrap()).await?;
+    let mut destination = File::create(destination).await?;
     if make_executable {
-        use std::os::unix::fs::PermissionsExt;
-        destination.set_permissions(Permissions::from_mode(0o755))?;
+        destination
+            .set_permissions(PermissionsExt::from_mode(0o755))
+            .await?;
     }
     loop {
         let chunk = store
             .read_chunk(
                 context::current(),
                 *file,
-                destination.stream_position()? as usize,
+                destination.stream_position().await? as usize,
             )
             .await??;
         match chunk {
             FileReadingOutcome::Dropped => {
-                destination.set_len(0)?;
-                destination.seek(io::SeekFrom::Start(0))?;
+                destination.set_len(0).await?;
+                destination.seek(SeekFrom::Start(0)).await?;
             }
             FileReadingOutcome::EndOfFile => {
                 break;
             }
             FileReadingOutcome::Data(chunk) => {
-                destination.write_all(&chunk)?;
+                destination.write_all(&chunk).await?;
             }
         };
     }
