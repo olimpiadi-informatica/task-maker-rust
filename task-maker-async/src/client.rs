@@ -433,7 +433,6 @@ fn prepare_execution_group(
     Some(ret)
 }
 
-// TODO(veluca): consider using the tokio versions of file io.
 async fn read_file_to_memory(
     store: &StoreClient,
     file: &FileHandle,
@@ -464,7 +463,8 @@ async fn read_file_to_memory(
     Ok(result)
 }
 
-async fn read_file_to_disk(
+// TODO(veluca): consider using the tokio versions of file io.
+async fn write_file_to_disk(
     store: &StoreClient,
     file: &FileHandle,
     destination: &Path,
@@ -643,7 +643,7 @@ async fn file_callback(
             .open_file(context::current(), file_set_handle, file.file_id.clone())
             .await??;
         if write_to.allow_failure || result.status.is_success() {
-            read_file_to_disk(store, &file, &write_to.dest, write_to.executable).await?;
+            write_file_to_disk(store, &file, &write_to.dest, write_to.executable).await?;
         }
     }
 
