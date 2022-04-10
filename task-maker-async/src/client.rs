@@ -87,6 +87,52 @@ struct FileIdentificationInfo {
     file_id: FileSetFile,
 }
 
+/// An iterator-like utility for reading a [`ProvidedFile`] in chunks.
+///
+/// The vast majority of the times the `LocalFile` variant is used, therefore we avoid boxing the
+/// buffer.
+#[allow(clippy::large_enum_variant)]
+enum ProvidedFileChunkIterator<'a> {
+    LocalFile { buffer: [u8; BUF_SIZE], file: File },
+    Content { content: &'a [u8], consumed: bool },
+}
+
+impl<'a> ProvidedFileChunkIterator<'a> {
+    async fn new(provided_file: &'a ProvidedFile) -> Result<ProvidedFileChunkIterator<'a>, Error> {
+        match provided_file {
+            ProvidedFile::LocalFile { local_path, .. } => Ok(Self::LocalFile {
+                file: File::open(local_path).await?,
+                buffer: [0; BUF_SIZE],
+            }),
+            ProvidedFile::Content { content, .. } => Ok(Self::Content {
+                content,
+                consumed: false,
+            }),
+        }
+    }
+
+    async fn next(&mut self) -> Result<Option<&[u8]>, Error> {
+        match self {
+            ProvidedFileChunkIterator::LocalFile { buffer, file } => {
+                let size = file.read(buffer).await?;
+                if size == 0 {
+                    Ok(None)
+                } else {
+                    Ok(Some(&buffer[..size]))
+                }
+            }
+            ProvidedFileChunkIterator::Content { content, consumed } => {
+                if *consumed {
+                    Ok(None)
+                } else {
+                    *consumed = true;
+                    Ok(Some(*content))
+                }
+            }
+        }
+    }
+}
+
 async fn ensure_input_available(
     file: &ProvidedFile,
     fileset_keepalive: &FileSetHandleKeepalive,
@@ -98,19 +144,9 @@ async fn ensure_input_available(
         ProvidedFile::LocalFile { file, .. } => file,
         ProvidedFile::Content { file, .. } => file,
     };
-
-    match file {
-        ProvidedFile::Content { content: data, .. } => {
-            hasher.update(data);
-        }
-        ProvidedFile::LocalFile {
-            local_path: path, ..
-        } => {
-            let mut f = File::open(path).await?;
-            let mut buf = [0; BUF_SIZE];
-            let n = f.read(&mut buf).await?;
-            hasher.update(&buf[..n]);
-        }
+    let mut reader = ProvidedFileChunkIterator::new(file).await?;
+    while let Some(chunk) = reader.next().await? {
+        hasher.update(chunk);
     }
 
     let hash = *hasher.finalize().as_bytes();
@@ -147,22 +183,11 @@ async fn ensure_input_available(
             .open_file(context::current(), handle, FileSetFile::MainFile)
             .await??;
 
-        match file {
-            ProvidedFile::Content { content: data, .. } => {
-                store
-                    .append_chunk(context::current(), file_handle, data.clone())
-                    .await??;
-            }
-            ProvidedFile::LocalFile {
-                local_path: path, ..
-            } => {
-                let mut f = File::open(path).await?;
-                let mut buf = [0; BUF_SIZE];
-                let n = f.read(&mut buf).await?;
-                store
-                    .append_chunk(context::current(), file_handle, buf[..n].to_vec())
-                    .await??;
-            }
+        let mut reader = ProvidedFileChunkIterator::new(file).await?;
+        while let Some(chunk) = reader.next().await? {
+            store
+                .append_chunk(context::current(), file_handle, chunk.into())
+                .await??;
         }
         handle = store
             .finalize_file_set(context::current(), handle)
