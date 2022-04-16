@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
-use crate::store::{DataIdentificationHash, FileSetFile, VariantIdentificationHash};
+use crate::file_set::FileSetFile;
+use crate::store::{DataIdentificationHash, FileSetHash, VariantIdentificationHash};
 use bincode::serialize;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -70,8 +71,7 @@ pub enum InputFilePermissions {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ExecutionInputFileInfo {
-    pub data_hash: DataIdentificationHash,
-    pub variant_hash: VariantIdentificationHash,
+    pub hash: FileSetHash,
     pub file_id: FileSetFile,
     pub permissions: InputFilePermissions,
 }
@@ -145,12 +145,11 @@ impl ExecutionGroup {
                 hasher.update(&serialize(path).unwrap());
                 match file {
                     ExecutionFileMode::Input(ExecutionInputFileInfo {
-                        data_hash,
+                        hash,
                         file_id,
                         permissions,
-                        variant_hash: _,
                     }) => {
-                        hasher.update(&serialize(data_hash).unwrap());
+                        hasher.update(&serialize(&hash.data).unwrap());
                         hasher.update(&serialize(file_id).unwrap());
                         hasher.update(&serialize(permissions).unwrap());
                     }
