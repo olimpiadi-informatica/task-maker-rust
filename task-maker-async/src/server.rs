@@ -1,6 +1,6 @@
 use crate::dag::{ExecutionDAG, ExecutionDAGOptions, ExecutionGroup};
 use crate::error::Error;
-use crate::store::FileSetHandle;
+use crate::store::FileSetWriteHandle;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -18,11 +18,7 @@ pub trait Server {
 
     /// Asks the server for work to do. Returns a FileSetHandle to be used to store the
     /// outputs in the Store. id is an identifier of the worker that calls the method.
-    async fn get_work(id: usize) -> (ExecutionGroup, ExecutionDAGOptions, FileSetHandle);
-
-    /// Asks the server whether the given computation should be cancelled. Returns iff the
-    /// computation should be cancelled; otherwise the request is dropped.
-    async fn is_cancelled(computation: FileSetHandle);
+    async fn get_work(id: usize) -> (ExecutionGroup, ExecutionDAGOptions, FileSetWriteHandle);
 
     /// Retrieves information about the status of the server.
     async fn get_status() -> ServerStatus;

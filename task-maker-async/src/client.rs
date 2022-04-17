@@ -1,7 +1,5 @@
 #![allow(dead_code)]
-use std::{
-    collections::HashMap, os::unix::prelude::PermissionsExt, path::Path, sync::Arc, time::Duration,
-};
+use std::{collections::HashMap, os::unix::prelude::PermissionsExt, path::Path, time::Duration};
 
 use futures::future::{try_join3, try_join_all};
 use tarpc::context;
@@ -13,11 +11,8 @@ use task_maker_dag::{
 use tokio::{
     fs::{create_dir_all, File},
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, SeekFrom},
-    select,
     sync::Mutex,
-    time::interval,
 };
-use tokio_util::sync::CancellationToken;
 
 use anyhow::{anyhow, Error};
 
@@ -27,63 +22,15 @@ use crate::{
         ExecutionGroup, ExecutionInputFileInfo, ExecutionLimits, ExecutionPath,
         InputFilePermissions,
     },
+    file_set::{ComputationOutcome, ExecutionFile, FileReadingOutcome, FileSetFile},
     server::ServerClient,
-    store::{
-        ComputationOutcome, DataIdentificationHash, ExecutionFile, FileHandle, FileReadingOutcome,
-        FileSetFile, FileSetHandle, StoreClient, VariantIdentificationHash, LEASE_LENGTH,
-    },
+    store::{FileSetHash, FileSetWriteHandle, StoreClient, WaitFor},
 };
 
 const BUF_SIZE: usize = 4 * 1024; // 4 KiB
 
-struct FileSetHandleKeepalive {
-    cancellation_token: Arc<CancellationToken>,
-    store: StoreClient,
-}
-
-impl FileSetHandleKeepalive {
-    fn new(store: &StoreClient) -> FileSetHandleKeepalive {
-        FileSetHandleKeepalive {
-            cancellation_token: Arc::new(CancellationToken::new()),
-            store: store.clone(),
-        }
-    }
-
-    fn register(&self, file_handle: FileSetHandle) {
-        let store = self.store.clone();
-        let token = self.cancellation_token.clone();
-        tokio::spawn(async move {
-            let mut timer = interval(LEASE_LENGTH);
-            let timer = async {
-                loop {
-                    let _ = timer.tick().await;
-                    {
-                        store
-                            .refresh_file_set_lease(context::current(), file_handle)
-                            .await
-                            .unwrap()
-                            .unwrap();
-                    }
-                }
-            };
-
-            select! {
-                _ = token.cancelled() => {}
-                _ = timer => {}
-            }
-        });
-    }
-}
-
-impl Drop for FileSetHandleKeepalive {
-    fn drop(&mut self) {
-        self.cancellation_token.cancel();
-    }
-}
-
 struct FileIdentificationInfo {
-    data_hash: DataIdentificationHash,
-    variant_hash: VariantIdentificationHash,
+    fileset_hash: FileSetHash,
     file_id: FileSetFile,
 }
 
@@ -133,9 +80,43 @@ impl<'a> ProvidedFileChunkIterator<'a> {
     }
 }
 
+async fn send_file(
+    file: &ProvidedFile,
+    handle: &FileSetWriteHandle,
+    store: &StoreClient,
+) -> Result<(), Error> {
+    let file_info = match file {
+        ProvidedFile::LocalFile { file, .. } => file,
+        ProvidedFile::Content { file, .. } => file,
+    };
+    store
+        .append_chunk(
+            context::current(),
+            *handle,
+            FileSetFile::Metadata,
+            file_info.description.as_bytes().to_vec(),
+        )
+        .await??;
+
+    let mut reader = ProvidedFileChunkIterator::new(file).await?;
+    while let Some(chunk) = reader.next().await? {
+        store
+            .append_chunk(
+                context::current(),
+                *handle,
+                FileSetFile::MainFile,
+                chunk.into(),
+            )
+            .await??;
+    }
+    store
+        .finalize_file_set(context::current(), *handle)
+        .await??;
+    Ok(())
+}
+
 async fn ensure_input_available(
     file: &ProvidedFile,
-    fileset_keepalive: &FileSetHandleKeepalive,
     file_uuid_to_hash: &Mutex<HashMap<FileUuid, FileIdentificationInfo>>,
     store: &StoreClient,
 ) -> Result<(), Error> {
@@ -156,47 +137,31 @@ async fn ensure_input_available(
     file_uuid_to_hash.lock().await.insert(
         file_info.uuid,
         FileIdentificationInfo {
-            data_hash: hash,
-            variant_hash: hash,
+            fileset_hash: FileSetHash {
+                data: hash,
+                variant: hash,
+            },
             file_id: FileSetFile::MainFile,
         },
     );
 
-    let mut handle = store
-        .create_or_open_input_file(context::current(), hash)
-        .await??;
+    let handle = store.create_input_file(context::current(), hash).await??;
 
-    if handle.is_writable() {
+    if let Some(handle) = handle {
         // File is not present, send it.
-        let description_handle = store
-            .open_file(context::current(), handle, FileSetFile::Metadata)
-            .await??;
-        store
-            .append_chunk(
-                context::current(),
-                description_handle,
-                file_info.description.as_bytes().to_vec(),
-            )
-            .await??;
-
-        let file_handle = store
-            .open_file(context::current(), handle, FileSetFile::MainFile)
-            .await??;
-
-        let mut reader = ProvidedFileChunkIterator::new(file).await?;
-        while let Some(chunk) = reader.next().await? {
-            store
-                .append_chunk(context::current(), file_handle, chunk.into())
-                .await??;
-        }
-        handle = store
-            .finalize_file_set(context::current(), handle)
-            .await??;
+        tokio::select!(
+            result = store.activate_for_writing(context::current(), handle) => {
+                // activate_for_writing may return before send_file is done, but if no error
+                // happened and the function returned true then finalize_file_set has been called.
+                if !result?? {
+                    panic!("Input file creation should never be cancelled");
+                }
+            }
+            result = send_file(file, &handle, store) => {
+                result?
+            }
+        );
     }
-
-    assert!(!handle.is_writable());
-
-    fileset_keepalive.register(handle);
 
     Ok(())
 }
@@ -263,8 +228,7 @@ fn prepare_execution_group(
                 } else {
                     InputFilePermissions::Default
                 },
-                data_hash: file_info.data_hash,
-                variant_hash: file_info.variant_hash,
+                hash: file_info.fileset_hash,
                 file_id: file_info.file_id.clone(),
             }
         };
@@ -390,8 +354,10 @@ fn prepare_execution_group(
         execution_uuid_to_hash.insert(
             execution.uuid,
             FileIdentificationInfo {
-                data_hash,
-                variant_hash,
+                fileset_hash: FileSetHash {
+                    data: data_hash,
+                    variant: variant_hash,
+                },
                 file_id: FileSetFile::AuxiliaryFile(
                     async_execution.name.clone(),
                     ExecutionFile::Outcome,
@@ -402,8 +368,10 @@ fn prepare_execution_group(
             file_uuid_to_hash.insert(
                 file_info.uuid,
                 FileIdentificationInfo {
-                    data_hash,
-                    variant_hash,
+                    fileset_hash: FileSetHash {
+                        data: data_hash,
+                        variant: variant_hash,
+                    },
                     file_id: FileSetFile::AuxiliaryFile(
                         async_execution.name.clone(),
                         ExecutionFile::File(path.clone()),
@@ -416,8 +384,10 @@ fn prepare_execution_group(
             file_uuid_to_hash.insert(
                 file.uuid,
                 FileIdentificationInfo {
-                    data_hash,
-                    variant_hash,
+                    fileset_hash: FileSetHash {
+                        data: data_hash,
+                        variant: variant_hash,
+                    },
                     file_id: FileSetFile::AuxiliaryFile(
                         async_execution.name.clone(),
                         ExecutionFile::Stdout,
@@ -429,8 +399,10 @@ fn prepare_execution_group(
             file_uuid_to_hash.insert(
                 file.uuid,
                 FileIdentificationInfo {
-                    data_hash,
-                    variant_hash,
+                    fileset_hash: FileSetHash {
+                        data: data_hash,
+                        variant: variant_hash,
+                    },
                     file_id: FileSetFile::AuxiliaryFile(
                         async_execution.name.clone(),
                         ExecutionFile::Stderr,
@@ -445,7 +417,7 @@ fn prepare_execution_group(
 
 async fn read_file_to_memory(
     store: &StoreClient,
-    file: &FileHandle,
+    file: &FileIdentificationInfo,
     size_limit: Option<usize>,
 ) -> Result<Vec<u8>, Error> {
     let mut result = vec![];
@@ -456,7 +428,12 @@ async fn read_file_to_memory(
             }
         }
         let chunk = store
-            .read_chunk(context::current(), *file, result.len())
+            .read_chunk(
+                context::current(),
+                file.fileset_hash,
+                file.file_id.clone(),
+                result.len(),
+            )
             .await??;
         match chunk {
             FileReadingOutcome::Dropped => {
@@ -475,7 +452,7 @@ async fn read_file_to_memory(
 
 async fn write_file_to_disk(
     store: &StoreClient,
-    file: &FileHandle,
+    file: &FileIdentificationInfo,
     destination: &Path,
     make_executable: bool,
 ) -> Result<(), Error> {
@@ -490,7 +467,8 @@ async fn write_file_to_disk(
         let chunk = store
             .read_chunk(
                 context::current(),
-                *file,
+                file.fileset_hash,
+                file.file_id.clone(),
                 destination.stream_position().await? as usize,
             )
             .await??;
@@ -512,39 +490,31 @@ async fn write_file_to_disk(
 
 async fn get_execution_result(
     store: &StoreClient,
-    file_set_handle: &FileSetHandle,
+    file_set_hash: &FileSetHash,
     execution_name: String,
     stdout_stderr_size: StdoutStderrSize,
 ) -> Result<ExecutionResult, Error> {
-    let result = store
-        .open_file(
-            context::current(),
-            *file_set_handle,
-            FileSetFile::AuxiliaryFile(execution_name.clone(), ExecutionFile::Outcome),
-        )
-        .await??;
+    let result = FileIdentificationInfo {
+        fileset_hash: *file_set_hash,
+        file_id: FileSetFile::AuxiliaryFile(execution_name.clone(), ExecutionFile::Outcome),
+    };
+
     let mut result: ExecutionResult =
         bincode::deserialize(&read_file_to_memory(store, &result, None).await?)?;
 
     if let Some(stdout_size) = stdout_stderr_size.stdout {
-        let out = store
-            .open_file(
-                context::current(),
-                *file_set_handle,
-                FileSetFile::AuxiliaryFile(execution_name.clone(), ExecutionFile::Stdout),
-            )
-            .await??;
+        let out = FileIdentificationInfo {
+            fileset_hash: *file_set_hash,
+            file_id: FileSetFile::AuxiliaryFile(execution_name.clone(), ExecutionFile::Stdout),
+        };
         result.stdout = Some(read_file_to_memory(store, &out, Some(stdout_size)).await?);
     }
 
     if let Some(stderr_size) = stdout_stderr_size.stderr {
-        let out = store
-            .open_file(
-                context::current(),
-                *file_set_handle,
-                FileSetFile::AuxiliaryFile(execution_name.clone(), ExecutionFile::Stderr),
-            )
-            .await??;
+        let out = FileIdentificationInfo {
+            fileset_hash: *file_set_hash,
+            file_id: FileSetFile::AuxiliaryFile(execution_name.clone(), ExecutionFile::Stderr),
+        };
         result.stderr = Some(read_file_to_memory(store, &out, Some(stderr_size)).await?);
     }
 
@@ -557,11 +527,11 @@ async fn execution_callback(
     callback: ExecutionCallbacks,
     stdout_stderr_size: StdoutStderrSize,
 ) -> Result<(), Error> {
-    let file_set_handle = store
-        .open_computation(
+    store
+        .wait_for_fileset(
             context::current(),
-            execution.data_hash,
-            execution.variant_hash,
+            execution.fileset_hash,
+            WaitFor::Creation,
         )
         .await??;
 
@@ -572,12 +542,17 @@ async fn execution_callback(
     }
 
     store
-        .wait_until_finalized(context::current(), file_set_handle)
+        .wait_for_fileset(
+            context::current(),
+            execution.fileset_hash,
+            WaitFor::Finalization,
+        )
         .await??;
 
-    let status = store
-        .open_file(context::current(), file_set_handle, FileSetFile::MainFile)
-        .await??;
+    let status = FileIdentificationInfo {
+        fileset_hash: execution.fileset_hash,
+        file_id: FileSetFile::MainFile,
+    };
 
     let status: ComputationOutcome =
         bincode::deserialize(&read_file_to_memory(store, &status, None).await?)?;
@@ -596,7 +571,8 @@ async fn execution_callback(
             };
 
             let result =
-                get_execution_result(store, &file_set_handle, name, stdout_stderr_size).await?;
+                get_execution_result(store, &execution.fileset_hash, name, stdout_stderr_size)
+                    .await?;
             for cb in callback.on_done.into_iter() {
                 cb(result.clone())?;
             }
@@ -611,20 +587,8 @@ async fn file_callback(
     file: FileIdentificationInfo,
     callback: FileCallbacks,
 ) -> Result<(), Error> {
-    let file_set_handle = store
-        .open_computation(context::current(), file.data_hash, file.variant_hash)
-        .await??;
-
-    store
-        .wait_until_finalized(context::current(), file_set_handle)
-        .await??;
-
-    let status = store
-        .open_file(context::current(), file_set_handle, FileSetFile::MainFile)
-        .await??;
-
     let status: ComputationOutcome =
-        bincode::deserialize(&read_file_to_memory(store, &status, None).await?)?;
+        bincode::deserialize(&read_file_to_memory(store, &file, None).await?)?;
 
     if status != ComputationOutcome::Executed {
         // Nothing to do.
@@ -639,7 +603,7 @@ async fn file_callback(
 
     let result = get_execution_result(
         store,
-        &file_set_handle,
+        &file.fileset_hash,
         execution_name.clone(),
         StdoutStderrSize {
             stdout: None,
@@ -649,9 +613,6 @@ async fn file_callback(
     .await?;
 
     if let Some(write_to) = callback.write_to {
-        let file = store
-            .open_file(context::current(), file_set_handle, file.file_id.clone())
-            .await??;
         if write_to.allow_failure || result.status.is_success() {
             write_file_to_disk(store, &file, &write_to.dest, write_to.executable).await?;
         }
@@ -659,9 +620,6 @@ async fn file_callback(
 
     if result.status.is_success() {
         if let Some((size, cb)) = callback.get_content {
-            let file = store
-                .open_file(context::current(), file_set_handle, file.file_id)
-                .await??;
             let file = read_file_to_memory(store, &file, Some(size)).await?;
             cb(file)?;
         }
@@ -675,13 +633,13 @@ async fn evaluate_dag_async(
     store: &StoreClient,
     server: &ServerClient,
 ) -> Result<(), Error> {
-    let fileset_keepalive = FileSetHandleKeepalive::new(store);
     let file_uuid_to_hash = Mutex::new(HashMap::new());
 
     try_join_all(
-        dag.data.provided_files.values().map(|file| {
-            ensure_input_available(file, &fileset_keepalive, &file_uuid_to_hash, store)
-        }),
+        dag.data
+            .provided_files
+            .values()
+            .map(|file| ensure_input_available(file, &file_uuid_to_hash, store)),
     )
     .await?;
 

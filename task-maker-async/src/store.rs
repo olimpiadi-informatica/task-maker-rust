@@ -1,9 +1,10 @@
 #![allow(dead_code, unused_variables)]
 
-use std::collections::{hash_map::Entry, HashMap};
-use std::path::PathBuf;
+use std::collections::HashMap;
+
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use blake3::Hasher;
 use serde::{Deserialize, Serialize};
@@ -11,15 +12,16 @@ use tarpc::context::Context;
 use tarpc::server::{BaseChannel, Channel};
 use tarpc::{ClientMessage, Response, Transport};
 use tokio::select;
-use tokio::sync::oneshot::{channel, Sender};
-use tokio::time::interval;
+
 use tokio_util::sync::CancellationToken;
 
 use crate::error::Error;
+use crate::file_set::{FileReadingOutcome, FileSet, FileSetFile, FileSetKind};
 
 type HashData = [u8; 32];
 
-pub const LEASE_LENGTH: Duration = Duration::from_secs(2);
+/// Maximum amount of time that a write request will wait for activate_for_writing.
+const ACTIVATION_MAX_WAITING_TIME: Duration = Duration::from_secs(30);
 
 const CHUNK_SIZE: usize = 4 * 1024; // 4 KiB
 
@@ -33,339 +35,138 @@ pub type VariantIdentificationHash = HashData;
 /// that are expected to change the result (such as data hashes of inputs, or the command line).
 /// The VariantIdentificationHash takes care of properties of the computation that should not
 /// change the outputs, such as time and memory limits; it also includes the first hash.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq, Hash)]
-pub struct FileSetHash(DataIdentificationHash, VariantIdentificationHash);
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone)]
-enum HandleMode {
-    Read,
-    Write,
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FileSetHash {
+    pub data: DataIdentificationHash,
+    pub variant: VariantIdentificationHash,
 }
 
 pub type FileSetHandleId = usize;
-pub type FileHandleId = usize;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-pub struct FileSetHandle {
+pub struct FileSetWriteHandle {
     id: FileSetHandleId,
-    mode: HandleMode,
 }
 
-impl FileSetHandle {
-    pub fn is_writable(&self) -> bool {
-        self.mode == HandleMode::Write
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
-pub struct FileHandle {
-    file_set_handle: FileSetHandle,
-    id: FileHandleId,
-}
-
-/// Identifier for a file in an execution.
-#[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, Clone, PartialOrd, Ord)]
-pub enum ExecutionFile {
-    Outcome, // serialized task_maker_dag::ExecutionResult, with stdout/stderr set to None.
-    Stdout,
-    Stderr,
-    File(PathBuf),
-}
-
-#[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, Clone)]
-pub enum ComputationOutcome {
-    Executed,
-    Skipped,
-}
-
-#[derive(Debug, Serialize, Deserialize, Hash, PartialEq, Eq, Clone, PartialOrd, Ord)]
-pub enum FileSetFile {
-    /// Input file for an input file, overall execution group outcome for a computation (serialized
-    /// bincode for ComputationOutcome).
-    MainFile,
-    /// Metadata about how the fileset was obtained.
-    Metadata,
-    /// Any auxiliary file that can be attached to the main input file. For now only used for
-    /// outputs of computations.
-    /// The first element of the tuple identifies the execution within an execution group.
-    AuxiliaryFile(String, ExecutionFile),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum FileReadingOutcome {
-    /// The file has been deleted, for example because the worker responsible for the execution has
-    /// disappeared.
-    Dropped,
-    /// The file has been fully read.
-    EndOfFile,
-    /// A new chunk of data is available.
-    Data(Vec<u8>),
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+pub enum WaitFor {
+    Creation,
+    Finalization,
 }
 
 #[tarpc::service]
 pub trait Store {
     /// Used by the client to upload inputs to the DAG. Returns a writing handle if the input file is
-    /// not present, or a reading handle if it is.
-    async fn create_or_open_input_file(
+    /// not present, or None if it is.
+    async fn create_input_file(
         hash: DataIdentificationHash,
-    ) -> Result<FileSetHandle, Error>;
+    ) -> Result<Option<FileSetWriteHandle>, Error>;
 
     // Creating a computation is not a RPC.
 
-    /// Opens a computed fileset for reading. Creates a lease for the computation data that will prevent it
-    /// from being dropped. If the computation is not present, waits until it is created.
-    async fn open_computation(
-        computation: DataIdentificationHash,
-        variant: VariantIdentificationHash,
-    ) -> Result<FileSetHandle, Error>;
+    /// Activate a writing handle, allowing writing to start. This RPC returns when writing can be
+    /// stopped, either because writing has completed (in which case it returns true) or because
+    /// the computation has been dropped (in which case it returns false). If the RPC is dropped
+    /// from the client side, the file set will be dropped on the server side and further writes
+    /// will fail.
+    async fn activate_for_writing(handle: FileSetWriteHandle) -> Result<bool, Error>;
 
-    /// Opens a file inside a file set. If the handle is read-only, and the file does not exists,
-    /// it blocks until it is created. If the handle is a writing handle, it creates the file.
-    /// Returns an error if the handle is invalid.
-    async fn open_file(handle: FileSetHandle, file: FileSetFile) -> Result<FileHandle, Error>;
+    /// Appends data to a file in a fileset.
+    async fn append_chunk(
+        handle: FileSetWriteHandle,
+        file: FileSetFile,
+        data: Vec<u8>,
+    ) -> Result<(), Error>;
 
-    /// Appends data to a file in a fileset that is open for writing. Refreshes the writing lease.
-    async fn append_chunk(file: FileHandle, data: Vec<u8>) -> Result<(), Error>;
+    /// Finalizes a FileSet. Terminates the writing handle. If finalizing an
+    /// input fileset, returns an error if the hash of its MainFile is not correct.
+    async fn finalize_file_set(handle: FileSetWriteHandle) -> Result<(), Error>;
 
-    /// Finalizes a FileSet handle in writing mode. Terminates the writing lease and returns a reading
-    /// lease for the same FileSet. If finalizing an input fileset, returns an error if the hash of
-    /// its MainFile is not correct.
-    async fn finalize_file_set(handle: FileSetHandle) -> Result<FileSetHandle, Error>;
+    /// Drops a computation if it is not yet finalized. If the variant does not exist anymore, or
+    /// the computation was finalized, does nothing.
+    async fn drop_computation(hash: FileSetHash) -> Result<(), Error>;
 
-    /// Waits until the file set is finalized. The given handle must be a reading handle.
-    async fn wait_until_finalized(handle: FileSetHandle) -> Result<(), Error>;
+    /// Waits until the given fileset is created (or finalized).
+    async fn wait_for_fileset(hash: FileSetHash, wait_for: WaitFor) -> Result<(), Error>;
 
-    /// Tries to read from a file. Refreshes the corresponding lease.
-    async fn read_chunk(file: FileHandle, offset: usize) -> Result<FileReadingOutcome, Error>;
-
-    /// Refreshes the lease for the given fileset.
-    /// It is guaranteed that the fileset will not be deleted while there's an outstanding lease
-    /// to it.
-    async fn refresh_file_set_lease(handle: FileSetHandle) -> Result<(), Error>;
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
-enum FileSetKind {
-    Computation,
-    InputFile,
-}
-
-type FileContents = Vec<u8>;
-
-#[derive(Debug)]
-struct FileSet {
-    files: HashMap<FileSetFile, FileContents>,
-    kind: FileSetKind,
-    finalization_waiters: Vec<Sender<()>>,
-    finalized: bool,
+    /// Read from a file. If the file is not yet ready, waits until the file is ready. Note:
+    /// reading from a nonexistent file may result either in a Dropped or an immediate EndOfFile
+    /// response.
+    async fn read_chunk(
+        file_set_hash: FileSetHash,
+        file: FileSetFile,
+        offset: usize,
+    ) -> Result<FileReadingOutcome, Error>;
 }
 
 type FileSetVariants = HashMap<VariantIdentificationHash, FileSet>;
 
 #[derive(Debug)]
 struct FileSetHandleInfo {
-    data_hash: DataIdentificationHash,
-    variant_hash: VariantIdentificationHash,
-    expiration: Instant,
-    mode: HandleMode,
-    file_handles: HashMap<FileHandleId, FileSetFile>,
-    main_file_hasher: Option<Hasher>,
-    next_handle: FileHandleId,
+    hash: FileSetHash,
+    input_file_hasher: Option<Hasher>,
 }
 
 struct StoreServiceImpl {
     file_sets: HashMap<DataIdentificationHash, FileSetVariants>,
-    file_set_handles: HashMap<FileSetHandleId, FileSetHandleInfo>,
+    handles: HashMap<FileSetHandleId, FileSetHandleInfo>,
     next_handle: FileSetHandleId,
-    waiting_computation_readers: HashMap<FileSetHash, Vec<Sender<()>>>,
 }
 
 impl StoreServiceImpl {
     fn new() -> Self {
         StoreServiceImpl {
             file_sets: HashMap::new(),
-            file_set_handles: HashMap::new(),
+            handles: HashMap::new(),
             next_handle: 0,
-            waiting_computation_readers: HashMap::new(),
         }
     }
 
-    fn new_handle(
-        &mut self,
-        hash: FileSetHash,
-        mode: HandleMode,
-        kind: FileSetKind,
-    ) -> FileSetHandle {
+    fn new_handle(&mut self, hash: FileSetHash, kind: FileSetKind) -> FileSetWriteHandle {
         let handle = self.next_handle;
         self.next_handle += 1;
-        let FileSetHash(data_hash, variant_hash) = hash;
         let handle_info = FileSetHandleInfo {
-            data_hash,
-            variant_hash,
-            expiration: Instant::now() + LEASE_LENGTH,
-            mode,
-            file_handles: HashMap::new(),
-            main_file_hasher: if kind == FileSetKind::InputFile {
+            hash,
+            input_file_hasher: if kind == FileSetKind::InputFile {
                 Some(Hasher::new())
             } else {
                 None
             },
-            next_handle: 0,
         };
-        self.file_set_handles.insert(handle, handle_info);
-        FileSetHandle { id: handle, mode }
+        self.handles.insert(handle, handle_info);
+        FileSetWriteHandle { id: handle }
     }
 
-    fn create_or_open_file_set(
+    fn create_if_not_exists(
         &mut self,
         hash: FileSetHash,
         kind: FileSetKind,
-    ) -> Result<FileSetHandle, Error> {
-        let data_comp = self.file_sets.entry(hash.0).or_default();
-        if let Some(file_set) = data_comp.get(&hash.1) {
-            if file_set.kind != kind {
-                return Err(Error::HashCollision(hash.0));
-            }
-            Ok(self.new_handle(hash, HandleMode::Read, kind))
+    ) -> Result<Option<FileSetWriteHandle>, Error> {
+        let data_comp = self.file_sets.entry(hash.data).or_default();
+        let file_set = data_comp.entry(hash.variant).or_insert_with(FileSet::new);
+        if file_set
+            .create(kind)
+            .map_err(|()| Error::HashCollision(hash))?
+        {
+            Ok(Some(self.new_handle(hash, kind)))
         } else {
-            data_comp.insert(
-                hash.1,
-                FileSet {
-                    files: HashMap::new(),
-                    kind,
-                    finalization_waiters: vec![],
-                    finalized: false,
-                },
-            );
-            Ok(self.new_handle(hash, HandleMode::Write, kind))
+            Ok(None)
         }
     }
 
-    /// Clear all the writing leases that have expired, removing the corresponding files.
-    fn clear_expired_leases(&mut self) {
-        let time = Instant::now();
-        for info in self.file_set_handles.values() {
-            if info.expiration < time && info.mode == HandleMode::Write {
-                self.file_sets
-                    .get_mut(&info.data_hash)
-                    .unwrap()
-                    .remove(&info.variant_hash);
-            }
-        }
-        self.file_set_handles
-            .retain(|_, info| info.expiration >= time);
-    }
-
-    fn validate_and_refresh(
+    fn get_handle_info(
         &mut self,
-        handle: FileSetHandle,
-    ) -> Result<Entry<'_, FileSetHandleId, FileSetHandleInfo>, Error> {
-        let mut entry = self.file_set_handles.entry(handle.id);
-        match entry {
-            Entry::Vacant(_) => return Err(Error::UnknownHandle(handle.id)),
-            Entry::Occupied(ref mut entry) => {
-                let mut v = entry.get_mut();
-                if v.mode != handle.mode {
-                    return Err(Error::UnknownHandle(handle.id));
-                } else {
-                    v.expiration = Instant::now() + LEASE_LENGTH;
-                }
-            }
-        }
-        Ok(entry)
+        handle: &FileSetWriteHandle,
+    ) -> Result<&mut FileSetHandleInfo, Error> {
+        self.handles
+            .get_mut(&handle.id)
+            .ok_or(Error::UnknownHandle(handle.id))
     }
 
-    fn append_to_file(&mut self, file: FileHandle, mut data: Vec<u8>) {
-        let file_set_info = self
-            .file_set_handles
-            .get_mut(&file.file_set_handle.id)
-            .unwrap();
-        let file_info = file_set_info.file_handles.get(&file.id).unwrap();
-        let file_set = self
-            .file_sets
-            .get_mut(&file_set_info.data_hash)
-            .unwrap()
-            .get_mut(&file_set_info.variant_hash)
-            .unwrap();
-
-        if *file_info == FileSetFile::MainFile {
-            if let Some(hasher) = file_set_info.main_file_hasher.as_mut() {
-                hasher.update(&data);
-            }
-        }
-
-        file_set.files.get_mut(file_info).unwrap().append(&mut data);
-    }
-
-    fn open_file(
-        &mut self,
-        file_set_handle: FileSetHandle,
-        file: FileSetFile,
-    ) -> Result<FileHandle, Error> {
-        let file_set_info = self.file_set_handles.get_mut(&file_set_handle.id).unwrap();
-        let file_set_group = self.file_sets.get_mut(&file_set_info.data_hash);
-        if file_set_group.is_none() {
-            return Err(Error::FileSetDropped(file_set_handle.id));
-        }
-        let file_set = file_set_group.unwrap().get_mut(&file_set_info.variant_hash);
-        if file_set.is_none() {
-            return Err(Error::FileSetDropped(file_set_handle.id));
-        }
-        let file_set = file_set.unwrap();
-        if !file_set.finalized && file_set_handle.mode == HandleMode::Read {
-            return Err(Error::NotImplemented(
-                "Opening a file for reading in a non-finalized file_set is not implemented".into(),
-            ));
-        }
-        if !file_set.files.contains_key(&file) {
-            if file_set_handle.mode == HandleMode::Read {
-                return Err(Error::NonExistentFile(file, file_set_handle.id));
-            } else if file_set.kind == FileSetKind::InputFile
-                && matches!(file, FileSetFile::AuxiliaryFile(_, _))
-            {
-                return Err(Error::InvalidFileForInput(file));
-            } else {
-                file_set.files.insert(file.clone(), vec![]);
-            }
-        } else if file_set_handle.mode == HandleMode::Write {
-            return Err(Error::MultipleWrites(file, file_set_handle.id));
-        }
-        let file_handle = file_set_info.next_handle;
-        file_set_info.next_handle += 1;
-        file_set_info.file_handles.insert(file_handle, file);
-        Ok(FileHandle {
-            file_set_handle,
-            id: file_handle,
-        })
-    }
-
-    fn read_from_file(
-        &mut self,
-        file: FileHandle,
-        offset: usize,
-    ) -> Result<FileReadingOutcome, Error> {
-        let file_set_info = self.file_set_handles.get(&file.file_set_handle.id).unwrap();
-        let file_info = file_set_info.file_handles.get(&file.id).unwrap();
-        let file_set_group = self.file_sets.get(&file_set_info.data_hash);
-        if file_set_group.is_none() {
-            return Ok(FileReadingOutcome::Dropped);
-        }
-        let file_set = file_set_group.unwrap().get(&file_set_info.variant_hash);
-        if file_set.is_none() {
-            return Ok(FileReadingOutcome::Dropped);
-        }
-        let file_set = file_set.unwrap();
-        if !file_set.finalized {
-            return Err(Error::NotImplemented(
-                "Reading from a non-finalized file_set is not implemented".into(),
-            ));
-        }
-        let file = file_set.files.get(file_info).unwrap();
-        if file.len() <= offset {
-            return Ok(FileReadingOutcome::EndOfFile);
-        }
-        let end = (offset + CHUNK_SIZE).min(file.len());
-        Ok(FileReadingOutcome::Data(file[offset..end].to_vec()))
+    fn get_fileset(&mut self, hash: FileSetHash) -> Option<&mut FileSet> {
+        self.file_sets
+            .get_mut(&hash.data)
+            .and_then(|x| x.get_mut(&hash.variant))
     }
 }
 
@@ -379,28 +180,15 @@ pub struct StoreService {
 
 impl StoreService {
     /// Creates the storage for a given computation; this method is called by the server to obtain
-    /// a writing handle that the workers can use. It is an error to create a computation if
+    /// a writing handle that the workers can use. Creating a computation if
     /// another computation with the same hash already exists, even if it is temporary (i.e. not
-    /// finalized).
+    /// finalized), will result in this method returning None.
     pub fn create_computation(
         &self,
-        computation: DataIdentificationHash,
-        variant: VariantIdentificationHash,
-    ) -> Result<FileSetHandle, Error> {
+        hash: FileSetHash,
+    ) -> Result<Option<FileSetWriteHandle>, Error> {
         let mut service = self.service.lock().unwrap();
-        let hash = FileSetHash(computation, variant);
-        let handle = service.create_or_open_file_set(hash, FileSetKind::Computation)?;
-        // Notify waiters.
-        if let Some(x) = service.waiting_computation_readers.get_mut(&hash) {
-            x.drain(..).for_each(|waiter| {
-                let _ = waiter.send(());
-            })
-        }
-        if handle.is_writable() {
-            Ok(handle)
-        } else {
-            Err(Error::ComputationExists(computation, variant))
-        }
+        service.create_if_not_exists(hash, FileSetKind::Computation)
     }
 
     /// Lists all the finalized variants of the given computation.
@@ -412,7 +200,7 @@ impl StoreService {
         match service.file_sets.get(&computation) {
             Some(variants) => variants
                 .iter()
-                .filter_map(|(k, v)| if v.finalized { Some(k) } else { None })
+                .filter_map(|(k, v)| if v.is_finalized() { Some(k) } else { None })
                 .cloned()
                 .collect(),
             None => vec![],
@@ -442,26 +230,6 @@ impl StoreService {
             });
         }
 
-        {
-            let token = service.cancellation_token.clone();
-            let service = service.clone();
-            tokio::spawn(async move {
-                let mut timer = interval(LEASE_LENGTH);
-                let timer = async {
-                    loop {
-                        let x = timer.tick().await;
-                        {
-                            service.service.lock().unwrap().clear_expired_leases();
-                        }
-                    }
-                };
-
-                select! {
-                    _ = token.cancelled() => {}
-                    _ = timer => {}
-                }
-            });
-        }
         service
     }
 
@@ -473,190 +241,171 @@ impl StoreService {
 
 #[tarpc::server]
 impl Store for StoreService {
-    async fn create_or_open_input_file(
+    async fn create_input_file(
         self,
         context: Context,
         hash: DataIdentificationHash,
-    ) -> Result<FileSetHandle, Error> {
+    ) -> Result<Option<FileSetWriteHandle>, Error> {
         let mut service = self.service.lock().unwrap();
-        service.create_or_open_file_set(FileSetHash(hash, hash), FileSetKind::InputFile)
+        service.create_if_not_exists(
+            FileSetHash {
+                data: hash,
+                variant: hash,
+            },
+            FileSetKind::InputFile,
+        )
     }
 
-    async fn open_computation(
+    async fn activate_for_writing(
         self,
         context: Context,
-        computation: DataIdentificationHash,
-        variant: VariantIdentificationHash,
-    ) -> Result<FileSetHandle, Error> {
-        loop {
-            let receiver = {
-                let mut service = self.service.lock().unwrap();
-                if service
-                    .file_sets
-                    .get(&computation)
-                    .and_then(|x| x.get(&variant))
-                    .is_some()
-                {
-                    break;
-                }
-
-                let (sender, receiver) = channel();
-                service
-                    .waiting_computation_readers
-                    .entry(FileSetHash(computation, variant))
-                    .or_default()
-                    .push(sender);
-                receiver
-            };
-            if receiver.await.is_err() {
-                panic!("The sender should never be dropped");
-            }
-        }
-        // TODO(veluca): here, we rely on this future being resumed before enough time passes for
-        // the newly created writing handle to be dropped. We should not rely on this.
-
-        let mut service = self.service.lock().unwrap();
-        let file_set = service
-            .file_sets
-            .get(&computation)
-            .and_then(|x| x.get(&variant))
-            .unwrap();
-        if file_set.kind != FileSetKind::Computation {
-            return Err(Error::HashCollision(computation));
-        }
-        Ok(service.new_handle(
-            FileSetHash(computation, variant),
-            HandleMode::Read,
-            FileSetKind::Computation,
-        ))
-    }
-
-    async fn finalize_file_set(
-        self,
-        context: Context,
-        handle: FileSetHandle,
-    ) -> Result<FileSetHandle, Error> {
-        if handle.mode == HandleMode::Read {
-            return Err(Error::FinalizeRead(handle.id));
-        }
-        let mut service = self.service.lock().unwrap();
-        let service = &mut *service;
-
-        {
-            let entry = service.validate_and_refresh(handle)?;
-            entry
-                .and_modify(|v| v.mode = HandleMode::Read)
-                .and_modify(|v| v.file_handles.clear());
-        }
-
-        let handle_info = service.file_set_handles.get_mut(&handle.id).unwrap();
-
-        if let Some(hasher) = handle_info.main_file_hasher.take() {
-            let hash = hasher.finalize();
-            if *hash.as_bytes() != handle_info.data_hash {
-                return Err(Error::InvalidHash(handle_info.data_hash, *hash.as_bytes()));
-            }
-        }
-
-        let file_set = service
-            .file_sets
-            .get_mut(&handle_info.data_hash)
-            .unwrap()
-            .get_mut(&handle_info.variant_hash)
-            .unwrap();
-
-        file_set.finalized = true;
-        file_set.finalization_waiters.drain(..).for_each(|waiter| {
-            let _ = waiter.send(());
-        });
-
-        Ok(FileSetHandle {
-            id: handle.id,
-            mode: HandleMode::Read,
-        })
-    }
-
-    async fn wait_until_finalized(
-        self,
-        context: Context,
-        handle: FileSetHandle,
-    ) -> Result<(), Error> {
-        let receiver = {
+        handle: FileSetWriteHandle,
+    ) -> Result<bool, Error> {
+        let hash;
+        let fileset_finalized = {
             let mut service = self.service.lock().unwrap();
-            let entry = service.validate_and_refresh(handle)?;
-            let (data_hash, variant_hash) = if let Entry::Occupied(file_set_entry) = &entry {
-                let fs = file_set_entry.get();
-                (fs.data_hash, fs.variant_hash)
-            } else {
-                panic!("validate_and_refresh cannot return a non-occupied entry");
-            };
-            let file_set = service
-                .file_sets
-                .get_mut(&data_hash)
-                .unwrap()
-                .get_mut(&variant_hash)
-                .unwrap();
-            if file_set.finalized {
-                return Ok(());
-            }
-
-            let (sender, receiver) = channel();
-            file_set.finalization_waiters.push(sender);
-            receiver
+            hash = service.get_handle_info(&handle)?.hash;
+            let file_set = service.get_fileset(hash).unwrap();
+            file_set.start_writing();
+            file_set.wait_for_finalization()
         };
-        if receiver.await.is_err() {
-            panic!("The sender should never be dropped");
-        }
-        Ok(())
-    }
-
-    async fn refresh_file_set_lease(
-        self,
-        context: Context,
-        handle: FileSetHandle,
-    ) -> Result<(), Error> {
-        let mut service = self.service.lock().unwrap();
-        service.validate_and_refresh(handle).map(|x| ())
-    }
-
-    async fn open_file(
-        self,
-        context: Context,
-        handle: FileSetHandle,
-        file: FileSetFile,
-    ) -> Result<FileHandle, Error> {
-        let mut service = self.service.lock().unwrap();
-        service.validate_and_refresh(handle)?;
-        service.open_file(handle, file)
+        // If this RPC is dropped before finalization (likely because the entity creating the file
+        // crashed), drop the partial fileset.
+        let dropped = AtomicBool::new(true);
+        let _guard = scopeguard::guard((), |_| {
+            if !dropped.load(std::sync::atomic::Ordering::SeqCst) {
+                return;
+            }
+            let mut service = self.service.lock().unwrap();
+            service
+                .file_sets
+                .get_mut(&hash.data)
+                .unwrap()
+                .remove(&hash.variant);
+        });
+        let res = fileset_finalized.await;
+        dropped.store(false, std::sync::atomic::Ordering::SeqCst);
+        // Ok = fileset was finalized. Err = fileset was dropped.
+        Ok(res.is_ok())
     }
 
     async fn append_chunk(
         self,
         context: Context,
-        file: FileHandle,
+        handle: FileSetWriteHandle,
+        file: FileSetFile,
         data: Vec<u8>,
     ) -> Result<(), Error> {
+        let writable = {
+            let mut service = self.service.lock().unwrap();
+            let hash = service.get_handle_info(&handle)?.hash;
+            let file_set = service.get_fileset(hash).unwrap();
+            file_set.wait_for_writable()
+        };
+        tokio::select! {
+            _ = writable => {},
+            _ = tokio::time::sleep(ACTIVATION_MAX_WAITING_TIME) => {
+                return Err(Error::NotActive(handle.id));
+            }
+        };
         let mut service = self.service.lock().unwrap();
-        service.validate_and_refresh(file.file_set_handle)?;
-        if file.file_set_handle.mode != HandleMode::Write {
-            return Err(Error::AppendRead(file.file_set_handle.id, file.id));
+        let handle_info = service.get_handle_info(&handle)?;
+        if let Some(hasher) = &mut handle_info.input_file_hasher {
+            if file == FileSetFile::MainFile {
+                hasher.update(&data);
+            }
         }
-        service.append_to_file(file, data);
+        let hash = handle_info.hash;
+        let file_set = service.get_fileset(hash).unwrap();
+        if file_set.kind() == FileSetKind::InputFile
+            && matches!(file, FileSetFile::AuxiliaryFile(_, _))
+        {
+            return Err(Error::InvalidFileForInput(file));
+        }
+        file_set.append_to_file(&file, &data);
         Ok(())
+    }
+
+    async fn finalize_file_set(
+        self,
+        context: Context,
+        handle: FileSetWriteHandle,
+    ) -> Result<(), Error> {
+        let mut service = self.service.lock().unwrap();
+        let handle_info = service.get_handle_info(&handle)?;
+        if let Some(hasher) = handle_info.input_file_hasher.take() {
+            let hash = hasher.finalize();
+            if *hash.as_bytes() != handle_info.hash.data {
+                return Err(Error::InvalidHash(handle_info.hash.data, *hash.as_bytes()));
+            }
+        }
+        let hash = handle_info.hash;
+        let file_set = service.get_fileset(hash).unwrap();
+        file_set.mark_finalized();
+        service.handles.remove(&handle.id);
+        Ok(())
+    }
+
+    async fn drop_computation(self, context: Context, hash: FileSetHash) -> Result<(), Error> {
+        let mut service = self.service.lock().unwrap();
+        let data_hm = service
+            .file_sets
+            .get_mut(&hash.data)
+            .ok_or(Error::UnknownHash(hash))?;
+        if let Some(fs) = data_hm.get_mut(&hash.variant) {
+            if fs.is_finalized() {
+                return Ok(());
+            }
+            data_hm.remove(&hash.variant).unwrap();
+        }
+        Ok(())
+    }
+
+    async fn wait_for_fileset(
+        self,
+        context: Context,
+        hash: FileSetHash,
+        wait_for: WaitFor,
+    ) -> Result<(), Error> {
+        let res = match wait_for {
+            WaitFor::Finalization => {
+                let fileset_finalized = {
+                    let mut service = self.service.lock().unwrap();
+                    let data_comp = service.file_sets.entry(hash.data).or_default();
+                    let file_set = data_comp.entry(hash.variant).or_insert_with(FileSet::new);
+                    file_set.wait_for_finalization()
+                };
+                fileset_finalized.await
+            }
+            WaitFor::Creation => {
+                let fileset_exists = {
+                    let mut service = self.service.lock().unwrap();
+                    let data_comp = service.file_sets.entry(hash.data).or_default();
+                    let file_set = data_comp.entry(hash.variant).or_insert_with(FileSet::new);
+                    file_set.wait_for_creation()
+                };
+                fileset_exists.await
+            }
+        };
+        // If waiting produced errors, they were caused by the fileset being dropped.
+        res.map_err(|_| Error::FileSetDropped(hash))
     }
 
     async fn read_chunk(
         self,
         context: Context,
-        file: FileHandle,
+        file_set_hash: FileSetHash,
+        file: FileSetFile,
         offset: usize,
     ) -> Result<FileReadingOutcome, Error> {
-        let mut service = self.service.lock().unwrap();
-        service.validate_and_refresh(file.file_set_handle)?;
-        if file.file_set_handle.mode != HandleMode::Read {
-            return Err(Error::ReadWrite(file.file_set_handle.id, file.id));
-        }
-        service.read_from_file(file, offset)
+        let has_read_result = {
+            let mut service = self.service.lock().unwrap();
+            let file_set = service
+                .get_fileset(file_set_hash)
+                .ok_or(Error::FileSetDropped(file_set_hash))?;
+            file_set.read_from_file(&file, offset, CHUNK_SIZE)
+        };
+        Ok(has_read_result.await)
     }
 }
 
@@ -665,6 +414,8 @@ mod test {
     use assert2::{assert, check, let_assert};
     use tarpc::client::RpcError;
     use tarpc::context;
+
+    use crate::file_set::ExecutionFile;
 
     use super::*;
 
@@ -680,64 +431,68 @@ mod test {
         *blake3::hash(data.as_bytes()).as_bytes()
     }
 
+    fn activate(client: &StoreClient, handle: FileSetWriteHandle) {
+        let client_clone = client.clone();
+        tokio::spawn(async move {
+            client_clone
+                .activate_for_writing(context::current(), handle)
+                .await
+                .unwrap()
+                .unwrap();
+        });
+    }
+
     #[tokio::test]
     async fn test_write_and_read_files() -> Result<(), RpcError> {
         let (client, context, _server) = spawn();
 
         let data = "input1";
         let hash = get_hash(data);
-        let resp = client.create_or_open_input_file(context, hash).await?;
-        let_assert!(Ok(fileset_handle) = resp);
-        check!(fileset_handle.is_writable());
+        let resp = client.create_input_file(context, hash).await?;
+        let_assert!(Ok(Some(fileset_handle)) = resp);
+
+        activate(&client, fileset_handle);
 
         for (i, file_type) in [(0, FileSetFile::MainFile), (1, FileSetFile::Metadata)] {
-            let resp = client
-                .open_file(context, fileset_handle, file_type.clone())
-                .await?;
-            let_assert!(Ok(file_handle) = resp);
-
             let resp = if file_type == FileSetFile::MainFile {
                 client
-                    .append_chunk(context, file_handle, data.as_bytes().to_vec())
+                    .append_chunk(context, fileset_handle, file_type, data.as_bytes().to_vec())
                     .await?
             } else {
                 let resp = client
-                    .append_chunk(context, file_handle, vec![i, i, i])
+                    .append_chunk(context, fileset_handle, file_type.clone(), vec![i, i, i])
                     .await?;
                 let_assert!(Ok(()) = resp);
 
                 client
-                    .append_chunk(context, file_handle, vec![42, 42])
+                    .append_chunk(context, fileset_handle, file_type, vec![42, 42])
                     .await?
             };
             let_assert!(Ok(()) = resp);
         }
 
         let resp = client.finalize_file_set(context, fileset_handle).await?;
-        let_assert!(Ok(fileset_handle) = resp);
-        check!(!fileset_handle.is_writable());
+        let_assert!(Ok(()) = resp);
 
-        let resp = client.create_or_open_input_file(context, hash).await?;
-        let_assert!(Ok(fileset_handle2) = resp);
-        check!(!fileset_handle2.is_writable());
+        let resp = client.create_input_file(context, hash).await?;
+        check!(matches!(resp, Ok(None)));
 
-        let resp = client
-            .open_file(context, fileset_handle, FileSetFile::MainFile)
-            .await?;
-        let_assert!(Ok(file_handle1) = resp);
+        let hash = FileSetHash {
+            data: hash,
+            variant: hash,
+        };
 
         let resp = client
-            .open_file(context, fileset_handle2, FileSetFile::MainFile)
+            .read_chunk(context, hash, FileSetFile::MainFile, 0)
             .await?;
-        let_assert!(Ok(file_handle2) = resp);
+        let_assert!(Ok(FileReadingOutcome::Data(data_read1)) = resp);
+        assert!(data_read1[..] == *data.as_bytes());
 
-        let resp = client.read_chunk(context, file_handle1, 0).await?;
-        let_assert!(Ok(FileReadingOutcome::Data(data1)) = resp);
-        assert!(data1[..] == *data.as_bytes());
-
-        let resp = client.read_chunk(context, file_handle2, 0).await?;
-        let_assert!(Ok(FileReadingOutcome::Data(data2)) = resp);
-        assert!(data2[..] == *data.as_bytes());
+        let resp = client
+            .read_chunk(context, hash, FileSetFile::MainFile, 0)
+            .await?;
+        let_assert!(Ok(FileReadingOutcome::Data(data_read2)) = resp);
+        assert!(data_read2[..] == *data.as_bytes());
         Ok(())
     }
 
@@ -745,117 +500,20 @@ mod test {
     async fn test_read_not_existent() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        let write_handle = server.create_computation(hash, hash).unwrap();
-        let file = client
-            .open_file(
-                context,
-                write_handle,
-                FileSetFile::AuxiliaryFile("execution".into(), ExecutionFile::Stdout),
-            )
-            .await?
-            .unwrap();
+        let hash = FileSetHash {
+            data: hash,
+            variant: hash,
+        };
+        let write_handle = server.create_computation(hash).unwrap().unwrap();
         client
             .finalize_file_set(context, write_handle)
             .await?
             .unwrap();
-
-        let read_handle = client.open_computation(context, hash, hash).await?.unwrap();
-        check!(!read_handle.is_writable());
 
         let file = FileSetFile::AuxiliaryFile("lolnope".into(), ExecutionFile::Stdout);
-        let resp = client.open_file(context, read_handle, file.clone()).await?;
-        let_assert!(Err(Error::NonExistentFile(file, _)) = resp);
+        let resp = client.read_chunk(context, hash, file, 0).await?;
+        let_assert!(Ok(FileReadingOutcome::Dropped) = resp);
 
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_write_with_readonly() -> Result<(), RpcError> {
-        let (client, context, _server) = spawn();
-        let data = "comp1";
-        let hash = get_hash(data);
-        let write_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
-        let file = client
-            .open_file(context, write_handle, FileSetFile::MainFile)
-            .await?
-            .unwrap();
-        client
-            .append_chunk(context, file, data.as_bytes().to_vec())
-            .await?
-            .unwrap();
-        client
-            .finalize_file_set(context, write_handle)
-            .await?
-            .unwrap();
-
-        let read_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
-        check!(!read_handle.is_writable());
-        let file = client
-            .open_file(context, read_handle, FileSetFile::MainFile)
-            .await?
-            .unwrap();
-
-        let resp = client.append_chunk(context, file, vec![1, 2, 3]).await?;
-        let_assert!(Err(Error::AppendRead(_, _)) = resp);
-
-        let resp = client.read_chunk(context, file, 0).await?;
-        let_assert!(Ok(FileReadingOutcome::Data(_)) = resp);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_read_with_writeonly() -> Result<(), RpcError> {
-        let (client, context, _server) = spawn();
-        let hash = get_hash("comp1");
-        let write_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
-        let file = client
-            .open_file(context, write_handle, FileSetFile::MainFile)
-            .await?
-            .unwrap();
-        let resp = client.read_chunk(context, file, 0).await?;
-        let_assert!(Err(Error::ReadWrite(_, _)) = resp);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_finalize_with_readonly() -> Result<(), RpcError> {
-        let (client, context, _server) = spawn();
-        let data = "comp1";
-        let hash = get_hash(data);
-        let write_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
-        let file_handle = client
-            .open_file(context, write_handle, FileSetFile::MainFile)
-            .await?
-            .unwrap();
-        client
-            .append_chunk(context, file_handle, data.as_bytes().to_vec())
-            .await?
-            .unwrap();
-        client
-            .finalize_file_set(context, write_handle)
-            .await?
-            .unwrap();
-
-        let read_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
-        check!(!read_handle.is_writable());
-        let resp = client.finalize_file_set(context, read_handle).await?;
-        let_assert!(Err(Error::FinalizeRead(_)) = resp);
         Ok(())
     }
 
@@ -863,13 +521,15 @@ mod test {
     async fn test_no_auxiliary_file_for_input() -> Result<(), RpcError> {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
-        let write_handle = client
-            .create_or_open_input_file(context, hash)
+        let handle = client
+            .create_input_file(context, hash)
             .await?
+            .unwrap()
             .unwrap();
+        activate(&client, handle);
         let file = FileSetFile::AuxiliaryFile("execution".into(), ExecutionFile::Stdout);
         let resp = client
-            .open_file(context, write_handle, file.clone())
+            .append_chunk(context, handle, file.clone(), vec![])
             .await?;
         let_assert!(Err(Error::InvalidFileForInput(file)) = resp);
         Ok(())
@@ -879,17 +539,19 @@ mod test {
     async fn test_chunked_read() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        let write_handle = server.create_computation(hash, hash).unwrap();
-        let file = client
-            .open_file(context, write_handle, FileSetFile::MainFile)
-            .await?
-            .unwrap();
+        let hash = FileSetHash {
+            data: hash,
+            variant: hash,
+        };
+        let handle = server.create_computation(hash).unwrap().unwrap();
+        activate(&client, handle);
+        let file = FileSetFile::MainFile;
         let mut expected = vec![];
         // 5 full chunks
         for i in 0..5 {
             let mut chunk = vec![i; CHUNK_SIZE];
             client
-                .append_chunk(context, file, chunk.clone())
+                .append_chunk(context, handle, file.clone(), chunk.clone())
                 .await?
                 .unwrap();
             expected.append(&mut chunk);
@@ -898,7 +560,7 @@ mod test {
         for i in 0..5 {
             let mut chunk = vec![i; 3];
             client
-                .append_chunk(context, file, chunk.clone())
+                .append_chunk(context, handle, file.clone(), chunk.clone())
                 .await?
                 .unwrap();
             expected.append(&mut chunk);
@@ -907,26 +569,19 @@ mod test {
         for i in 0..5 {
             let mut chunk = vec![i; CHUNK_SIZE];
             client
-                .append_chunk(context, file, chunk.clone())
+                .append_chunk(context, handle, file.clone(), chunk.clone())
                 .await?
                 .unwrap();
             expected.append(&mut chunk);
         }
-        client
-            .finalize_file_set(context, write_handle)
-            .await?
-            .unwrap();
-
-        let read_handle = client.open_computation(context, hash, hash).await?.unwrap();
-        check!(!read_handle.is_writable());
-        let file = client
-            .open_file(context, read_handle, FileSetFile::MainFile)
-            .await?
-            .unwrap();
+        client.finalize_file_set(context, handle).await?.unwrap();
 
         let mut data = vec![];
         loop {
-            let outcome = client.read_chunk(context, file, data.len()).await?.unwrap();
+            let outcome = client
+                .read_chunk(context, hash, file.clone(), data.len())
+                .await?
+                .unwrap();
             match outcome {
                 FileReadingOutcome::Dropped => {
                     unreachable!("invalid outcome");
@@ -939,192 +594,133 @@ mod test {
                 }
             }
         }
-        assert!(data == expected);
+        assert_eq!(data, expected);
         Ok(())
     }
 
     #[tokio::test]
-    #[ignore] // because opening a file for reading when not finalized is not implemented yet
-    async fn test_read_dropped() -> Result<(), RpcError> {
+    async fn test_read_drop() -> Result<(), RpcError> {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
-        let write_handle = client
-            .create_or_open_input_file(context, hash)
+        let handle = client
+            .create_input_file(context, hash)
             .await?
+            .unwrap()
             .unwrap();
-        let read_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
-
-        let file_w = client
-            .open_file(context, write_handle, FileSetFile::MainFile)
-            .await?
-            .unwrap();
-        let file_r = client
-            .open_file(context, read_handle, FileSetFile::MainFile)
-            .await?
-            .unwrap();
+        let hash = FileSetHash {
+            data: hash,
+            variant: hash,
+        };
+        activate(&client, handle);
+        let file = FileSetFile::MainFile;
 
         client
-            .append_chunk(context, file_w, vec![1, 2, 3])
+            .append_chunk(context, handle, file.clone(), vec![1, 2, 3])
             .await?
             .unwrap();
 
-        client.read_chunk(context, file_r, 0).await?.unwrap();
-
-        // drop write_handle but keep read_handle alive
-        for _ in 0..4 {
-            tokio::time::sleep(LEASE_LENGTH / 2).await;
-            client
-                .refresh_file_set_lease(context, read_handle)
-                .await?
+        let client_clone = client.clone();
+        let read = tokio::spawn(async move {
+            let resp = client_clone
+                .read_chunk(context, hash, file, 3)
+                .await
+                .unwrap()
                 .unwrap();
+            assert_eq!(FileReadingOutcome::Dropped, resp);
+        });
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        client.drop_computation(context, hash).await?.unwrap();
+
+        read.await.unwrap();
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_drop_terminates_activate() -> Result<(), RpcError> {
+        let (client, context, _server) = spawn();
+        let hash = get_hash("comp1");
+        let handle = client
+            .create_input_file(context, hash)
+            .await?
+            .unwrap()
+            .unwrap();
+        let hash = FileSetHash {
+            data: hash,
+            variant: hash,
+        };
+        let file = FileSetFile::MainFile;
+
+        let client_clone = client.clone();
+        let mut activate = Box::pin(client_clone.activate_for_writing(context::current(), handle));
+        select! {
+            _ = tokio::time::sleep(Duration::from_millis(100)) => {},
+            resp = &mut activate => panic!("should be waiting for the computation to be dropped, but got: {:?}", resp),
         }
-        // 2 * LEASE_LENGTH has passed, the write handle for sure is gone
-        let resp = client.read_chunk(context, file_r, 3).await?;
-        let_assert!(Ok(FileReadingOutcome::Dropped) = resp);
+
+        client
+            .append_chunk(context, handle, file.clone(), vec![1, 2, 3])
+            .await?
+            .unwrap();
+
+        client.drop_computation(context, hash).await?.unwrap();
+
+        assert!(let Ok(_) = activate.await);
 
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_open_write_lease_expired() -> Result<(), RpcError> {
+    async fn test_read_disconnect() -> Result<(), RpcError> {
         let (client, context, _server) = spawn();
         let hash = get_hash("comp1");
-        let write_handle = client
-            .create_or_open_input_file(context, hash)
+        let handle = client
+            .create_input_file(context, hash)
             .await?
+            .unwrap()
             .unwrap();
+        let hash = FileSetHash {
+            data: hash,
+            variant: hash,
+        };
+        let client_clone = client.clone();
+        let mut activate = Box::pin(client_clone.activate_for_writing(context::current(), handle));
+        select! {
+            _ = tokio::time::sleep(Duration::from_millis(100)) => {},
+            resp = &mut activate => panic!("should be waiting for the computation to be dropped, but got: {:?}", resp),
+        }
+        let file = FileSetFile::MainFile;
 
-        tokio::time::sleep(LEASE_LENGTH * 2).await;
-        // now the lease is expired
+        let client_clone = client.clone();
+        let read = tokio::spawn(async move {
+            let resp = client_clone
+                .read_chunk(context, hash, file, 0)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(FileReadingOutcome::Dropped, resp);
+        });
 
-        let resp = client
-            .open_file(context, write_handle, FileSetFile::MainFile)
-            .await?;
-        let_assert!(Err(Error::UnknownHandle(_)) = resp);
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
-        Ok(())
-    }
+        drop(activate); // This deletes the file on the server side.
 
-    #[tokio::test]
-    async fn test_open_read_lease_expired() -> Result<(), RpcError> {
-        let (client, context, _server) = spawn();
-        let hash = get_hash("comp1");
-        client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
-        let read_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
-
-        tokio::time::sleep(LEASE_LENGTH * 2).await;
-        // now the lease is expired
-
-        let resp = client
-            .open_file(context, read_handle, FileSetFile::MainFile)
-            .await?;
-        let_assert!(Err(Error::UnknownHandle(_)) = resp);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_append_lease_expired() -> Result<(), RpcError> {
-        let (client, context, _server) = spawn();
-        let hash = get_hash("comp1");
-        let write_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
-        let file_w = client
-            .open_file(context, write_handle, FileSetFile::MainFile)
-            .await?
-            .unwrap();
-        client
-            .append_chunk(context, file_w, vec![1, 2, 3])
-            .await?
-            .unwrap();
-
-        tokio::time::sleep(LEASE_LENGTH * 2).await;
-        // now the lease is expired
-
-        let resp = client.append_chunk(context, file_w, vec![4, 5, 6]).await?;
-        let_assert!(Err(Error::UnknownHandle(_)) = resp);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_read_lease_expired() -> Result<(), RpcError> {
-        let (client, context, _server) = spawn();
-        let data = "comp1";
-        let hash = get_hash(data);
-        let write_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
-        let file_handle = client
-            .open_file(context, write_handle, FileSetFile::MainFile)
-            .await?
-            .unwrap();
-        client
-            .append_chunk(context, file_handle, data.as_bytes().to_vec())
-            .await?
-            .unwrap();
-        client
-            .finalize_file_set(context, write_handle)
-            .await?
-            .unwrap();
-
-        let read_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
-        let file = client
-            .open_file(context, read_handle, FileSetFile::MainFile)
-            .await?
-            .unwrap();
-
-        tokio::time::sleep(LEASE_LENGTH * 2).await;
-        // now the lease is expired
-
-        let resp = client.read_chunk(context, file, 0).await?;
-        let_assert!(Err(Error::UnknownHandle(_)) = resp);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_refresh_lease_expired() -> Result<(), RpcError> {
-        let (client, context, _server) = spawn();
-        let hash = get_hash("comp1");
-        let write_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
-
-        tokio::time::sleep(LEASE_LENGTH * 2).await;
-        // now the lease is expired
-
-        let resp = client.refresh_file_set_lease(context, write_handle).await?;
-        let_assert!(Err(Error::UnknownHandle(_)) = resp);
+        read.await.unwrap();
 
         Ok(())
     }
 
     #[tokio::test]
     async fn test_hash_collision() -> Result<(), RpcError> {
-        let (client, context, _server) = spawn();
+        let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        let input_file_handle = client
-            .create_or_open_input_file(context, hash)
-            .await?
-            .unwrap();
-        let resp = client.open_computation(context, hash, hash).await?;
+        client.create_input_file(context, hash).await?.unwrap();
+        let resp = server.create_computation(FileSetHash {
+            data: hash,
+            variant: hash,
+        });
         let_assert!(Err(Error::HashCollision(_)) = resp);
 
         Ok(())
@@ -1134,8 +730,13 @@ mod test {
     async fn test_hash_collision2() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        server.create_computation(hash, hash).unwrap();
-        let resp = client.create_or_open_input_file(context, hash).await?;
+        server
+            .create_computation(FileSetHash {
+                data: hash,
+                variant: hash,
+            })
+            .unwrap();
+        let resp = client.create_input_file(context, hash).await?;
         let_assert!(Err(Error::HashCollision(_)) = resp);
 
         Ok(())
@@ -1145,11 +746,13 @@ mod test {
     async fn test_computation_exists() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        server.create_computation(hash, hash).unwrap();
-        let resp = server.create_computation(hash, hash);
-        let_assert!(Err(Error::ComputationExists(hash1, hash2)) = resp);
-        assert!(hash1 == hash);
-        assert!(hash2 == hash);
+        let hash = FileSetHash {
+            data: hash,
+            variant: hash,
+        };
+        server.create_computation(hash).unwrap();
+        let resp = server.create_computation(hash);
+        assert!(matches!(resp, Ok(None)));
 
         Ok(())
     }
@@ -1158,13 +761,17 @@ mod test {
     async fn test_wait_computation_creation() -> Result<(), RpcError> {
         let (client, context, server) = spawn();
         let hash = get_hash("comp1");
-        let mut fut = Box::pin(client.open_computation(context, hash, hash));
+        let hash = FileSetHash {
+            data: hash,
+            variant: hash,
+        };
+        let mut fut = Box::pin(client.wait_for_fileset(context, hash, WaitFor::Creation));
         select! {
             _ = tokio::time::sleep(Duration::from_millis(100)) => {},
             resp = &mut fut => panic!("should be waiting for the computation, but got: {:?}", resp),
         }
 
-        let comp = server.create_computation(hash, hash).unwrap();
+        let comp = server.create_computation(hash).unwrap();
 
         select! {
             _ = tokio::time::sleep(Duration::from_millis(100)) => panic!("the computation should be ready now"),
@@ -1183,7 +790,10 @@ mod test {
         let variant2 = get_hash("variant2");
         for data in [data1, data2] {
             for variant in [variant1, variant2] {
-                let handle = server.create_computation(data, variant).unwrap();
+                let handle = server
+                    .create_computation(FileSetHash { data, variant })
+                    .unwrap()
+                    .unwrap();
                 client
                     .finalize_file_set(context, handle)
                     .await
