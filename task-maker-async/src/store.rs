@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_variables)]
+#![allow(dead_code)]
 
 use std::collections::HashMap;
 
@@ -21,6 +21,10 @@ use crate::file_set::{FileReadingOutcome, FileSet, FileSetFile, FileSetKind};
 type HashData = [u8; 32];
 
 /// Maximum amount of time that a write request will wait for activate_for_writing.
+// TODO(veluca): if a FileSet gets created / put into waiting status and nobody ever calls
+// activate_for_writing() (for instance because the worker that should have done so crashed), the
+// FileSet will remain present and the waiters never notified. This should be fixed, i.e. by adding
+// a time limit between FileSet creation and calls to activate_for_writing().
 const ACTIVATION_MAX_WAITING_TIME: Duration = Duration::from_secs(30);
 
 const CHUNK_SIZE: usize = 4 * 1024; // 4 KiB
@@ -243,7 +247,7 @@ impl StoreService {
 impl Store for StoreService {
     async fn create_input_file(
         self,
-        context: Context,
+        _context: Context,
         hash: DataIdentificationHash,
     ) -> Result<Option<FileSetWriteHandle>, Error> {
         let mut service = self.service.lock().unwrap();
@@ -258,7 +262,7 @@ impl Store for StoreService {
 
     async fn activate_for_writing(
         self,
-        context: Context,
+        _context: Context,
         handle: FileSetWriteHandle,
     ) -> Result<bool, Error> {
         let hash;
@@ -291,7 +295,7 @@ impl Store for StoreService {
 
     async fn append_chunk(
         self,
-        context: Context,
+        _context: Context,
         handle: FileSetWriteHandle,
         file: FileSetFile,
         data: Vec<u8>,
@@ -328,7 +332,7 @@ impl Store for StoreService {
 
     async fn finalize_file_set(
         self,
-        context: Context,
+        _context: Context,
         handle: FileSetWriteHandle,
     ) -> Result<(), Error> {
         let mut service = self.service.lock().unwrap();
@@ -346,7 +350,7 @@ impl Store for StoreService {
         Ok(())
     }
 
-    async fn drop_computation(self, context: Context, hash: FileSetHash) -> Result<(), Error> {
+    async fn drop_computation(self, _context: Context, hash: FileSetHash) -> Result<(), Error> {
         let mut service = self.service.lock().unwrap();
         let data_hm = service
             .file_sets
@@ -363,7 +367,7 @@ impl Store for StoreService {
 
     async fn wait_for_fileset(
         self,
-        context: Context,
+        _context: Context,
         hash: FileSetHash,
         wait_for: WaitFor,
     ) -> Result<(), Error> {
@@ -393,7 +397,7 @@ impl Store for StoreService {
 
     async fn read_chunk(
         self,
-        context: Context,
+        _context: Context,
         file_set_hash: FileSetHash,
         file: FileSetFile,
         offset: usize,
@@ -531,7 +535,7 @@ mod test {
         let resp = client
             .append_chunk(context, handle, file.clone(), vec![])
             .await?;
-        let_assert!(Err(Error::InvalidFileForInput(file)) = resp);
+        let_assert!(Err(Error::InvalidFileForInput(_)) = resp);
         Ok(())
     }
 
@@ -744,7 +748,7 @@ mod test {
 
     #[tokio::test]
     async fn test_computation_exists() -> Result<(), RpcError> {
-        let (client, context, server) = spawn();
+        let (_, _, server) = spawn();
         let hash = get_hash("comp1");
         let hash = FileSetHash {
             data: hash,
@@ -771,7 +775,7 @@ mod test {
             resp = &mut fut => panic!("should be waiting for the computation, but got: {:?}", resp),
         }
 
-        let comp = server.create_computation(hash).unwrap();
+        server.create_computation(hash).unwrap();
 
         select! {
             _ = tokio::time::sleep(Duration::from_millis(100)) => panic!("the computation should be ready now"),

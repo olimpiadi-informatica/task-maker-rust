@@ -121,6 +121,8 @@ impl ServerService {
             }
             let computation = computation.unwrap();
 
+            // TODO(veluca): modify the code so that the fileset is only created (and waited for)
+            // once a worker picks up the task.
             let task = WorkerTask {
                 scheduling: (options.niceness, execution.niceness, Instant::now()),
                 execution: execution.clone(),
