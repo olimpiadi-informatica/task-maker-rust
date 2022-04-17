@@ -82,19 +82,19 @@ impl Drop for FileReadWaiter {
 #[derive(Debug, Default)]
 struct FileInfo {
     data: Vec<u8>,
-    // Readers that are waiting for more data to be written.
+    /// Readers that are waiting for more data to be written.
     readers: Vec<FileReadWaiter>,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum FileSetStatus {
-    // The file set was not created yet, but at least one reader is waiting for it.
+    /// The file set was not created yet, but at least one reader is waiting for it.
     Pending,
-    // The file set was created, but writing has not started yet.
+    /// The file set was created, but writing has not started yet.
     Created,
-    // Writing has started but not yet finished.
+    /// Writing has started but not yet finished.
     Writing,
-    // Writing is complete.
+    /// Writing is complete.
     Finalized,
 }
 

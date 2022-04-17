@@ -20,6 +20,7 @@ use crate::file_set::{FileReadingOutcome, FileSet, FileSetFile, FileSetKind};
 
 type HashData = [u8; 32];
 
+/// Maximum amount of time that a write request will wait for activate_for_writing.
 const ACTIVATION_MAX_WAITING_TIME: Duration = Duration::from_secs(30);
 
 const CHUNK_SIZE: usize = 4 * 1024; // 4 KiB
@@ -103,7 +104,7 @@ type FileSetVariants = HashMap<VariantIdentificationHash, FileSet>;
 #[derive(Debug)]
 struct FileSetHandleInfo {
     hash: FileSetHash,
-    main_file_hasher: Option<Hasher>,
+    input_file_hasher: Option<Hasher>,
 }
 
 struct StoreServiceImpl {
@@ -126,7 +127,7 @@ impl StoreServiceImpl {
         self.next_handle += 1;
         let handle_info = FileSetHandleInfo {
             hash,
-            main_file_hasher: if kind == FileSetKind::InputFile {
+            input_file_hasher: if kind == FileSetKind::InputFile {
                 Some(Hasher::new())
             } else {
                 None
@@ -273,7 +274,6 @@ impl Store for StoreService {
         let dropped = AtomicBool::new(true);
         let _guard = scopeguard::guard((), |_| {
             if !dropped.load(std::sync::atomic::Ordering::SeqCst) {
-                println!("not dropped");
                 return;
             }
             let mut service = self.service.lock().unwrap();
@@ -310,7 +310,7 @@ impl Store for StoreService {
         };
         let mut service = self.service.lock().unwrap();
         let handle_info = service.get_handle_info(&handle)?;
-        if let Some(hasher) = &mut handle_info.main_file_hasher {
+        if let Some(hasher) = &mut handle_info.input_file_hasher {
             if file == FileSetFile::MainFile {
                 hasher.update(&data);
             }
@@ -333,7 +333,7 @@ impl Store for StoreService {
     ) -> Result<(), Error> {
         let mut service = self.service.lock().unwrap();
         let handle_info = service.get_handle_info(&handle)?;
-        if let Some(hasher) = handle_info.main_file_hasher.take() {
+        if let Some(hasher) = handle_info.input_file_hasher.take() {
             let hash = hasher.finalize();
             if *hash.as_bytes() != handle_info.hash.data {
                 return Err(Error::InvalidHash(handle_info.hash.data, *hash.as_bytes()));
@@ -367,22 +367,25 @@ impl Store for StoreService {
         hash: FileSetHash,
         wait_for: WaitFor,
     ) -> Result<(), Error> {
-        let res = if wait_for == WaitFor::Finalization {
-            let fileset_finalized = {
-                let mut service = self.service.lock().unwrap();
-                let data_comp = service.file_sets.entry(hash.data).or_default();
-                let file_set = data_comp.entry(hash.variant).or_insert_with(FileSet::new);
-                file_set.wait_for_finalization()
-            };
-            fileset_finalized.await
-        } else {
-            let fileset_exists = {
-                let mut service = self.service.lock().unwrap();
-                let data_comp = service.file_sets.entry(hash.data).or_default();
-                let file_set = data_comp.entry(hash.variant).or_insert_with(FileSet::new);
-                file_set.wait_for_creation()
-            };
-            fileset_exists.await
+        let res = match wait_for {
+            WaitFor::Finalization => {
+                let fileset_finalized = {
+                    let mut service = self.service.lock().unwrap();
+                    let data_comp = service.file_sets.entry(hash.data).or_default();
+                    let file_set = data_comp.entry(hash.variant).or_insert_with(FileSet::new);
+                    file_set.wait_for_finalization()
+                };
+                fileset_finalized.await
+            }
+            WaitFor::Creation => {
+                let fileset_exists = {
+                    let mut service = self.service.lock().unwrap();
+                    let data_comp = service.file_sets.entry(hash.data).or_default();
+                    let file_set = data_comp.entry(hash.variant).or_insert_with(FileSet::new);
+                    file_set.wait_for_creation()
+                };
+                fileset_exists.await
+            }
         };
         // If waiting produced errors, they were caused by the fileset being dropped.
         res.map_err(|_| Error::FileSetDropped(hash))
