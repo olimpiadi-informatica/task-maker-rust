@@ -43,7 +43,7 @@ pub struct FileSetHash {
 
 pub type FileSetHandleId = usize;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 pub struct FileSetWriteHandle {
     id: FileSetHandleId,
 }

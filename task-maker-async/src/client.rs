@@ -315,10 +315,10 @@ fn prepare_execution_group(
         .map(make_async_execution)
         .collect();
 
-    let priority = execution_group
+    let niceness = execution_group
         .executions
         .iter()
-        .map(|x| x.priority)
+        .map(|x| -x.priority)
         .max()
         .unwrap();
 
@@ -343,7 +343,7 @@ fn prepare_execution_group(
         description: execution_group.description.clone(),
         executions,
         skip_cache_key,
-        priority,
+        niceness,
     };
 
     let data_hash = ret.get_data_identification_hash();
@@ -705,7 +705,7 @@ async fn evaluate_dag_async(
                 ExecutionDAG { execution_groups },
                 ExecutionDAGOptions {
                     keep_sandboxes: dag.data.config.keep_sandboxes,
-                    priority: dag.data.config.priority,
+                    niceness: -dag.data.config.priority,
                 },
             )
             .await
