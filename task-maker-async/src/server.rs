@@ -132,6 +132,7 @@ impl ServerService {
                 let mut service = self.service.lock().unwrap();
                 service.queue.push(task);
                 // Wake up all the workers that are currently waiting for a new task.
+                // TODO(veluca): consider only waking up one worker that is still waiting.
                 service.waiting_workers.drain(..).for_each(|sender| {
                     sender.send(()).unwrap();
                 });
