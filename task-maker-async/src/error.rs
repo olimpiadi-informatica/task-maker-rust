@@ -25,4 +25,8 @@ pub enum Error {
     InvalidHash(DataIdentificationHash, DataIdentificationHash),
     #[error("Not implemented: {0}")]
     NotImplemented(String),
+    #[error("Communication failure: {0:?}")]
+    CommunicationFailure(#[from] tarpc::client::RpcError),
+    #[error("Execution {0:?} failed too many times")]
+    ExecutionFailure(FileSetHash),
 }

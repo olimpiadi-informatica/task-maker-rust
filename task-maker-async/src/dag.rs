@@ -8,13 +8,13 @@ use std::path::PathBuf;
 use std::time::Duration;
 use task_maker_dag::ExecutionCommand;
 
-/// Higher value = executed first.
-type Priority = i64;
+/// Lower value = executed first.
+pub type Niceness = i64;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
 pub struct ExecutionDAGOptions {
     pub keep_sandboxes: bool,
-    pub priority: Priority,
+    pub niceness: Niceness,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -87,7 +87,7 @@ pub enum ExecutionFileMode {
     Fifo(String),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Execution {
     /// Name of the execution, that identifies it within its execution group and is used to refer
     /// to it.
@@ -113,7 +113,7 @@ pub struct Execution {
     pub constraints: ExecutionConstraints,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct ExecutionGroup {
     /// A textual description of the group.
     pub description: String,
@@ -126,7 +126,7 @@ pub struct ExecutionGroup {
     pub skip_cache_key: Option<String>,
 
     /// A priority index for this execution group.
-    pub priority: Priority,
+    pub niceness: Niceness,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
