@@ -106,6 +106,8 @@ impl ServerService {
             service.store.clone()
         };
 
+        // TODO(veluca): implement skipping things that depend on failed tasks, and in general
+        // declaring executions as being skipped.
         try_join_all(
             dependencies
                 .iter()

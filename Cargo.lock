@@ -1050,9 +1050,9 @@ dependencies = [
 
 [[package]]
 name = "itoa"
-version = "0.4.7"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd25036021b0de88a0aff6b850051563c6516d0bf53f8638938edbb9de732736"
+checksum = "1aab8fc367588b89dcee83ab0fd66b72b50b72fa1904d7095045ace2b0c81c35"
 
 [[package]]
 name = "js-sys"
@@ -1081,9 +1081,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.119"
+version = "0.2.123"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bf2e165bb3457c8e098ea76f3e3bc9db55f87aa90d52d0e6be741470916aaa4"
+checksum = "cb691a747a7ab48abc15c5b42066eaafde10dc427e3b6ee2a1cf43db04c763bd"
 
 [[package]]
 name = "linked-hash-map"
@@ -1132,6 +1132,15 @@ name = "memchr"
 version = "2.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ee1c47aaa256ecabcaea351eae4a9b01ef39ed810004e298d2511ed284b1525"
+
+[[package]]
+name = "memoffset"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5aa361d4faea93603064a027415f07bd8e1d5c88c9fbf68bf56a285428fd79ce"
+dependencies = [
+ "autocfg 1.0.1",
+]
 
 [[package]]
 name = "mime"
@@ -1217,6 +1226,19 @@ dependencies = [
  "cc",
  "cfg-if 1.0.0",
  "libc",
+]
+
+[[package]]
+name = "nix"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f866317acbd3a240710c63f065ffb1e4fd466259045ccb504130b7f668f35c6"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if 1.0.0",
+ "libc",
+ "memoffset",
 ]
 
 [[package]]
@@ -2041,9 +2063,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.64"
+version = "1.0.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "799e97dc9fdae36a5c8b8f2cae9ce2ee9fdce2058c57a93e6099d919fd982f79"
+checksum = "8e8d9fa5c3b304765ce1fd9c4c8a3de2c8db365a5b91be52f186efc675681d95"
 dependencies = [
  "itoa",
  "ryu",
@@ -2317,9 +2339,9 @@ dependencies = [
 
 [[package]]
 name = "tabox"
-version = "1.1.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a1d713da2b9d064f12d252fce074af9e29c3c414c5994fbf451573874705bd9"
+checksum = "1c8e1f8ff275a9f41bc9b1a9ea8b51d5d492f0553220485560916b1a345bdd7b"
 dependencies = [
  "anyhow",
  "core_affinity",
@@ -2379,14 +2401,20 @@ dependencies = [
  "bincode",
  "blake3",
  "futures",
+ "nix 0.23.1",
  "scopeguard",
  "serde",
+ "serde_json",
+ "tabox",
  "tarpc",
  "task-maker-dag",
+ "task-maker-exec",
+ "tempdir",
  "thiserror",
  "tokio",
  "tokio-util",
  "uuid 0.8.2",
+ "which 4.2.5",
 ]
 
 [[package]]
@@ -2451,7 +2479,7 @@ dependencies = [
  "thiserror",
  "typescript-definitions",
  "uuid 0.7.4",
- "which",
+ "which 2.0.1",
 ]
 
 [[package]]
@@ -2509,7 +2537,7 @@ dependencies = [
  "task-maker-exec",
  "tempdir",
  "typescript-definitions",
- "which",
+ "which 2.0.1",
 ]
 
 [[package]]
@@ -2544,7 +2572,7 @@ dependencies = [
  "typescript-definitions",
  "url",
  "walkdir",
- "which",
+ "which 2.0.1",
  "whoami",
 ]
 
@@ -3076,6 +3104,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b57acb10231b9493c8472b20cb57317d0679a49e0bdbee44b3b803a6473af164"
 dependencies = [
  "failure",
+ "libc",
+]
+
+[[package]]
+name = "which"
+version = "4.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c4fb54e6113b6a8772ee41c3404fb0301ac79604489467e0a9ce1f3e97c24ae"
+dependencies = [
+ "either",
+ "lazy_static",
  "libc",
 ]
 

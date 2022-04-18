@@ -10,6 +10,7 @@ tarpc = { version = "0.28", features = ["full"] }
 thiserror = "1.0"
 serde =  { version = "1.0", features = ["derive"] }
 task-maker-dag = { path = "../task-maker-dag" }
+task-maker-exec = { path = "../task-maker-exec" }
 tokio-util = "0.6.9"
 tokio = { version = "1.14.0", features = ["full"] }
 futures = "0.3.18"
@@ -19,5 +20,10 @@ bincode = "1.3.3"
 anyhow = "1.0.56"
 uuid = { version = "0.8.2", features = ["v4"] }
 scopeguard = "1.1.0"
+tempdir = "0.3.7"
+nix = "0.23.1"
+tabox = "1.2.1"
+which = "4.2.5"
+serde_json = "1.0.79"
 
 [features]
