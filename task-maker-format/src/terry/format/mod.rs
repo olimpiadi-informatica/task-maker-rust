@@ -72,7 +72,8 @@ fn get_manager(task_dir: &Path, manager: &str) -> Result<Option<Arc<SourceFile>>
         bail!("Multiple managers found: {:?}", paths);
     }
     Ok(managers.pop().map(|mut s| {
-        s.copy_exe(); // the managers are always copied
+        s.copy_exe(); // The managers are always copied.
+        s.link_static(); // Make sure the managers are statically linked.
         Arc::new(s)
     }))
 }
