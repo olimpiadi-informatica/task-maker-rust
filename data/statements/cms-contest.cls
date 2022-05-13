@@ -586,47 +586,43 @@
 % this is used for writing the sample testcases
 
 \newenvironment{example}{
-    \ttfamily\obeylines\obeyspaces\frenchspacing
-    %
     \newcommand{\exmp}[2]{%
         \begin{minipage}[t]{\exmpwidinf}%
             \rightskip=0pt plus 1fill\relax%
+            \ttfamily\obeylines\obeyspaces\frenchspacing%
             ##1%
         \end{minipage}&%
         \begin{minipage}[t]{\exmpwidouf}%
             \rightskip=0pt plus 1fill\relax%
+            \ttfamily\obeylines\obeyspaces\frenchspacing%
             ##2%
         \end{minipage}\\%
         \hline%
-    }
-
+    }%
     \newcommand{\exmpfile}[3][]{%
         \begin{minipage}[t]{\exmpwidinf}%
-            \rightskip=0pt plus 1fill\relax%
             \ifthenelse{\equal{##1}{nowrap}}{%
-                \lstinputlisting[aboveskip=0pt]{##2}%
+                \lstinputlisting[aboveskip=0pt,basicstyle=\ttfamily]{##2}%
             }{%
-                \lstinputlisting[aboveskip=0pt,breaklines]{##2}%
+                \lstinputlisting[aboveskip=0pt,basicstyle=\ttfamily,breaklines]{##2}%
             }%
         \end{minipage}&%
         \begin{minipage}[t]{\exmpwidouf}%
-            \rightskip=0pt plus 1fill\relax%
             \ifthenelse{\equal{##1}{nowrap}}{%
-                \lstinputlisting[aboveskip=0pt]{##3}%
+                \lstinputlisting[aboveskip=0pt,basicstyle=\ttfamily]{##3}%
             }{%
-                \lstinputlisting[aboveskip=0pt,breaklines]{##3}%
+                \lstinputlisting[aboveskip=0pt,basicstyle=\ttfamily,breaklines]{##3}%
             }%
         \end{minipage}\\%
         \hline%
-    }
-
+    }%
     \begin{tabular}{|l|l|}
         \hline
         \multicolumn{1}{|c|}{\bf\texttt{\this@inputfilename}}&
         \multicolumn{1}{|c|}{\bf\texttt{\this@outputfilename}}\\
         \hline\hline
-        \noindent%
-}{
+        \ignorespaces%
+}{%
     \end{tabular}
 }
 
