@@ -469,6 +469,7 @@ fn organize_failures(fuzz_dir: &Path, data: &FuzzData, artifacts: &[PathBuf]) ->
         let source_correct_path = data.task_dir.join(format!("output/output{}.txt", id));
         let target_input_path = target_dir.join("input.txt");
         let target_output_path = target_dir.join("output.txt");
+        let target_artifact_path = target_dir.join("artifact.bin");
         std::os::unix::fs::symlink(&source_input_path, &target_input_path).with_context(|| {
             anyhow!(
                 "Failed to create symlink: {} -> {}",
@@ -485,6 +486,13 @@ fn organize_failures(fuzz_dir: &Path, data: &FuzzData, artifacts: &[PathBuf]) ->
                 )
             },
         )?;
+        std::os::unix::fs::symlink(&artifact, &target_artifact_path).with_context(|| {
+            anyhow!(
+                "Failed to create symlink: {} -> {}",
+                target_artifact_path.display(),
+                artifact.display()
+            )
+        })?;
         cwrite!(printer, RED, "[FAIL] {:<8}", fail_type);
         println!(" {}", target_dir.display());
     }
