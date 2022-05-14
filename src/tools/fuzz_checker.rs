@@ -357,6 +357,11 @@ fn run_fuzzer(fuzz_dir: &Path, data: &FuzzData, fuzzer: &Path) -> Result<Vec<Pat
     std::fs::create_dir(&artifacts)
         .with_context(|| anyhow!("Failed to create artifacts dir at {}", artifacts.display()))?;
 
+    // Give unlimited stack to the checker.
+    if let Err(e) = rlimit::Resource::STACK.set(rlimit::INFINITY, rlimit::INFINITY) {
+        warn!("Failed to set ulimit -s unlimited: {:?}", e);
+    }
+
     let mut command = std::process::Command::new(fuzzer);
     let jobs = if let Some(jobs) = data.opt.jobs {
         jobs

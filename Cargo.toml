@@ -77,6 +77,8 @@ url = "2.1"
 tempdir = "0.3"
 # Regex
 regex = "1"
+# setrlimit for setting unlimited stack for the checker in the fuzzer
+rlimit = "0.8"
 
 # Typescript definition generation
 typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs"}

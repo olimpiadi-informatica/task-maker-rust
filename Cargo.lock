@@ -1523,6 +1523,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rlimit"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7278a1ec8bfd4a4e07515c589f5ff7b309a373f987393aef44813d9dcf87aa3"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "rust-argon2"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2065,6 +2074,7 @@ dependencies = [
  "num_cpus",
  "port_scanner",
  "regex",
+ "rlimit",
  "scopeguard",
  "serde",
  "serde_json",
