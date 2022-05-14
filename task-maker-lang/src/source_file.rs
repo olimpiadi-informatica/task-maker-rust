@@ -30,17 +30,17 @@ pub struct SourceFile {
     /// Language of the source file.
     #[serde(serialize_with = "language_serializer")]
     #[serde(deserialize_with = "language_deserializer")]
-    language: Arc<dyn Language>,
+    pub language: Arc<dyn Language>,
     /// Handle to the executable after the compilation/provided file.
-    executable: Arc<Mutex<Option<File>>>,
+    pub executable: Arc<Mutex<Option<File>>>,
     /// An optional handler to the map of the graders.
-    grader_map: Option<Arc<GraderMap>>,
+    pub grader_map: Option<Arc<GraderMap>>,
     /// Whether to force the copy-exe option of the DAG for this source file.
-    copy_exe: bool,
+    pub copy_exe: bool,
     /// Where to write the compiled executable.
-    write_bin_to: Option<PathBuf>,
+    pub write_bin_to: Option<PathBuf>,
     /// Whether this source file should be statically linked.
-    link_static: bool,
+    pub link_static: bool,
 }
 
 impl SourceFile {

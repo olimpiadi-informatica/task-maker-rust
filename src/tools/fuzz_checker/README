@@ -1,0 +1,18 @@
+This directory contains the following files:
+
+- input.txt is the testcase input file
+- output.txt is the official output of the testcase
+- output-crash.txt is the contestant output that led to a fail of the checker
+- artifact.bin is the input passed to the fuzzer
+
+
+
+To test the checker run:
+
+@@CHECKER@@ input.txt output.txt output-crash.txt
+
+
+
+To test the fuzzed version:
+
+../../fuzzer/fuzzer artifact.bin

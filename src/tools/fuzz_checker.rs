@@ -16,6 +16,7 @@ use crate::tools::opt::FuzzCheckerOpt;
 
 const CHECKER_HEADER: &[u8] = include_bytes!("./fuzz_checker/checker_header.h");
 const FUZZER: &[u8] = include_bytes!("./fuzz_checker/fuzzer.cpp");
+const README: &str = include_str!("./fuzz_checker/README");
 
 #[derive(Debug)]
 struct FuzzData {
@@ -52,6 +53,10 @@ pub fn main_fuzz_checker(opt: FuzzCheckerOpt) -> Result<(), Error> {
     } else {
         bail!("Only tasks with a checker are supported");
     };
+    let checker_bin_path = checker
+        .write_bin_to
+        .clone()
+        .expect("Missing checker write_bin_to");
 
     let language = checker.language();
     if language.name() != "C++" {
@@ -93,7 +98,6 @@ pub fn main_fuzz_checker(opt: FuzzCheckerOpt) -> Result<(), Error> {
             task.build_dag(eval, &eval_config)
                 .context("Cannot build the task DAG")
         })?;
-
         // start the execution
         let executor =
             context.connect_executor(&fuzz_data.opt.execution, &fuzz_data.opt.storage)?;
@@ -113,7 +117,7 @@ pub fn main_fuzz_checker(opt: FuzzCheckerOpt) -> Result<(), Error> {
     let checker_source = write_checker_source(&fuzz_dir, &fuzz_data)?;
     let fuzz_binary = compile_fuzzer(&fuzz_dir, &fuzz_data, &checker_source)?;
     let artifacts = run_fuzzer(&fuzz_dir, &fuzz_data, &fuzz_binary)?;
-    organize_failures(&fuzz_dir, &fuzz_data, &artifacts)?;
+    organize_failures(&fuzz_dir, &fuzz_data, &artifacts, &checker_bin_path)?;
 
     Ok(())
 }
@@ -401,7 +405,12 @@ fn run_fuzzer(fuzz_dir: &Path, data: &FuzzData, fuzzer: &Path) -> Result<Vec<Pat
     Ok(paths)
 }
 
-fn organize_failures(fuzz_dir: &Path, data: &FuzzData, artifacts: &[PathBuf]) -> Result<(), Error> {
+fn organize_failures(
+    fuzz_dir: &Path,
+    data: &FuzzData,
+    artifacts: &[PathBuf],
+    checker_bin_path: &Path,
+) -> Result<(), Error> {
     if artifacts.is_empty() {
         info!("No failure found!");
         return Ok(());
@@ -420,6 +429,8 @@ fn organize_failures(fuzz_dir: &Path, data: &FuzzData, artifacts: &[PathBuf]) ->
         .with_context(|| anyhow!("Failed to create failures dir at {}", failures.display()))?;
 
     let mut printer = StdoutPrinter::default();
+    let checker_bin_path = checker_bin_path.to_string_lossy();
+    let readme = README.replace("@@CHECKER@@", &checker_bin_path);
 
     for (artifact_id, artifact) in artifacts.iter().enumerate() {
         let mut file = std::fs::File::open(artifact)
@@ -493,6 +504,7 @@ fn organize_failures(fuzz_dir: &Path, data: &FuzzData, artifacts: &[PathBuf]) ->
                 artifact.display()
             )
         })?;
+        std::fs::write(target_dir.join("README"), &readme).context("Failed to write README")?;
         cwrite!(printer, RED, "[FAIL] {:<8}", fail_type);
         println!(" {}", target_dir.display());
     }
