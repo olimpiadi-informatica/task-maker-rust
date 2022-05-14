@@ -11,7 +11,7 @@ use task_maker_diagnostics::Diagnostic;
 use crate::ioi::sanity_checks::check_missing_graders;
 use crate::ioi::{IOITask, TaskType, TestcaseId};
 use crate::sanity_checks::SanityCheck;
-use crate::{list_files, EvaluationData, UISender};
+use crate::{list_files, EvaluationData, SolutionCheck, UISender};
 
 /// Check that all the graders are present inside att.
 #[derive(Debug, Default)]
@@ -310,4 +310,32 @@ fn get_sample_files(
         )))?;
     }
     Ok(samples)
+}
+
+/// Check that the source files in att don't contain @check rules.
+#[derive(Debug, Default)]
+pub struct AttWithNoCheck;
+
+impl SanityCheck<IOITask> for AttWithNoCheck {
+    fn name(&self) -> &'static str {
+        "AttWithNoCheck"
+    }
+
+    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        for att in list_files(&task.path, vec!["att/*"]) {
+            let path = task.path_of(&att);
+            if let Ok(checks) = SolutionCheck::extract_check_list(&att, eval) {
+                if let Some(check) = checks.get(0) {
+                    eval.add_diagnostic(
+                        Diagnostic::error(format!(
+                            "@check rule found in an attachment: {}",
+                            path.display()
+                        ))
+                        .with_code_span(check.code_span.clone()),
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    }
 }

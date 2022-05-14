@@ -162,6 +162,23 @@ fn test_sanity_checks_att_output_without_input() {
 }
 
 #[test]
+fn test_sanity_checks_att_with_check_rules() {
+    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let task = utils::new_task_with_context(tmpdir.path());
+    std::fs::create_dir(tmpdir.path().join("att")).unwrap();
+    std::fs::write(
+        tmpdir.path().join("att/template.cpp"),
+        "/*
+ * @check-accepted: lel
+ */
+int main() {}",
+    )
+    .unwrap();
+    let warnings = get_warnings(&task);
+    has_warning(&warnings, "@check rule found in an attachment");
+}
+
+#[test]
 fn test_sanity_checks_sol_graders() {
     let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
