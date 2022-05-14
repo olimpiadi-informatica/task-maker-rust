@@ -91,7 +91,7 @@ impl Checker {
                     .capture_stdout(128)
                     .capture_stderr(STDERR_CONTENT_LENGTH)
                     .priority(EVALUATION_PRIORITY - testcase_id as Priority);
-                exec.limits_mut().nproc(1000);
+                exec.limits_mut().allow_multiprocess();
                 let sender = eval.sender.clone();
                 eval.dag.on_execution_done(&exec.uuid, move |res| {
                     let stdout = res

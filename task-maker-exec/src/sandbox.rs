@@ -383,8 +383,10 @@ impl Sandbox {
         if let Some(stack) = execution.limits.stack {
             config.stack_limit(stack * 1024);
         }
-        let multiproc = Some(1) != execution.limits.nproc;
-        config.syscall_filter(SyscallFilter::build(multiproc, !execution.limits.read_only));
+        config.syscall_filter(SyscallFilter::build(
+            execution.limits.allow_multiprocess,
+            !execution.limits.read_only,
+        ));
         // has to be writable for mounting stuff in it
         config.mount(boxdir.join("etc"), "/etc", true);
         if let Some(path) = fifo_dir {
@@ -627,7 +629,7 @@ mod tests {
             .wall_time(10.0)
             .mount_tmpfs(true)
             .add_extra_readable_dir("/home")
-            .nproc(2)
+            .allow_multiprocess()
             .memory(1234);
         exec.env("foo", "bar");
         let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new(), None).unwrap();

@@ -50,7 +50,7 @@ impl InputValidator {
                     .priority(GENERATION_PRIORITY - testcase_id as Priority)
                     .env("TM_SUBTASK", subtask_id.to_string())
                     .env("TM_TESTCASE", testcase_id.to_string());
-                exec.limits_mut().nproc(1000);
+                exec.limits_mut().allow_multiprocess();
                 let stdout = exec.stdout();
 
                 Ok((Some(stdout.uuid), Some(exec)))

@@ -60,7 +60,7 @@ impl InputGenerator {
             self.source
                 .execute(eval, description, vec![seed.to_string(), "0".to_string()])?;
         include_official_solution(eval, &mut exec, official_solution)?;
-        exec.limits_mut().nproc = None;
+        exec.limits_mut().allow_multiprocess();
         exec.tag(Tag::Generation.into());
         let input_file = exec.stdout();
         Ok((input_file.uuid, exec))
@@ -127,7 +127,7 @@ impl InputValidator {
     ) -> Result<(FileUuid, Execution), Error> {
         let mut exec = self.source.execute(eval, description, Vec::<&str>::new())?;
         include_official_solution(eval, &mut exec, official_solution)?;
-        exec.limits_mut().nproc = None;
+        exec.limits_mut().allow_multiprocess();
         exec.stdin(input).tag(Tag::Generation.into());
         let stdout = exec.stdout();
         Ok((stdout.uuid, exec))

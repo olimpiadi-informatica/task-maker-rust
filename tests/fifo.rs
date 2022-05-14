@@ -24,7 +24,7 @@ fn test_fifo() {
         .capture_stdout(1000)
         .capture_stderr(1000)
         .input(src1.uuid, "script.sh", true);
-    exec1.limits_mut().wall_time(3.0).nproc(1000);
+    exec1.limits_mut().wall_time(3.0).allow_multiprocess();
     dag.provide_content(
         src1,
         "#!/usr/bin/env bash\n\
@@ -50,7 +50,7 @@ fn test_fifo() {
         .capture_stdout(1000)
         .capture_stderr(1000)
         .input(src2.uuid, "script.sh", true);
-    exec2.limits_mut().wall_time(3.0).nproc(1000);
+    exec2.limits_mut().wall_time(3.0).allow_multiprocess();
     dag.provide_content(
         src2,
         "#!/usr/bin/env bash\n\

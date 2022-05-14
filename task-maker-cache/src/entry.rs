@@ -171,11 +171,13 @@ impl CacheEntry {
                 check_limit!($left.sys_time, $right.sys_time, $extra_time);
                 check_limit!($left.wall_time, $right.wall_time, $extra_time);
                 check_limit!($left.memory, $right.memory, 0);
-                check_limit!($left.nproc, $right.nproc, 0);
                 check_limit!($left.nofile, $right.nofile, 0);
                 check_limit!($left.fsize, $right.fsize, 0);
                 check_limit!($left.memlock, $right.memlock, 0);
                 check_limit!($left.stack, $right.stack, 0);
+                if $left.allow_multiprocess > $right.allow_multiprocess {
+                    return false;
+                }
                 if $left.read_only < $right.read_only {
                     return false;
                 }

@@ -197,8 +197,8 @@ pub struct ExecutionLimits {
     /// Limit on the number of KiB the process can use in any moment. This can be page-aligned by
     /// the sandbox.
     pub memory: Option<u64>,
-    /// Limit on the number of threads/processes the process can spawn.
-    pub nproc: Option<u32>,
+    /// Allow multiple processes (i.e. forking/threads).
+    pub allow_multiprocess: bool,
     /// Limit on the number of file descriptors the process can keep open.
     pub nofile: Option<u32>,
     /// Maximum size of the files (in bytes) the process can write/create.
@@ -278,7 +278,7 @@ impl ExecutionLimits {
             sys_time: None,
             wall_time: None,
             memory: None,
-            nproc: None,
+            allow_multiprocess: true,
             nofile: None,
             fsize: None,
             memlock: None,
@@ -314,9 +314,15 @@ impl ExecutionLimits {
         self
     }
 
-    /// Set the maximum number of processes/threads.
-    pub fn nproc(&mut self, limit: u32) -> &mut Self {
-        self.nproc = Some(limit);
+    /// Allow multiple processes.
+    pub fn allow_multiprocess(&mut self) -> &mut Self {
+        self.allow_multiprocess = true;
+        self
+    }
+
+    /// Block multiple processes.
+    pub fn block_multiprocess(&mut self) -> &mut Self {
+        self.allow_multiprocess = false;
         self
     }
 
@@ -370,7 +376,7 @@ impl ExecutionLimits {
     }
 }
 
-impl std::default::Default for ExecutionLimits {
+impl Default for ExecutionLimits {
     /// Default sane values for the execution limits, the limits listed here
     /// should be safe enough for most of the executions.
     fn default() -> Self {
@@ -379,7 +385,7 @@ impl std::default::Default for ExecutionLimits {
             sys_time: None,
             wall_time: None,
             memory: None,
-            nproc: Some(1),
+            allow_multiprocess: false,
             nofile: None,
             fsize: Some(1024u64.pow(3)),
             memlock: None,
@@ -733,12 +739,12 @@ impl Execution {
     /// use task_maker_dag::{Execution, ExecutionCommand, ExecutionLimits};
     ///
     /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
-    /// exec.limits_mut().cpu_time(2.0).sys_time(0.5).wall_time(3.0).memory(1024).nproc(10);
+    /// exec.limits_mut().cpu_time(2.0).sys_time(0.5).wall_time(3.0).memory(1024).allow_multiprocess();
     /// assert_eq!(exec.limits.cpu_time, Some(2.0));
     /// assert_eq!(exec.limits.sys_time, Some(0.5));
     /// assert_eq!(exec.limits.wall_time, Some(3.0));
     /// assert_eq!(exec.limits.memory, Some(1024));
-    /// assert_eq!(exec.limits.nproc, Some(10));
+    /// assert!(exec.limits.allow_multiprocess);
     /// ```
     pub fn limits_mut(&mut self) -> &mut ExecutionLimits {
         &mut self.limits

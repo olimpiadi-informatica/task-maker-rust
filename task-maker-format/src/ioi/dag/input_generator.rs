@@ -56,7 +56,7 @@ impl InputGenerator {
                 let mut exec = source_file
                     .execute(eval, description, args.clone())
                     .context("Failed to execute generator source file")?;
-                exec.limits_mut().nproc(1000);
+                exec.limits_mut().allow_multiprocess();
                 exec.tag(Tag::Generation.into());
                 exec.priority(GENERATION_PRIORITY - testcase_id as Priority);
                 let stdout = exec.stdout();

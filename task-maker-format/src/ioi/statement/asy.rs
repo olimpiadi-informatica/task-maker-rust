@@ -59,7 +59,7 @@ impl AsyFile {
             .read_only(false)
             .wall_time(10.0) // asy tends to deadlock on failure
             .stack(8192 * 1024) // due to a libgc bug, asy may crash with unlimited stack
-            .nproc(1000)
+            .allow_multiprocess()
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true);
         comp.tag(Tag::Booklet.into());
@@ -135,7 +135,7 @@ impl AsyFile {
         crop.limits_mut()
             .read_only(false)
             .wall_time(10.0) // asy tends to deadlock on failure
-            .nproc(1000)
+            .allow_multiprocess()
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true);
         crop.tag(Tag::Booklet.into());

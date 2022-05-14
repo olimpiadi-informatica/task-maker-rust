@@ -122,7 +122,7 @@ impl Booklet {
         ]);
         exec.limits_mut()
             .read_only(false)
-            .nproc(1000)
+            .allow_multiprocess()
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true);
         exec.tag(Tag::Booklet.into());

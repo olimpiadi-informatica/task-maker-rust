@@ -33,7 +33,7 @@ impl Language for LanguageShell {
     }
 
     fn custom_limits(&self, limits: &mut ExecutionLimits) {
-        limits.nproc = None;
+        limits.allow_multiprocess();
     }
 
     fn executable_name(&self, path: &Path, _write_to: Option<&Path>) -> PathBuf {
@@ -44,16 +44,14 @@ impl Language for LanguageShell {
 
 #[cfg(test)]
 mod tests {
-    use spectral::prelude::*;
-
     use super::*;
 
     #[test]
     fn test_allow_fork() {
         let lang = LanguageShell::new();
         let mut limits = ExecutionLimits::unrestricted();
-        limits.nproc(1);
+        limits.block_multiprocess();
         lang.custom_limits(&mut limits);
-        assert_that!(limits.nproc).is_none();
+        assert!(limits.allow_multiprocess);
     }
 }

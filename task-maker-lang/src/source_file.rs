@@ -269,9 +269,9 @@ impl SourceFile {
                 .priority(COMPILATION_PRIORITY)
                 .capture_stdout(COMPILATION_CONTENT_LENGTH)
                 .capture_stderr(COMPILATION_CONTENT_LENGTH);
-            comp.limits.nproc = None;
-            // the compilers may need to store some temp files
             comp.limits
+                .allow_multiprocess()
+                // the compilers may need to store some temp files
                 .read_only(false)
                 .mount_tmpfs(true)
                 .mount_proc(true);
