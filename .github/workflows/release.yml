@@ -5,8 +5,8 @@ on:
     types: [created]
 
 jobs:
-  Linux:
-    name: Build & Publish (Linux)
+  deb:
+    name: Debian/Ubuntu (deb)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -31,3 +31,20 @@ jobs:
       #     docker push edomora97/task-maker-rust:latest
       #   env:
       #     DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
+  aur:
+    name: AUR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build PKGBUILD
+        working-directory: tools/aur/task-maker-rust
+        run: ./gen.sh > /tmp/PKGBUILD
+      - name: Publish PKGBUILD
+        uses: KSXGitHub/github-actions-deploy-aur@v2.2.5
+        with:
+          pkgname: task-maker-rust
+          pkgbuild: /tmp/PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
