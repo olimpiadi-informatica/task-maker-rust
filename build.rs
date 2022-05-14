@@ -14,7 +14,11 @@ fn get_version() -> String {
     match output {
         Ok(output) => {
             let from_git = String::from_utf8_lossy(&output.stdout);
-            format!("{}\n\nRevision: {}", version, from_git)
+            if from_git.is_empty() {
+                version
+            } else {
+                format!("{}\n\nRevision: {}", version, from_git)
+            }
         }
         Err(_) => version,
     }
