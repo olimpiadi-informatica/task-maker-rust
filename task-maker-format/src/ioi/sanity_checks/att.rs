@@ -128,6 +128,7 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
                     eval,
                     format!("Validation of sample case {}", input_name.display()),
                     0,
+                    None,
                     0,
                     input_uuid,
                 )

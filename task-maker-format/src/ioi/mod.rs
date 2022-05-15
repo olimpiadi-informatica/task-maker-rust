@@ -265,7 +265,13 @@ impl IOITask {
                     .context("Failed to bind input generator")?;
                 let val_handle = testcase
                     .input_validator
-                    .validate_and_bind(eval, subtask.id, testcase.id, input)
+                    .validate_and_bind(
+                        eval,
+                        subtask.id,
+                        subtask.name.as_deref(),
+                        testcase.id,
+                        input,
+                    )
                     .context("Failed to bind validator")?;
                 let output = testcase
                     .output_generator
