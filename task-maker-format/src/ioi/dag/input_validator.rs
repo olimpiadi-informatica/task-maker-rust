@@ -36,6 +36,7 @@ impl InputValidator {
         eval: &mut EvaluationData,
         description: String,
         subtask_id: SubtaskId,
+        subtask_name: Option<&str>,
         testcase_id: TestcaseId,
         input: FileUuid,
     ) -> Result<(Option<FileUuid>, Option<Execution>), Error> {
@@ -50,6 +51,9 @@ impl InputValidator {
                     .priority(GENERATION_PRIORITY - testcase_id as Priority)
                     .env("TM_SUBTASK", subtask_id.to_string())
                     .env("TM_TESTCASE", testcase_id.to_string());
+                if let Some(name) = subtask_name {
+                    exec.env("TM_SUBTASK_NAME", name);
+                }
                 exec.limits_mut().allow_multiprocess();
                 let stdout = exec.stdout();
 
@@ -65,6 +69,7 @@ impl InputValidator {
         &self,
         eval: &mut EvaluationData,
         subtask_id: SubtaskId,
+        subtask_name: Option<&str>,
         testcase_id: TestcaseId,
         input: FileUuid,
     ) -> Result<Option<FileUuid>, Error> {
@@ -75,6 +80,7 @@ impl InputValidator {
                 testcase_id, subtask_id
             ),
             subtask_id,
+            subtask_name,
             testcase_id,
             input,
         )?;

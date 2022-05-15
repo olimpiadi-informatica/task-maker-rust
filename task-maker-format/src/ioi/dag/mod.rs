@@ -212,7 +212,7 @@ mod tests {
         let file = File::new("input");
         let (mut eval, _recv) = EvaluationData::new("");
         let out = validator
-            .validate_and_bind(&mut eval, 0, 0, file.uuid)
+            .validate_and_bind(&mut eval, 0, None, 0, file.uuid)
             .unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 0);
         assert_eq!(eval.dag.data.execution_groups.len(), 0);
@@ -229,7 +229,7 @@ mod tests {
         let file = File::new("input");
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let out = validator
-            .validate_and_bind(&mut eval, 0, 0, file.uuid)
+            .validate_and_bind(&mut eval, 0, None, 0, file.uuid)
             .unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.execution_groups.len(), 1);
@@ -240,6 +240,31 @@ mod tests {
             out.unwrap()
         );
         assert_eq!(group.executions[0].env["TM_SUBTASK"], "0");
+        assert_eq!(group.executions[0].env["TM_TESTCASE"], "0");
+    }
+
+    #[test]
+    fn test_input_validator_custom_with_name() {
+        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let path = tmpdir.path().join("val.py");
+        std::fs::write(&path, "x").unwrap();
+        let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
+        let validator = InputValidator::Custom(Arc::new(source), vec![]);
+        let file = File::new("input");
+        let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
+        let out = validator
+            .validate_and_bind(&mut eval, 0, Some("name"), 0, file.uuid)
+            .unwrap();
+        assert_eq!(eval.dag.data.provided_files.len(), 1);
+        assert_eq!(eval.dag.data.execution_groups.len(), 1);
+        let group = eval.dag.data.execution_groups.values().next().unwrap();
+        assert_eq!(group.tag().as_ref().unwrap(), &Tag::Generation.into());
+        assert_eq!(
+            group.executions[0].stdout.as_ref().unwrap().uuid,
+            out.unwrap()
+        );
+        assert_eq!(group.executions[0].env["TM_SUBTASK"], "0");
+        assert_eq!(group.executions[0].env["TM_SUBTASK_NAME"], "name");
         assert_eq!(group.executions[0].env["TM_TESTCASE"], "0");
     }
 
