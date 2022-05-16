@@ -178,13 +178,13 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::type_complexity)]
 
-use structopt::StructOpt;
+use clap::Parser;
 
 use task_maker_rust::main_local;
 use task_maker_rust::opt;
 
 fn main() {
-    let mut opt = opt::Opt::from_args();
+    let mut opt = opt::Opt::parse();
     opt.enable_log();
     main_local(opt);
 }

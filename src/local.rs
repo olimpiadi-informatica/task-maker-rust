@@ -25,9 +25,9 @@ pub enum Evaluation {
 /// behaviour can be changed.
 ///
 /// ```no_run
-/// # use structopt::StructOpt;
+/// # use clap::Parser;
 /// # use task_maker_rust::local::run_evaluation;
-/// # let opt = task_maker_rust::opt::Opt::from_args();
+/// # let opt = task_maker_rust::opt::Opt::parse();
 /// run_evaluation(opt, move |ui, mex| ui.on_message(mex));
 /// ```
 pub fn run_evaluation<F>(opt: Opt, on_message: F) -> Result<Evaluation, Error>

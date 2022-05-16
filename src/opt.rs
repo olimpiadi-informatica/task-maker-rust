@@ -1,158 +1,157 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Error};
+use clap::Parser;
 use itertools::Itertools;
-use structopt::StructOpt;
 
 use task_maker_dag::DagPriority;
 use task_maker_format::terry::Seed;
 use task_maker_format::{find_task, get_sanity_check_names, TaskFormat};
 use task_maker_format::{EvaluationConfig, VALID_TAGS};
 
-#[derive(StructOpt, Debug)]
-#[structopt(
+#[derive(Parser, Debug)]
+#[clap(
     name = "task-maker",
     version = include_str!(concat!(env!("OUT_DIR"), "/version.txt")),
-    setting = structopt::clap::AppSettings::ColoredHelp,
 )]
 pub struct Opt {
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub find_task: FindTaskOpt,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub ui: UIOpt,
 
     /// Do not run in parallel time critical executions on the same machine
-    #[structopt(long = "exclusive")]
+    #[clap(long = "exclusive")]
     pub exclusive: bool,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub filter: FilterOpt,
 
     /// Force this seed instead of a random one in Terry.
-    #[structopt(long)]
+    #[clap(long)]
     pub seed: Option<Seed>,
 
     /// Clear the task directory and exit
     ///
     /// Deprecated: Use `task-maker-tools clear`
-    #[structopt(long = "clean")]
+    #[clap(long = "clean")]
     pub clean: bool,
 
     /// Include the solutions in the booklet
-    #[structopt(long = "booklet-solutions")]
+    #[clap(long = "booklet-solutions")]
     pub booklet_solutions: bool,
 
     /// Do not build the statement files and the booklets
-    #[structopt(long = "no-statement")]
+    #[clap(long = "no-statement")]
     pub no_statement: bool,
 
     /// List of sanity checks to skip.
-    #[structopt(short = "-W", long_help = skip_sanity_checks_long_help())]
+    #[clap(short = 'W', long_help = skip_sanity_checks_long_help())]
     pub skip_sanity_checks: Vec<String>,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub logger: LoggerOpt,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub storage: StorageOpt,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub execution: ExecutionOpt,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct LoggerOpt {
     /// Verbose mode (-v, -vv, -vvv, etc.). Note that it does not play well with curses ui.
-    #[structopt(short, long, parse(from_occurrences))]
+    #[clap(short, long, parse(from_occurrences))]
     pub verbose: u8,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct FindTaskOpt {
     /// Directory of the task
-    #[structopt(short = "t", long = "task-dir", default_value = "")]
+    #[clap(short = 't', long = "task-dir", default_value = "")]
     pub task_dir: PathBuf,
 
     /// Look at most for this number of parents for searching the task
-    #[structopt(long = "max-depth", default_value = "3")]
+    #[clap(long = "max-depth", default_value = "3")]
     pub max_depth: u32,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct UIOpt {
     /// Which UI to use, available UIs are: print, raw, curses, json.
     ///
     /// Note that the JSON api is not stable yet.
-    #[structopt(long = "ui", default_value = "curses")]
+    #[clap(long = "ui", default_value = "curses")]
     pub ui: task_maker_format::ui::UIType,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct ExecutionOpt {
     /// Keep all the sandbox directories
-    #[structopt(long = "keep-sandboxes")]
+    #[clap(long = "keep-sandboxes")]
     pub keep_sandboxes: bool,
 
     /// Do not write any file inside the task directory
-    #[structopt(long = "dry-run")]
+    #[clap(long = "dry-run")]
     pub dry_run: bool,
 
     /// Disable the cache for this comma separated list of tags
-    #[structopt(long = "no-cache", long_help = no_cache_long_help())]
+    #[clap(long = "no-cache", long_help = no_cache_long_help())]
     #[allow(clippy::option_option)]
     pub no_cache: Option<Option<String>>,
 
     /// Give to the solution some extra time before being killed
-    #[structopt(long = "extra-time")]
+    #[clap(long = "extra-time")]
     pub extra_time: Option<f64>,
 
     /// Copy the executables to the bin/ folder
-    #[structopt(long = "copy-exe")]
+    #[clap(long = "copy-exe")]
     pub copy_exe: bool,
 
     /// Copy the logs of some executions to the bin/logs/ folder
-    #[structopt(long = "copy-logs")]
+    #[clap(long = "copy-logs")]
     pub copy_logs: bool,
 
     /// Store the DAG in DOT format inside of bin/DAG.dot
-    #[structopt(long = "copy-dag")]
+    #[clap(long = "copy-dag")]
     pub copy_dag: bool,
 
     /// The number of CPU cores to use.
-    #[structopt(long = "num-cores")]
+    #[clap(long = "num-cores")]
     pub num_cores: Option<usize>,
 
     /// Run the evaluation on a remote server instead of locally
-    #[structopt(long = "evaluate-on")]
+    #[clap(long = "evaluate-on")]
     pub evaluate_on: Option<String>,
 
     /// The name to use for the client in remote executions
-    #[structopt(long)]
+    #[clap(long)]
     pub name: Option<String>,
 
     /// Priority of the evaluations spawned by this invocation of task-maker; no effect if running
     /// locally.
-    #[structopt(long, default_value = "0")]
+    #[clap(long, default_value = "0")]
     pub priority: DagPriority,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct StorageOpt {
     /// Where to store the storage files, including the cache
-    #[structopt(long = "store-dir")]
+    #[clap(long = "store-dir")]
     pub store_dir: Option<PathBuf>,
 
     /// Maximum size of the storage directory, in MiB
-    #[structopt(long = "max-cache", default_value = "3072")]
+    #[clap(long = "max-cache", default_value = "3072")]
     pub max_cache: u64,
 
     /// When the storage is flushed, this is the new maximum size, in MiB.
-    #[structopt(long = "min-cache", default_value = "2048")]
+    #[clap(long = "min-cache", default_value = "2048")]
     pub min_cache: u64,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct FilterOpt {
     /// Execute only the solutions whose names start with the filter
     ///
@@ -163,7 +162,7 @@ pub struct FilterOpt {
     /// Evaluate only the solution with the specified path
     ///
     /// The solution can reside anywhere in the filesystem.
-    #[structopt(long, short)]
+    #[clap(long, short)]
     pub solution: Vec<PathBuf>,
 }
 

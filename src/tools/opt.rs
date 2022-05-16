@@ -1,24 +1,21 @@
 use std::path::PathBuf;
 
-use structopt::StructOpt;
+use clap::Parser;
 
 use crate::{ExecutionOpt, FilterOpt, FindTaskOpt, LoggerOpt, StorageOpt, UIOpt};
 
-#[derive(StructOpt, Debug)]
-#[structopt(
-    name = "task-maker-tools",
-    setting = structopt::clap::AppSettings::ColoredHelp,
-)]
+#[derive(Parser, Debug)]
+#[clap(name = "task-maker-tools")]
 pub struct Opt {
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub logger: LoggerOpt,
 
     /// Which tool to use
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     pub tool: Tool,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub enum Tool {
     /// Clear a task directory
     Clear(ClearOpt),
@@ -47,46 +44,46 @@ pub enum Tool {
     /// Run the sandbox instead of the normal task-maker.
     ///
     /// This option is left as undocumented as it's not part of the public API.
-    #[structopt(setting(structopt::clap::AppSettings::Hidden))]
+    #[clap(hide = true)]
     InternalSandbox,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub struct ClearOpt {
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub find_task: FindTaskOpt,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 pub struct GenAutocompletionOpt {
     /// Where to write the autocompletion files
-    #[structopt(short = "t", long = "target")]
+    #[clap(short = 't', long = "target")]
     pub target: Option<PathBuf>,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct ServerOpt {
     /// Address to bind the server on for listening for the clients
-    #[structopt(default_value = "0.0.0.0:27182")]
+    #[clap(default_value = "0.0.0.0:27182")]
     pub client_addr: String,
 
     /// Address to bind the server on for listening for the workers
-    #[structopt(default_value = "0.0.0.0:27183")]
+    #[clap(default_value = "0.0.0.0:27183")]
     pub worker_addr: String,
 
     /// Password for the connection of the clients
-    #[structopt(long = "client-password")]
+    #[clap(long = "client-password")]
     pub client_password: Option<String>,
 
     /// Password for the connection of the workers
-    #[structopt(long = "worker-password")]
+    #[clap(long = "worker-password")]
     pub worker_password: Option<String>,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub storage: StorageOpt,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct WorkerOpt {
     /// Address to use to connect to a remote server
     pub server_addr: String,
@@ -95,115 +92,115 @@ pub struct WorkerOpt {
     pub worker_id: Option<u32>,
 
     /// The name to use for the worker in remote executions
-    #[structopt(long)]
+    #[clap(long)]
     pub name: Option<String>,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub storage: StorageOpt,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct ResetOpt {
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub storage: StorageOpt,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct SandboxOpt {
     /// Working directory of the sandbox.
     ///
     /// Will be mounted in /box inside the sandbox. Defaults to current working directory.
-    #[structopt(long, short)]
+    #[clap(long, short)]
     pub workdir: Option<PathBuf>,
 
     /// Memory limit for the sandbox, in KiB.
-    #[structopt(long, short)]
+    #[clap(long, short)]
     pub memory_limit: Option<u64>,
 
     /// Stack limit for the sandbox, in KiB.
-    #[structopt(long, short)]
+    #[clap(long, short)]
     pub stack_limit: Option<u64>,
 
     /// Prevent forking.
-    #[structopt(long)]
+    #[clap(long)]
     pub single_process: bool,
 
     /// List of additional directory mounted read-only inside the sandbox.
-    #[structopt(long, short)]
+    #[clap(long, short)]
     pub readable_dirs: Vec<PathBuf>,
 
     /// Mount /tmp and /dev/null inside the sandbox
-    #[structopt(long)]
+    #[clap(long)]
     pub mount_tmpfs: bool,
 
     /// User id.
-    #[structopt(long, default_value = "1000")]
+    #[clap(long, default_value = "1000")]
     pub uid: usize,
 
     /// User id.
-    #[structopt(long, default_value = "1000")]
+    #[clap(long, default_value = "1000")]
     pub gid: usize,
 
     /// Command to execute inside the sandbox. If not specified, bash is executed.
     pub command: Vec<String>,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct TaskInfoOpt {
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub find_task: FindTaskOpt,
     /// Produce JSON output.
-    #[structopt(long, short)]
+    #[clap(long, short)]
     pub json: bool,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct BookletOpt {
     /// Include the solutions in the booklet
-    #[structopt(long = "booklet-solutions")]
+    #[clap(long = "booklet-solutions")]
     pub booklet_solutions: bool,
 
     /// Directory of the context.
     ///
     /// When specified, --task-dir should not be used.
-    #[structopt(short = "c", long = "contest-dir")]
+    #[clap(short = 'c', long = "contest-dir")]
     pub contest_dir: Option<PathBuf>,
 
     /// Directory of the task.
     ///
     /// When specified, --contest-dir should not be used.
-    #[structopt(short = "t", long = "task-dir")]
+    #[clap(short = 't', long = "task-dir")]
     pub task_dir: Vec<PathBuf>,
 
     /// Look at most for this number of parents for searching the task
-    #[structopt(long = "max-depth", default_value = "3")]
+    #[clap(long = "max-depth", default_value = "3")]
     pub max_depth: u32,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub ui: UIOpt,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub execution: ExecutionOpt,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub storage: StorageOpt,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct FuzzCheckerOpt {
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub find_task: FindTaskOpt,
 
     /// Where to store fuzzing data.
     ///
     /// The path is relative to the task directory.
-    #[structopt(long, default_value = "fuzz")]
+    #[clap(long, default_value = "fuzz")]
     pub fuzz_dir: PathBuf,
 
     /// Additional sanitizers to use.
     ///
     /// Comma separated list of sanitizers to use.
-    #[structopt(long, default_value = "address,undefined")]
+    #[clap(long, default_value = "address,undefined")]
     pub sanitizers: String,
 
     /// List of additional arguments to pass to the compiler.
@@ -214,57 +211,57 @@ pub struct FuzzCheckerOpt {
     /// Number of fuzzing process to spawn.
     ///
     /// Defaults to the number of cores.
-    #[structopt(long, short)]
+    #[clap(long, short)]
     pub jobs: Option<usize>,
 
     /// Maximum number of seconds the checker can run.
     ///
     /// If the checker takes longer than this, the fuzzer fails and the corresponding file is
     /// emitted.
-    #[structopt(long, default_value = "2")]
+    #[clap(long, default_value = "2")]
     pub checker_timeout: usize,
 
     /// Maximum fuzzing time in seconds.
     ///
     /// Halt after fuzzing for this amount of time. Zero should not be used.
-    #[structopt(long, default_value = "60")]
+    #[clap(long, default_value = "60")]
     pub max_time: usize,
 
     /// Don't print the fuzzer output to the console, but redirect it to a file.
-    #[structopt(long)]
+    #[clap(long)]
     pub quiet: bool,
 
     /// Don't run the evaluation for building the output files.
-    #[structopt(long)]
+    #[clap(long)]
     pub no_build: bool,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub execution: ExecutionOpt,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub storage: StorageOpt,
 }
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(Parser, Debug, Clone)]
 pub struct AddSolutionChecksOpt {
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub find_task: FindTaskOpt,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub ui: UIOpt,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub storage: StorageOpt,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub filter: FilterOpt,
 
-    #[structopt(flatten)]
+    #[clap(flatten)]
     pub execution: ExecutionOpt,
 
     /// Write the @check directly to the solution files.
     ///
     /// Warning: while this is generally safe, make sure to have a way of reverting the changes.
-    #[structopt(long, short)]
+    #[clap(long, short)]
     pub in_place: bool,
 }

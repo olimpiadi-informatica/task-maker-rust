@@ -1,4 +1,4 @@
-use structopt::StructOpt;
+use clap::Parser;
 
 use task_maker_rust::error::NiceError;
 use task_maker_rust::tools::add_solution_checks::main_add_solution_checks;
@@ -15,7 +15,7 @@ use task_maker_rust::tools::typescriptify::main_typescriptify;
 use task_maker_rust::tools::worker::main_worker;
 
 fn main() {
-    let base_opt = Opt::from_args();
+    let base_opt = Opt::parse();
     base_opt.logger.enable_log();
 
     match base_opt.tool {

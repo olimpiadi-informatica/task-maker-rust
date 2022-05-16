@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::Error;
+use clap::Parser;
 use itertools::Itertools;
-use structopt::StructOpt;
 use tempdir::TempDir;
 
 use task_maker_dag::ExecutionStatus;
@@ -134,7 +134,7 @@ impl TestInterface {
             "TASK_MAKER_TOOLS_PATH",
             env!("CARGO_BIN_EXE_task-maker-tools"),
         );
-        let opt = Opt::from_iter(&args);
+        let opt = Opt::parse_from(&args);
 
         let task = IOITask::new(
             &task_dir,
@@ -183,7 +183,7 @@ impl TestInterface {
             .spawn(|| {
                 let tmpdir = tempdir::TempDir::new("tm-test-remote-server").unwrap();
                 let store = tmpdir.path().to_string_lossy().to_string();
-                let opt = ServerOpt::from_iter(&[
+                let opt = ServerOpt::parse_from(&[
                     "server",
                     "--store-dir",
                     &store,
@@ -200,7 +200,7 @@ impl TestInterface {
                 TestInterface::wait_port(27183);
                 let tmpdir = tempdir::TempDir::new("tm-test-remote-worker").unwrap();
                 let store = tmpdir.path().to_string_lossy().to_string();
-                let opt = WorkerOpt::from_iter(&[
+                let opt = WorkerOpt::parse_from(&[
                     "worker",
                     "--store-dir",
                     &store,
