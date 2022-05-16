@@ -1,7 +1,7 @@
 # Maintainer: Edoardo Morassutto <edoardo.morassutto@gmail.com>
 
 pkgname=task-maker-rust-git
-pkgver=r520.a1dd6a2b
+pkgver=r698.e162f1be
 pkgrel=1
 pkgdesc="Tool for building tasks for informatics competitions, with support for cache, distributed computations and more"
 arch=('i686' 'x86_64' 'armv7h' 'aarch64')
