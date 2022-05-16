@@ -5,6 +5,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Error};
+use clap::Parser;
 use itertools::Itertools;
 
 use task_maker_format::ioi::UIState;
@@ -13,8 +14,31 @@ use task_maker_format::{cwrite, cwriteln, EvaluationConfig, SolutionCheckResult,
 use task_maker_lang::LanguageManager;
 
 use crate::context::RuntimeContext;
-use crate::tools::opt::AddSolutionChecksOpt;
-use crate::LoggerOpt;
+use crate::{ExecutionOpt, FilterOpt, FindTaskOpt, LoggerOpt, StorageOpt, UIOpt};
+
+#[derive(Parser, Debug, Clone)]
+pub struct AddSolutionChecksOpt {
+    #[clap(flatten, next_help_heading = Some("TASK SEARCH"))]
+    pub find_task: FindTaskOpt,
+
+    #[clap(flatten, next_help_heading = Some("UI"))]
+    pub ui: UIOpt,
+
+    #[clap(flatten, next_help_heading = Some("STORAGE"))]
+    pub storage: StorageOpt,
+
+    #[clap(flatten, next_help_heading = Some("FILTER"))]
+    pub filter: FilterOpt,
+
+    #[clap(flatten, next_help_heading = Some("EXECUTION"))]
+    pub execution: ExecutionOpt,
+
+    /// Write the @check directly to the solution files.
+    ///
+    /// Warning: while this is generally safe, make sure to have a way of reverting the changes.
+    #[clap(long, short)]
+    pub in_place: bool,
+}
 
 pub fn main_add_solution_checks(
     mut opt: AddSolutionChecksOpt,

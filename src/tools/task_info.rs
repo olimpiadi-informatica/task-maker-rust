@@ -1,6 +1,16 @@
 use anyhow::{Context, Error};
+use clap::Parser;
 
-use crate::tools::opt::TaskInfoOpt;
+use crate::FindTaskOpt;
+
+#[derive(Parser, Debug, Clone)]
+pub struct TaskInfoOpt {
+    #[clap(flatten, next_help_heading = Some("TASK SEARCH"))]
+    pub find_task: FindTaskOpt,
+    /// Produce JSON output.
+    #[clap(long, short)]
+    pub json: bool,
+}
 
 pub fn main_task_info(opt: TaskInfoOpt) -> Result<(), Error> {
     let task = opt.find_task.find_task(&Default::default())?;

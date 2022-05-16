@@ -15,10 +15,10 @@ use task_maker_format::{EvaluationConfig, VALID_TAGS};
     version = include_str!(concat!(env!("OUT_DIR"), "/version.txt")),
 )]
 pub struct Opt {
-    #[clap(flatten, next_help_heading = Some("Filter"))]
+    #[clap(flatten, next_help_heading = Some("FILTER"))]
     pub filter: FilterOpt,
 
-    #[clap(flatten, next_help_heading = Some("Task search"))]
+    #[clap(flatten, next_help_heading = Some("TASK SEARCH"))]
     pub find_task: FindTaskOpt,
 
     #[clap(flatten, next_help_heading = Some("UI"))]
@@ -28,7 +28,7 @@ pub struct Opt {
     #[clap(long = "exclusive")]
     pub exclusive: bool,
 
-    #[clap(flatten, next_help_heading = Some("Terry"))]
+    #[clap(flatten, next_help_heading = Some("TERRY"))]
     pub terry: TerryOpt,
 
     /// Clear the task directory and exit
@@ -37,20 +37,20 @@ pub struct Opt {
     #[clap(long = "clean")]
     pub clean: bool,
 
-    #[clap(flatten, next_help_heading = Some("Booklet"))]
+    #[clap(flatten, next_help_heading = Some("BOOKLET"))]
     pub booklet: BookletOpt,
 
     /// List of sanity checks to skip.
     #[clap(short = 'W', long_help = skip_sanity_checks_long_help())]
     pub skip_sanity_checks: Vec<String>,
 
-    #[clap(flatten, next_help_heading = Some("Storage"))]
+    #[clap(flatten, next_help_heading = Some("STORAGE"))]
     pub storage: StorageOpt,
 
-    #[clap(flatten, next_help_heading = Some("Execution"))]
+    #[clap(flatten, next_help_heading = Some("EXECUTION"))]
     pub execution: ExecutionOpt,
 
-    #[clap(flatten, next_help_heading = Some("Logging"))]
+    #[clap(flatten, next_help_heading = Some("LOGGING"))]
     pub logger: LoggerOpt,
 }
 

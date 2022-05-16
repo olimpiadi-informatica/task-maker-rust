@@ -1,14 +1,20 @@
 //! Tool that generates the autocompletion scripts inside the target/autocompletion directory.
 
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use crate::Opt;
 use anyhow::{Context, Error};
-use clap::CommandFactory;
+use clap::{CommandFactory, Parser};
 use clap_complete::{Generator, Shell};
 
-use crate::tools::opt::GenAutocompletionOpt;
+use crate::Opt;
+
+#[derive(Parser, Debug)]
+pub struct GenAutocompletionOpt {
+    /// Where to write the autocompletion files
+    #[clap(short = 't', long = "target")]
+    pub target: Option<PathBuf>,
+}
 
 pub fn main_get_autocompletion(opt: GenAutocompletionOpt) -> Result<(), Error> {
     let target = if let Some(target) = opt.target {

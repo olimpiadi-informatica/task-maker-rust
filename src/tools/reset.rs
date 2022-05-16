@@ -2,9 +2,16 @@ use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 
 use anyhow::{bail, Context, Error};
+use clap::Parser;
 use walkdir::WalkDir;
 
-use crate::tools::opt::ResetOpt;
+use crate::StorageOpt;
+
+#[derive(Parser, Debug, Clone)]
+pub struct ResetOpt {
+    #[clap(flatten, next_help_heading = Some("STORAGE"))]
+    pub storage: StorageOpt,
+}
 
 /// Handler of the `reset` tool. This tool will prompt the user with a warning message and read his
 /// confirmation before removing the storage directory.

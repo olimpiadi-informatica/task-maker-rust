@@ -1,12 +1,45 @@
+use std::path::{Path, PathBuf};
+
 use anyhow::{bail, Context, Error};
+use clap::Parser;
 
 use task_maker_format::ioi::{make_context_booklets, Booklet, BookletConfig, IOITask};
 use task_maker_format::{find_task, EvaluationConfig};
 
 use crate::context::RuntimeContext;
-use crate::tools::opt::BookletOpt;
-use crate::{LoggerOpt, ToolsSandboxRunner};
-use std::path::{Path, PathBuf};
+use crate::{ExecutionOpt, LoggerOpt, StorageOpt, ToolsSandboxRunner, UIOpt};
+
+#[derive(Parser, Debug, Clone)]
+pub struct BookletOpt {
+    /// Include the solutions in the booklet
+    #[clap(long = "booklet-solutions")]
+    pub booklet_solutions: bool,
+
+    /// Directory of the context.
+    ///
+    /// When specified, --task-dir should not be used.
+    #[clap(short = 'c', long = "contest-dir")]
+    pub contest_dir: Option<PathBuf>,
+
+    /// Directory of the task.
+    ///
+    /// When specified, --contest-dir should not be used.
+    #[clap(short = 't', long = "task-dir")]
+    pub task_dir: Vec<PathBuf>,
+
+    /// Look at most for this number of parents for searching the task
+    #[clap(long = "max-depth", default_value = "3")]
+    pub max_depth: u32,
+
+    #[clap(flatten, next_help_heading = Some("UI"))]
+    pub ui: UIOpt,
+
+    #[clap(flatten, next_help_heading = Some("EXECUTION"))]
+    pub execution: ExecutionOpt,
+
+    #[clap(flatten, next_help_heading = Some("STORAGE"))]
+    pub storage: StorageOpt,
+}
 
 pub fn main_booklet(mut opt: BookletOpt, logger_opt: LoggerOpt) -> Result<(), Error> {
     opt.ui.disable_if_needed(&logger_opt);

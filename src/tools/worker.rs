@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Error};
+use clap::Parser;
 
 use task_maker_exec::executors::{RemoteEntityMessage, RemoteEntityMessageResponse};
 use task_maker_exec::Worker;
@@ -8,7 +9,23 @@ use task_maker_store::FileStore;
 
 use crate::remote::connect_to_remote_server;
 use crate::sandbox::ToolsSandboxRunner;
-use crate::tools::opt::WorkerOpt;
+use crate::StorageOpt;
+
+#[derive(Parser, Debug, Clone)]
+pub struct WorkerOpt {
+    /// Address to use to connect to a remote server
+    pub server_addr: String,
+
+    /// ID of the worker (to differentiate between multiple workers on the same machine).
+    pub worker_id: Option<u32>,
+
+    /// The name to use for the worker in remote executions
+    #[clap(long)]
+    pub name: Option<String>,
+
+    #[clap(flatten, next_help_heading = Some("STORAGE"))]
+    pub storage: StorageOpt,
+}
 
 /// Version of task-maker
 const VERSION: &str = env!("CARGO_PKG_VERSION");

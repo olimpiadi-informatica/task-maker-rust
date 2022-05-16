@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use anyhow::{anyhow, bail, Context, Error};
+use clap::Parser;
 use regex::Regex;
 use serde::Deserialize;
 
@@ -12,7 +13,63 @@ use task_maker_format::ui::{StdoutPrinter, UIType, RED};
 use task_maker_format::{cwrite, EvaluationConfig, TaskFormat};
 
 use crate::context::RuntimeContext;
-use crate::tools::opt::FuzzCheckerOpt;
+use crate::{ExecutionOpt, FindTaskOpt, StorageOpt};
+
+#[derive(Parser, Debug, Clone)]
+pub struct FuzzCheckerOpt {
+    #[clap(flatten, next_help_heading = Some("TASK SEARCH"))]
+    pub find_task: FindTaskOpt,
+
+    /// Where to store fuzzing data.
+    ///
+    /// The path is relative to the task directory.
+    #[clap(long, default_value = "fuzz")]
+    pub fuzz_dir: PathBuf,
+
+    /// Additional sanitizers to use.
+    ///
+    /// Comma separated list of sanitizers to use.
+    #[clap(long, default_value = "address,undefined")]
+    pub sanitizers: String,
+
+    /// List of additional arguments to pass to the compiler.
+    ///
+    /// If nothing is listed here, -O2 and -g are passed.
+    pub extra_args: Vec<String>,
+
+    /// Number of fuzzing process to spawn.
+    ///
+    /// Defaults to the number of cores.
+    #[clap(long, short)]
+    pub jobs: Option<usize>,
+
+    /// Maximum number of seconds the checker can run.
+    ///
+    /// If the checker takes longer than this, the fuzzer fails and the corresponding file is
+    /// emitted.
+    #[clap(long, default_value = "2")]
+    pub checker_timeout: usize,
+
+    /// Maximum fuzzing time in seconds.
+    ///
+    /// Halt after fuzzing for this amount of time. Zero should not be used.
+    #[clap(long, default_value = "60")]
+    pub max_time: usize,
+
+    /// Don't print the fuzzer output to the console, but redirect it to a file.
+    #[clap(long)]
+    pub quiet: bool,
+
+    /// Don't run the evaluation for building the output files.
+    #[clap(long)]
+    pub no_build: bool,
+
+    #[clap(flatten, next_help_heading = Some("EXECUTION"))]
+    pub execution: ExecutionOpt,
+
+    #[clap(flatten, next_help_heading = Some("STORAGE"))]
+    pub storage: StorageOpt,
+}
 
 const CHECKER_HEADER: &[u8] = include_bytes!("./fuzz_checker/checker_header.h");
 const FUZZER: &[u8] = include_bytes!("./fuzz_checker/fuzzer.cpp");

@@ -1,12 +1,35 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Error};
+use clap::Parser;
 
 use task_maker_cache::Cache;
 use task_maker_exec::executors::RemoteExecutor;
 use task_maker_store::FileStore;
 
-use crate::tools::opt::ServerOpt;
+use crate::StorageOpt;
+
+#[derive(Parser, Debug, Clone)]
+pub struct ServerOpt {
+    /// Address to bind the server on for listening for the clients
+    #[clap(default_value = "0.0.0.0:27182")]
+    pub client_addr: String,
+
+    /// Address to bind the server on for listening for the workers
+    #[clap(default_value = "0.0.0.0:27183")]
+    pub worker_addr: String,
+
+    /// Password for the connection of the clients
+    #[clap(long = "client-password")]
+    pub client_password: Option<String>,
+
+    /// Password for the connection of the workers
+    #[clap(long = "worker-password")]
+    pub worker_password: Option<String>,
+
+    #[clap(flatten, next_help_heading = Some("STORAGE"))]
+    pub storage: StorageOpt,
+}
 
 /// Entry point for the server.
 pub fn main_server(opt: ServerOpt) -> Result<(), Error> {

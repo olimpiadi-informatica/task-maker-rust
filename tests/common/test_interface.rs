@@ -15,9 +15,8 @@ use task_maker_format::ioi::{
 use task_maker_format::ui::CompilationStatus;
 use task_maker_format::ui::UIStateT;
 use task_maker_format::EvaluationConfig;
-use task_maker_rust::tools::opt::{ServerOpt, WorkerOpt};
-use task_maker_rust::tools::server::main_server;
-use task_maker_rust::tools::worker::main_worker;
+use task_maker_rust::tools::server::{main_server, ServerOpt};
+use task_maker_rust::tools::worker::{main_worker, WorkerOpt};
 use task_maker_rust::{run_evaluation, Evaluation, Opt};
 
 use approx::abs_diff_eq;
