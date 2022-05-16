@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Error};
-use clap::Parser;
+use clap::{Parser, ValueHint};
 use itertools::Itertools;
 
 use task_maker_dag::DagPriority;
@@ -64,7 +64,7 @@ pub struct LoggerOpt {
 #[derive(Parser, Debug, Clone)]
 pub struct FindTaskOpt {
     /// Directory of the task
-    #[clap(short = 't', long = "task-dir", default_value = "")]
+    #[clap(short = 't', long = "task-dir", default_value = "", value_hint = ValueHint::DirPath)]
     pub task_dir: PathBuf,
 
     /// Look at most for this number of parents for searching the task
@@ -117,7 +117,7 @@ pub struct ExecutionOpt {
     pub num_cores: Option<usize>,
 
     /// Run the evaluation on a remote server instead of locally
-    #[clap(long = "evaluate-on")]
+    #[clap(long = "evaluate-on", value_hint = ValueHint::Url)]
     pub evaluate_on: Option<String>,
 
     /// The name to use for the client in remote executions
@@ -133,7 +133,7 @@ pub struct ExecutionOpt {
 #[derive(Parser, Debug, Clone)]
 pub struct StorageOpt {
     /// Where to store the storage files, including the cache
-    #[clap(long = "store-dir")]
+    #[clap(long = "store-dir", value_hint = ValueHint::DirPath)]
     pub store_dir: Option<PathBuf>,
 
     /// Maximum size of the storage directory, in MiB
@@ -151,12 +151,13 @@ pub struct FilterOpt {
     ///
     /// Note that just the file name is checked (e.g. sol.cpp is the same as sol/sol.cpp). Without
     /// specifying anything all the solutions are executed.
+    #[clap(value_hint = ValueHint::FilePath)]
     pub filter: Vec<String>,
 
     /// Evaluate only the solution with the specified path
     ///
     /// The solution can reside anywhere in the filesystem.
-    #[clap(long, short)]
+    #[clap(long, short, value_hint = ValueHint::FilePath)]
     pub solution: Vec<PathBuf>,
 }
 

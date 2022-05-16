@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Error};
-use clap::Parser;
+use clap::{Parser, ValueHint};
 
 use task_maker_exec::executors::{RemoteEntityMessage, RemoteEntityMessageResponse};
 use task_maker_exec::Worker;
@@ -14,6 +14,7 @@ use crate::StorageOpt;
 #[derive(Parser, Debug, Clone)]
 pub struct WorkerOpt {
     /// Address to use to connect to a remote server
+    #[clap(value_hint = ValueHint::Url)]
     pub server_addr: String,
 
     /// ID of the worker (to differentiate between multiple workers on the same machine).

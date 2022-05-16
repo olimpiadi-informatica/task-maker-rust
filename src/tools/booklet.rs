@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Error};
-use clap::Parser;
+use clap::{Parser, ValueHint};
 
 use task_maker_format::ioi::{make_context_booklets, Booklet, BookletConfig, IOITask};
 use task_maker_format::{find_task, EvaluationConfig};
@@ -18,13 +18,13 @@ pub struct BookletOpt {
     /// Directory of the context.
     ///
     /// When specified, --task-dir should not be used.
-    #[clap(short = 'c', long = "contest-dir")]
+    #[clap(short = 'c', long = "contest-dir", value_hint = ValueHint::DirPath)]
     pub contest_dir: Option<PathBuf>,
 
     /// Directory of the task.
     ///
     /// When specified, --contest-dir should not be used.
-    #[clap(short = 't', long = "task-dir")]
+    #[clap(short = 't', long = "task-dir", value_hint = ValueHint::DirPath)]
     pub task_dir: Vec<PathBuf>,
 
     /// Look at most for this number of parents for searching the task

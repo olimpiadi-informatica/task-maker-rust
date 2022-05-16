@@ -4,13 +4,13 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Error};
-use clap::{Command, CommandFactory, Parser};
+use clap::{Command, CommandFactory, Parser, ValueHint};
 use clap_complete::{Generator, Shell};
 
 #[derive(Parser, Debug)]
 pub struct GenAutocompletionOpt {
     /// Where to write the autocompletion files
-    #[clap(short = 't', long = "target")]
+    #[clap(short = 't', long = "target", value_hint = ValueHint::DirPath)]
     pub target: Option<PathBuf>,
 }
 

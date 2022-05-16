@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use anyhow::{anyhow, bail, Context, Error};
-use clap::Parser;
+use clap::{Parser, ValueHint};
 use regex::Regex;
 use serde::Deserialize;
 
@@ -23,7 +23,7 @@ pub struct FuzzCheckerOpt {
     /// Where to store fuzzing data.
     ///
     /// The path is relative to the task directory.
-    #[clap(long, default_value = "fuzz")]
+    #[clap(long, default_value = "fuzz", value_hint = ValueHint::DirPath)]
     pub fuzz_dir: PathBuf,
 
     /// Additional sanitizers to use.
