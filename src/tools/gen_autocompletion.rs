@@ -4,10 +4,8 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Error};
-use clap::{CommandFactory, Parser};
+use clap::{Command, CommandFactory, Parser};
 use clap_complete::{Generator, Shell};
-
-use crate::Opt;
 
 #[derive(Parser, Debug)]
 pub struct GenAutocompletionOpt {
@@ -31,17 +29,27 @@ pub fn main_get_autocompletion(opt: GenAutocompletionOpt) -> Result<(), Error> {
         Shell::Elvish,
         Shell::PowerShell,
     ] {
-        let file_name = shell.file_name("task-maker-rust");
-        let target = target.join(file_name);
-        let mut file = File::create(&target).with_context(|| {
-            format!(
-                "Failed to create completion for {} at {}",
-                shell,
-                target.display()
-            )
-        })?;
-        let mut opt = Opt::command();
-        clap_complete::generate(shell, &mut opt, "task-maker-rust", &mut file);
+        generate(shell, crate::Opt::command(), &target, "task-maker-rust")?;
+        generate(
+            shell,
+            crate::tools::opt::Opt::command(),
+            &target,
+            "task-maker-tools",
+        )?;
     }
+    Ok(())
+}
+
+fn generate(shell: Shell, mut command: Command, target: &Path, name: &str) -> Result<(), Error> {
+    let file_name = shell.file_name(name);
+    let target = target.join(file_name);
+    let mut file = File::create(&target).with_context(|| {
+        format!(
+            "Failed to create completion for {} at {}",
+            shell,
+            target.display()
+        )
+    })?;
+    clap_complete::generate(shell, &mut command, name, &mut file);
     Ok(())
 }

@@ -24,6 +24,9 @@ assets = [
     ["target/autocompletion/task-maker-rust.bash", "etc/bash_completion.d/task-maker-rust", "644"],
     ["target/autocompletion/_task-maker-rust", "usr/share/zsh/vendor-completions/_task-maker-rust", "644"],
     ["target/autocompletion/task-maker-rust.fish", "usr/share/fish/completions/task-maker-rust.fish", "644"],
+    ["target/autocompletion/task-maker-tools.bash", "etc/bash_completion.d/task-maker-tools", "644"],
+    ["target/autocompletion/_task-maker-tools", "usr/share/zsh/vendor-completions/_task-maker-tools", "644"],
+    ["target/autocompletion/task-maker-tools.fish", "usr/share/fish/completions/task-maker-tools.fish", "644"],
     # runtime required data
     ["data/**/*", "usr/share/task-maker-rust/", "755"],
     # vim syntax highlight
