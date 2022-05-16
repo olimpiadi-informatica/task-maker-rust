@@ -10,7 +10,7 @@ license=('MPL2')
 makedepends=('cargo')
 optdepends=('texlive-core: booklet compilations')
 source=("https://github.com/edomora97/task-maker-rust/archive/v${pkgver}.tar.gz")
-sha256sums=('599e96e380dde2c3dda486b6967a426a8edc9886e53cf178b2a9b7c48a7094d6')
+sha256sums=('@@SHA256@@')
 
 build() {
     cd "$srcdir/task-maker-rust-${pkgver}"
