@@ -15,22 +15,21 @@ use task_maker_format::{EvaluationConfig, VALID_TAGS};
     version = include_str!(concat!(env!("OUT_DIR"), "/version.txt")),
 )]
 pub struct Opt {
-    #[clap(flatten)]
+    #[clap(flatten, next_help_heading = Some("Filter"))]
+    pub filter: FilterOpt,
+
+    #[clap(flatten, next_help_heading = Some("Task search"))]
     pub find_task: FindTaskOpt,
 
-    #[clap(flatten)]
+    #[clap(flatten, next_help_heading = Some("UI"))]
     pub ui: UIOpt,
 
     /// Do not run in parallel time critical executions on the same machine
     #[clap(long = "exclusive")]
     pub exclusive: bool,
 
-    #[clap(flatten)]
-    pub filter: FilterOpt,
-
-    /// Force this seed instead of a random one in Terry.
-    #[clap(long)]
-    pub seed: Option<Seed>,
+    #[clap(flatten, next_help_heading = Some("Terry"))]
+    pub terry: TerryOpt,
 
     /// Clear the task directory and exit
     ///
@@ -38,26 +37,21 @@ pub struct Opt {
     #[clap(long = "clean")]
     pub clean: bool,
 
-    /// Include the solutions in the booklet
-    #[clap(long = "booklet-solutions")]
-    pub booklet_solutions: bool,
-
-    /// Do not build the statement files and the booklets
-    #[clap(long = "no-statement")]
-    pub no_statement: bool,
+    #[clap(flatten, next_help_heading = Some("Booklet"))]
+    pub booklet: BookletOpt,
 
     /// List of sanity checks to skip.
     #[clap(short = 'W', long_help = skip_sanity_checks_long_help())]
     pub skip_sanity_checks: Vec<String>,
 
-    #[clap(flatten)]
-    pub logger: LoggerOpt,
-
-    #[clap(flatten)]
+    #[clap(flatten, next_help_heading = Some("Storage"))]
     pub storage: StorageOpt,
 
-    #[clap(flatten)]
+    #[clap(flatten, next_help_heading = Some("Execution"))]
     pub execution: ExecutionOpt,
+
+    #[clap(flatten, next_help_heading = Some("Logging"))]
+    pub logger: LoggerOpt,
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -166,6 +160,24 @@ pub struct FilterOpt {
     pub solution: Vec<PathBuf>,
 }
 
+#[derive(Parser, Debug, Clone)]
+pub struct TerryOpt {
+    /// Force this seed instead of a random one.
+    #[clap(long)]
+    pub seed: Option<Seed>,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct BookletOpt {
+    /// Include the solutions in the booklet
+    #[clap(long = "booklet-solutions")]
+    pub booklet_solutions: bool,
+
+    /// Do not build the statement files and the booklets
+    #[clap(long = "no-statement")]
+    pub no_statement: bool,
+}
+
 /// Returns the long-help for the "skip sanity checks" option.
 fn skip_sanity_checks_long_help() -> &'static str {
     lazy_static! {
@@ -193,11 +205,11 @@ impl Opt {
     pub fn to_config(&self) -> EvaluationConfig {
         EvaluationConfig {
             solution_filter: self.filter.filter.clone(),
-            booklet_solutions: self.booklet_solutions,
-            no_statement: self.no_statement,
+            booklet_solutions: self.booklet.booklet_solutions,
+            no_statement: self.booklet.no_statement,
             solution_paths: self.filter.solution.clone(),
             disabled_sanity_checks: self.skip_sanity_checks.clone(),
-            seed: self.seed,
+            seed: self.terry.seed,
             dry_run: self.execution.dry_run,
         }
     }
