@@ -1,0 +1,56 @@
+inputln {
+    item n: i32;
+    item q: i32;
+}
+
+inputln {
+    for i upto n {
+        item a[i]: i32;
+    }
+}
+
+// @call init(a=a);
+
+for i upto q {
+    inputln {
+        item op: i32;
+
+        if op == 1 {
+            item l1: i32;
+            item r1: i32;
+            // @call get_sum(l=l1, r=r1) -> s;
+        }
+
+
+        if op == 2 {
+            item l2: i32;
+            item r2: i32;
+            item x2: i32;
+            // @call add(l=l2, r=r2) -> s;
+        }
+
+        if op == 3 {
+            item l3: i32;
+            item r3: i32;
+            item x3: i32;
+            // @call set_range(l=l3, r=r3, x=x3) -> s;
+        }
+
+        if op == 4 {
+            item l4: i32;
+            item r4: i32;
+            // @call min(l=l4, r=r4) -> s;
+        }
+
+        if op == 5 {
+            item l5: i32;
+            item r5: i32;
+            item x5: i32;
+            // @call lower_bound(l=l5, r=r5, x=x5) -> s;
+        }
+    }
+
+    outputln {
+        item s: i32;
+    }
+}

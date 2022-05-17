@@ -2,25 +2,52 @@
 #define IOLIB_HPP
 
 #include <vector>
+#include <functional>
+
+using std::vector;
 
 struct IoData {
     int n = {};
     int q = {};
-    std::vector<int> a = {};
+    vector<int> a = {};
+
+    struct Funs {
+    };
+
+    static Funs global_funs() {
+        Funs funs;
+        return funs;
+    }
 };
 
-const bool INPUT = 0;
-const bool OUTPUT = 1;
-
-template <typename Item, typename Endl, typename Check = void>
-void process_io(IoData& data, Item item, Endl endl, Check check) {
+template <
+   typename Item,
+   typename Endl,
+   typename Check,
+   typename InvokeVoid,
+   typename Invoke,
+   typename Resize
+>
+void process_io(
+   IoData& data,
+   IoData::Funs funs,
+   Item item,
+   Endl endl,
+   Check check,
+   InvokeVoid invoke,
+   Invoke invoke_void,
+   Resize resize
+) {
     auto& n = data.n;
     auto& q = data.q;
     auto& a = data.a;
+    const bool INPUT = 0;
+    const bool OUTPUT = 1;
+
     item(INPUT, n);
     item(INPUT, q);
     endl(INPUT);
-    a.resize(n);
+    resize(INPUT, a, n);
     for(int i = 0; i < n; i++) {
         item(INPUT, a[i]);
     }

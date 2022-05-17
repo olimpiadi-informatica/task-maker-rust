@@ -1,0 +1,11 @@
+inputln {
+    item N: i32;
+}
+
+for i upto N {
+    inputln {
+        for j upto i + 1 {
+            item A[i][j]: i32;
+        }
+    }
+}

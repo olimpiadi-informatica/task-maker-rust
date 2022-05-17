@@ -6,7 +6,6 @@
 
 using std::vector;
 
-
 struct IoData {
     int N = {};
     int M = {};

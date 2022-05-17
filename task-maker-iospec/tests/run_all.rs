@@ -13,90 +13,99 @@ use task_maker_iospec::tools::*;
 use tempdir::TempDir;
 use walkdir::WalkDir;
 
-#[test]
-fn run_all() -> Result<(), anyhow::Error> {
-    let test_prefix = concat!(env!("CARGO_MANIFEST_DIR"), "/tests");
+const TEST_PREFIX: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/specs");
+const GOLDEN_PREFIX: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/goldenfiles");
 
-    for e in WalkDir::new(test_prefix)
+#[test]
+fn check_all_specs() -> Result<(), anyhow::Error> {
+    for e in WalkDir::new(TEST_PREFIX)
         .into_iter()
         .map(|e| e.unwrap())
         .filter(|e| !e.file_type().is_dir())
-        .filter(|e| e.file_name() == "main.iospec")
+        .filter(|e| {
+            e.file_name() == "IOSPEC" || e.path().extension().map_or(false, |e| e == "iospec")
+        })
     {
         let spec_path = &e.path();
-
         let dir_path = spec_path.parent().unwrap();
-        let mut mint = Mint::new(dir_path);
-        let mint = &mut mint;
+
+        let mint_path = &PathBuf::from_iter(vec![
+            PathBuf::from(GOLDEN_PREFIX).as_path(),
+            dir_path.strip_prefix(TEST_PREFIX).unwrap(),
+        ]);
+        fs::create_dir_all(mint_path).ok(); // Only useful when minting for the first time
+        let mint = &mut Mint::new(mint_path);
 
         let _temp_dir = within_temp_dir();
 
-        copy_spec(spec_path);
-        validate_spec_and_mint_stderr(mint);
+        test_spec(spec_path, mint);
 
-        let run_langs = &vec![LangOpt::Cpp, LangOpt::C];
-        let all_langs = &vec![
-            (LangOpt::Cpp, TargetOpt::Parser),
-            (LangOpt::Cpp, TargetOpt::Template),
-            (LangOpt::Cpp, TargetOpt::Support),
-            (LangOpt::C, TargetOpt::Parser),
-            (LangOpt::C, TargetOpt::Template),
-            (LangOpt::Inspect, TargetOpt::Parser),
-        ];
-
-        for (lang_opt, target_opt) in all_langs {
-            generate(lang_opt, target_opt, mint);
-            if matches!(target_opt, TargetOpt::Parser) {
-                compile_generated(lang_opt);
-            }
-        }
-
-        for e in fs::read_dir(dir_path)
-            .unwrap()
-            .into_iter()
-            .map(|e| e.unwrap())
-            .filter(|e| {
-                e.path()
-                    .extension()
-                    .map_or(false, |e| e.to_str() == Some("input"))
-            })
-        {
-            let input_path = &e.path();
-            let stem = &PathBuf::from(input_path.file_stem().unwrap());
-
-            copy_spec(spec_path);
-            copy_input(input_path, stem);
-            check_input_and_mint_stderr(stem, mint);
-
-            for lang_opt in run_langs {
-                run_generated_and_mint_output(lang_opt, stem, mint);
-                check_output_and_mint_stderr(lang_opt, stem, mint);
-            }
+        if spec_path.file_name().unwrap() == "IOSPEC" {
+            test_valid_spec(dir_path, mint);
         }
     }
 
     Ok(())
 }
 
-fn copy_spec(spec_path: &std::path::Path) {
+fn test_spec(spec_path: &Path, mint: &mut Mint) {
     let spec_data = fs::read(spec_path).unwrap();
-    fs::write("main.iospec", &spec_data).unwrap();
-}
-
-fn validate_spec_and_mint_stderr(mint: &mut Mint) {
+    let name = spec_path.file_name().unwrap();
+    fs::write(name, &spec_data).unwrap();
+    mint_file(mint, name);
     let _ = iospec_check::do_main(
         iospec_check::Opt {
             spec: SpecOpt {
-                spec: "main.iospec".into(),
+                spec: name.into(),
                 cfg: vec![],
                 color: ColorOpt::Never,
             },
             input: None,
             output: None,
         },
-        &mut File::create("main.iospec.check.stderr").unwrap(),
+        &mut File::create(format!("{}.check.stderr", name.to_string_lossy())).unwrap(),
     );
-    mint_file(mint, "main.iospec.check.stderr");
+    mint_file(mint, format!("{}.check.stderr", name.to_string_lossy()));
+}
+
+fn test_valid_spec(dir_path: &Path, mint: &mut Mint) {
+    let all_langs = &vec![
+        (LangOpt::Cpp, TargetOpt::Parser),
+        (LangOpt::Cpp, TargetOpt::Template),
+        (LangOpt::Cpp, TargetOpt::Support),
+        (LangOpt::C, TargetOpt::Parser),
+        (LangOpt::C, TargetOpt::Template),
+        (LangOpt::Inspect, TargetOpt::Parser),
+    ];
+
+    for (lang_opt, target_opt) in all_langs {
+        generate(lang_opt, target_opt, mint);
+        if matches!(target_opt, TargetOpt::Parser) {
+            compile_generated(lang_opt);
+        }
+    }
+
+    for e in fs::read_dir(dir_path)
+        .unwrap()
+        .into_iter()
+        .map(|e| e.unwrap())
+        .filter(|e| {
+            e.path()
+                .extension()
+                .map_or(false, |e| e.to_str() == Some("input"))
+        })
+    {
+        let input_path = &e.path();
+        let stem = &PathBuf::from(input_path.file_stem().unwrap());
+
+        copy_input(input_path, stem);
+        check_input_and_mint_stderr(stem, mint);
+
+        for ref lang_opt in vec![LangOpt::Cpp, LangOpt::C] {
+            run_generated_and_mint_output(lang_opt, stem, mint);
+            check_output_and_mint_stderr(lang_opt, stem, mint);
+        }
+    }
 }
 
 fn generate(lang_opt: &LangOpt, target_opt: &TargetOpt, mint: &mut Mint) {
@@ -114,7 +123,7 @@ fn generate(lang_opt: &LangOpt, target_opt: &TargetOpt, mint: &mut Mint) {
     let _ = iospec_gen::do_main(
         iospec_gen::Opt {
             spec: SpecOpt {
-                spec: "main.iospec".into(),
+                spec: "IOSPEC".into(),
                 cfg: vec![],
                 color: ColorOpt::Never,
             },
@@ -164,7 +173,7 @@ fn check_input_and_mint_stderr(stem: &PathBuf, mint: &mut Mint) {
     let _ = iospec_check::do_main(
         iospec_check::Opt {
             spec: SpecOpt {
-                spec: "main.iospec".into(),
+                spec: "IOSPEC".into(),
                 cfg: vec![],
                 color: ColorOpt::Never,
             },
@@ -216,7 +225,7 @@ fn check_output_and_mint_stderr(lang_opt: &LangOpt, stem: &std::path::Path, mint
     let _ = iospec_check::do_main(
         iospec_check::Opt {
             spec: SpecOpt {
-                spec: "main.iospec".into(),
+                spec: "IOSPEC".into(),
                 cfg: vec![],
                 color: ColorOpt::Never,
             },
