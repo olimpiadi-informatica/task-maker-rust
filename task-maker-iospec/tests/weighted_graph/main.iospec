@@ -1,0 +1,54 @@
+// Comments
+
+inputln {
+    /// Number of nodes in the graph
+    /// Second single-line doc comment
+    /**
+        Block doc comment
+    */
+    /** Block doc comment
+        Block doc comment
+    */
+    item N: i32;
+    item M: i32;
+}
+
+assume 2 <= N < 100_000;
+assume 0 <= M < 500_000;
+
+#[cfg(subtask_name = "quadratic")]
+assume N <= 1_000;
+
+inputln {
+    for u upto N {
+        item W[u]: i32;
+        assume 0 <= W[u] < 1_000_000_000;
+    }
+}
+
+for i upto M {
+    inputln {
+        item A[i]: i32;
+        item B[i]: i32;
+    }
+
+    assume 0 <= A[i] < N;
+    assume 0 <= B[i] < N;
+}
+
+outputln {
+    @set S = 42;
+    // Uncomment to test calls
+    // @call f(N = N, M = M) -> S;
+    /// Answer
+    item S: i32;
+}
+
+outputln {
+    // Uncomment to test calls
+    // @call g(N = N, M = &M, A = &A, B = B, X = &X);
+    for u upto N {
+        @set X[u] = 10 + u;
+        item X[u]: i32;
+    }
+}

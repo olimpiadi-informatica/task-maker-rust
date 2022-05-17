@@ -1,0 +1,53 @@
+//! Sample I/O specification.
+//! The input is a graph, with weights on the nodes.
+//! The output is a single value, followed by a value for each node.
+
+inputln {
+    /// Number of nodes
+    item N: i32;
+    assume 2 <= N < 100_000;
+    
+    /// Number of edges
+    item M: i32;
+    assume 0 <= M < 500_000;
+}
+
+#[cfg(subtask_name = "quadratic")]
+assume N <= 1_000;
+
+inputln {
+    for u upto N {
+        /// Weight of `u`
+        item W[u]: i32;
+        assume 0 <= W[u] < 1_000_000_000;
+    }
+}
+
+for i upto M {
+    inputln {
+        /// Tail of `i`-th edge
+        item A[i]: i32;
+        /// Head of `i`-th edge
+        item B[i]: i32;
+
+        assume 0 <= A[i] < N;
+        assume 0 <= B[i] < N;
+
+        /// No self-loops
+        assume A[i] != B[i];
+    }
+}
+
+#[cfg(grader)]
+/// Compute `S` and `X[u]` for every node `u`
+@call solve(N = N, M = M, W = W, A = A, B = B, X = &X) -> S;
+
+outputln {
+    item S: i32;
+}
+
+outputln {
+    for u upto N {
+        item X[u]: i32;
+    }
+}

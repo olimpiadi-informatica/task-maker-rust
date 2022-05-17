@@ -12,6 +12,8 @@ use crate::tools::task_info::TaskInfoOpt;
 use crate::tools::worker::WorkerOpt;
 use crate::LoggerOpt;
 
+use task_maker_iospec::tools::*;
+
 #[derive(Parser, Debug)]
 #[clap(name = "task-maker-tools")]
 pub struct Opt {
@@ -49,6 +51,12 @@ pub enum Tool {
     FuzzChecker(FuzzCheckerOpt),
     /// Add the @check comments to the solutions.
     AddSolutionChecks(AddSolutionChecksOpt),
+    /// Check input/output files against a specification in the `iospec` language.
+    IospecCheck(iospec_check::Opt),
+    /// Generate graders or other I/O-related files given a specification in the `iospec` language.
+    IospecGen(iospec_gen::Opt),
+    /// Generate standard set of files given an I/O format specification in the `iospec` language.
+    IospecGenAll(iospec_gen_all::Opt),
     /// Run the sandbox instead of the normal task-maker.
     ///
     /// This option is left as undocumented as it's not part of the public API.

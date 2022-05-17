@@ -1,0 +1,22 @@
+[package]
+name = "task-maker-iospec"
+version = "0.5.4"
+authors = ["Massimo Cairo <cairomassimo@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+syn = { version = "1.0.92", features = ["extra-traits"] }
+proc-macro2 = { version = "1.0.19", features = ["span-locations"] }
+annotate-snippets = { version = "0.9.0", features = ["color"] }
+codemap = "0.1.3"
+num-traits = "0.2.12"
+by_address = "1.0.4"
+anyhow = "1.0.57"
+clap = { version = "3.1", features = ["derive"] }
+
+[dev-dependencies]
+assert_cmd = "2.0.4"
+goldenfile = "1.1.0"
+tempdir = "0.3.7"
+tempfile = "3.3.0"
+walkdir = "2.3.2"
