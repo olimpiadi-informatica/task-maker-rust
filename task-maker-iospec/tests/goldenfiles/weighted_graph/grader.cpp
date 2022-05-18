@@ -4,6 +4,9 @@
 
 using namespace std;
 
+int f(int N, int M);
+void g(int N, int& M, vector<int>& A, vector<int> B, vector<int>& X);
+
 int main() {
     int N;
     int M;
@@ -38,13 +41,14 @@ int main() {
         assert(0 <= A[i] && A[i] < N);
         assert(0 <= B[i] && B[i] < N);
     }
-    S = 42;
+    S = f(N, M);
     /** Answer */
     std::cout << S << " ";
     std::cout << std::endl;
     X.resize(N);
+    g(N, M, A, B, X);
+    X.resize(N);
     for(int u = 0; u < N; u++) {
-        X[u] = 10 + u;
         std::cout << X[u] << " ";
     }
     std::cout << std::endl;

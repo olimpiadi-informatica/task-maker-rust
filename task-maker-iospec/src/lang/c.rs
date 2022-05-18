@@ -50,7 +50,6 @@ lang_mixin!(C, IfStmt, CLikeMixin);
 lang_mixin!(C, CheckStmt, CLikeMixin);
 lang_mixin!(C, SetMetaStmt, CLikeMixin);
 lang_mixin!(C, AtomTy, CLikeMixin);
-lang_mixin!(C, DataVar, CLikeMixin);
 lang_mixin!(C, InFunDecl<&CallMetaStmt>, CLikeMixin);
 lang_mixin!(C, InFunDecl<&CallRet>, CLikeMixin);
 lang_mixin!(C, InFunDecl<&CallRetExpr>, CLikeMixin);
@@ -92,8 +91,32 @@ impl Gen<C> for DataExprAlloc {
     fn gen(&self, ctx: GenContext<C>) -> Result {
         let Self { expr, info } = self;
         gen!(ctx, {
-            "{} = malloc({});" % (expr, info);
+            "{0} = realloc({0}, {1});" % (expr, info);
         })
+    }
+}
+
+impl Gen<C> for ResizeMetaStmt {
+    fn gen(&self, ctx: GenContext<C>) -> Result {
+        let Self {
+            array,
+            item_ty,
+            size,
+            ..
+        } = self;
+        match item_ty.as_ref() {
+            Some(item_ty) => gen!(ctx, {
+                "{0} = realloc({0}, {1});"
+                    % (
+                        array,
+                        &AllocInfo {
+                            item_ty: item_ty.clone(),
+                            size: size.clone(),
+                        },
+                    );
+            }),
+            None => gen!(ctx),
+        }
     }
 }
 
@@ -184,7 +207,18 @@ impl Gen<C> for InFunDecl<&CallArgKind> {
 impl Gen<C> for Template<&Spec> {
     fn gen(&self, ctx: GenContext<C>) -> Result {
         gen!(ctx, {
+            "#include <stdbool.h>";
+            ();
             (&InFunDecl(self));
+        })
+    }
+}
+
+impl Gen<C> for DataVar {
+    fn gen(&self, ctx: GenContext<C>) -> Result {
+        let Self { name, ty, .. } = self;
+        gen!(ctx, {
+            "{} {} = 0;" % (ty, name);
         })
     }
 }

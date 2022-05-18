@@ -6,6 +6,9 @@
 
 using std::vector;
 
+
+int f(int N, int M);
+void g(int N, int& M, vector<int>& A, vector<int> B, vector<int>& X);
 struct IoData {
     int N = {};
     int M = {};
@@ -16,10 +19,14 @@ struct IoData {
     vector<int> X = {};
 
     struct Funs {
+        std::function<int(int N, int M)> f = [](auto...) { return 0; };
+        std::function<void(int N, int& M, vector<int>& A, vector<int> B, vector<int>& X)> g = [](auto...) {};
     };
 
     static Funs global_funs() {
         Funs funs;
+        funs.f = f;
+        funs.g = g;
         return funs;
     }
 };
@@ -49,6 +56,8 @@ void process_io(
     auto& B = data.B;
     auto& S = data.S;
     auto& X = data.X;
+    auto& f = funs.f;
+    auto& g = funs.g;
     const bool INPUT = 0;
     const bool OUTPUT = 1;
 
@@ -80,13 +89,13 @@ void process_io(
         check(INPUT, 0 <= A[i] && A[i] < N);
         check(INPUT, 0 <= B[i] && B[i] < N);
     }
-    S = 42;
+    invoke(S, f, N, M);
     /** Answer */
     item(OUTPUT, S);
     endl(OUTPUT);
+    invoke_void(g, N, M, A, B, X);
     resize(OUTPUT, X, N);
     for(int u = 0; u < N; u++) {
-        X[u] = 10 + u;
         item(OUTPUT, X[u]);
     }
     endl(OUTPUT);

@@ -13,6 +13,7 @@ pub mod ast {
     pub enum MetaStmtKind {
         Set(SetMetaStmt),
         Call(CallMetaStmt),
+        Resize(ResizeMetaStmt),
     }
 }
 
@@ -37,6 +38,8 @@ mod parse {
                 Self::Set(input.parse()?)
             } else if la.peek(kw::call) {
                 Self::Call(input.parse()?)
+            } else if la.peek(kw::resize) {
+                Self::Resize(input.parse()?)
             } else {
                 Err(la.error())?
             })
@@ -58,6 +61,7 @@ pub mod ir {
     pub enum MetaStmtKind {
         Set(Ir<SetMetaStmt>),
         Call(Ir<CallMetaStmt>),
+        Resize(Ir<ResizeMetaStmt>),
     }
 }
 
@@ -98,6 +102,7 @@ mod compile {
             Ok(match ast {
                 ast::MetaStmtKind::Set(stmt) => Self::Set(stmt.compile(env, dgns)?),
                 ast::MetaStmtKind::Call(stmt) => Self::Call(stmt.compile(env, dgns)?),
+                ast::MetaStmtKind::Resize(stmt) => Self::Resize(stmt.compile(env, dgns)?),
             })
         }
     }
@@ -109,6 +114,8 @@ mod run {
 
     impl Run for MetaStmt {
         fn run(self: &Self, _state: &mut State, _ctx: &mut Context) -> Result<(), Stop> {
+            // TODO: we should run meta statements to check they are correct,
+            // even though they should have no effect on the I/O validation itself.
             Ok(())
         }
     }
@@ -141,12 +148,14 @@ mod gen {
     where
         SetMetaStmt: Gen<L>,
         CallMetaStmt: Gen<L>,
+        ResizeMetaStmt: Gen<L>,
     {
         fn gen(&self, ctx: GenContext<CommonMixin<'_, L>>) -> Result {
             let ctx = &mut ctx.with_lang(ctx.lang.0);
             match self {
                 Self::Set(stmt) => stmt.gen(ctx),
                 Self::Call(stmt) => stmt.gen(ctx),
+                Self::Resize(stmt) => stmt.gen(ctx),
             }
         }
     }

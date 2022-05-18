@@ -262,3 +262,10 @@ impl Gen<CppLib> for DataExprAlloc {
         })
     }
 }
+
+impl Gen<CppLib> for ResizeMetaStmt {
+    fn gen(&self, ctx: GenContext<CppLib>) -> Result {
+        // TODO: should we emit something here?
+        gen!(ctx)
+    }
+}

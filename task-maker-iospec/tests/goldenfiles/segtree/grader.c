@@ -4,32 +4,32 @@
 #include <assert.h>
 
 int main() {
-    int n;
-    int q;
-    int* a;
+    int n = 0;
+    int q = 0;
+    int* a = 0;
 
     assert(scanf("%d", &n) == 1);
     assert(scanf("%d", &q) == 1);
-    a = malloc(sizeof(int) * (n));
+    a = realloc(a, sizeof(int) * (n));
     for(int i = 0; i < n; i++) {
         assert(scanf("%d", &a[i]) == 1);
     }
     for(int i = 0; i < q; i++) {
-        int op;
-        int l1;
-        int r1;
-        int l2;
-        int r2;
-        int x2;
-        int l3;
-        int r3;
-        int x3;
-        int l4;
-        int r4;
-        int l5;
-        int r5;
-        int x5;
-        int s;
+        int op = 0;
+        int l1 = 0;
+        int r1 = 0;
+        int l2 = 0;
+        int r2 = 0;
+        int x2 = 0;
+        int l3 = 0;
+        int r3 = 0;
+        int x3 = 0;
+        int l4 = 0;
+        int r4 = 0;
+        int l5 = 0;
+        int r5 = 0;
+        int x5 = 0;
+        int s = 0;
 
         assert(scanf("%d", &op) == 1);
         if(op == 1) {

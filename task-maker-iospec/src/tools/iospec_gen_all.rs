@@ -24,13 +24,13 @@ pub fn do_main(opt: Opt, stderr: &mut dyn io::Write) -> Result<(), Error> {
         (
             "sol/grader.cpp",
             LangOpt::Cpp,
-            TargetOpt::Parser,
+            TargetOpt::Grader,
             vec!["grader"],
         ),
         (
             "sol/grader.c",
             LangOpt::C,
-            TargetOpt::Parser,
+            TargetOpt::Grader,
             vec!["grader"],
         ),
         (

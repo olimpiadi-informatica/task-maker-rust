@@ -49,7 +49,6 @@ lang_mixin!(Cpp, IfStmt, CLikeMixin);
 lang_mixin!(Cpp, CheckStmt, CLikeMixin);
 lang_mixin!(Cpp, SetMetaStmt, CLikeMixin);
 lang_mixin!(Cpp, AtomTy, CLikeMixin);
-lang_mixin!(Cpp, DataVar, CLikeMixin);
 lang_mixin!(Cpp, InFunDecl<&CallMetaStmt>, CLikeMixin);
 lang_mixin!(Cpp, InFunDecl<&CallRet>, CLikeMixin);
 lang_mixin!(Cpp, InFunDecl<&CallRetExpr>, CLikeMixin);
@@ -77,10 +76,28 @@ impl Gen<Cpp> for Spec {
     }
 }
 
+impl Gen<Cpp> for DataVar {
+    fn gen(&self, ctx: GenContext<Cpp>) -> Result {
+        let Self { name, ty, .. } = self;
+        gen!(ctx, {
+            "{} {};" % (ty, name);
+        })
+    }
+}
+
 impl Gen<Cpp> for CallByReferenceArg {
     fn gen(&self, ctx: GenContext<Cpp>) -> Result {
         let Self { expr, .. } = self;
         gen!(ctx, "{}" % expr)
+    }
+}
+
+impl Gen<Cpp> for ResizeMetaStmt {
+    fn gen(&self, ctx: GenContext<Cpp>) -> Result {
+        let Self { array, size, .. } = self;
+        gen!(ctx, {
+            "{}.resize({});" % (array, size);
+        })
     }
 }
 

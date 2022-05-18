@@ -5,7 +5,12 @@ inputln {
 }
 
 outputln {
+    @call gi32(x=xi32) -> yi32;
     item yi32: i32;
+
+    @call gi64(x=xi64) -> yi64;
     item yi64: i64;
+
+    @call gbool(x=xbool) -> ybool;
     item ybool: bool;
 }

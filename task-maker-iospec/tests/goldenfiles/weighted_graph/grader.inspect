@@ -37,14 +37,15 @@ for i upto M <i32>:
     check 0 <= A[i] && A[i] < N;
     check 0 <= B[i] && B[i] < N;
 ioln:
-    @set S = 42;
+    @call (<<todo>>)
     #[ <<todo>> ]
     item S: i32;
 ioln:
+    @call (<<todo>>)
+    @call (<<todo>>)
     <<alloc X to size N of i32>>
     for u upto N <i32>:
         <<block>>
 
-        @set X[u] = 10 + u;
         item X[u]: i32;
 

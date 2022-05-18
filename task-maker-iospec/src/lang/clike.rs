@@ -4,21 +4,6 @@ use crate::sem;
 
 pub struct CLikeMixin<'a, L>(pub &'a L);
 
-impl<L> Gen<CLikeMixin<'_, L>> for DataVar
-where
-    ExprTy: Gen<L>,
-    Name: Gen<L>,
-{
-    fn gen(&self, ctx: GenContext<CLikeMixin<L>>) -> Result {
-        let Self { name, ty, .. } = self;
-        let mut ctx = ctx.with_lang(ctx.lang.0);
-
-        gen!(&mut ctx, {
-            "{} {};" % (ty, name);
-        })
-    }
-}
-
 impl<L> Gen<CLikeMixin<'_, L>> for ForStmt
 where
     AtomTy: Gen<L>,

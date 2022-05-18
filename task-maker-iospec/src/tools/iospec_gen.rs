@@ -26,7 +26,7 @@ pub struct Opt {
     pub spec: SpecOpt,
     #[clap(long, arg_enum)]
     pub lang: LangOpt,
-    #[clap(long, arg_enum, default_value = "parser")]
+    #[clap(long, arg_enum, default_value = "grader")]
     pub target: TargetOpt,
     #[clap(long)]
     pub dest: Option<PathBuf>,
@@ -42,7 +42,7 @@ pub enum LangOpt {
 
 #[derive(ArgEnum, Debug, Clone, Copy)]
 pub enum TargetOpt {
-    Parser,
+    Grader,
     Template,
     Support,
 }
@@ -53,9 +53,9 @@ pub fn do_main(opt: Opt, stderr: &mut dyn io::Write) -> Result<(), Error> {
         .load(stderr, vec!["gen".into(), format!("lang={:?}", opt.lang)])?;
 
     let str = match (&opt.target, &opt.lang) {
-        (TargetOpt::Parser, LangOpt::C) => gen_string(&ir, &C),
-        (TargetOpt::Parser, LangOpt::Cpp) => gen_string(&ir, &Cpp),
-        (TargetOpt::Parser, LangOpt::Inspect) => gen_string(&ir, &Inspect),
+        (TargetOpt::Grader, LangOpt::C) => gen_string(&ir, &C),
+        (TargetOpt::Grader, LangOpt::Cpp) => gen_string(&ir, &Cpp),
+        (TargetOpt::Grader, LangOpt::Inspect) => gen_string(&ir, &Inspect),
         (TargetOpt::Template, LangOpt::C) => gen_string(&Template(&ir), &C),
         (TargetOpt::Template, LangOpt::Cpp) => gen_string(&Template(&ir), &Cpp),
         (TargetOpt::Support, LangOpt::Cpp) => gen_string(&ir, &CppLib),

@@ -23,24 +23,27 @@ fn check_all_specs() -> Result<(), anyhow::Error> {
         .map(|e| e.unwrap())
         .filter(|e| !e.file_type().is_dir())
         .filter(|e| {
+            e.path()
+                .parent()
+                .unwrap()
+                .extension()
+                .map_or(true, |e| e != "skip")
+        })
+        .filter(|e| {
             e.file_name() == "IOSPEC" || e.path().extension().map_or(false, |e| e == "iospec")
         })
     {
         let spec_path = &e.path();
         let dir_path = spec_path.parent().unwrap();
+        let spec_name = spec_path.file_name().unwrap().to_str().unwrap();
 
-        let mint_path = &PathBuf::from_iter(vec![
-            PathBuf::from(GOLDEN_PREFIX).as_path(),
-            dir_path.strip_prefix(TEST_PREFIX).unwrap(),
-        ]);
-        fs::create_dir_all(mint_path).ok(); // Only useful when minting for the first time
-        let mint = &mut Mint::new(mint_path);
+        let mint = &mut create_mint(dir_path);
 
         let _temp_dir = within_temp_dir();
 
-        test_spec(spec_path, mint);
+        test_spec(dir_path, spec_name, mint);
 
-        if spec_path.file_name().unwrap() == "IOSPEC" {
+        if spec_name == "IOSPEC" {
             test_valid_spec(dir_path, mint);
         }
     }
@@ -48,11 +51,19 @@ fn check_all_specs() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn test_spec(spec_path: &Path, mint: &mut Mint) {
-    let spec_data = fs::read(spec_path).unwrap();
-    let name = spec_path.file_name().unwrap();
-    fs::write(name, &spec_data).unwrap();
-    mint_file(mint, name);
+fn create_mint(dir_path: &Path) -> Mint {
+    let mint_path = &PathBuf::from_iter(vec![
+        PathBuf::from(GOLDEN_PREFIX).as_path(),
+        dir_path.strip_prefix(TEST_PREFIX).unwrap(),
+    ]);
+    // Only useful when minting for the first time
+    fs::create_dir_all(mint_path).ok();
+    Mint::new(mint_path)
+}
+
+fn test_spec(dir_path: &Path, name: &str, mint: &mut Mint) {
+    copy_file(dir_path, name, mint);
+
     let _ = iospec_check::do_main(
         iospec_check::Opt {
             spec: SpecOpt {
@@ -63,25 +74,32 @@ fn test_spec(spec_path: &Path, mint: &mut Mint) {
             input: None,
             output: None,
         },
-        &mut File::create(format!("{}.check.stderr", name.to_string_lossy())).unwrap(),
+        &mut File::create(format!("{}.check.stderr", name)).unwrap(),
     );
-    mint_file(mint, format!("{}.check.stderr", name.to_string_lossy()));
+    mint_file(mint, format!("{}.check.stderr", name));
+}
+
+fn copy_file(dir_path: &Path, name: &str, mint: &mut Mint) {
+    let path = &PathBuf::from_iter(vec![dir_path, &PathBuf::from(name)]);
+    let data = fs::read(path).unwrap();
+    fs::write(name, &data).unwrap();
+    mint_file(mint, name);
 }
 
 fn test_valid_spec(dir_path: &Path, mint: &mut Mint) {
     let all_langs = &vec![
-        (LangOpt::Cpp, TargetOpt::Parser),
+        (LangOpt::Cpp, TargetOpt::Grader),
         (LangOpt::Cpp, TargetOpt::Template),
         (LangOpt::Cpp, TargetOpt::Support),
-        (LangOpt::C, TargetOpt::Parser),
+        (LangOpt::C, TargetOpt::Grader),
         (LangOpt::C, TargetOpt::Template),
-        (LangOpt::Inspect, TargetOpt::Parser),
+        (LangOpt::Inspect, TargetOpt::Grader),
     ];
 
     for (lang_opt, target_opt) in all_langs {
         generate(lang_opt, target_opt, mint);
-        if matches!(target_opt, TargetOpt::Parser) {
-            compile_generated(lang_opt);
+        if matches!(target_opt, TargetOpt::Grader) {
+            compile_generated(dir_path, lang_opt, mint);
         }
     }
 
@@ -112,7 +130,7 @@ fn generate(lang_opt: &LangOpt, target_opt: &TargetOpt, mint: &mut Mint) {
     let extension = lang_extension(lang_opt);
 
     let dest = &match target_opt {
-        TargetOpt::Parser => format!("main.{}", extension),
+        TargetOpt::Grader => format!("grader.{}", extension),
         TargetOpt::Template => format!("template.{}", extension),
         TargetOpt::Support => format!("support.{}", extension),
     };
@@ -138,11 +156,13 @@ fn generate(lang_opt: &LangOpt, target_opt: &TargetOpt, mint: &mut Mint) {
     mint_file(mint, dest);
 }
 
-fn compile_generated(lang_opt: &LangOpt) {
+fn compile_generated(dir_path: &Path, lang_opt: &LangOpt, mint: &mut Mint) {
     match lang_opt {
         LangOpt::Cpp => {
+            copy_file(dir_path, "solution.cpp", mint);
             Command::new("g++")
-                .arg("main.cpp")
+                .arg("grader.cpp")
+                .arg("solution.cpp")
                 .arg("-o")
                 .arg("main.cpp.bin")
                 .arg("-fsanitize=address")
@@ -150,8 +170,10 @@ fn compile_generated(lang_opt: &LangOpt) {
                 .success();
         }
         LangOpt::C => {
+            copy_file(dir_path, "solution.c", mint);
             Command::new("gcc")
-                .arg("main.c")
+                .arg("grader.c")
+                .arg("solution.c")
                 .arg("-o")
                 .arg("main.c.bin")
                 // FIXME: missing `free` in generated C

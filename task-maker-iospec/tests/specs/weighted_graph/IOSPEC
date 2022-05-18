@@ -37,18 +37,15 @@ for i upto M {
 }
 
 outputln {
-    @set S = 42;
-    // Uncomment to test calls
-    // @call f(N = N, M = M) -> S;
+    @call f(N = N, M = M) -> S;
     /// Answer
     item S: i32;
 }
 
 outputln {
-    // Uncomment to test calls
-    // @call g(N = N, M = &M, A = &A, B = B, X = &X);
+    @resize X to N;
+    @call g(N = N, M = &M, A = &A, B = B, X = &X);
     for u upto N {
-        @set X[u] = 10 + u;
         item X[u]: i32;
     }
 }

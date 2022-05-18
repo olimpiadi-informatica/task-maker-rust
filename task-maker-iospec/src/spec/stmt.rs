@@ -185,7 +185,7 @@ mod compile {
                 StmtKind::Io(stmt) => stmt.body.calls.clone(),
                 StmtKind::Meta(stmt) => match stmt.kind.as_ref() {
                     MetaStmtKind::Call(stmt) => vec![stmt.clone()],
-                    _ => Vec::new(),
+                    _ => vec![],
                 },
                 _ => Vec::new(),
             };
