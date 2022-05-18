@@ -48,7 +48,6 @@ impl Gen<CppLib> for Spec {
             "using std::vector;";
             ();
             (&InFunDecl(self));
-            ();
             "struct IoData {";
             ({
                 || {
