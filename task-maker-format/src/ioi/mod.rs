@@ -450,16 +450,25 @@ impl FromStr for TestcaseScoreAggregator {
 impl ScoreManager {
     /// Make a new `ScoreManager` based on the subtasks and testcases of the specified task.
     pub fn new(task: &IOITask) -> ScoreManager {
+        // NOTE: this will ignore the subtask without any testcase since they will never be
+        // notified.
         ScoreManager {
-            subtask_scores: task.subtasks.keys().map(|st| (*st, None)).collect(),
+            subtask_scores: task
+                .subtasks
+                .iter()
+                .filter(|(_, st)| !st.testcases.is_empty())
+                .map(|(st_num, _)| (*st_num, None))
+                .collect(),
             max_subtask_scores: task
                 .subtasks
                 .values()
+                .filter(|st| !st.testcases.is_empty())
                 .map(|st| (st.id, st.max_score))
                 .collect(),
             testcase_scores: task
                 .subtasks
                 .values()
+                .filter(|st| !st.testcases.is_empty())
                 .map(|st| (st.id, st.testcases.keys().map(|tc| (*tc, None)).collect()))
                 .collect(),
             aggregator: task.testcase_score_aggregator.clone(),

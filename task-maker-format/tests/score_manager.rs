@@ -138,3 +138,71 @@ fn test_score_manager() {
     }
     assert!(receiver.try_recv().is_err());
 }
+
+#[test]
+fn test_score_manager_empty_subtask() {
+    let mut task = utils::new_task();
+    assert_eq!(task.subtasks.len(), 2);
+    assert_eq!(task.subtasks.get(&0).unwrap().testcases.len(), 1);
+
+    // Make the second subtask empty.
+    task.subtasks.get_mut(&1).unwrap().testcases.clear();
+
+    let mut manager = ScoreManager::new(&task);
+    let (sender, receiver) = UIMessageSender::new();
+    let sender = Arc::new(Mutex::new(sender));
+
+    manager
+        .score(0, 0, 1.0, "foo".into(), sender, "sol".into())
+        .unwrap();
+    if let Ok(mex) = receiver.try_recv() {
+        match mex {
+            UIMessage::IOITestcaseScore {
+                subtask,
+                testcase,
+                solution,
+                score,
+                message,
+            } => {
+                assert_eq!(subtask, 0);
+                assert_eq!(testcase, 0);
+                assert_eq!(solution, PathBuf::from("sol"));
+                assert_abs_diff_eq!(score, 1.0);
+                assert_eq!(message, "foo");
+            }
+            _ => panic!("Expecting UIMessage::IOITestcaseScore but was {:?}", mex),
+        }
+    } else {
+        panic!("Expecting UIMessage::IOITestcaseScore but was nothing");
+    }
+    if let Ok(mex) = receiver.try_recv() {
+        match mex {
+            UIMessage::IOISubtaskScore {
+                subtask,
+                solution,
+                score,
+                normalized_score,
+            } => {
+                assert_eq!(subtask, 0);
+                assert_eq!(solution, PathBuf::from("sol"));
+                assert_abs_diff_eq!(score, 10.0);
+                assert_abs_diff_eq!(normalized_score, 1.0);
+            }
+            _ => panic!("Expecting UIMessage::IOISubtaskScore but was {:?}", mex),
+        }
+    } else {
+        panic!("Expecting UIMessage::IOISubtaskScore but was nothing");
+    }
+    if let Ok(mex) = receiver.try_recv() {
+        match mex {
+            UIMessage::IOITaskScore { solution, score } => {
+                assert_eq!(solution, PathBuf::from("sol"));
+                assert_abs_diff_eq!(score, 10.0);
+            }
+            _ => panic!("Expecting UIMessage::IOITaskScore but was {:?}", mex),
+        }
+    } else {
+        panic!("Expecting UIMessage::IOITaskScore but was nothing");
+    }
+    assert!(receiver.try_recv().is_err());
+}
