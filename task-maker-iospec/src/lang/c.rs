@@ -66,6 +66,7 @@ impl Gen<C> for Spec {
         gen!(ctx, {
             "#include <stdio.h>";
             "#include <stdlib.h>";
+            "#include <stdbool.h>";
             "#include <assert.h>";
             (&InFunDecl(self));
             ();

@@ -1,0 +1,20 @@
+<<spec>>
+
+<<block>>
+
+<<decl xi32 of type i32>>
+<<decl xi64 of type i64>>
+<<decl xbool of type bool>>
+<<decl yi32 of type i32>>
+<<decl yi64 of type i64>>
+<<decl ybool of type bool>>
+
+ioln:
+    item xi32: i32;
+    item xi64: i64;
+    item xbool: bool;
+ioln:
+    item yi32: i32;
+    item yi64: i64;
+    item ybool: bool;
+

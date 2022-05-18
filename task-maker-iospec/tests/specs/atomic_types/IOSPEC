@@ -1,0 +1,11 @@
+inputln {
+    item xi32: i32;
+    item xi64: i64;
+    item xbool: bool;
+}
+
+outputln {
+    item yi32: i32;
+    item yi64: i64;
+    item ybool: bool;
+}
