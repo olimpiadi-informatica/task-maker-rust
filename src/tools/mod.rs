@@ -1,6 +1,7 @@
 pub mod add_solution_checks;
 pub mod booklet;
 pub mod clear;
+pub mod find_bad_case;
 pub mod fuzz_checker;
 pub mod gen_autocompletion;
 pub mod opt;

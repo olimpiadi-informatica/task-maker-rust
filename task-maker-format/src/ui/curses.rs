@@ -30,7 +30,7 @@ pub(crate) const FPS: u64 = 30;
 pub(crate) const ROTATION_DELAY: u64 = 1;
 
 /// The type of the terminal with its backend.
-pub(crate) type FrameType<'a> =
+pub type FrameType<'a> =
     Frame<'a, TermionBackend<AlternateScreen<MouseTerminal<RawTerminal<io::Stdout>>>>>;
 
 lazy_static! {
@@ -192,7 +192,7 @@ where
 }
 
 /// Get the rect of the inner rect of a block with the borders.
-pub(crate) fn inner_block(rect: Rect) -> Rect {
+pub fn inner_block(rect: Rect) -> Rect {
     if rect.width < 2 || rect.height < 2 {
         return Rect::new(rect.x + 1, rect.y + 1, 0, 0);
     }
@@ -247,7 +247,7 @@ pub(crate) fn compilation_status_text(status: &CompilationStatus, loading: char)
 }
 
 /// Render a block with the specified title.
-pub(crate) fn render_block<S: AsRef<str>>(frame: &mut FrameType, rect: Rect, title: S) {
+pub fn render_block<S: AsRef<str>>(frame: &mut FrameType, rect: Rect, title: S) {
     Block::default()
         .title(title.as_ref())
         .title_style(*BLUE)
@@ -256,7 +256,7 @@ pub(crate) fn render_block<S: AsRef<str>>(frame: &mut FrameType, rect: Rect, tit
 }
 
 /// Draw the server status block.
-pub(crate) fn render_server_status(
+pub fn render_server_status(
     frame: &mut FrameType,
     rect: Rect,
     status: Option<&ExecutorStatus<SystemTime>>,

@@ -93,10 +93,16 @@ impl<Task> Default for SanityChecks<Task> {
     }
 }
 
-/// Return a comma separated list of the names of all the sanity checks.
-pub fn get_sanity_check_names() -> String {
+/// Return a list of all the sanity check names.
+pub fn get_sanity_check_list() -> Vec<String> {
     crate::ioi::sanity_checks::get_sanity_check_names()
         .iter()
         .chain(crate::terry::sanity_checks::get_sanity_check_names().iter())
-        .join(", ")
+        .map(ToString::to_string)
+        .collect()
+}
+
+/// Return a comma separated list of the names of all the sanity checks.
+pub fn get_sanity_check_names() -> String {
+    get_sanity_check_list().into_iter().join(", ")
 }

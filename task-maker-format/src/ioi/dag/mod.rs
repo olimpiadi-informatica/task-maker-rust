@@ -15,9 +15,9 @@ mod output_generator;
 mod task_type;
 
 /// Base priority for the generation executions.
-pub(crate) const GENERATION_PRIORITY: Priority = 1_000_000;
+pub const GENERATION_PRIORITY: Priority = 1_000_000;
 /// Base priority for the evaluation executions.
-pub(crate) const EVALUATION_PRIORITY: Priority = 1_000;
+pub const EVALUATION_PRIORITY: Priority = 1_000;
 
 /// Maximum number of bytes of the captured standard error.
 pub const STDERR_CONTENT_LENGTH: usize = 10 * 1024;

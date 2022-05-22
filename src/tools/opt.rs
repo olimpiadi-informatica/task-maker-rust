@@ -3,6 +3,7 @@ use clap::Parser;
 use crate::tools::add_solution_checks::AddSolutionChecksOpt;
 use crate::tools::booklet::BookletOpt;
 use crate::tools::clear::ClearOpt;
+use crate::tools::find_bad_case::FindBadCaseOpt;
 use crate::tools::fuzz_checker::FuzzCheckerOpt;
 use crate::tools::gen_autocompletion::GenAutocompletionOpt;
 use crate::tools::reset::ResetOpt;
@@ -47,6 +48,8 @@ pub enum Tool {
     Booklet(BookletOpt),
     /// Fuzz the checker of a task.
     FuzzChecker(FuzzCheckerOpt),
+    /// Generate many input files and search for a one that make a solution fail.
+    FindBadCase(FindBadCaseOpt),
     /// Add the @check comments to the solutions.
     AddSolutionChecks(AddSolutionChecksOpt),
     /// Run the sandbox instead of the normal task-maker.
