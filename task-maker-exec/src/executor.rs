@@ -218,14 +218,16 @@ impl Executor {
                                 sender,
                                 receiver,
                                 scheduler.clone(),
-                            )?;
+                            )
+                            .unwrap();
                             // if not in long running mode, the first client should tear down the
                             // executor. To do so it's just required to tell the scheduler to exit,
                             // it will bring down the WorkerManager and all should exit.
                             if !long_running {
                                 scheduler
                                     .send(SchedulerInMessage::Exit)
-                                    .map_err(|e| anyhow!("Cannot stop the scheduler: {:?}", e))?;
+                                    .map_err(|e| anyhow!("Cannot stop the scheduler: {:?}", e))
+                                    .unwrap();
                             }
                             Ok(())
                         })
@@ -331,6 +333,7 @@ impl Executor {
         receiver: ChannelReceiver<ExecutorClientMessage>,
         scheduler: Sender<SchedulerInMessage>,
     ) -> Result<(), Error> {
+        let mut scheduler = Some(scheduler);
         while let Ok(message) = receiver.recv() {
             match message {
                 ExecutorClientMessage::Evaluate { dag, callbacks } => {
@@ -362,6 +365,8 @@ impl Executor {
                     }
                     // tell the scheduler that a new DAG is ready to be executed.
                     scheduler
+                        .as_ref()
+                        .ok_or_else(|| anyhow!("Stopped execution"))?
                         .send(SchedulerInMessage::EvaluateDAG {
                             client: client.clone(),
                             dag,
@@ -372,6 +377,8 @@ impl Executor {
                     // be ready when the client will send them.
                     for (uuid, handle) in ready_files.into_iter() {
                         scheduler
+                            .as_ref()
+                            .ok_or_else(|| anyhow!("Stopped execution"))?
                             .send(SchedulerInMessage::FileReady {
                                 client: client.uuid,
                                 uuid,
@@ -390,6 +397,8 @@ impl Executor {
                             format!("Failed to store client provided file {} ({})", uuid, key)
                         })?;
                     scheduler
+                        .as_ref()
+                        .ok_or_else(|| anyhow!("Stopped execution"))?
                         .send(SchedulerInMessage::FileReady {
                             client: client.uuid,
                             uuid,
@@ -419,22 +428,32 @@ impl Executor {
                 }
                 ExecutorClientMessage::Status => {
                     info!("Client asking for the status");
-                    // this may fail is the scheduler is gone
-                    let _ = scheduler.send(SchedulerInMessage::Status {
-                        client: client.uuid,
-                    });
+                    // This may fail is the scheduler is gone.
+                    if let Some(scheduler) = scheduler.as_ref() {
+                        let _ = scheduler.send(SchedulerInMessage::Status {
+                            client: client.uuid,
+                        });
+                    }
                 }
                 ExecutorClientMessage::Stop => {
                     info!("Client asking to stop");
-                    break;
+                    if let Some(scheduler) = scheduler.take() {
+                        scheduler
+                            .send(SchedulerInMessage::ClientDisconnected {
+                                client: client.uuid,
+                            })
+                            .context("Failed to send ClientDisconnected to the scheduler")?
+                    }
                 }
             }
         }
-        scheduler
-            .send(SchedulerInMessage::ClientDisconnected {
-                client: client.uuid,
-            })
-            .context("Failed to send ClientDisconnected to the scheduler")?;
+        if let Some(scheduler) = scheduler.take() {
+            scheduler
+                .send(SchedulerInMessage::ClientDisconnected {
+                    client: client.uuid,
+                })
+                .context("Failed to send ClientDisconnected to the scheduler")?;
+        }
         Ok(())
     }
 }

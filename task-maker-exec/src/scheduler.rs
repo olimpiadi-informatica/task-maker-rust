@@ -451,14 +451,19 @@ impl Scheduler {
     }
 
     /// Handle the disconnection of a client.
-    fn handle_client_disconnected(&mut self, client: ClientUuid) -> Result<(), Error> {
-        info!("Client {} disconnected", client);
-        if let Some(client) = self.clients.get(&client) {
+    fn handle_client_disconnected(&mut self, client_uuid: ClientUuid) -> Result<(), Error> {
+        info!("Client {} disconnected", client_uuid);
+        if let Some(client) = self.clients.get(&client_uuid) {
             if !client.is_done() {
                 warn!("The client's evaluation wasn't completed yet");
+                // Even if the computation has not been completed, send the EvaluationDone so that
+                // the executor can exit cleanly.
+                self.executor
+                    .send((client_uuid, SchedulerExecutorMessageData::EvaluationDone))
+                    .context("Failed to send EvaluationDone to the executor")?;
             }
         }
-        self.clients.remove(&client);
+        self.clients.remove(&client_uuid);
         let mut remaining = BinaryHeap::new();
         while let Some((dag_priority, priority, exec, client)) = self.ready_execs.pop() {
             if self.clients.contains_key(&client) {
@@ -469,7 +474,7 @@ impl Scheduler {
         // stop the jobs that are still running in the workers
         for (uuid, worker) in self.connected_workers.iter() {
             if let Some((owner, exec, _)) = worker.current_job {
-                if owner == client {
+                if owner == client_uuid {
                     warn!(
                         "Worker {} is doing {} owned by disconnected client, killing",
                         uuid, exec
