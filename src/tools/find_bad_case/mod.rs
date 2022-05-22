@@ -5,15 +5,15 @@ use anyhow::{anyhow, bail, Context, Error};
 use clap::{Parser, ValueHint};
 
 use task_maker_exec::ductile::ChannelSender;
-use task_maker_exec::ExecutorClient;
 use task_maker_exec::proto::ExecutorClientMessage;
-use task_maker_format::{EvaluationConfig, get_sanity_check_list};
-use task_maker_format::ui::{CursesUI, UI, UIMessage};
+use task_maker_exec::ExecutorClient;
+use task_maker_format::ui::{CursesUI, UIMessage, UI};
+use task_maker_format::{get_sanity_check_list, EvaluationConfig};
 
-use crate::{ExecutionOpt, FindTaskOpt, StorageOpt};
 use crate::context::RuntimeContext;
 use crate::tools::find_bad_case::dag::{patch_dag, patch_task_for_batch, TestcaseData};
 use crate::tools::find_bad_case::state::UIState;
+use crate::{ExecutionOpt, FindTaskOpt, StorageOpt};
 
 mod curses_ui;
 mod dag;

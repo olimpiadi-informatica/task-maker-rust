@@ -4,10 +4,10 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, bail, Context, Error};
 use rand::Rng;
 
-use task_maker_format::{EvaluationData, TaskFormat};
 use task_maker_format::ioi::{
-    GENERATION_PRIORITY, InputGenerator, SubtaskInfo, TestcaseId, TestcaseInfo,
+    InputGenerator, SubtaskInfo, TestcaseId, TestcaseInfo, GENERATION_PRIORITY,
 };
+use task_maker_format::{EvaluationData, TaskFormat};
 
 #[derive(Debug, Clone, Default)]
 pub struct TestcaseData {

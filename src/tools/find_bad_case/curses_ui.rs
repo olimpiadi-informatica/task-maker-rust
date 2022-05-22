@@ -3,7 +3,7 @@ use tui::layout::{Constraint, Direction, Layout, Rect};
 use tui::widgets::{Paragraph, Text, Widget};
 
 use task_maker_format::ui::{
-    CursesDrawer, FrameType, inner_block, render_block, render_server_status,
+    inner_block, render_block, render_server_status, CursesDrawer, FrameType,
 };
 
 use crate::tools::find_bad_case::state::{SharedUIState, TestcaseStatus, UIState};
