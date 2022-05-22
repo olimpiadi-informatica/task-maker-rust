@@ -9,7 +9,7 @@ pub mod ir {
         pub sem: Option<sem::AtomTy>,
     }
 
-    #[derive(Default, Debug)]
+    #[derive(Debug)]
     pub enum AtomTyKind {
         Name {
             name: Ir<Name>,
@@ -21,8 +21,13 @@ pub mod ir {
         Rel {
             rels: Vec<RelExpr>,
         },
-        #[default]
         Err,
+    }
+
+    impl Default for AtomTyKind {
+        fn default() -> Self {
+            Self::Err
+        }
     }
 
     pub struct ExprList<'a>(pub &'a Vec<Ir<Expr>>);

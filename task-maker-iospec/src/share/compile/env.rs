@@ -121,14 +121,16 @@ impl Env {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub enum Loc {
-    #[default]
     Main,
-    For {
-        range: Ir<Range>,
-        parent: Ir<Loc>,
-    },
+    For { range: Ir<Range>, parent: Ir<Loc> },
+}
+
+impl Default for Loc {
+    fn default() -> Self {
+        Self::Main
+    }
 }
 
 /// Special environment used when defining new variables.

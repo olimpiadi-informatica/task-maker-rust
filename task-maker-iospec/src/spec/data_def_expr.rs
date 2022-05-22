@@ -12,7 +12,7 @@ pub mod ir {
         pub alloc: Option<AllocInfo>,
     }
 
-    #[derive(Default, Debug, Clone)]
+    #[derive(Debug, Clone)]
     pub enum DataDefExprKind {
         Var {
             var: Ir<DataVar>,
@@ -22,8 +22,13 @@ pub mod ir {
             bracket: syn::token::Bracket,
             index: Ir<Expr>,
         },
-        #[default]
         Err,
+    }
+
+    impl Default for DataDefExprKind {
+        fn default() -> Self {
+            Self::Err
+        }
     }
 
     #[derive(Debug, Clone)]

@@ -153,7 +153,7 @@ pub mod ir {
         pub ty: Ir<ExprTy>,
     }
 
-    #[derive(Default, Debug)]
+    #[derive(Debug)]
     pub enum ExprKind {
         Lit(LitExpr),
         Var(VarExpr),
@@ -162,8 +162,13 @@ pub mod ir {
         Mul(MulExpr),
         Sum(SumExpr),
         RelChain(RelChainExpr),
-        #[default]
         Err,
+    }
+
+    impl Default for ExprKind {
+        fn default() -> Self {
+            Self::Err
+        }
     }
 }
 

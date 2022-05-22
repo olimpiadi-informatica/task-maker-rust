@@ -2,17 +2,17 @@ pub mod ir {
     use crate::ir::*;
 
     /// IR of the type of a value (either atomic or aggregate)
-    #[derive(Default, Debug)]
+    #[derive(Debug)]
     pub enum ExprTy {
-        Atom {
-            atom_ty: Ir<AtomTy>,
-        },
-        Array {
-            item: Ir<ExprTy>,
-            range: Ir<Range>,
-        },
-        #[default]
+        Atom { atom_ty: Ir<AtomTy> },
+        Array { item: Ir<ExprTy>, range: Ir<Range> },
         Err,
+    }
+
+    impl Default for ExprTy {
+        fn default() -> Self {
+            Self::Err
+        }
     }
 
     impl ExprTy {
