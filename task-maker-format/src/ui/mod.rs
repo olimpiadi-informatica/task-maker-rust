@@ -24,7 +24,7 @@ pub use ui_message::UIMessage;
 
 use crate::{cwrite, cwriteln};
 
-pub(crate) mod curses;
+pub mod curses;
 mod json;
 mod print;
 mod raw;

@@ -2,6 +2,7 @@ use itertools::Itertools;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 use tui::widgets::{Paragraph, Text, Widget};
 
+use task_maker_format::ui::curses::{BLUE, BOLD, GREEN, RED};
 use task_maker_format::ui::{
     inner_block, render_block, render_server_status, CursesDrawer, FrameType,
 };
@@ -59,32 +60,32 @@ impl CursesUI {
             .count();
         Paragraph::new(
             [
-                Text::raw(format!("Solution:        {}\n", state.solution.display())),
+                Text::styled("Solution:        ", *BOLD),
+                Text::raw(format!("{}\n", state.solution.display())),
+                Text::styled("Generator args:  ", *BOLD),
+                Text::raw(format!("{}\n", state.generator_args.iter().join(" "))),
+                Text::styled("Batch size:      ", *BOLD),
+                Text::raw(format!("{}\n", state.batch_size)),
+                Text::styled("Batch index:     ", *BOLD),
+                Text::raw(format!("{}\n", shared.batch_index)),
+                Text::styled("Progress:\n", *BLUE),
+                Text::styled("    Generated:   ", *BOLD),
+                Text::raw(format!("{}\n", state.progress.inputs_generated)),
+                Text::styled("    Solved:      ", *BOLD),
+                Text::raw(format!("{}\n", state.progress.inputs_solved)),
+                Text::styled("    Average gen: ", *BOLD),
                 Text::raw(format!(
-                    "Generator args:  {}\n",
-                    state.generator_args.iter().join(" ")
-                )),
-                Text::raw(format!("Batch size:      {}\n", state.batch_size)),
-                Text::raw(format!("Batch index:     {}\n", shared.batch_index)),
-                Text::raw("Progress:\n"),
-                Text::raw(format!(
-                    "    Generated:   {}\n",
-                    state.progress.inputs_generated
-                )),
-                Text::raw(format!(
-                    "    Solved:      {}\n",
-                    state.progress.inputs_solved
-                )),
-                Text::raw(format!(
-                    "    Average gen: {:.3}s\n",
+                    "{:.3}s\n",
                     state.progress.generator_time_sum
                         / (state.progress.inputs_generated.max(1) as f64)
                 )),
+                Text::styled("    Average sol: ", *BOLD),
                 Text::raw(format!(
-                    "    Average sol: {:.3}s\n",
+                    "{:.3}s\n",
                     state.progress.solution_time_sum / (state.progress.inputs_solved.max(1) as f64)
                 )),
-                Text::raw(format!("    Errors:      {}", errors)),
+                Text::styled("    Errors:      ", *BOLD),
+                Text::raw(format!("{}", errors)),
             ]
             .iter(),
         )
@@ -121,9 +122,9 @@ impl CursesUI {
             TestcaseStatus::Solving => Text::raw("s"),
             TestcaseStatus::Solved => Text::raw("S"),
             TestcaseStatus::Checking => Text::raw("c"),
-            TestcaseStatus::Success => Text::raw("✓"),
-            TestcaseStatus::Failed(_) => Text::raw("✕"),
-            TestcaseStatus::Error => Text::raw("!"),
+            TestcaseStatus::Success => Text::styled("✓", *GREEN),
+            TestcaseStatus::Failed(_) => Text::styled("✕", *RED),
+            TestcaseStatus::Error => Text::styled("!", *RED),
         }
     }
 }

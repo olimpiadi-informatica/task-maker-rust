@@ -1,3 +1,5 @@
+//! Utilities for writing UIs with Curses.
+
 use std::io;
 use std::marker::PhantomData;
 use std::path::PathBuf;
@@ -34,20 +36,28 @@ pub type FrameType<'a> =
     Frame<'a, TermionBackend<AlternateScreen<MouseTerminal<RawTerminal<io::Stdout>>>>>;
 
 lazy_static! {
+    /// Green color.
     pub static ref GREEN: Style = Style::default()
         .fg(Color::LightGreen)
         .modifier(Modifier::BOLD);
+    /// Red color.
     pub static ref RED: Style = Style::default()
         .fg(Color::LightRed)
         .modifier(Modifier::BOLD);
+    /// Blue color.
     pub static ref BLUE: Style = Style::default()
         .fg(Color::LightBlue)
         .modifier(Modifier::BOLD);
+    /// Yellow color.
     pub static ref YELLOW: Style = Style::default()
         .fg(Color::LightYellow)
         .modifier(Modifier::BOLD);
+    /// Orange color.
     pub static ref ORANGE: Style = Style::default()
         .fg(Color::Rgb(255, 165, 0))
+        .modifier(Modifier::BOLD);
+    /// Bold.
+    pub static ref BOLD: Style = Style::default()
         .modifier(Modifier::BOLD);
 }
 

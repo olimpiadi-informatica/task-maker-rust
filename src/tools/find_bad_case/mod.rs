@@ -7,8 +7,8 @@ use clap::{Parser, ValueHint};
 use task_maker_exec::ductile::ChannelSender;
 use task_maker_exec::proto::ExecutorClientMessage;
 use task_maker_exec::ExecutorClient;
-use task_maker_format::ui::{CursesUI, UIMessage, UI};
-use task_maker_format::{get_sanity_check_list, EvaluationConfig};
+use task_maker_format::ui::{CursesUI, StdoutPrinter, UIMessage, BLUE, BOLD, RED, UI, YELLOW};
+use task_maker_format::{cwrite, cwriteln, get_sanity_check_list, EvaluationConfig};
 
 use crate::context::RuntimeContext;
 use crate::tools::find_bad_case::dag::{patch_dag, patch_task_for_batch, TestcaseData};
@@ -198,35 +198,52 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
         .map_err(|e| anyhow!("{:?}", e))
         .context("Global UI thread failed")?;
 
+    let mut printer = StdoutPrinter::default();
+
     let shared_state = shared_state.read().unwrap();
     let (testcase, message) = match shared_state.failing_testcase.clone() {
         Some(testcase) => testcase,
         None => {
-            println!("No bad case found");
-            print_failures(&shared_state);
+            cwriteln!(printer, YELLOW, "No bad case found");
+            print_failures(&shared_state, &mut printer);
             return Ok(());
         }
     };
     let (input_path, correct_output_path, failing_output_path) =
         copy_testcase(&testcase, &task_path)?;
 
-    println!("Solution: {}", opt.solution.display());
-    println!("Batch size: {}", opt.batch_size);
+    cwrite!(printer, BOLD, "Solution:           ");
+    println!("{}", opt.solution.display());
+    cwrite!(printer, BOLD, "Batch size:         ");
+    println!("{}", opt.batch_size);
 
-    println!("Failed testcase:");
-    println!("    Generator args: {}", testcase.generator_args.join(" "));
-    println!("    Seed: {}", testcase.seed);
-    println!("    Message: {}", message);
+    cwriteln!(printer, BOLD, "Failed testcase:");
+    cwrite!(printer, BOLD, "    Generator args: ");
+    println!("{}", testcase.generator_args.join(" "));
+    cwrite!(printer, BOLD, "    Seed:           ");
+    println!("{}", testcase.seed);
+    cwrite!(printer, BOLD, "    Message:        ");
+    println!("{}", message);
     println!();
-    print_file("Input file", &task_path, &input_path)?;
+    print_file("Input file", &task_path, &input_path, &mut printer)?;
     if let Some(correct_output_path) = correct_output_path {
-        print_file("Correct output file", &task_path, &correct_output_path)?;
+        print_file(
+            "Correct output file",
+            &task_path,
+            &correct_output_path,
+            &mut printer,
+        )?;
     }
     if let Some(failing_output_path) = failing_output_path {
-        print_file("Failing output file", &task_path, &failing_output_path)?;
+        print_file(
+            "Failing output file",
+            &task_path,
+            &failing_output_path,
+            &mut printer,
+        )?;
     }
 
-    print_failures(&shared_state);
+    print_failures(&shared_state, &mut printer);
     Ok(())
 }
 
@@ -283,10 +300,15 @@ fn copy_testcase(
     Ok((input_target, correct_output_target, failing_output_target))
 }
 
-fn print_file(title: &str, base_path: &Path, path: &Path) -> Result<(), Error> {
+fn print_file(
+    title: &str,
+    base_path: &Path,
+    path: &Path,
+    printer: &mut StdoutPrinter,
+) -> Result<(), Error> {
+    cwrite!(printer, BLUE, "{} ", title);
     println!(
-        "{} (at {})",
-        title,
+        "(at {})",
         path.strip_prefix(base_path).unwrap_or(path).display()
     );
     let file = std::fs::read(path).with_context(|| format!("Failed to read {}", path.display()))?;
@@ -300,13 +322,17 @@ fn print_file(title: &str, base_path: &Path, path: &Path) -> Result<(), Error> {
     Ok(())
 }
 
-fn print_failures(shared: &SharedUIState) {
+fn print_failures(shared: &SharedUIState, printer: &mut StdoutPrinter) {
     if let Some((testcase, message, result)) = &shared.errored_testcase {
-        println!("Error: {}", message);
-        println!("Generator args: {}", testcase.generator_args.join(" "));
-        println!("Result: {:?}", result.status);
+        println!();
+        cwrite!(printer, RED, "Error: ");
+        println!("{}", message);
+        cwrite!(printer, BOLD, "Generator args: ");
+        println!("{}", testcase.generator_args.join(" "));
+        cwrite!(printer, BOLD, "Result:         ");
+        println!("{:?}", result.status);
         if let Some(stderr) = &result.stderr {
-            println!("Stderr:");
+            cwriteln!(printer, BOLD, "Stderr:");
             println!("{}", String::from_utf8_lossy(stderr));
         }
     }
