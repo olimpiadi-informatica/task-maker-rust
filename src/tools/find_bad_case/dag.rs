@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Error};
-use rand::Rng;
+use rand::distributions::Distribution;
+use rand::distributions::Uniform;
 
 use task_maker_format::ioi::{
     InputGenerator, SubtaskInfo, TestcaseId, TestcaseInfo, GENERATION_PRIORITY,
@@ -12,7 +13,7 @@ use task_maker_format::{EvaluationData, TaskFormat};
 #[derive(Debug, Clone, Default)]
 pub struct TestcaseData {
     pub generator_args: Vec<String>,
-    pub seed: u32,
+    pub seed: i32,
     pub input_path: PathBuf,
     pub output_path: PathBuf,
     pub correct_output_path: PathBuf,
@@ -31,6 +32,8 @@ pub fn patch_task_for_batch(
     working_directory: &Path,
 ) -> Result<Batch, Error> {
     let mut batch = Batch::default();
+    let seed_distribution = Uniform::new_inclusive(0, i32::MAX);
+    let mut rng = rand::thread_rng();
     match task {
         TaskFormat::IOI(task) => {
             let testcase_template = task
@@ -45,7 +48,7 @@ pub fn patch_task_for_batch(
             let mut testcases = HashMap::new();
             for testcase_index in 0..batch_size {
                 let testcase_id = (batch_index * batch_size + testcase_index) as TestcaseId;
-                let seed = rand::thread_rng().gen();
+                let seed = seed_distribution.sample(&mut rng);
                 let generator_args = generator_args_for_testcase(generator_args, seed);
                 let mut input_generator = testcase_template.input_generator.clone();
                 match &mut input_generator {
@@ -93,7 +96,7 @@ pub fn patch_task_for_batch(
     Ok(batch)
 }
 
-fn generator_args_for_testcase(args: &[String], seed: u32) -> Vec<String> {
+fn generator_args_for_testcase(args: &[String], seed: i32) -> Vec<String> {
     args.iter()
         .map(|arg| match arg.as_str() {
             "{}" => seed.to_string(),
