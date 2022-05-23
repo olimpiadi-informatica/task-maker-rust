@@ -32,12 +32,17 @@ pub struct FindBadCaseOpt {
     #[clap(flatten, next_help_heading = Some("STORAGE"))]
     pub storage: StorageOpt,
 
+    /// Number of input files to generate for each batch.
+    ///
+    /// Setting this to a small value may reduce the speed of this tool.
     #[clap(long, short, default_value = "100")]
     pub batch_size: usize,
 
+    /// Path to the solution to check against the official solution of the task.
     #[clap(value_hint = ValueHint::FilePath)]
     pub solution: PathBuf,
 
+    /// Arguments to pass to the generator. The value '{}' will be replaced with a random seed.
     #[clap(multiple_values = true)]
     pub generator_args: Vec<String>,
 }
@@ -74,11 +79,13 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
     let task = opt.find_task.find_task(&eval_config)?;
     let task_path = task.path().to_path_buf();
 
+    // Create a single UI for all the batches.
     let ui_state = UIState::new(&opt, stop_evaluation);
     let shared_state = ui_state.shared.clone();
     let mut ui = CursesUI::<UIState, curses_ui::CursesUI, finish_ui::FinishUI>::new(ui_state)
         .context("Failed to start Curses UI")?;
 
+    // Start the global UI where all the messages will be sent.
     let (sender, receiver) = std::sync::mpsc::channel();
     let global_ui_join_handle = std::thread::Builder::new()
         .name("Global UI".into())
@@ -90,6 +97,7 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
         })
         .expect("Failed to start UI thread");
 
+    // Bind the ctrl-c handler that will make the UI and the executor stop.
     ctrlc::set_handler({
         let shared_state = shared_state.clone();
         let current_executor_sender = current_executor_sender.clone();
@@ -117,13 +125,12 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
 
         {
             let mut shared_state = shared_state.write().unwrap();
-            shared_state.batches.push(batch.clone());
+            shared_state.last_batch = Some(batch.clone());
             shared_state.batch_index = batch_index;
         }
 
-        // setup the configuration and the evaluation metadata
+        // Setup the configuration and the evaluation metadata.
         let context = RuntimeContext::new(task, &opt.execution, |task, eval| {
-            // build the DAG for the task
             task.build_dag(eval, &eval_config)
                 .context("Cannot build the task DAG")?;
             patch_dag(eval, opt.batch_size, &batch).context("Cannot patch the DAG")
@@ -168,6 +175,7 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
             shared_state.write().unwrap().should_stop = true;
             "Client failed"
         })?;
+
         // Disable the ctrl-c handler dropping the owned clone of the sender, letting the client exit.
         current_executor_sender.lock().unwrap().take();
 

@@ -11,34 +11,55 @@ use task_maker_format::ui::{UIExecutionStatus, UIMessage, UIStateT};
 use crate::tools::find_bad_case::dag::{Batch, TestcaseData};
 use crate::tools::find_bad_case::FindBadCaseOpt;
 
+/// This state is owned by the UI.
+///
+/// It contains a shared state that can be accessed by the outside world.
 #[derive(Debug, Clone)]
 pub struct UIState {
+    /// A callback that can be used by the UI to stop the current executor.
     pub stop_evaluation: StopEvaluation,
 
+    /// The path to the solution to evaluate.
     pub solution: PathBuf,
+    /// The template arguments passed to the generator.
     pub generator_args: Vec<String>,
+    /// The size of the batch.
     pub batch_size: usize,
 
+    /// The current status of the executor, if any.
     pub executor_status: Option<ExecutorStatus<SystemTime>>,
+    /// The current progress of the evaluation.
     pub progress: Progress,
+    /// The set of batches that have been run.
     pub batches: Vec<CurrentBatch>,
 
+    /// The part of the state shared with the outside world (i.e. by non-UI code).
     pub shared: Arc<RwLock<SharedUIState>>,
 }
 
+/// A wrapper to the callback that can be used by the UI to stop the current executor.
 #[derive(Clone)]
 pub struct StopEvaluation(Arc<dyn Fn() + Send + Sync>);
 
+/// The current progress of the evaluation.
 #[derive(Debug, Clone, Default)]
 pub struct Progress {
+    /// The number of input files that have been generated.
     pub inputs_generated: usize,
+    /// The number of input cases that have been solved.
     pub inputs_solved: usize,
+    /// The sum of the times of the generators. This can be used to compute the average execution
+    /// time.
     pub generator_time_sum: f64,
+    /// The sum of the times of the solution. This can be used to compute the average execution
+    /// time.
     pub solution_time_sum: f64,
 }
 
+/// Information about the status of the current batch.
 #[derive(Debug, Clone)]
 pub struct CurrentBatch {
+    /// The information about each testcase in the batch.
     pub testcase_status: Vec<TestcaseStatus>,
 }
 
@@ -50,27 +71,45 @@ impl CurrentBatch {
     }
 }
 
+/// The status of the evaluation of each testcase.
 #[derive(Debug, Clone)]
 pub enum TestcaseStatus {
+    /// The testcase has not been generated yey.
     Pending,
+    /// The generator is running.
     Generating,
+    /// The generator has run, waiting for the validator.
     Generated,
+    /// The validator is running.
     Validating,
+    /// The validator has run, waiting for the solution.
     Validated,
+    /// The solution is running.
     Solving,
+    /// The solution has run, waiting for the checker.
     Solved,
+    /// The checker is running.
     Checking,
+    /// The checker has run, and the solution has solved the testcase correctly.
     Success,
+    /// The solution failed to solve the testcase.
     Failed(String),
+    /// An error occurred while producing the testcase.
     Error,
 }
 
+/// This is the state shared between the UI and the non-UI code.
 #[derive(Debug, Clone, Default)]
 pub struct SharedUIState {
+    /// The index of the current batch.
     pub batch_index: usize,
+    /// Whether the UI and the execution should stop and no further batch should be tried.
     pub should_stop: bool,
-    pub batches: Vec<Batch>,
+    /// The last batch being evaluated.
+    pub last_batch: Option<Batch>,
+    /// A testcase that made the solution fail, together with a failing message.
     pub failing_testcase: Option<(TestcaseData, String)>,
+    /// A testcase that failed to generate, together with a message and the result of the execution.
     pub errored_testcase: Option<(TestcaseData, String, ExecutionResult)>,
 }
 
@@ -114,8 +153,8 @@ impl UIStateT for UIState {
                         set(testcase, TestcaseStatus::Error);
                         let mut shared = self.shared.write().unwrap();
                         let testcase = shared
-                            .batches
-                            .last()
+                            .last_batch
+                            .as_ref()
                             .unwrap()
                             .testcases
                             .get(&testcase)
@@ -137,8 +176,8 @@ impl UIStateT for UIState {
                         set(testcase, TestcaseStatus::Error);
                         let mut shared = self.shared.write().unwrap();
                         let testcase = shared
-                            .batches
-                            .last()
+                            .last_batch
+                            .as_ref()
                             .unwrap()
                             .testcases
                             .get(&testcase)
@@ -180,7 +219,7 @@ impl UIStateT for UIState {
                 } else {
                     set(testcase, TestcaseStatus::Failed(message.clone()));
                     let mut shared = self.shared.write().unwrap();
-                    let testcase = shared.batches.last().unwrap().testcases.get(&testcase);
+                    let testcase = shared.last_batch.as_ref().unwrap().testcases.get(&testcase);
                     shared.failing_testcase = testcase.map(|tc| (tc.clone(), message));
                     shared.should_stop = true;
                     self.stop_evaluation.stop();

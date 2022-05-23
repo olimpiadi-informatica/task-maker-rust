@@ -48,7 +48,7 @@ pub enum Tool {
     Booklet(BookletOpt),
     /// Fuzz the checker of a task.
     FuzzChecker(FuzzCheckerOpt),
-    /// Generate many input files and search for a one that make a solution fail.
+    /// Generate and search for an input file that make a solution fail.
     FindBadCase(FindBadCaseOpt),
     /// Add the @check comments to the solutions.
     AddSolutionChecks(AddSolutionChecksOpt),

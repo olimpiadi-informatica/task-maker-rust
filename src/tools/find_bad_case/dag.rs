@@ -10,20 +10,29 @@ use task_maker_format::ioi::{
 };
 use task_maker_format::{EvaluationData, TaskFormat};
 
+/// The information about a testcase to generate.
 #[derive(Debug, Clone, Default)]
 pub struct TestcaseData {
+    /// The arguments to pass to the generator for producing this input file.
     pub generator_args: Vec<String>,
+    /// The seed used.
     pub seed: i32,
+    /// The path of where to put this input file temporarily.
     pub input_path: PathBuf,
+    /// The path of where to put the output file to check.
     pub output_path: PathBuf,
+    /// The path of where to put the correct output file.
     pub correct_output_path: PathBuf,
 }
 
+/// A set of testcases that will be put in a single DAG.
 #[derive(Debug, Clone, Default)]
 pub struct Batch {
     pub testcases: HashMap<TestcaseId, TestcaseData>,
 }
 
+/// Modify the task changing the subtasks and testcases in order to produce a DAG that runs the test
+/// testcases instead of the normal ones.
 pub fn patch_task_for_batch(
     task: &mut TaskFormat,
     generator_args: &[String],
@@ -32,10 +41,14 @@ pub fn patch_task_for_batch(
     working_directory: &Path,
 ) -> Result<Batch, Error> {
     let mut batch = Batch::default();
+
+    // [0, i32::MAX] is a safe range for the seeds, since it is compatible with `stoi` in c++.
     let seed_distribution = Uniform::new_inclusive(0, i32::MAX);
     let mut rng = rand::thread_rng();
+
     match task {
         TaskFormat::IOI(task) => {
+            // A template testcase for selecting the generator and validator.
             let testcase_template = task
                 .subtasks
                 .values()
@@ -44,10 +57,13 @@ pub fn patch_task_for_batch(
                 .cloned()
                 // FIXME: in theory we can find the generator and the solution even without a testcase
                 .ok_or_else(|| anyhow!("Failed to find a base testcase"))?;
+            // Remove all the original testcases.
             task.subtasks.clear();
+            // Create a single subtask with all the testcases of this batch.
             let mut testcases = HashMap::new();
             for testcase_index in 0..batch_size {
                 let testcase_id = (batch_index * batch_size + testcase_index) as TestcaseId;
+
                 let seed = seed_distribution.sample(&mut rng);
                 let generator_args = generator_args_for_testcase(generator_args, seed);
                 let mut input_generator = testcase_template.input_generator.clone();
@@ -96,6 +112,7 @@ pub fn patch_task_for_batch(
     Ok(batch)
 }
 
+/// Produce the set of arguments of the generator replacing '{}' with the seed.
 fn generator_args_for_testcase(args: &[String], seed: i32) -> Vec<String> {
     args.iter()
         .map(|arg| match arg.as_str() {
@@ -105,6 +122,11 @@ fn generator_args_for_testcase(args: &[String], seed: i32) -> Vec<String> {
         .collect()
 }
 
+/// Patch the DAG fixing the file callbacks. We want to redirect where the generated files are
+/// stored into a temporary path, and copy them to the task directory only if needed. Furthermore
+/// we want to save also the output produced by the solution to test. Additionally, we want to
+/// change the priorities of the executions, making generations as important as executions (so that
+/// we don't have to wait for all the generations before starting evaluating).
 pub fn patch_dag(eval: &mut EvaluationData, batch_size: usize, batch: &Batch) -> Result<(), Error> {
     let mut processed = 0;
     let get_testcase_id = |path: &Path| -> Option<TestcaseId> {
