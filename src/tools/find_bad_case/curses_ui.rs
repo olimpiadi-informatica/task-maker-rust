@@ -18,7 +18,7 @@ impl CursesDrawer<UIState> for CursesUI {
 
 impl CursesUI {
     fn draw_frame(state: &UIState, mut f: FrameType, loading: char, frame_index: usize) {
-        let header_len = 9;
+        let header_len = 10; // Number of lines of the header.
         let workers_len = state
             .executor_status
             .as_ref()
@@ -51,6 +51,12 @@ impl CursesUI {
     }
 
     fn render_header(state: &UIState, shared: &SharedUIState, f: &mut FrameType, rect: Rect) {
+        let errors = state
+            .batches
+            .iter()
+            .flat_map(|b| b.testcase_status.iter())
+            .filter(|tc| matches!(tc, TestcaseStatus::Error))
+            .count();
         Paragraph::new(
             [
                 Text::raw(format!("Solution:        {}\n", state.solution.display())),
@@ -78,6 +84,7 @@ impl CursesUI {
                     "    Average sol: {:.3}s\n",
                     state.progress.solution_time_sum / (state.progress.inputs_solved.max(1) as f64)
                 )),
+                Text::raw(format!("    Errors:      {}", errors)),
             ]
             .iter(),
         )
@@ -116,6 +123,7 @@ impl CursesUI {
             TestcaseStatus::Checking => Text::raw("c"),
             TestcaseStatus::Success => Text::raw("✓"),
             TestcaseStatus::Failed(_) => Text::raw("✕"),
+            TestcaseStatus::Error => Text::raw("!"),
         }
     }
 }

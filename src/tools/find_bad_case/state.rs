@@ -2,6 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
+use task_maker_dag::ExecutionResult;
 
 use task_maker_exec::ExecutorStatus;
 use task_maker_format::ioi::TestcaseId;
@@ -61,14 +62,16 @@ pub enum TestcaseStatus {
     Checking,
     Success,
     Failed(String),
+    Error,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct SharedUIState {
     pub batch_index: usize,
     pub should_stop: bool,
-    pub current_batch: Option<Batch>,
+    pub batches: Vec<Batch>,
     pub failing_testcase: Option<(TestcaseData, String)>,
+    pub errored_testcase: Option<(TestcaseData, String, ExecutionResult)>,
 }
 
 impl UIState {
@@ -103,9 +106,23 @@ impl UIStateT for UIState {
             } => match status {
                 UIExecutionStatus::Started { .. } => set(testcase, TestcaseStatus::Generating),
                 UIExecutionStatus::Done { result } => {
-                    set(testcase, TestcaseStatus::Generated);
                     self.progress.inputs_generated += 1;
                     self.progress.generator_time_sum += result.resources.cpu_time;
+                    if result.status.is_success() {
+                        set(testcase, TestcaseStatus::Generated);
+                    } else {
+                        set(testcase, TestcaseStatus::Error);
+                        let mut shared = self.shared.write().unwrap();
+                        let testcase = shared
+                            .batches
+                            .last()
+                            .unwrap()
+                            .testcases
+                            .get(&testcase)
+                            .unwrap();
+                        shared.errored_testcase =
+                            Some((testcase.clone(), "Generator failed".into(), result));
+                    }
                 }
                 _ => {}
             },
@@ -113,7 +130,23 @@ impl UIStateT for UIState {
                 testcase, status, ..
             } => match status {
                 UIExecutionStatus::Started { .. } => set(testcase, TestcaseStatus::Validating),
-                UIExecutionStatus::Done { .. } => set(testcase, TestcaseStatus::Validated),
+                UIExecutionStatus::Done { result } => {
+                    if result.status.is_success() {
+                        set(testcase, TestcaseStatus::Validated);
+                    } else {
+                        set(testcase, TestcaseStatus::Error);
+                        let mut shared = self.shared.write().unwrap();
+                        let testcase = shared
+                            .batches
+                            .last()
+                            .unwrap()
+                            .testcases
+                            .get(&testcase)
+                            .unwrap();
+                        shared.errored_testcase =
+                            Some((testcase.clone(), "Validator failed".into(), result));
+                    }
+                }
                 _ => {}
             },
             UIMessage::IOIEvaluation {
@@ -137,24 +170,17 @@ impl UIStateT for UIState {
                 set(testcase, TestcaseStatus::Checking);
             }
             UIMessage::IOITestcaseScore {
-                testcase: testcase_id,
+                testcase,
                 score,
                 message,
                 ..
             } => {
-                let testcase = &mut self.batches.last_mut().unwrap().testcase_status
-                    [testcase_id as usize % self.batch_size];
                 if score == 1.0 {
-                    *testcase = TestcaseStatus::Success;
+                    set(testcase, TestcaseStatus::Success);
                 } else {
-                    *testcase = TestcaseStatus::Failed(message.clone());
+                    set(testcase, TestcaseStatus::Failed(message.clone()));
                     let mut shared = self.shared.write().unwrap();
-                    let testcase = shared
-                        .current_batch
-                        .as_ref()
-                        .unwrap()
-                        .testcases
-                        .get(&testcase_id);
+                    let testcase = shared.batches.last().unwrap().testcases.get(&testcase);
                     shared.failing_testcase = testcase.map(|tc| (tc.clone(), message));
                     shared.should_stop = true;
                     self.stop_evaluation.stop();

@@ -12,7 +12,7 @@ use task_maker_format::{get_sanity_check_list, EvaluationConfig};
 
 use crate::context::RuntimeContext;
 use crate::tools::find_bad_case::dag::{patch_dag, patch_task_for_batch, TestcaseData};
-use crate::tools::find_bad_case::state::UIState;
+use crate::tools::find_bad_case::state::{SharedUIState, UIState};
 use crate::{ExecutionOpt, FindTaskOpt, StorageOpt};
 
 mod curses_ui;
@@ -117,7 +117,7 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
 
         {
             let mut shared_state = shared_state.write().unwrap();
-            shared_state.current_batch = Some(batch.clone());
+            shared_state.batches.push(batch.clone());
             shared_state.batch_index = batch_index;
         }
 
@@ -203,6 +203,7 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
         Some(testcase) => testcase,
         None => {
             println!("No bad case found");
+            print_failures(&shared_state);
             return Ok(());
         }
     };
@@ -225,6 +226,7 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
         print_file("Failing output file", &task_path, &failing_output_path)?;
     }
 
+    print_failures(&shared_state);
     Ok(())
 }
 
@@ -296,4 +298,16 @@ fn print_file(title: &str, base_path: &Path, path: &Path) -> Result<(), Error> {
         println!("{}\n", content.trim_end());
     }
     Ok(())
+}
+
+fn print_failures(shared: &SharedUIState) {
+    if let Some((testcase, message, result)) = &shared.errored_testcase {
+        println!("Error: {}", message);
+        println!("Generator args: {}", testcase.generator_args.join(" "));
+        println!("Result: {:?}", result.status);
+        if let Some(stderr) = &result.stderr {
+            println!("Stderr:");
+            println!("{}", String::from_utf8_lossy(stderr));
+        }
+    }
 }
