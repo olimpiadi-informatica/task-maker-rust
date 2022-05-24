@@ -14,6 +14,7 @@ fn get_version() -> String {
     match output {
         Ok(output) => {
             let from_git = String::from_utf8_lossy(&output.stdout);
+            let from_git = from_git.trim();
             if from_git.is_empty() {
                 version
             } else {
@@ -40,5 +41,6 @@ fn main() {
     let version = get_version();
     file.write_all(version.as_bytes())
         .expect("Failed to write to version.txt");
-    println!("cargo:rerun-if-changed=.git")
+    println!("cargo:rerun-if-changed=.git/refs");
+    println!("cargo:rerun-if-changed=.git/index");
 }
