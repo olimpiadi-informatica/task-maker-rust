@@ -416,12 +416,12 @@
 \fi
 \immediate\write\py@num@tmp{print(#2)}%
 \immediate\closeout\py@num@tmp%
-\immediate\write18{cd \currfiledir; python py_num.py > ../py_num.tex}%
+\immediate\write18{cd \currfiledir; python3 py_num.py > ../py_num.tex}%
 \ifnum0\pdffilesize{py_num.tex}>0
 \CatchFileDef{\py@num}{py_num.tex}{}%
 \IfDecimal{\py@num}{\num{\py@num}}{\PackageError{pynum}{Python output for #2 is not a number}{}}
 \else
-\PackageError{pynum}{No output from Python. Check if #1.py is present}{}
+\PackageError{pynum}{No output from Python. Check the logs (with --copy-logs)}{}
 \fi
 }
 
