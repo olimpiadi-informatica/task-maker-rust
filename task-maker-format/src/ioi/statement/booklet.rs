@@ -108,7 +108,6 @@ impl Booklet {
             .ok_or_else(|| anyhow!("Invalid destination file {}", self.dest.display()))?
             .to_string_lossy()
             .to_string();
-        let mut task_names = self.statements.iter().map(|s| &s.config().name);
         let mut exec = Execution::new(
             "Compilation of the booklet",
             ExecutionCommand::system("latexmk"),
@@ -126,7 +125,6 @@ impl Booklet {
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true);
         exec.tag(Tag::Booklet.into());
-        exec.env("TEXINPUTS", format!(".:{}:", task_names.join(":")));
         let output = exec.output("booklet.pdf");
 
         let source = File::new("Source of the booklet");
@@ -207,7 +205,7 @@ impl Booklet {
                 packages.insert(package);
             }
             tasks.push(format!(
-                r"\input{{{}/statement.tex}}",
+                r"\subimport{{{}}}{{statement.tex}}",
                 statement.config().name
             ));
         }
