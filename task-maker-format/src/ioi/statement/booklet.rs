@@ -205,7 +205,7 @@ impl Booklet {
                 packages.insert(package);
             }
             tasks.push(format!(
-                r"\subimport{{{}}}{{statement.tex}}",
+                r"\subimport{{./{}/}}{{statement.tex}}",
                 statement.config().name
             ));
         }
