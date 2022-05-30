@@ -15,6 +15,8 @@ use task_maker_rust::tools::task_info::main_task_info;
 use task_maker_rust::tools::typescriptify::main_typescriptify;
 use task_maker_rust::tools::worker::main_worker;
 
+use task_maker_iospec::tools::*;
+
 fn main() {
     let base_opt = Opt::parse();
     base_opt.logger.enable_log();
@@ -32,6 +34,9 @@ fn main() {
         Tool::FuzzChecker(opt) => main_fuzz_checker(opt),
         Tool::FindBadCase(opt) => main_find_bad_case(opt),
         Tool::AddSolutionChecks(opt) => main_add_solution_checks(opt, base_opt.logger),
+        Tool::IospecCheck(opt) => iospec_check::do_main(opt, &mut std::io::stderr()),
+        Tool::IospecGen(opt) => iospec_gen::do_main(opt, &mut std::io::stderr()),
+        Tool::IospecGenAll(opt) => iospec_gen_all::do_main(opt, &mut std::io::stderr()),
         Tool::InternalSandbox => return task_maker_rust::main_sandbox(),
     }
     .nice_unwrap()

@@ -1,0 +1,20 @@
+<<spec>>
+
+<<block>>
+
+<<decl N of type i32>>
+<<decl A of type array of array of i32>>
+
+ioln:
+    item N: i32;
+<<alloc A to size N of array of i32>>
+for i upto N <i32>:
+    <<block>>
+
+    ioln:
+        <<alloc A[i] to size i + 1 of i32>>
+        for j upto i + 1 <i32>:
+            <<block>>
+
+            item A[i][j]: i32;
+

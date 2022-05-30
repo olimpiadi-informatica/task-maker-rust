@@ -1,0 +1,51 @@
+<<spec>>
+
+<<block>>
+
+<<decl N of type i32>>
+<<decl M of type i32>>
+<<decl W of type array of i32>>
+<<decl A of type array of i32>>
+<<decl B of type array of i32>>
+<<decl S of type i32>>
+<<decl X of type array of i32>>
+
+ioln:
+    #[ <<todo>> ]
+    #[ <<todo>> ]
+    #[ <<todo>> ]
+    #[ <<todo>> ]
+    item N: i32;
+    item M: i32;
+check 2 <= N && N < 100000;
+check 0 <= M && M < 500000;
+ioln:
+    <<alloc W to size N of i32>>
+    for u upto N <i32>:
+        <<block>>
+
+        item W[u]: i32;
+        check 0 <= W[u] && W[u] < 1000000000;
+<<alloc A to size M of i32>>
+<<alloc B to size M of i32>>
+for i upto M <i32>:
+    <<block>>
+
+    ioln:
+        item A[i]: i32;
+        item B[i]: i32;
+    check 0 <= A[i] && A[i] < N;
+    check 0 <= B[i] && B[i] < N;
+ioln:
+    @call (<<todo>>)
+    #[ <<todo>> ]
+    item S: i32;
+ioln:
+    @call (<<todo>>)
+    @call (<<todo>>)
+    <<alloc X to size N of i32>>
+    for u upto N <i32>:
+        <<block>>
+
+        item X[u]: i32;
+

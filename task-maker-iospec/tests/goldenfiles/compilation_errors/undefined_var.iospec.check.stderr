@@ -1,0 +1,6 @@
+error: no variable named `x` found in the current scope
+ --> undefined_var.iospec:1:8
+  |
+1 | assume x == 0;
+  |        ^ not found in this scope
+  |
