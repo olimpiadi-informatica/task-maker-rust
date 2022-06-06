@@ -118,10 +118,6 @@ fn extract_includes(path: &Path) -> Vec<(PathBuf, PathBuf)> {
     lazy_static! {
         static ref RE: Regex = Regex::new(r#"#include\s*[<"]([^">]+)[>"]"#).expect("Invalid regex");
     }
-    let path = match path.canonicalize() {
-        Ok(path) => path,
-        _ => return vec![],
-    };
     let content = match std::fs::read_to_string(&path) {
         Ok(content) => content,
         _ => return vec![],
