@@ -33,7 +33,7 @@ chashmap = "2.2"
 # Sandbox
 tabox = "1"
 # For killing processes and making FIFOs
-nix = "0.17"
+nix = "0.24"
 # In-memory and remote channels
 ductile = "0.2"
 # Key Derivation Function from a password
