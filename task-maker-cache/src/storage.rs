@@ -94,9 +94,7 @@ impl CacheFile {
         file.write_all(&magic)
             .context("Failed to write cache magic number")?;
 
-        let serialized = bincode::serialize(&self.entries.iter().collect_vec())
-            .context("Failed to serialize cache content")?;
-        file.write_all(&serialized)
+        bincode::serialize_into(file, &self.entries.iter().collect_vec())
             .context("Failed to write cache content")?;
         std::fs::rename(&tmp, &self.path).with_context(|| {
             format!(
