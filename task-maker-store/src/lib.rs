@@ -579,6 +579,7 @@ mod tests {
             perm.set_readonly(false);
             file.set_permissions(perm).unwrap();
         }
+        std::thread::sleep(std::time::Duration::from_millis(1000));
         OpenOptions::new()
             .write(true)
             .open(path)
