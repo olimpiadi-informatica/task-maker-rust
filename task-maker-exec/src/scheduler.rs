@@ -407,7 +407,7 @@ impl Scheduler {
             bail!("Invalid worker result: the number of results ({}) does not match the number of executions ({})", result.len(), group.executions.len());
         }
         client.running_groups.remove(&group_uuid);
-        self.exec_completed(client_uuid, &group, result, outputs)?;
+        self.exec_completed(client_uuid, &group, result, outputs, false)?;
         self.assign_jobs()?;
         self.check_completion(client_uuid)?;
         Ok(())
@@ -680,6 +680,7 @@ impl Scheduler {
         group: &ExecutionGroup,
         result: Vec<ExecutionResult>,
         outputs: HashMap<FileUuid, FileStoreHandle>,
+        from_cache: bool,
     ) -> Result<(), Error> {
         let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
             client
@@ -704,7 +705,7 @@ impl Scheduler {
 
         let successful = result.iter().all(|r| r.status.is_success());
         let internal_error = result.iter().any(|r| r.status.is_internal_error());
-        if !internal_error {
+        if !from_cache && !internal_error {
             self.cache_execution(client_uuid, group, outputs, result);
         }
         if successful {
@@ -796,7 +797,7 @@ impl Scheduler {
 
         self.ready_execs = not_cached;
         for (client, exec, result, outputs) in cached.into_iter() {
-            self.exec_completed(client, &exec, result, outputs)?;
+            self.exec_completed(client, &exec, result, outputs, true)?;
         }
 
         Ok(())
