@@ -84,7 +84,7 @@ impl FileStoreIndex {
             );
         }
 
-        Ok(bincode::deserialize_from(file).context("Failed to deserialize index file")?)
+        bincode::deserialize_from(file).context("Failed to deserialize index file")
     }
 
     /// Store a dump of this index to the path provided.
