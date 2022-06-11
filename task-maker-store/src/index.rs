@@ -1,14 +1,25 @@
 use std::cmp::Ordering;
+use std::collections::hash_map::Entry;
 use std::collections::{BinaryHeap, HashMap};
-use std::fs::{remove_dir, File};
+use std::fs::{create_dir_all, remove_dir, File};
+use std::io::{Read, Write};
 use std::path::Path;
 use std::time::SystemTime;
 
-use anyhow::{Context, Error};
+use anyhow::{bail, Context, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::{FileStore, FileStoreKey, LockedFiles};
-use std::collections::hash_map::Entry;
+
+/// Magic string that is prepended to the index file to avoid accidental loading of invalid index
+/// files.
+const MAGIC: &[u8] = b"task-maker-cache";
+/// Current version of task-maker, to avoid any problem with serialization/deserialization, changing
+/// version will cause a complete index invalidation. Therefore any breaking change to the index
+/// file format has to go through a version update.
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Maximum number of characters of the version string.
+const VERSION_MAX_LEN: usize = 16;
 
 /// An entry of a file inside the file store.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -43,27 +54,62 @@ impl FileStoreIndex {
     /// Load the index from the provided path.
     pub(crate) fn load<P: AsRef<Path>>(path: P) -> Result<FileStoreIndex, Error> {
         let path = path.as_ref();
-        if path.exists() {
-            debug!("Loading index from {:?}", path);
-            let file = File::open(path)
-                .with_context(|| format!("Failed to open index file from {}", path.display()))?;
-            Ok(serde_json::from_reader(file).context("Failed to deserialize index file")?)
-        } else {
+        if !path.exists() {
             debug!("Index at {:?} not found, creating new one", path);
-            Ok(FileStoreIndex {
+            return Ok(FileStoreIndex {
                 total_size: 0,
                 known_files: HashMap::new(),
-            })
+            });
         }
+
+        debug!("Loading index from {:?}", path);
+        let mut file = File::open(path)
+            .with_context(|| format!("Failed to open index file from {}", path.display()))?;
+
+        let mut magic = [0u8; MAGIC.len() + VERSION_MAX_LEN];
+        file.read_exact(&mut magic)
+            .context("Failed to read magic number")?;
+        if &magic[..MAGIC.len()] != MAGIC {
+            bail!(
+                "Cache magic mismatch:\nExpected: {:?}\nFound: {:?}",
+                MAGIC,
+                &magic[..MAGIC.len()]
+            );
+        }
+        if &magic[MAGIC.len()..MAGIC.len() + VERSION.len()] != VERSION.as_bytes() {
+            bail!(
+                "Cache version mismatch:\nExpected: {:?}\nFound: {:?}",
+                VERSION.as_bytes(),
+                &magic[MAGIC.len()..MAGIC.len() + VERSION.len()]
+            );
+        }
+
+        Ok(bincode::deserialize_from(file).context("Failed to deserialize index file")?)
     }
 
     /// Store a dump of this index to the path provided.
     pub(crate) fn store<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
         let path = path.as_ref();
         debug!("Saving index file at {}", path.display());
-        let file = File::create(path)
-            .with_context(|| format!("Failed to create index file at {}", path.display()))?;
-        serde_json::to_writer(file, self).context("Failed to write index file")
+
+        create_dir_all(path.parent().expect("Invalid store file path"))
+            .context("Failed to create store directory")?;
+        let tmp = path.with_extension("tmp");
+
+        let mut file = File::create(&tmp)
+            .with_context(|| format!("Failed to create index file at {}", tmp.display()))?;
+        let mut magic = [0u8; MAGIC.len() + VERSION_MAX_LEN];
+        magic[..MAGIC.len()].clone_from_slice(MAGIC);
+        magic[MAGIC.len()..MAGIC.len() + VERSION.as_bytes().len()]
+            .clone_from_slice(VERSION.as_bytes());
+
+        file.write_all(&magic)
+            .context("Failed to write cache magic number")?;
+
+        bincode::serialize_into(file, &self).context("Failed to write index")?;
+        std::fs::rename(&tmp, path)
+            .with_context(|| format!("Failed to move {} -> {}", tmp.display(), path.display()))?;
+        Ok(())
     }
 
     /// Mark a file as accessed, bumping its position in the LRU.

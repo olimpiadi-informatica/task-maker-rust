@@ -63,7 +63,7 @@ const INTEGRITY_CHECKS_ENABLED: bool = false;
 /// The name of the lock of the file store.
 const STORE_LOCK_FILE: &str = "exclusive.lock";
 /// The name of the index of the file store.
-const STORE_INDEX_FILE: &str = "index.json";
+const STORE_INDEX_FILE: &str = "index.bin";
 
 /// The type of an hash of a file
 type HashData = Vec<u8>;

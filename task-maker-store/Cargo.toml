@@ -13,7 +13,7 @@ anyhow = { version = "1.0", features = ["backtrace"] }
 fs2 = "0.4"
 # Serialization/Deserialization
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+bincode = "1.2"
 # Converting bytes into hex strings
 hex = "0.3"
 # Logging

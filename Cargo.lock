@@ -2096,13 +2096,13 @@ name = "task-maker-store"
 version = "0.5.5"
 dependencies = [
  "anyhow",
+ "bincode",
  "blake2",
  "fs2",
  "hex",
  "log",
  "pretty_assertions",
  "serde",
- "serde_json",
  "tempdir",
 ]
 
