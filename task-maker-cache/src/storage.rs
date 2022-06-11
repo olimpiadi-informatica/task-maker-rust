@@ -1,13 +1,14 @@
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::PathBuf;
 
 use anyhow::{bail, Context, Error};
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 
 use crate::entry::CacheEntry;
 use crate::key::CacheKey;
-use crate::Cache;
 
 /// Magic string that is prepended to the cache file to avoid accidental loading of invalid cache
 /// files.
@@ -19,57 +20,101 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Maximum number of characters of the version string.
 const VERSION_MAX_LEN: usize = 16;
 
-static_assertions::const_assert!(VERSION.len() <= VERSION_MAX_LEN);
-
-/// Read the cache file, check the magic string and deserialize all the entries in it.
-pub fn load<P: AsRef<Path>>(path: P) -> Result<HashMap<CacheKey, Vec<CacheEntry>>, Error> {
-    let mut file = std::fs::File::open(&path)
-        .with_context(|| format!("Cannot open cache file at {}", path.as_ref().display()))?;
-    let mut magic = [0u8; MAGIC.len() + VERSION_MAX_LEN];
-    file.read_exact(&mut magic)
-        .context("Failed to read magic number")?;
-    if &magic[..MAGIC.len()] != MAGIC {
-        bail!(
-            "Cache magic mismatch:\nExpected: {:?}\nFound: {:?}",
-            MAGIC,
-            &magic[..MAGIC.len()]
-        );
-    }
-    if &magic[MAGIC.len()..MAGIC.len() + VERSION.len()] != VERSION.as_bytes() {
-        bail!(
-            "Cache version mismatch:\nExpected: {:?}\nFound: {:?}",
-            VERSION.as_bytes(),
-            &magic[MAGIC.len()..MAGIC.len() + VERSION.len()]
-        );
-    }
-
-    Ok(
-        bincode::deserialize_from::<_, Vec<(CacheKey, Vec<CacheEntry>)>>(file)
-            .context("Failed to deserialize cache content")?
-            .into_iter()
-            .collect(),
-    )
+/// A cache file.
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct CacheFile {
+    /// The set of entries in this cache file.
+    entries: HashMap<CacheKey, Vec<CacheEntry>>,
+    /// Where this file is stored.
+    path: PathBuf,
+    /// Whether this file should be flushed.
+    dirty: bool,
 }
 
-/// Store the content of the cache to the cache file, including the magic string.
-pub fn store(cache: &Cache) -> Result<(), Error> {
-    std::fs::create_dir_all(cache.cache_file.parent().context("Invalid cache file")?)
-        .context("Failed to create cache directory")?;
-    let mut file =
-        std::fs::File::create(&cache.cache_file).context("Failed to create cache file")?;
+static_assertions::const_assert!(VERSION.len() <= VERSION_MAX_LEN);
 
-    let mut magic = [0u8; MAGIC.len() + VERSION_MAX_LEN];
-    magic[..MAGIC.len()].clone_from_slice(MAGIC);
-    magic[MAGIC.len()..MAGIC.len() + VERSION.as_bytes().len()].clone_from_slice(VERSION.as_bytes());
+impl CacheFile {
+    /// Read the cache file, check the magic string and deserialize all the entries in it.
+    pub fn load(path: PathBuf) -> Result<CacheFile, Error> {
+        if !path.exists() {
+            return Ok(Self {
+                entries: Default::default(),
+                path,
+                dirty: false,
+            });
+        }
+        let mut file = std::fs::File::open(&path)
+            .with_context(|| format!("Cannot open cache file at {}", path.display()))?;
+        let mut magic = [0u8; MAGIC.len() + VERSION_MAX_LEN];
+        file.read_exact(&mut magic)
+            .context("Failed to read magic number")?;
+        if &magic[..MAGIC.len()] != MAGIC {
+            bail!(
+                "Cache magic mismatch:\nExpected: {:?}\nFound: {:?}",
+                MAGIC,
+                &magic[..MAGIC.len()]
+            );
+        }
+        if &magic[MAGIC.len()..MAGIC.len() + VERSION.len()] != VERSION.as_bytes() {
+            bail!(
+                "Cache version mismatch:\nExpected: {:?}\nFound: {:?}",
+                VERSION.as_bytes(),
+                &magic[MAGIC.len()..MAGIC.len() + VERSION.len()]
+            );
+        }
 
-    file.write_all(&magic)
-        .context("Failed to write cache magic number")?;
+        let entries = bincode::deserialize_from::<_, HashMap<CacheKey, Vec<CacheEntry>>>(file)
+            .context("Failed to deserialize cache content")?;
 
-    let serialized = bincode::serialize(&cache.entries.iter().collect_vec())
-        .context("Failed to serialize cache content")?;
-    file.write_all(&serialized)
-        .context("Failed to write cache content")?;
-    Ok(())
+        Ok(Self {
+            entries,
+            path,
+            dirty: false,
+        })
+    }
+
+    /// Store the content of the cache to the cache file, including the magic string.
+    pub fn store(&self) -> Result<(), Error> {
+        // Do not write the file if it's not dirty.
+        if !self.dirty {
+            return Ok(());
+        }
+
+        let path = &self.path;
+        std::fs::create_dir_all(path.parent().context("Invalid cache file")?)
+            .with_context(|| format!("Failed to create cache directory for {}", path.display()))?;
+        let tmp = path.with_extension("tmp");
+        let mut file = std::fs::File::create(&tmp).context("Failed to create cache file")?;
+
+        let mut magic = [0u8; MAGIC.len() + VERSION_MAX_LEN];
+        magic[..MAGIC.len()].clone_from_slice(MAGIC);
+        magic[MAGIC.len()..MAGIC.len() + VERSION.as_bytes().len()]
+            .clone_from_slice(VERSION.as_bytes());
+
+        file.write_all(&magic)
+            .context("Failed to write cache magic number")?;
+
+        let serialized = bincode::serialize(&self.entries.iter().collect_vec())
+            .context("Failed to serialize cache content")?;
+        file.write_all(&serialized)
+            .context("Failed to write cache content")?;
+        std::fs::rename(&tmp, &self.path).with_context(|| {
+            format!(
+                "Failed to move {} -> {}",
+                tmp.display(),
+                self.path.display()
+            )
+        })?;
+        Ok(())
+    }
+
+    pub fn entry(&mut self, key: CacheKey) -> Entry<CacheKey, Vec<CacheEntry>> {
+        self.entries.entry(key)
+    }
+
+    pub fn mark_dirty(&mut self) {
+        self.dirty = true;
+    }
 }
 
 #[cfg(test)]
@@ -84,7 +129,7 @@ mod tests {
         let mut f = File::create(&path).unwrap();
         f.write_all(b"totally-not-the-magic").unwrap();
 
-        assert!(load(&path).is_err());
+        assert!(CacheFile::load(path).is_err());
     }
 
     #[test]
@@ -95,19 +140,6 @@ mod tests {
         f.write_all(MAGIC).unwrap();
         f.write_all(b"wrong-version").unwrap();
 
-        assert!(load(&path).is_err());
-    }
-
-    #[test]
-    fn test_load_after_store() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
-        let path = tmpdir.path().join("cache");
-        let cache = Cache {
-            entries: Default::default(),
-            cache_file: path.clone(),
-        };
-
-        store(&cache).unwrap();
-        assert!(load(&path).is_ok());
+        assert!(CacheFile::load(path).is_err());
     }
 }

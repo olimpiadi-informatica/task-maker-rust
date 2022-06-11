@@ -85,11 +85,15 @@ mod key;
 mod storage;
 use entry::CacheEntry;
 use key::CacheKey;
+use storage::CacheFile;
 
+use std::collections::hash_map::{DefaultHasher, Entry};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::fs::create_dir_all;
+use std::hash::{Hash, Hasher};
+use std::path::PathBuf;
 
-use anyhow::Error;
+use anyhow::{Context, Error};
 use itertools::Itertools;
 
 use task_maker_dag::{ExecutionGroup, ExecutionResult, ExecutionStatus, FileUuid};
@@ -101,10 +105,10 @@ const CACHE_FILE: &str = "cache.bin";
 /// Handle the cached executions, loading and storing them to disk.
 #[derive(Debug)]
 pub struct Cache {
-    /// All the cached entries.
-    pub(crate) entries: HashMap<CacheKey, Vec<CacheEntry>>,
-    /// The path to the cache file.
-    pub(crate) cache_file: PathBuf,
+    /// Entries to flush to disk.
+    to_flush: HashMap<u8, CacheFile>,
+    /// The base directory where the cache files are stored.
+    cache_dir: PathBuf,
 }
 
 /// The result of a cache query, can be either successful (`Hit`) or unsuccessful (`Miss`).
@@ -121,25 +125,17 @@ pub enum CacheResult {
 }
 
 impl Cache {
-    /// Make a new `Cache` stored in the specified cache directory. If the cache file is present
-    /// it will be used and its content will be loaded, if valid, otherwise an error is returned.
-    pub fn new<P: AsRef<Path>>(cache_dir: P) -> Result<Cache, Error> {
-        let path = cache_dir.as_ref().join(CACHE_FILE);
-        if path.exists() {
-            let entries = storage::load(&path);
-            if let Err(e) = &entries {
-                error!("Cache store is broken, resetting: {:?}", e);
-            }
-            Ok(Cache {
-                entries: entries.unwrap_or_default(),
-                cache_file: path,
-            })
-        } else {
-            Ok(Cache {
-                entries: HashMap::new(),
-                cache_file: path,
-            })
-        }
+    /// Make a new `Cache` stored in the specified cache directory. Returns an error if the cache
+    /// directory cannot be created.
+    pub fn new<P: Into<PathBuf>>(cache_dir: P) -> Result<Cache, Error> {
+        let cache_dir = cache_dir.into();
+        create_dir_all(&cache_dir).with_context(|| {
+            format!("Failed to create cache directory: {}", cache_dir.display())
+        })?;
+        Ok(Self {
+            to_flush: Default::default(),
+            cache_dir,
+        })
     }
 
     /// Insert a new entry inside the cache. They key is computed based on the execution's metadata
@@ -152,15 +148,24 @@ impl Cache {
         result: Vec<ExecutionResult>,
     ) {
         let key = CacheKey::from_execution_group(group, file_keys);
-        let set = self.entries.entry(key).or_default();
+        let file = match self.get_file(&key) {
+            Ok(file) => file,
+            Err(e) => {
+                warn!("Failed to insert entry in the cache: {:?}", e);
+                return;
+            }
+        };
+
+        let set = file.entry(key).or_default();
         let entry = CacheEntry::from_execution_group(group, file_keys, result);
-        // do not insert duplicated keys, replace if the limits are the same
+        // Do not insert duplicated keys, replace if the limits are the same.
         let pos = set.iter().find_position(|e| e.same_limits(&entry));
         if let Some((pos, _)) = pos {
             set[pos] = entry;
         } else {
             set.push(entry);
         }
+        file.mark_dirty();
     }
 
     /// Search in the cache for a valid entry, returning a cache hit if it's found or a cache miss
@@ -175,10 +180,20 @@ impl Cache {
         file_store: &FileStore,
     ) -> CacheResult {
         let key = CacheKey::from_execution_group(group, file_keys);
-        if !self.entries.contains_key(&key) {
-            return CacheResult::Miss;
-        }
-        for entry in self.entries[&key].iter() {
+        let file = match self.get_file(&key) {
+            Ok(file) => file,
+            Err(e) => {
+                warn!("Failed to get entry from the cache: {:?}", e);
+                return CacheResult::Miss;
+            }
+        };
+        let entry = file.entry(key);
+        let entry = match &entry {
+            Entry::Vacant(_) => return CacheResult::Miss,
+            Entry::Occupied(entry) => entry.get(),
+        };
+
+        for entry in entry.iter() {
             match entry.outputs(file_store, group) {
                 None => {
                     // TODO: remove the entry because it's not valid anymore
@@ -216,12 +231,29 @@ impl Cache {
     pub fn is_cacheable(result: &ExecutionResult) -> bool {
         !matches!(result.status, ExecutionStatus::InternalError(_))
     }
+
+    /// Try to load the cache file for this key.
+    fn get_file(&mut self, key: &CacheKey) -> Result<&mut CacheFile, Error> {
+        let mut hasher = DefaultHasher::default();
+        key.hash(&mut hasher);
+        let hash = hasher.finish();
+        let lv1 = (hash % 256) as u8;
+        match self.to_flush.entry(lv1) {
+            Entry::Occupied(entry) => Ok(entry.into_mut()),
+            Entry::Vacant(entry) => {
+                let path = self.cache_dir.join(lv1.to_string()).join(CACHE_FILE);
+                Ok(entry.insert(CacheFile::load(path)?))
+            }
+        }
+    }
 }
 
 impl Drop for Cache {
     fn drop(&mut self) {
-        if let Err(e) = storage::store(self) {
-            error!("Failed to store the cache: {:?}", e);
+        for (_, file) in self.to_flush.drain() {
+            if let Err(e) = file.store() {
+                warn!("Failed to store cache file: {:?}", e);
+            }
         }
     }
 }
