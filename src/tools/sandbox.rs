@@ -3,7 +3,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::{Context, Error};
-use clap::{Parser, ValueHint};
+use clap::Parser;
 use tabox::configuration::SandboxConfiguration;
 use tabox::syscall_filter::SyscallFilter;
 use tabox::{Sandbox, SandboxImplementation};
@@ -14,12 +14,11 @@ use tempdir::TempDir;
 use task_maker_exec::sandbox::READABLE_DIRS;
 
 #[derive(Parser, Debug, Clone)]
-#[clap(trailing_var_arg = true)]
 pub struct SandboxOpt {
     /// Working directory of the sandbox.
     ///
     /// Will be mounted in /box inside the sandbox. Defaults to current working directory.
-    #[clap(long, short, value_hint = ValueHint::DirPath)]
+    #[clap(long, short)]
     pub workdir: Option<PathBuf>,
 
     /// Memory limit for the sandbox, in KiB.
@@ -35,7 +34,7 @@ pub struct SandboxOpt {
     pub single_process: bool,
 
     /// List of additional directory mounted read-only inside the sandbox.
-    #[clap(long, short, value_hint = ValueHint::DirPath)]
+    #[clap(long, short)]
     pub readable_dirs: Vec<PathBuf>,
 
     /// Mount /tmp and /dev/null inside the sandbox
@@ -51,7 +50,6 @@ pub struct SandboxOpt {
     pub gid: usize,
 
     /// Command to execute inside the sandbox. If not specified, bash is executed.
-    #[clap(multiple_values = true, value_hint = ValueHint::CommandWithArguments)]
     pub command: Vec<String>,
 }
 
