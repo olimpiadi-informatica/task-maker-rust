@@ -55,14 +55,22 @@ impl AsyFile {
             format!("Compilation of {}", name),
             ExecutionCommand::system("asy"),
         );
-        comp.args(vec!["-f", "pdf", "-o", "output.pdf", "source.asy"]);
+        comp.args(vec![
+            "-f",
+            "pdf",
+            "-o",
+            "output.pdf",
+            "-localhistory", // This prevents "failed to create directory /.asy."
+            "source.asy",
+        ]);
         comp.limits_mut()
             .read_only(false)
             .wall_time(10.0) // asy tends to deadlock on failure
             .stack(8192 * 1024) // due to a libgc bug, asy may crash with unlimited stack
             .allow_multiprocess()
             .add_extra_readable_dir("/etc")
-            .mount_tmpfs(true);
+            .mount_tmpfs(true)
+            .mount_proc(true);
         comp.tag(Tag::Booklet.into());
         comp.input(&source_file, "source.asy", false);
         eval.dag
