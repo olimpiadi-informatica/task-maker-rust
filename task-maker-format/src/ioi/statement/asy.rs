@@ -175,6 +175,24 @@ impl AsyFile {
             name
         )?;
         let cropped = crop.output("source-crop.pdf");
+        crop.capture_stderr(1024);
+        eval.dag.on_execution_done(&crop.uuid, {
+            let sender = eval.sender.clone();
+            move |result| {
+                if !result.status.is_success() {
+                    let mut diagnostic =
+                        Diagnostic::error(format!("Failed to crop pdf of {}", name));
+                    if result.status.is_internal_error() {
+                        diagnostic = diagnostic.with_help("Is 'pdfcrop' installed?");
+                    }
+                    if let Some(stderr) = result.stderr {
+                        diagnostic = diagnostic.with_help_attachment(stderr);
+                    }
+                    sender.add_diagnostic(diagnostic)?;
+                }
+                Ok(())
+            }
+        });
         eval.dag.add_execution(crop);
 
         Ok(cropped)
