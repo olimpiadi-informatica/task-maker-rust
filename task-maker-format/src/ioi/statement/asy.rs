@@ -8,6 +8,7 @@ use regex::Regex;
 use task_maker_dag::{Execution, ExecutionCommand, File};
 use task_maker_diagnostics::{CodeSpan, Diagnostic};
 
+use crate::UISender;
 use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, Tag};
 
 lazy_static! {
@@ -126,6 +127,25 @@ impl AsyFile {
             eval.dag
                 .write_file_to_allow_fail(comp.stdout(), stdout_dest, false);
         }
+
+        comp.capture_stderr(1024);
+        eval.dag.on_execution_done(&comp.uuid, {
+            let sender = eval.sender.clone();
+            let name = name.clone();
+            move |result| {
+                if !result.status.is_success() {
+                    let mut diagnostic = Diagnostic::error(format!("Failed to compile {}", name));
+                    if result.status.is_internal_error() {
+                        diagnostic = diagnostic.with_help("Is 'asymptote' installed?");
+                    }
+                    if let Some(stderr) = result.stderr {
+                        diagnostic = diagnostic.with_help_attachment(stderr);
+                    }
+                    sender.add_diagnostic(diagnostic)?;
+                }
+                Ok(())
+            }
+        });
         eval.dag.add_execution(comp);
 
         let mut crop = Execution::new(
