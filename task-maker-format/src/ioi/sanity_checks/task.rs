@@ -41,13 +41,15 @@ impl SanityCheck<IOITask> for BrokenSymlinks {
     fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         for file in list_files(&task.path, vec!["**/*"]) {
             if !file.exists() {
+                let path = task.path_of(&file);
+                // Ignore the symlinks here as they are not interesting.
+                if path.starts_with("fuzz") {
+                    continue;
+                }
                 if let Ok(content) = file.read_link() {
                     eval.add_diagnostic(
-                        Diagnostic::warning(format!(
-                            "{} is a broken symlink",
-                            task.path_of(&file).display()
-                        ))
-                        .with_note(format!("It points to {}", content.display())),
+                        Diagnostic::warning(format!("{} is a broken symlink", path.display()))
+                            .with_note(format!("It points to {}", content.display())),
                     )?;
                 }
             }
