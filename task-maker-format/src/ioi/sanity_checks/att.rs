@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Error};
@@ -9,7 +9,7 @@ use task_maker_dag::File;
 use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::sanity_checks::check_missing_graders;
-use crate::ioi::{IOITask, TaskType, TestcaseId};
+use crate::ioi::{IOITask, InputGenerator, TaskType, TestcaseId};
 use crate::sanity_checks::SanityCheck;
 use crate::{list_files, EvaluationData, SolutionCheck, UISender};
 
@@ -60,6 +60,31 @@ impl SanityCheck<IOITask> for AttTemplates {
 #[derive(Debug, Default)]
 pub struct AttSampleFiles;
 
+impl AttSampleFiles {
+    /// Extract the list of sample input files from the task.
+    ///
+    /// These files are the `#COPY` from the first subtask, if the first subtask only contains `#COPY`.
+    fn extract_sample_files_from_task(task: &IOITask) -> Vec<PathBuf> {
+        let mut testcases = vec![];
+        let subtask = if let Some(subtask) = task.subtasks.get(&0) {
+            subtask
+        } else {
+            return testcases;
+        };
+        for (_, testcase) in subtask.testcases.iter() {
+            match &testcase.input_generator {
+                InputGenerator::StaticFile(path) => {
+                    let path = path.canonicalize().unwrap_or_else(|_| path.clone());
+                    testcases.push(path);
+                }
+                // This subtask is not with the sample cases.
+                InputGenerator::Custom(_, _) => return vec![],
+            }
+        }
+        testcases
+    }
+}
+
 impl SanityCheck<IOITask> for AttSampleFiles {
     fn name(&self) -> &'static str {
         "AttSampleFiles"
@@ -67,11 +92,13 @@ impl SanityCheck<IOITask> for AttSampleFiles {
 
     fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         let mut no_sample = true;
+        let samples_from_task = Self::extract_sample_files_from_task(task);
+        let mut samples_from_att = vec![];
         for sample in list_files(&task.path, vec!["att/*input*.txt", "att/*output*.txt"]) {
             no_sample = false;
-            // check if the file is a symlink
+            // Check if the file is a symlink.
             if let Ok(content) = sample.read_link() {
-                // check if the symlink is broken
+                // Check if the symlink is broken.
                 if sample.canonicalize().is_err() {
                     eval.add_diagnostic(
                         Diagnostic::error(format!(
@@ -86,6 +113,38 @@ impl SanityCheck<IOITask> for AttSampleFiles {
                     "Sample case {} is not a symlink",
                     task.path_of(&sample).display()
                 )).with_help("Move this file in the statement folder and symlink it here. This way the sample file can be included in the compiled statement."))?;
+            }
+            if let Ok(path) = sample.canonicalize() {
+                let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+                if file_name.contains("input") {
+                    samples_from_att.push(path);
+                }
+            }
+        }
+        let samples_from_task: BTreeSet<_> = samples_from_task.into_iter().collect();
+        let samples_from_att: BTreeSet<_> = samples_from_att.into_iter().collect();
+        if !samples_from_task.is_empty() && samples_from_task != samples_from_att {
+            let missing_in_att: Vec<_> = samples_from_task.difference(&samples_from_att).collect();
+            let missing_in_task: Vec<_> = samples_from_att.difference(&samples_from_task).collect();
+            if !missing_in_att.is_empty() {
+                let paths = missing_in_att
+                    .into_iter()
+                    .map(|p| task.path_of(p).to_string_lossy())
+                    .join(", ");
+                eval.add_diagnostic(
+                    Diagnostic::error("Missing samples in att/")
+                        .with_note(format!("Samples in the task, but not in att/: {}", paths)),
+                )?;
+            }
+            if !missing_in_task.is_empty() {
+                let paths = missing_in_task
+                    .into_iter()
+                    .map(|p| task.path_of(p).to_string_lossy())
+                    .join(", ");
+                eval.add_diagnostic(
+                    Diagnostic::error("Missing samples in the task")
+                        .with_note(format!("Samples in att/, but not in the task: {}", paths)),
+                )?;
             }
         }
         if no_sample {
