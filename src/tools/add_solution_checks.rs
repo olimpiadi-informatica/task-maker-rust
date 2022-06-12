@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -10,7 +10,9 @@ use itertools::Itertools;
 
 use task_maker_format::ioi::UIState;
 use task_maker_format::ui::{StdoutPrinter, UIStateT, BLUE, BOLD, YELLOW};
-use task_maker_format::{cwrite, cwriteln, EvaluationConfig, SolutionCheckResult, TaskFormat};
+use task_maker_format::{
+    cwrite, cwriteln, EvaluationConfig, SolutionCheck, SolutionCheckResult, TaskFormat,
+};
 use task_maker_lang::LanguageManager;
 
 use crate::context::RuntimeContext;
@@ -38,6 +40,12 @@ pub struct AddSolutionChecksOpt {
     /// Warning: while this is generally safe, make sure to have a way of reverting the changes.
     #[clap(long, short)]
     pub in_place: bool,
+
+    /// Overwrite existing @check rules.
+    ///
+    /// Warning: this will remove the existing lines containing the @check rules.
+    #[clap(long, short)]
+    pub overwrite: bool,
 }
 
 pub fn main_add_solution_checks(
@@ -103,11 +111,22 @@ pub fn main_add_solution_checks(
         if solution.path.is_symlink() {
             continue;
         }
-        if !solution.checks.is_empty() {
+        if !opt.overwrite && !solution.checks.is_empty() {
             skipped.push(&solution.name);
             continue;
         }
-        let has_changes = process_solution(&ui_state, solution_name, &mut printer, opt.in_place);
+        let checks_to_remove = if opt.overwrite {
+            &solution.checks[..]
+        } else {
+            &[]
+        };
+        let has_changes = process_solution(
+            &ui_state,
+            solution_name,
+            &mut printer,
+            opt.in_place,
+            checks_to_remove,
+        );
         if has_changes && !opt.in_place {
             changes_to_write = true;
         }
@@ -135,6 +154,7 @@ fn process_solution(
     solution_name: &Path,
     printer: &mut StdoutPrinter,
     in_place: bool,
+    checks_to_remove: &[SolutionCheck],
 ) -> bool {
     let solution = &state.solutions[solution_name];
     let language = LanguageManager::detect_language(solution_name);
@@ -203,12 +223,14 @@ fn process_solution(
         .collect_vec();
     let mut written = "";
     if in_place && !comments.is_empty() {
-        if let Err(e) = write_comments_to_file(&solution.path, &comments).with_context(|| {
-            format!(
-                "Failed to write @check comments to '{}'",
-                solution.path.display()
-            )
-        }) {
+        if let Err(e) = write_comments_to_file(&solution.path, &comments, checks_to_remove)
+            .with_context(|| {
+                format!(
+                    "Failed to write @check comments to '{}'",
+                    solution.path.display()
+                )
+            })
+        {
             eprintln!("Error: {:?}", e);
         } else {
             written = " (written!)";
@@ -220,7 +242,11 @@ fn process_solution(
     !comments.is_empty()
 }
 
-fn write_comments_to_file(path: &Path, comments: &[String]) -> Result<(), Error> {
+fn write_comments_to_file(
+    path: &Path,
+    comments: &[String],
+    checks_to_remove: &[SolutionCheck],
+) -> Result<(), Error> {
     let mut file =
         File::open(path).with_context(|| format!("Failed to open '{}'", path.display()))?;
     let mut content = String::new();
@@ -228,22 +254,30 @@ fn write_comments_to_file(path: &Path, comments: &[String]) -> Result<(), Error>
         .context("Failed to read solution content")?;
     drop(file);
 
+    // Remove existing @check rules.
+    let mut lines: Vec<_> = content.lines().collect();
+    let lines_to_remove: HashSet<_> = checks_to_remove
+        .iter()
+        .map(|c| c.code_span.line_number() - 1)
+        .collect();
+    let lines_to_remove = lines_to_remove.iter().sorted().rev();
+    for line in lines_to_remove {
+        lines.remove(*line);
+    }
+
     // If the source file starts with the shebang, we cannot simply add the comments at the
     // beginning.
-    let insert_position = if content.starts_with("#!") {
-        content.find('\n').map(|n| n + 1).unwrap_or(0)
-    } else {
-        0
-    };
+    let insert_position = if content.starts_with("#!") { 1 } else { 0 };
+    let comments = comments.iter().join("\n");
+    lines.insert(insert_position, &comments);
 
-    let comments = comments.iter().join("\n") + "\n";
-    content.insert_str(insert_position, &comments);
+    let new_content = lines.join("\n") + "\n";
 
-    let mut file = File::options()
-        .write(true)
-        .open(path)
-        .with_context(|| format!("Failed to open '{}' for writing", path.display()))?;
-    file.write_all(content.as_bytes())
-        .context("Failed to write the source file content")?;
+    std::fs::write(path, new_content.as_bytes()).with_context(|| {
+        format!(
+            "Failed to write the source file content to {}",
+            path.display()
+        )
+    })?;
     Ok(())
 }

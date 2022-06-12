@@ -92,6 +92,11 @@ impl CodeSpan {
         result += "\n";
         result
     }
+
+    /// Get the 1-based line number of this span.
+    pub fn line_number(&self) -> usize {
+        self.line_number.get()
+    }
 }
 
 #[cfg(test)]
