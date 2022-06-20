@@ -254,6 +254,25 @@ mod tests {
     }
 
     #[test]
+    fn test_find_cpp_deps_symlink() {
+        let tmpdir = setup();
+        std::fs::create_dir(tmpdir.path().join("utils")).unwrap();
+        let path = tmpdir.path().join("file.cpp");
+        let dep_path = tmpdir.path().join("dep.hpp");
+        let inside_path = tmpdir.path().join("utils").join("inside.hpp");
+        let orig_path = tmpdir.path().join("utils").join("orig.cpp");
+        write(&dep_path, "#define 42 42").unwrap();
+        write(&inside_path, "#define 42 41").unwrap();
+        write(&orig_path, "#include<dep.hpp>\n#include<inside.hpp>").unwrap();
+        std::os::unix::fs::symlink(&orig_path, &path).unwrap();
+        // file.cpp includes ./dep.hpp and ./inside.hpp (so it shouldn't find ./utils/inside.hpp)
+        let deps = find_cpp_deps(&path);
+        assert_that!(deps).has_length(1);
+        assert_that!(deps[0].local_path).is_equal_to(dep_path);
+        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("dep.hpp"));
+    }
+
+    #[test]
     fn test_find_cpp_deps_loop() {
         let tmpdir = setup();
         let file_path = tmpdir.path().join("file.cpp");
