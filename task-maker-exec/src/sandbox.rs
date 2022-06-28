@@ -378,6 +378,7 @@ impl Sandbox {
             config.wall_time_limit(wall.ceil() as u64);
         }
         if let Some(mem) = execution.limits.memory {
+            let mem = mem + execution.config().extra_memory;
             config.memory_limit(mem * 1024);
         }
         if let Some(stack) = execution.limits.stack {
@@ -643,7 +644,8 @@ mod tests {
         assert_eq!(config.working_directory, Path::new("/box"));
         assert_eq!(config.time_limit, Some(total_time));
         assert_eq!(config.wall_time_limit, Some(wall_time));
-        assert_eq!(config.memory_limit, Some(1234 * 1024));
+        let extra_memory = exec.config().extra_memory;
+        assert_eq!(config.memory_limit, Some((1234 + extra_memory) * 1024));
         assert!(config.mount_paths.contains(&DirectoryMount {
             target: "/home".into(),
             source: "/home".into(),

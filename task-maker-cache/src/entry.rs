@@ -15,6 +15,8 @@ pub struct CacheEntryItem {
     pub limits: ExecutionLimits,
     /// The extra time for this execution.
     pub extra_time: f64,
+    /// The extra memory for this execution.
+    pub extra_memory: u64,
     /// The key (aka the hash) of the stdout, if any.
     pub stdout: Option<FileStoreKey>,
     /// The key (aka the hash) of the stderr, if any.
@@ -61,6 +63,7 @@ impl CacheEntryItem {
             result,
             limits: execution.limits.clone(),
             extra_time: execution.config().extra_time,
+            extra_memory: execution.config().extra_memory,
             stdout,
             stderr,
             outputs,
@@ -166,11 +169,11 @@ impl CacheEntry {
         }
         // will return false if $less is less restrictive of $right
         macro_rules! check_limits {
-            ($left:expr, $right:expr, $extra_time:expr) => {
+            ($left:expr, $right:expr, $extra_time:expr, $extra_memory:expr) => {
                 check_limit!($left.cpu_time, $right.cpu_time, $extra_time);
                 check_limit!($left.sys_time, $right.sys_time, $extra_time);
                 check_limit!($left.wall_time, $right.wall_time, $extra_time);
-                check_limit!($left.memory, $right.memory, 0);
+                check_limit!($left.memory, $right.memory, $extra_memory);
                 check_limit!($left.nofile, $right.nofile, 0);
                 check_limit!($left.fsize, $right.fsize, 0);
                 check_limit!($left.memlock, $right.memlock, 0);
@@ -196,15 +199,26 @@ impl CacheEntry {
             };
         }
         let extra_time = group.config().extra_time;
+        let extra_memory = group.config().extra_memory;
         for (exec, item) in group.executions.iter().zip(self.items.iter()) {
             match item.result.status {
                 ExecutionStatus::Success => {
                     // require that the new limits are less restrictive
-                    check_limits!(item.limits, exec.limits, item.extra_time - extra_time);
+                    check_limits!(
+                        item.limits,
+                        exec.limits,
+                        item.extra_time - extra_time,
+                        item.extra_memory - extra_memory
+                    );
                 }
                 _ => {
                     // require that the new limits are more restrictive
-                    check_limits!(exec.limits, item.limits, extra_time - item.extra_time);
+                    check_limits!(
+                        exec.limits,
+                        item.limits,
+                        extra_time - item.extra_time,
+                        extra_memory - item.extra_memory
+                    );
                 }
             }
         }
@@ -254,6 +268,7 @@ mod tests {
                     },
                     limits: Default::default(),
                     extra_time: exec.config().extra_time,
+                    extra_memory: exec.config().extra_memory,
                     stdout: None,
                     stderr: None,
                     outputs: Default::default(),
