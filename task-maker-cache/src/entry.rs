@@ -15,7 +15,7 @@ pub struct CacheEntryItem {
     pub limits: ExecutionLimits,
     /// The extra time for this execution.
     pub extra_time: f64,
-    /// The extra time for this execution.
+    /// The extra memory for this execution.
     pub extra_memory: u64,
     /// The key (aka the hash) of the stdout, if any.
     pub stdout: Option<FileStoreKey>,
