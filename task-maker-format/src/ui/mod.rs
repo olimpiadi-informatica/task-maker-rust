@@ -88,7 +88,7 @@ lazy_static! {
     pub static ref ORANGE: ColorSpec = {
         let mut color = ColorSpec::new();
         color
-            .set_fg(Some(if *HAS_256 { Color::Ansi256(214) } else { Color::Rgb(255, 165, 0) }))
+            .set_fg(Some(if *HAS_256 { Color::Ansi256(214) } else { Color::Yellow }))
             .set_intense(true)
             .set_bold(true);
         color

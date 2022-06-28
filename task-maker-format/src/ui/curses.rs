@@ -54,7 +54,7 @@ lazy_static! {
         .modifier(Modifier::BOLD);
     /// Orange color.
     pub static ref ORANGE: Style = Style::default()
-        .fg(Color::Rgb(255, 165, 0))
+        .fg(Color::Yellow)
         .modifier(Modifier::BOLD);
     /// Bold.
     pub static ref BOLD: Style = Style::default()
