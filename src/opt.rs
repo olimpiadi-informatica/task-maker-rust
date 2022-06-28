@@ -100,6 +100,10 @@ pub struct ExecutionOpt {
     #[clap(long = "extra-time")]
     pub extra_time: Option<f64>,
 
+    /// Give to the solution some extra time before being killed
+    #[clap(long = "extra-memory")]
+    pub extra_memory: Option<u64>,
+
     /// Copy the executables to the bin/ folder
     #[clap(long = "copy-exe")]
     pub copy_exe: bool,

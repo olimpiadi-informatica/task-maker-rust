@@ -34,6 +34,8 @@ pub struct ExecutionDAGConfig {
     pub cache_mode: CacheMode,
     /// Extra time to give to the sandbox before killing the process, in seconds.
     pub extra_time: f64,
+    /// Extra memory to give to the sandbox before killing the process, in KiB.
+    pub extra_memory: u64,
     /// Whether to copy the executables of the compilation inside their default destinations.
     pub copy_exe: bool,
     /// Whether to copy the log files of some interesting executions.
@@ -312,6 +314,7 @@ impl ExecutionDAGConfig {
             dry_run: false,
             cache_mode: CacheMode::Everything,
             extra_time: 0.5,
+            extra_memory: 8 * 1024, // 8 MiB
             copy_exe: false,
             copy_logs: false,
             priority: 0,
@@ -340,6 +343,12 @@ impl ExecutionDAGConfig {
     pub fn extra_time(&mut self, extra_time: f64) -> &mut Self {
         assert!(extra_time >= 0.0);
         self.extra_time = extra_time;
+        self
+    }
+
+    /// Set the extra memory to give to the executions before being killed by the sandbox.
+    pub fn extra_memory(&mut self, extra_memory: u64) -> &mut Self {
+        self.extra_memory = extra_memory;
         self
     }
 

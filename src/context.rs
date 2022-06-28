@@ -93,6 +93,9 @@ impl RuntimeContext {
             }
             config.extra_time(extra_time);
         }
+        if let Some(extra_memory) = opt.extra_memory {
+            config.extra_memory(extra_memory);
+        }
 
         // build the execution dag
         build_dag(&task, &mut eval)?;

@@ -378,6 +378,7 @@ impl Sandbox {
             config.wall_time_limit(wall.ceil() as u64);
         }
         if let Some(mem) = execution.limits.memory {
+            let mem = mem + execution.config().extra_memory;
             config.memory_limit(mem * 1024);
         }
         if let Some(stack) = execution.limits.stack {
