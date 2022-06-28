@@ -35,30 +35,43 @@ pub(crate) const ROTATION_DELAY: u64 = 1;
 pub type FrameType<'a> =
     Frame<'a, TermionBackend<AlternateScreen<MouseTerminal<RawTerminal<io::Stdout>>>>>;
 
+macro_rules! define_color_inner {
+    ($color:expr,) => {
+        $color
+    };
+    ($color:expr, basic($basic:ident), $($tt:tt)*) => {
+        define_color_inner!($color.fg(Color::$basic), $($tt)*)
+    };
+    ($color:expr, rgb($r:expr, $g:expr, $b:expr), $($tt:tt)*) => {
+        define_color_inner!(if *$crate::ui::HAS_TRUECOLOR {
+            $color.fg(Color::Rgb($r, $g, $b))
+        } else {
+            $color
+        }, $($tt)*)
+    };
+    ($color:expr, bold, $($tt:tt)*) => {
+        define_color_inner!($color.modifier(Modifier::BOLD), $($tt)*)
+    };
+}
+macro_rules! define_color {
+    ($($tt:tt)*) => {
+        define_color_inner!(Style::default(), $($tt)*,)
+    };
+}
+
 lazy_static! {
     /// Green color.
-    pub static ref GREEN: Style = Style::default()
-        .fg(Color::LightGreen)
-        .modifier(Modifier::BOLD);
+    pub static ref GREEN: Style = define_color!(basic(LightGreen), bold);
     /// Red color.
-    pub static ref RED: Style = Style::default()
-        .fg(Color::LightRed)
-        .modifier(Modifier::BOLD);
+    pub static ref RED: Style = define_color!(basic(LightRed), bold);
     /// Blue color.
-    pub static ref BLUE: Style = Style::default()
-        .fg(Color::LightBlue)
-        .modifier(Modifier::BOLD);
+    pub static ref BLUE: Style = define_color!(basic(LightBlue), bold);
     /// Yellow color.
-    pub static ref YELLOW: Style = Style::default()
-        .fg(Color::LightYellow)
-        .modifier(Modifier::BOLD);
+    pub static ref YELLOW: Style = define_color!(basic(LightYellow), bold);
     /// Orange color.
-    pub static ref ORANGE: Style = Style::default()
-        .fg(Color::Rgb(255, 165, 0))
-        .modifier(Modifier::BOLD);
+    pub static ref ORANGE: Style = define_color!(basic(Yellow), rgb(255, 165, 0), bold);
     /// Bold.
-    pub static ref BOLD: Style = Style::default()
-        .modifier(Modifier::BOLD);
+    pub static ref BOLD: Style = define_color!(bold);
 }
 
 /// A generic animated UI for tasks, dynamically refreshing using curses as a backend.

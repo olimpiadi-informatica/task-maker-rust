@@ -38,7 +38,7 @@ pub type UIChannelReceiver = Receiver<UIMessage>;
 
 lazy_static! {
     /// Whether the terminal supports ANSI 256 colors.
-    static ref HAS_256: bool = {
+    static ref HAS_ANSI256: bool = {
         if std::env::var("TM_ANSI256").as_deref() == Ok("true") {
             if let Some(support) = supports_color::on(supports_color::Stream::Stdout) {
                 support.has_256
@@ -49,65 +49,66 @@ lazy_static! {
             false
         }
     };
+    /// Whetner the terminal supports 24-bit Truecolor.
+    static ref HAS_TRUECOLOR: bool = {
+        if let Some(support) = supports_color::on(supports_color::Stream::Stdout) {
+            support.has_16m
+        } else {
+            false
+        }
+    };
+}
+
+macro_rules! define_color_inner {
+    ($color:expr,) => {};
+    ($color:expr, ansi($ansi:expr), $($tt:tt)*) => {
+        if *HAS_ANSI256 {
+            $color.set_fg(Some(Color::Ansi256($ansi)));
+        }
+        define_color_inner!($color, $($tt)*)
+    };
+    ($color:expr, rgb($r:expr, $g:expr, $b:expr), $($tt:tt)*) => {
+        if *HAS_TRUECOLOR {
+            $color.set_fg(Some(Color::Rgb($r, $g, $b)));
+        }
+        define_color_inner!($color, $($tt)*)
+    };
+    ($color:expr, basic($basic:ident), $($tt:tt)*) => {
+        $color.set_fg(Some(Color::$basic));
+        define_color_inner!($color, $($tt)*)
+    };
+    ($color:expr, intense, $($tt:tt)*) => {
+        $color.set_intense(true);
+        define_color_inner!($color, $($tt)*)
+    };
+    ($color:expr, bold, $($tt:tt)*) => {
+        $color.set_bold(true);
+        define_color_inner!($color, $($tt)*)
+    };
+}
+macro_rules! define_color {
+    ($($tt:tt)*) => {{
+        let mut color = ColorSpec::new();
+        define_color_inner!(color, $($tt)*,);
+        color
+    }};
+}
+
+lazy_static! {
     /// The RED color to use with `cwrite!` and `cwriteln!`
-    pub static ref RED: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(if *HAS_256 { Color::Ansi256(196) } else { Color::Red }))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
+    pub static ref RED: ColorSpec = define_color!(basic(Red), ansi(196), intense, bold);
     /// The RED color to use with `cwrite!` and `cwriteln!`, without bold.
-    pub static ref SOFT_RED: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(if *HAS_256 { Color::Ansi256(196) } else { Color::Red }))
-            .set_intense(true);
-        color
-    };
+    pub static ref SOFT_RED: ColorSpec = define_color!(basic(Red), ansi(196), intense);
     /// The GREEN color to use with `cwrite!` and `cwriteln!`
-    pub static ref GREEN: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(if *HAS_256 { Color::Ansi256(118) } else { Color::Green }))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
+    pub static ref GREEN: ColorSpec = define_color!(basic(Green), ansi(118), intense, bold);
     /// The YELLOW color to use with `cwrite!` and `cwriteln!`
-    pub static ref YELLOW: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(if *HAS_256 { Color::Ansi256(226) } else { Color::Yellow }))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
+    pub static ref YELLOW: ColorSpec = define_color!(basic(Yellow), ansi(226), intense, bold);
     /// The ORANGE color to use with `cwrite!` and `cwriteln!`.
-    pub static ref ORANGE: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(if *HAS_256 { Color::Ansi256(214) } else { Color::Rgb(255, 165, 0) }))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
+    pub static ref ORANGE: ColorSpec = define_color!(basic(Yellow), ansi(214), rgb(255, 165, 0), intense, bold);
     /// The BLUE color to use with `cwrite!` and `cwriteln!`
-    pub static ref BLUE: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color
-            .set_fg(Some(if *HAS_256 { Color::Ansi256(33) } else { Color::Blue }))
-            .set_intense(true)
-            .set_bold(true);
-        color
-    };
+    pub static ref BLUE: ColorSpec = define_color!(basic(Blue), ansi(33), intense, bold);
     /// The bold style to use with `cwrite!` and `cwriteln!`
-    pub static ref BOLD: ColorSpec = {
-        let mut color = ColorSpec::new();
-        color.set_bold(true);
-        color
-    };
+    pub static ref BOLD: ColorSpec = define_color!(bold);
 }
 
 /// The status of an execution.
