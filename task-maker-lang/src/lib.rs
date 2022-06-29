@@ -84,6 +84,7 @@ impl LanguageManager {
                 Arc::new(shell::LanguageShell::new()),
                 Arc::new(pascal::LanguagePascal::new()),
                 Arc::new(rust::LanguageRust::new()),
+                Arc::new(javascript::LanguageJS::new()),
             ],
         }
     }

@@ -7,6 +7,7 @@ use crate::Dependency;
 
 pub(crate) mod c;
 pub(crate) mod cpp;
+pub(crate) mod javascript;
 pub(crate) mod pascal;
 pub(crate) mod python;
 pub(crate) mod rust;
