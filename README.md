@@ -13,12 +13,11 @@ There is a good chance that you have already all the dependencies already instal
 
 For **Ubuntu** it's also possible to install task-maker-rust using a PPA:
 
-```
+```bash
 sudo add-apt-repository ppa:dariop1/task-maker-rust
 sudo apt update
 sudo apt install task-maker-rust
 ```
-
 
 For **ArchLinux** users you can find the packages in the AUR: [`task-maker-rust`](https://aur.archlinux.org/packages/task-maker-rust) (the stable release)
 and [`task-maker-rust-git`](https://aur.archlinux.org/packages/task-maker-rust-git) (the version based on `master`).
