@@ -611,10 +611,7 @@ fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> Result<
             c.copy_exe();
 
             // Link the checker statically. This makes sure that it will work also outside this machine.
-            // Doesn't work on MacOS, see https://github.com/edomora97/task-maker-rust/pull/29
-            if cfg!(not(target_os = "macos")) {
-                c.link_static();
-            }
+            c.link_static();
 
             Checker::Custom(Arc::new(c))
         })
@@ -658,10 +655,7 @@ fn parse_communication_task_data(
     manager.copy_exe();
 
     // Link the manager statically. This makes sure that it will work also outside this machine.
-    // Doesn't work on MacOS, see https://github.com/edomora97/task-maker-rust/pull/29
-    if cfg!(not(target_os = "macos")) {
-        manager.link_static();
-    }
+    manager.link_static();
 
     let user_io = match yaml.user_io.as_deref() {
         None => UserIo::FifoIo,

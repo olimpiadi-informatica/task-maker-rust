@@ -194,7 +194,10 @@ impl SourceFile {
 
     /// Compile the source file to a statically-linked binary.
     pub fn link_static(&mut self) {
-        self.link_static = true;
+        // MacOS doesn't support statically linked binaries
+        if cfg!(not(target_os = "macos")) {
+            self.link_static = true;
+        }
     }
 
     /// Prepare the source file if needed and return the executable file. If the compilation step
