@@ -20,6 +20,8 @@ hex = "0.3"
 log = "0.4"
 # Temporary directory creation
 tempdir = "0.3"
+# Compile time string format
+const_format = "0.2"
 
 [dev-dependencies]
 pretty_assertions = "0.6"

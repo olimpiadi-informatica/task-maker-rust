@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
-use anyhow::{bail, Context, Error};
+use anyhow::{Context, Error};
+use const_format::formatcp;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -12,13 +13,11 @@ use crate::key::CacheKey;
 
 /// Magic string that is prepended to the cache file to avoid accidental loading of invalid cache
 /// files.
-const MAGIC: &[u8] = b"task-maker-cache";
-/// Current version of task-maker, to avoid any problem with serialization/deserialization, changing
-/// version will cause a complete cache invalidation. Therefore any breaking change to the cache
-/// file format has to go through a version update.
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-/// Maximum number of characters of the version string.
-const VERSION_MAX_LEN: usize = 16;
+///
+/// The newline at the end of the string is required. For example, let's say there are 2 versions:
+/// v0.1 and v0.11; running v0.11 first, and then v0.1, without the newline the magic of the old
+/// version is a prefix of the magic of the new version.
+const MAGIC: &[u8] = formatcp!("task-maker-cache v{}\n", env!("CARGO_PKG_VERSION")).as_bytes();
 
 /// A cache file.
 #[derive(Debug, Serialize, Deserialize)]
@@ -30,8 +29,6 @@ pub(crate) struct CacheFile {
     /// Whether this file should be flushed.
     dirty: bool,
 }
-
-static_assertions::const_assert!(VERSION.len() <= VERSION_MAX_LEN);
 
 impl CacheFile {
     /// Read the cache file, check the magic string and deserialize all the entries in it.
@@ -45,22 +42,21 @@ impl CacheFile {
         }
         let mut file = std::fs::File::open(&path)
             .with_context(|| format!("Cannot open cache file at {}", path.display()))?;
-        let mut magic = [0u8; MAGIC.len() + VERSION_MAX_LEN];
-        file.read_exact(&mut magic)
-            .context("Failed to read magic number")?;
-        if &magic[..MAGIC.len()] != MAGIC {
-            bail!(
-                "Cache magic mismatch:\nExpected: {:?}\nFound: {:?}",
-                MAGIC,
-                &magic[..MAGIC.len()]
-            );
-        }
-        if &magic[MAGIC.len()..MAGIC.len() + VERSION.len()] != VERSION.as_bytes() {
-            bail!(
+        let mut magic = [0u8; MAGIC.len()];
+
+        if file
+            .read_exact(&mut magic)
+            .map_or(false, |_| magic != MAGIC)
+        {
+            info!(
                 "Cache version mismatch:\nExpected: {:?}\nFound: {:?}",
-                VERSION.as_bytes(),
-                &magic[MAGIC.len()..MAGIC.len() + VERSION.len()]
+                MAGIC, magic
             );
+            return Ok(Self {
+                entries: Default::default(),
+                path,
+                dirty: false,
+            });
         }
 
         let entries = bincode::deserialize_from::<_, HashMap<CacheKey, Vec<CacheEntry>>>(file)
@@ -86,12 +82,7 @@ impl CacheFile {
         let tmp = path.with_extension("tmp");
         let mut file = std::fs::File::create(&tmp).context("Failed to create cache file")?;
 
-        let mut magic = [0u8; MAGIC.len() + VERSION_MAX_LEN];
-        magic[..MAGIC.len()].clone_from_slice(MAGIC);
-        magic[MAGIC.len()..MAGIC.len() + VERSION.as_bytes().len()]
-            .clone_from_slice(VERSION.as_bytes());
-
-        file.write_all(&magic)
+        file.write_all(MAGIC)
             .context("Failed to write cache magic number")?;
 
         bincode::serialize_into(file, &self.entries.iter().collect_vec())

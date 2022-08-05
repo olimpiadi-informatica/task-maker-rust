@@ -6,20 +6,19 @@ use std::io::{Read, Write};
 use std::path::Path;
 use std::time::SystemTime;
 
-use anyhow::{bail, Context, Error};
+use anyhow::{Context, Error};
+use const_format::formatcp;
 use serde::{Deserialize, Serialize};
 
 use crate::{FileStore, FileStoreKey, LockedFiles};
 
 /// Magic string that is prepended to the index file to avoid accidental loading of invalid index
 /// files.
-const MAGIC: &[u8] = b"task-maker-cache";
-/// Current version of task-maker, to avoid any problem with serialization/deserialization, changing
-/// version will cause a complete index invalidation. Therefore any breaking change to the index
-/// file format has to go through a version update.
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-/// Maximum number of characters of the version string.
-const VERSION_MAX_LEN: usize = 16;
+///
+/// The newline at the end of the string is required. For example, let's say there are 2 versions:
+/// v0.1 and v0.11; running v0.11 first, and then v0.1, without the newline the magic of the old
+/// version is a prefix of the magic of the new version.
+const MAGIC: &[u8] = formatcp!("task-maker-store v{}\n", env!("CARGO_PKG_VERSION")).as_bytes();
 
 /// An entry of a file inside the file store.
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
@@ -65,23 +64,20 @@ impl FileStoreIndex {
         debug!("Loading index from {:?}", path);
         let mut file = File::open(path)
             .with_context(|| format!("Failed to open index file from {}", path.display()))?;
+        let mut magic = [0u8; MAGIC.len()];
 
-        let mut magic = [0u8; MAGIC.len() + VERSION_MAX_LEN];
-        file.read_exact(&mut magic)
-            .context("Failed to read magic number")?;
-        if &magic[..MAGIC.len()] != MAGIC {
-            bail!(
-                "Cache magic mismatch:\nExpected: {:?}\nFound: {:?}",
-                MAGIC,
-                &magic[..MAGIC.len()]
+        if file
+            .read_exact(&mut magic)
+            .map_or(false, |_| magic != MAGIC)
+        {
+            info!(
+                "FileStore version mismatch:\nExpected: {:?}\nFound: {:?}",
+                MAGIC, magic
             );
-        }
-        if &magic[MAGIC.len()..MAGIC.len() + VERSION.len()] != VERSION.as_bytes() {
-            bail!(
-                "Cache version mismatch:\nExpected: {:?}\nFound: {:?}",
-                VERSION.as_bytes(),
-                &magic[MAGIC.len()..MAGIC.len() + VERSION.len()]
-            );
+            return Ok(FileStoreIndex {
+                total_size: 0,
+                known_files: HashMap::new(),
+            });
         }
 
         bincode::deserialize_from(file).context("Failed to deserialize index file")
@@ -98,12 +94,8 @@ impl FileStoreIndex {
 
         let mut file = File::create(&tmp)
             .with_context(|| format!("Failed to create index file at {}", tmp.display()))?;
-        let mut magic = [0u8; MAGIC.len() + VERSION_MAX_LEN];
-        magic[..MAGIC.len()].clone_from_slice(MAGIC);
-        magic[MAGIC.len()..MAGIC.len() + VERSION.as_bytes().len()]
-            .clone_from_slice(VERSION.as_bytes());
 
-        file.write_all(&magic)
+        file.write_all(MAGIC)
             .context("Failed to write cache magic number")?;
 
         bincode::serialize_into(file, &self).context("Failed to write index")?;
