@@ -245,9 +245,10 @@ impl StorageOpt {
     /// Get the store directory of this configuration. If nothing is specified a cache directory is
     /// used if available, otherwise a temporary directory.
     pub fn store_dir(&self) -> PathBuf {
-        match &self.store_dir {
-            Some(dir) => dir.clone(),
-            None => {
+        match (option_env!("TM_STORE_DIR"), &self.store_dir) {
+            (_, Some(dir)) => dir.clone(),
+            (Some(dir), None) => dir.into(),
+            (None, None) => {
                 let project = directories::ProjectDirs::from("", "", "task-maker");
                 if let Some(project) = project {
                     project.cache_dir().to_owned()
