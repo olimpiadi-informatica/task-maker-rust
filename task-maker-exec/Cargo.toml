@@ -28,8 +28,6 @@ which = "4.2"
 itertools = "0.10"
 # defer! macro
 scopeguard = "1.0"
-# Threadsafe hashmap
-chashmap = "2.2"
 # Sandbox
 tabox = "1"
 # For killing processes and making FIFOs
