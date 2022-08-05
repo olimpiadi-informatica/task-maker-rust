@@ -564,10 +564,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "fs2"
-version = "0.4.3"
+name = "fslock"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
+checksum = "04412b8935272e3a9bae6f48c7bfff74c2911f60525404edfdd28e49884c3bfb"
 dependencies = [
  "libc",
  "winapi 0.3.9",
@@ -1603,7 +1603,7 @@ dependencies = [
  "bincode",
  "blake3",
  "const_format",
- "fs2",
+ "fslock",
  "log",
  "pretty_assertions",
  "serde",

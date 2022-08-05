@@ -43,14 +43,13 @@ extern crate log;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Formatter;
-use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Error};
 use blake3::{hash, Hash, Hasher};
-use fs2::FileExt;
+use fslock::LockFile;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::index::FileStoreIndex;
@@ -84,8 +83,8 @@ struct LockedFiles {
 pub struct FileStore {
     /// Base directory of the `FileStore`.
     base_path: PathBuf,
-    /// Handle of the file with the data of the store. This handle keeps the lock alive.
-    _file: File,
+    /// Lock to the `FileStore` directory.
+    _lock: LockFile,
     /// The files locked because there are some handles still alive.
     locked_files: Arc<Mutex<LockedFiles>>,
     /// The index with the files known to the store. This is used when flushing the old files.
@@ -151,22 +150,24 @@ impl FileStore {
                 base_path.display()
             )
         })?;
-        let lock = base_path.join(STORE_LOCK_FILE);
-        let file = File::create(&lock)
-            .with_context(|| format!("Failed to create lock file at {}", lock.display()))?;
-        if let Err(e) = file.try_lock_exclusive() {
-            if e.to_string() != fs2::lock_contended_error().to_string() {
-                return Err(e.into());
-            }
+        let lock_path = base_path.join(STORE_LOCK_FILE);
+        let mut lock = LockFile::open(&lock_path)
+            .with_context(|| format!("Failed to create lock file at {}", lock_path.display()))?;
+
+        if !lock
+            .try_lock()
+            .context("Failed to obtain exclusive lock on storage")?
+        {
             warn!("Store locked... waiting");
-            file.lock_exclusive()
+            lock.lock()
                 .context("Failed to obtain exclusive lock on storage")?;
         }
+
         let index = FileStoreIndex::load(base_path.join(STORE_INDEX_FILE))
             .context("Failed to load storage index")?;
         Ok(FileStore {
             base_path,
-            _file: file,
+            _lock: lock,
             locked_files: Arc::new(Mutex::new(LockedFiles::new())),
             index: Arc::new(Mutex::new(index)),
             max_store_size,
