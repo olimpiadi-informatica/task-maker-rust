@@ -35,7 +35,7 @@ nix = "0.24"
 # In-memory and remote channels
 ductile = "0.2"
 # Key Derivation Function from a password
-scrypt = "0.3"
+blake3 = "1.3"
 # Typescript definition generation
 typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs"}
 
