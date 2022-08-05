@@ -692,15 +692,6 @@ checksum = "616cde7c720bb2bb5824a224687d8f77bfd38922027f01d825cd7453be5099fb"
 
 [[package]]
 name = "itertools"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f56a2d0bc861f9165be4eb3442afd3c236d8a98afd426f65d92324ae1091a484"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9a9d19fa1e79b6215ff29b9d6880b706147f16e9b1dbb1e4e5947b5b02bc5e3"
@@ -1441,7 +1432,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "const_format",
- "itertools 0.10.3",
+ "itertools",
  "log",
  "serde",
  "task-maker-dag",
@@ -1480,7 +1471,7 @@ dependencies = [
  "blake3",
  "ductile",
  "env_logger",
- "itertools 0.10.3",
+ "itertools",
  "log",
  "nix",
  "pretty_assertions",
@@ -1509,7 +1500,7 @@ dependencies = [
  "derivative",
  "fastrand",
  "glob",
- "itertools 0.10.3",
+ "itertools",
  "lazy_static",
  "log",
  "mime_guess",
@@ -1568,7 +1559,7 @@ dependencies = [
  "directories",
  "env_logger",
  "fastrand",
- "itertools 0.10.3",
+ "itertools",
  "lazy_static",
  "log",
  "num_cpus",
@@ -1716,15 +1707,12 @@ dependencies = [
 
 [[package]]
 name = "tui"
-version = "0.5.1"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ff64c925f5e20d7a393c598a33b6afc9c9942e7ebc530085588f5b7667ea559"
+checksum = "96fe69244ec2af261bced1d9046a6fee6c8c2a6b0228e59e5ba39bc8ba4ed729"
 dependencies = [
  "bitflags",
  "cassowary",
- "either",
- "itertools 0.8.2",
- "log",
  "termion",
  "unicode-segmentation",
  "unicode-width",

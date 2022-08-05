@@ -1,6 +1,7 @@
 use itertools::Itertools;
 use tui::layout::{Constraint, Direction, Layout, Rect};
-use tui::widgets::{Paragraph, Text, Widget};
+use tui::text::{Span, Spans};
+use tui::widgets::{Paragraph, Wrap};
 
 use task_maker_format::ui::curses::{BLUE, BOLD, GREEN, RED};
 use task_maker_format::ui::{
@@ -12,13 +13,13 @@ use crate::tools::find_bad_case::state::{SharedUIState, TestcaseStatus, UIState}
 pub struct CursesUI;
 
 impl CursesDrawer<UIState> for CursesUI {
-    fn draw(state: &UIState, f: FrameType, loading: char, frame_index: usize) {
-        CursesUI::draw_frame(state, f, loading, frame_index);
+    fn draw(state: &UIState, frame: &mut FrameType, loading: char, frame_index: usize) {
+        CursesUI::draw_frame(state, frame, loading, frame_index);
     }
 }
 
 impl CursesUI {
-    fn draw_frame(state: &UIState, mut f: FrameType, loading: char, frame_index: usize) {
+    fn draw_frame(state: &UIState, f: &mut FrameType, loading: char, frame_index: usize) {
         let header_len = 10; // Number of lines of the header.
         let workers_len = state
             .executor_status
@@ -40,10 +41,10 @@ impl CursesUI {
             .split(f.size());
 
         let shared = state.shared.read().unwrap();
-        Self::render_header(state, &shared, &mut f, chunks[0]);
-        Self::render_generation_status(state, &mut f, chunks[1]);
+        Self::render_header(state, &shared, f, chunks[0]);
+        Self::render_generation_status(state, f, chunks[1]);
         render_server_status(
-            &mut f,
+            f,
             chunks[2],
             state.executor_status.as_ref(),
             loading,
@@ -58,73 +59,91 @@ impl CursesUI {
             .flat_map(|b| b.testcase_status.iter())
             .filter(|tc| matches!(tc, TestcaseStatus::Error))
             .count();
-        Paragraph::new(
-            [
-                Text::styled("Solution:        ", *BOLD),
-                Text::raw(format!("{}\n", state.solution.display())),
-                Text::styled("Generator args:  ", *BOLD),
-                Text::raw(format!("{}\n", state.generator_args.iter().join(" "))),
-                Text::styled("Batch size:      ", *BOLD),
-                Text::raw(format!("{}\n", state.batch_size)),
-                Text::styled("Batch index:     ", *BOLD),
-                Text::raw(format!("{}\n", shared.batch_index)),
-                Text::styled("Progress:\n", *BLUE),
-                Text::styled("    Generated:   ", *BOLD),
-                Text::raw(format!("{}\n", state.progress.inputs_generated)),
-                Text::styled("    Solved:      ", *BOLD),
-                Text::raw(format!("{}\n", state.progress.inputs_solved)),
-                Text::styled("    Average gen: ", *BOLD),
-                Text::raw(format!(
+
+        let text = vec![
+            Spans(vec![
+                Span::styled("Solution:        ", *BOLD),
+                Span::raw(state.solution.to_string_lossy().to_string()),
+            ]),
+            Spans(vec![
+                Span::styled("Generator args:  ", *BOLD),
+                Span::raw(state.generator_args.iter().join(" ")),
+            ]),
+            Spans(vec![
+                Span::styled("Batch size:      ", *BOLD),
+                Span::raw(state.batch_size.to_string()),
+            ]),
+            Spans(vec![
+                Span::styled("Batch index:     ", *BOLD),
+                Span::raw(shared.batch_index.to_string()),
+            ]),
+            Spans(vec![Span::styled("Progress:", *BLUE)]),
+            Spans(vec![
+                Span::styled("    Generated:   ", *BOLD),
+                Span::raw(state.progress.inputs_generated.to_string()),
+            ]),
+            Spans(vec![
+                Span::styled("    Solved:      ", *BOLD),
+                Span::raw(state.progress.inputs_solved.to_string()),
+            ]),
+            Spans(vec![
+                Span::styled("    Average gen: ", *BOLD),
+                Span::raw(format!(
                     "{:.3}s\n",
                     state.progress.generator_time_sum
                         / (state.progress.inputs_generated.max(1) as f64)
                 )),
-                Text::styled("    Average sol: ", *BOLD),
-                Text::raw(format!(
-                    "{:.3}s\n",
+            ]),
+            Spans(vec![
+                Span::styled("    Average sol: ", *BOLD),
+                Span::raw(format!(
+                    "{:.3}s",
                     state.progress.solution_time_sum / (state.progress.inputs_solved.max(1) as f64)
                 )),
-                Text::styled("    Errors:      ", *BOLD),
-                Text::raw(format!("{}", errors)),
-            ]
-            .iter(),
-        )
-        .render(f, rect);
+            ]),
+            Spans(vec![
+                Span::styled("    Errors:      ", *BOLD),
+                Span::raw(errors.to_string()),
+            ]),
+        ];
+
+        let paragraph = Paragraph::new(text);
+        f.render_widget(paragraph, rect);
     }
 
     fn render_generation_status(state: &UIState, f: &mut FrameType, rect: Rect) {
         let mut text = vec![];
         for i in 0..state.batches.len().min(10) {
+            let mut line = Vec::new();
             let batch_index = state.batches.len() - 1 - i;
             let batch = &state.batches[state.batches.len() - 1 - i];
-            text.push(Text::raw(format!("Batch {:>3}: ", batch_index)));
-            text.extend(
+            line.push(Span::raw(format!("Batch {:>3}: ", batch_index)));
+            line.extend(
                 batch
                     .testcase_status
                     .iter()
                     .map(Self::testcase_status_to_text),
             );
-            text.push(Text::raw("\n"));
+            text.push(line.into());
         }
         render_block(f, rect, "Progress");
-        Paragraph::new(text.iter())
-            .wrap(true)
-            .render(f, inner_block(rect));
+        let paragraph = Paragraph::new(text).wrap(Wrap { trim: true });
+        f.render_widget(paragraph, inner_block(rect));
     }
 
-    fn testcase_status_to_text(status: &TestcaseStatus) -> Text {
+    fn testcase_status_to_text(status: &TestcaseStatus) -> Span {
         match status {
-            TestcaseStatus::Pending => Text::raw("."),
-            TestcaseStatus::Generating => Text::raw("g"),
-            TestcaseStatus::Generated => Text::raw("G"),
-            TestcaseStatus::Validating => Text::raw("v"),
-            TestcaseStatus::Validated => Text::raw("V"),
-            TestcaseStatus::Solving => Text::raw("s"),
-            TestcaseStatus::Solved => Text::raw("S"),
-            TestcaseStatus::Checking => Text::raw("c"),
-            TestcaseStatus::Success => Text::styled("✓", *GREEN),
-            TestcaseStatus::Failed(_) => Text::styled("✕", *RED),
-            TestcaseStatus::Error => Text::styled("!", *RED),
+            TestcaseStatus::Pending => Span::raw("."),
+            TestcaseStatus::Generating => Span::raw("g"),
+            TestcaseStatus::Generated => Span::raw("G"),
+            TestcaseStatus::Validating => Span::raw("v"),
+            TestcaseStatus::Validated => Span::raw("V"),
+            TestcaseStatus::Solving => Span::raw("s"),
+            TestcaseStatus::Solved => Span::raw("S"),
+            TestcaseStatus::Checking => Span::raw("c"),
+            TestcaseStatus::Success => Span::styled("✓", *GREEN),
+            TestcaseStatus::Failed(_) => Span::styled("✕", *RED),
+            TestcaseStatus::Error => Span::styled("!", *RED),
         }
     }
 }
