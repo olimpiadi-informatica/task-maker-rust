@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use tabox::configuration::SandboxConfiguration;
 use tabox::result::SandboxExecutionResult;
 use tabox::syscall_filter::SyscallFilter;
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 use task_maker_dag::*;
 use task_maker_store::*;
@@ -111,7 +111,7 @@ impl Sandbox {
                 sandboxes_dir.display()
             )
         })?;
-        let boxdir = TempDir::new_in(sandboxes_dir, "box")
+        let boxdir = TempDir::new_in(sandboxes_dir)
             .context("Failed to create sandbox temporary directory")?;
         Sandbox::setup(boxdir.path(), execution, dep_keys).context("Sandbox setup failed")?;
         Ok(Sandbox {
@@ -601,7 +601,7 @@ mod tests {
 
     #[test]
     fn test_remove_sandbox_on_drop() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let mut exec = Execution::new("test", ExecutionCommand::system("true"));
         exec.output("fooo");
         exec.limits_mut().read_only(true);
@@ -621,7 +621,7 @@ mod tests {
     #[cfg(not(target_os = "macos"))]
     #[test]
     fn test_command_args() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let mut exec = Execution::new("test", ExecutionCommand::system("/bin/sh"));
         exec.args(vec!["bar", "baz"]);
         exec.limits_mut()

@@ -140,12 +140,12 @@ mod tests {
     use std::fs::write;
 
     use spectral::prelude::*;
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use super::*;
 
     fn setup() -> TempDir {
-        let tempdir = TempDir::new("tm-test").unwrap();
+        let tempdir = TempDir::new().unwrap();
         let foo = tempdir.path().join("foo.cpp");
         std::fs::write(foo, "int main() {}").unwrap();
         tempdir

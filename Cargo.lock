@@ -593,6 +593,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastrand"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7a407cfaa3385c4ae6b23e84623d48c2798d06e3e6a1878f7f59f17b3f86499"
+dependencies = [
+ "instant",
+]
+
+[[package]]
 name = "form_urlencoded"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -748,6 +757,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0c10553d664a4d0bcff9f4215d0aac67a639cc68ef660840afe309b807bc9f5"
 dependencies = [
  "generic-array 0.14.6",
+]
+
+[[package]]
+name = "instant"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a5bbe824c507c5da5956355e86a746d82e0e1464f65d862cc5e71da70e94b2c"
+dependencies = [
+ "cfg-if 1.0.0",
 ]
 
 [[package]]
@@ -1660,7 +1678,7 @@ dependencies = [
  "serde",
  "task-maker-dag",
  "task-maker-store",
- "tempdir",
+ "tempfile",
 ]
 
 [[package]]
@@ -1671,7 +1689,7 @@ dependencies = [
  "approx",
  "serde",
  "task-maker-store",
- "tempdir",
+ "tempfile",
  "typescript-definitions",
  "uuid",
 ]
@@ -1706,7 +1724,7 @@ dependencies = [
  "task-maker-cache",
  "task-maker-dag",
  "task-maker-store",
- "tempdir",
+ "tempfile",
  "thiserror",
  "typescript-definitions",
  "uuid",
@@ -1743,7 +1761,7 @@ dependencies = [
  "task-maker-diagnostics",
  "task-maker-exec",
  "task-maker-lang",
- "tempdir",
+ "tempfile",
  "termcolor",
  "termion",
  "tui",
@@ -1766,7 +1784,7 @@ dependencies = [
  "tabox",
  "task-maker-dag",
  "task-maker-exec",
- "tempdir",
+ "tempfile",
  "typescript-definitions",
  "which",
 ]
@@ -1801,7 +1819,7 @@ dependencies = [
  "task-maker-format",
  "task-maker-lang",
  "task-maker-store",
- "tempdir",
+ "tempfile",
  "tui",
  "typescript-definitions",
  "url",
@@ -1823,7 +1841,7 @@ dependencies = [
  "log",
  "pretty_assertions",
  "serde",
- "tempdir",
+ "tempfile",
 ]
 
 [[package]]
@@ -1834,6 +1852,20 @@ checksum = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
 dependencies = [
  "rand 0.4.6",
  "remove_dir_all",
+]
+
+[[package]]
+name = "tempfile"
+version = "3.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5cdb1ef4eaeeaddc8fbd371e5017057064af0911902ef36b39801f67cc6d79e4"
+dependencies = [
+ "cfg-if 1.0.0",
+ "fastrand",
+ "libc",
+ "redox_syscall",
+ "remove_dir_all",
+ "winapi 0.3.9",
 ]
 
 [[package]]

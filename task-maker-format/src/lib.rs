@@ -351,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_list_files() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         std::fs::create_dir_all(tmpdir.path().join("foo/bar")).unwrap();
         std::fs::create_dir_all(tmpdir.path().join("foo/baz")).unwrap();
         std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
@@ -370,7 +370,7 @@ mod tests {
 
     #[test]
     fn test_find_source_file() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         std::fs::create_dir_all(tmpdir.path().join("foo/bar")).unwrap();
         std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
         std::fs::write(tmpdir.path().join("foo/bar/zzz.py"), "x").unwrap();
@@ -388,7 +388,7 @@ mod tests {
 
     #[test]
     fn test_find_source_file_multiple() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         std::fs::create_dir_all(tmpdir.path().join("foo")).unwrap();
         std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
         std::fs::write(tmpdir.path().join("foo/zzz.py"), "x").unwrap();
@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn test_find_source_file_not_found() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         std::fs::create_dir_all(tmpdir.path().join("foo/bar")).unwrap();
         std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
         let source = find_source_file(

@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_input_generator_static() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("input.txt");
         std::fs::write(&path, "x").unwrap();
         let generator = InputGenerator::StaticFile(path);
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_input_generator_static_not_found() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("input.txt");
         let generator = InputGenerator::StaticFile(path.clone());
         let (mut eval, _) = EvaluationData::new(tmpdir.path());
@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_input_generator_custom() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("gen.py");
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_input_validator_custom() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("val.py");
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
@@ -245,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_input_validator_custom_with_name() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("val.py");
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
@@ -270,7 +270,7 @@ mod tests {
 
     #[test]
     fn test_output_generator_static() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("output.txt");
         std::fs::write(&path, "x").unwrap();
         let generator = OutputGenerator::StaticFile(path);
@@ -293,7 +293,7 @@ mod tests {
 
     #[test]
     fn test_output_generator_static_not_found() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("output.txt");
         let generator = OutputGenerator::StaticFile(path.clone());
         let file = File::new("input");
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn test_output_generator_custom() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("sol.py");
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
@@ -441,7 +441,7 @@ mod tests {
 
     #[test]
     fn test_checker_custom() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("check.py");
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
@@ -466,7 +466,7 @@ mod tests {
 
     #[test]
     fn test_checker_custom_correct() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("check.py");
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
@@ -504,7 +504,7 @@ mod tests {
 
     #[test]
     fn test_checker_custom_incorrect() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("check.py");
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
@@ -542,7 +542,7 @@ mod tests {
 
     #[test]
     fn test_checker_custom_invalid_score() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("check.py");
         std::fs::write(&path, "x").unwrap();
         let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();

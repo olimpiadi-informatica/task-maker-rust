@@ -286,7 +286,7 @@ mod tests {
 
     #[test]
     fn test_find_asy_deps() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("file.asy");
         let file_content = "import foo;";
         write(&path, file_content).unwrap();

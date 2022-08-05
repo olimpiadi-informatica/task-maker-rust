@@ -58,7 +58,7 @@ fn test_sanity_checks_max_score() {
 
 #[test]
 fn test_sanity_checks_att_graders() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("sol")).unwrap();
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
@@ -72,7 +72,7 @@ fn test_sanity_checks_att_graders() {
 
 #[test]
 fn test_sanity_checks_att_templates() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("sol")).unwrap();
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
@@ -85,7 +85,7 @@ fn test_sanity_checks_att_templates() {
 
 #[test]
 fn test_sanity_checks_att_sample_files_nothing() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
 
@@ -95,7 +95,7 @@ fn test_sanity_checks_att_sample_files_nothing() {
 
 #[test]
 fn test_sanity_checks_att_sample_files_broken_link() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
     std::os::unix::fs::symlink("lololol", tmpdir.path().join("att/input0.txt")).unwrap();
@@ -105,7 +105,7 @@ fn test_sanity_checks_att_sample_files_broken_link() {
 
 #[test]
 fn test_sanity_checks_att_sample_files_not_link() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
     std::fs::write(tmpdir.path().join("att/input0.txt"), "x").unwrap();
@@ -115,7 +115,7 @@ fn test_sanity_checks_att_sample_files_not_link() {
 
 #[test]
 fn test_sanity_checks_duplicate_att_input() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
     std::fs::write(tmpdir.path().join("att/input0.txt"), "x").unwrap();
@@ -126,7 +126,7 @@ fn test_sanity_checks_duplicate_att_input() {
 
 #[test]
 fn test_sanity_checks_duplicate_att_output() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
     std::fs::write(tmpdir.path().join("att/output0.txt"), "x").unwrap();
@@ -137,7 +137,7 @@ fn test_sanity_checks_duplicate_att_output() {
 
 #[test]
 fn test_sanity_checks_att_input_without_output() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
     std::fs::write(tmpdir.path().join("att/input0.txt"), "x").unwrap();
@@ -150,7 +150,7 @@ fn test_sanity_checks_att_input_without_output() {
 
 #[test]
 fn test_sanity_checks_att_output_without_input() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
     std::fs::write(tmpdir.path().join("att/output0.txt"), "x").unwrap();
@@ -163,7 +163,7 @@ fn test_sanity_checks_att_output_without_input() {
 
 #[test]
 fn test_sanity_checks_att_with_check_rules() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
     std::fs::write(
@@ -180,7 +180,7 @@ int main() {}",
 
 #[test]
 fn test_sanity_checks_sol_graders() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("sol")).unwrap();
     std::fs::write(tmpdir.path().join("sol/grader.cpp"), "x").unwrap();
@@ -194,7 +194,7 @@ fn test_sanity_checks_sol_graders() {
 
 #[test]
 fn test_sanity_checks_sol_symlink() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("sol")).unwrap();
     std::fs::write(tmpdir.path().join("sol/solution.cpp"), "x").unwrap();
@@ -205,7 +205,7 @@ fn test_sanity_checks_sol_symlink() {
 
 #[test]
 fn test_sanity_checks_statement_subtasks_oii_wrong() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
 
     let tex = r"\item \textbf{\makebox[2cm][l]{Subtask 1} [\phantom{1}10 punti]}: $M=1$.\
@@ -228,7 +228,7 @@ fn test_sanity_checks_statement_subtasks_oii_wrong() {
 
 #[test]
 fn test_sanity_checks_statement_subtasks_oii_out_of_order() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
 
     let tex = r"\item \textbf{\makebox[2cm][l]{Subtask 2} [90 punti]}: $M=1$.\
@@ -251,7 +251,7 @@ fn test_sanity_checks_statement_subtasks_oii_out_of_order() {
 
 #[test]
 fn test_sanity_checks_statement_subtasks_ois_wrong() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
 
     let tex = r"\OISubtask{10}{1}{$N \le 10$.}\
@@ -274,7 +274,7 @@ fn test_sanity_checks_statement_subtasks_ois_wrong() {
 
 #[test]
 fn test_sanity_checks_statement_valid_missing() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
 
     let warnings = get_post_warnings(&task);
@@ -283,7 +283,7 @@ fn test_sanity_checks_statement_valid_missing() {
 
 #[test]
 fn test_sanity_checks_statement_valid_invalid() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::create_dir(tmpdir.path().join("statement")).unwrap();
@@ -295,7 +295,7 @@ fn test_sanity_checks_statement_valid_invalid() {
 
 #[test]
 fn test_sanity_checks_statement_valid_broken_link() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::create_dir(tmpdir.path().join("statement")).unwrap();
@@ -310,7 +310,7 @@ fn test_sanity_checks_statement_valid_broken_link() {
 
 #[test]
 fn test_sanity_checks_statement_git_not_repo() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
 
     get_post_warnings(&task);
@@ -318,7 +318,7 @@ fn test_sanity_checks_statement_git_not_repo() {
 
 #[test]
 fn test_sanity_checks_statement_git_everything_untracked() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::create_dir(tmpdir.path().join("statement")).unwrap();
@@ -337,7 +337,7 @@ fn test_sanity_checks_statement_git_everything_untracked() {
 
 #[test]
 fn test_sanity_checks_statement_git_untracked() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::create_dir(tmpdir.path().join("statement")).unwrap();
@@ -368,7 +368,7 @@ fn test_sanity_checks_statement_git_untracked() {
 
 #[test]
 fn test_sanity_checks_statement_git_ignored() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::create_dir(tmpdir.path().join("statement")).unwrap();
@@ -399,7 +399,7 @@ fn test_sanity_checks_statement_git_ignored() {
 
 #[test]
 fn test_sanity_checks_statement_git_known() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::create_dir(tmpdir.path().join("statement")).unwrap();

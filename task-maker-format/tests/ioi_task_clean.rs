@@ -7,7 +7,7 @@ mod utils;
 
 #[test]
 fn test_ioi_task_clean() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
     let input = tmpdir.path().join("input");
     let output = tmpdir.path().join("output");
@@ -24,7 +24,7 @@ fn test_ioi_task_clean() {
 
 #[test]
 fn test_ioi_task_clean_skip_static() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
     let input = tmpdir.path().join("input");
     let output = tmpdir.path().join("output");
@@ -52,7 +52,7 @@ fn test_ioi_task_clean_skip_static() {
 
 #[test]
 fn test_ioi_task_clean_bin() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
     let bin = tmpdir.path().join("bin");
     std::fs::create_dir(&bin).unwrap();
@@ -65,7 +65,7 @@ fn test_ioi_task_clean_bin() {
 
 #[test]
 fn test_ioi_task_clean_checker() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
     let check = tmpdir.path().join("check");
     let cor = tmpdir.path().join("cor");

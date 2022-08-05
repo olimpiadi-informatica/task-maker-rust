@@ -248,7 +248,7 @@ mod tests {
     use crate::solution::{SolutionCheck, SolutionCheckResult};
 
     fn get_checks(source: &str) -> Result<Vec<SolutionCheck>, Error> {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("source.txt");
         std::fs::write(&path, source).unwrap();
         let mut eval = EvaluationData::new(tmpdir.path()).0;

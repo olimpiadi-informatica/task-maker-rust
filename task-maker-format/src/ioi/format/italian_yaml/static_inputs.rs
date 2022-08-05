@@ -87,7 +87,7 @@ where
 mod tests {
     use std::fs;
 
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use TaskInputEntry::*;
 
@@ -105,7 +105,7 @@ mod tests {
     }
 
     fn make_task<I: IntoIterator<Item = N>, N: std::fmt::Display>(iter: I) -> TempDir {
-        let dir = TempDir::new("tm-test").unwrap();
+        let dir = TempDir::new().unwrap();
         fs::create_dir(dir.path().join("input")).unwrap();
         for tc in iter.into_iter() {
             fs::write(

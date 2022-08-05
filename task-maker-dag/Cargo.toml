@@ -16,5 +16,5 @@ anyhow = { version = "1.0", features = ["backtrace"] }
 typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs"}
 
 [dev-dependencies]
-tempdir = "0.3"
+tempfile = "3.3"
 approx = "0.5"

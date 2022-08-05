@@ -280,7 +280,7 @@ mod tests {
 
     #[test]
     fn test_outputs_empty() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let store = FileStore::new(tmpdir.path(), 1000, 1000).unwrap();
         let (entry, exec) = empty_entry();
         assert_eq!(entry.outputs(&store, &exec.into()), Some(HashMap::new()));
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_outputs_stdout() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let store = FileStore::new(tmpdir.path(), 1000, 1000).unwrap();
 
         let (mut entry, mut exec) = empty_entry();
@@ -304,7 +304,7 @@ mod tests {
 
     #[test]
     fn test_outputs_stdout_missing() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let store = FileStore::new(tmpdir.path(), 1000, 1000).unwrap();
 
         let (mut entry, mut exec) = empty_entry();
@@ -317,7 +317,7 @@ mod tests {
 
     #[test]
     fn test_outputs_stderr() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let store = FileStore::new(tmpdir.path(), 1000, 1000).unwrap();
 
         let (mut entry, mut exec) = empty_entry();
@@ -333,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_outputs_stderr_missing() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let store = FileStore::new(tmpdir.path(), 1000, 1000).unwrap();
 
         let (mut entry, mut exec) = empty_entry();
@@ -346,7 +346,7 @@ mod tests {
 
     #[test]
     fn test_outputs_file() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let store = FileStore::new(tmpdir.path(), 1000, 1000).unwrap();
 
         let (mut entry, mut exec) = empty_entry();
@@ -364,7 +364,7 @@ mod tests {
 
     #[test]
     fn test_outputs_file_missing() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let store = FileStore::new(tmpdir.path(), 1000, 1000).unwrap();
 
         let (mut entry, mut exec) = empty_entry();

@@ -15,11 +15,11 @@ type ReadFileBuffer = [u8; READ_FILE_BUFFER_SIZE];
 ///
 /// ```
 /// use task_maker_store::ReadFileIterator;
-/// # use tempdir::TempDir;
+/// # use tempfile::TempDir;
 ///
 /// # use anyhow::Error;
 /// # fn main() -> Result<(), Error> {
-/// # let tmp = TempDir::new("tm-test").unwrap();
+/// # let tmp = TempDir::new().unwrap();
 /// # let path = tmp.path().join("file.txt");
 /// std::fs::write(&path, "hello world")?;
 /// let iter = ReadFileIterator::new(&path)?;
@@ -64,10 +64,10 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
     use std::io::Write;
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     fn get_cwd() -> TempDir {
-        TempDir::new("tm-test").unwrap()
+        TempDir::new().unwrap()
     }
 
     fn fake_file(path: &Path, content: Vec<u8>) {

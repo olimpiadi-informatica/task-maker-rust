@@ -357,7 +357,7 @@ mod tests {
 
     #[test]
     fn test_logs_emitted_with_copy_logs() {
-        let tmpdir = tempdir::TempDir::new("tm-tests").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let outputs = get_outputs_with_logs(tmpdir.path(), true);
         let stderr_path = tmpdir.path().join("bin/logs/booklets/dest.pdf.stderr.log");
         let stdout_path = tmpdir.path().join("bin/logs/booklets/dest.pdf.stdout.log");
@@ -367,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_logs_not_emitted_by_default() {
-        let tmpdir = tempdir::TempDir::new("tm-tests").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let outputs = get_outputs_with_logs(tmpdir.path(), false);
         let stderr_path = tmpdir.path().join("bin/logs/booklets/dest.pdf.stderr.log");
         let stdout_path = tmpdir.path().join("bin/logs/booklets/dest.pdf.stdout.log");

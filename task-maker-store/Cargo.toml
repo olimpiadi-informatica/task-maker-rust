@@ -19,7 +19,7 @@ hex = "0.3"
 # Logging
 log = "0.4"
 # Temporary directory creation
-tempdir = "0.3"
+tempfile = "3.3"
 # Compile time string format
 const_format = "0.2"
 

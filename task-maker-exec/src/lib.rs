@@ -163,7 +163,7 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use task_maker_dag::*;
 
@@ -173,7 +173,7 @@ mod tests {
 
     #[test]
     fn test_local_evaluation() {
-        let cwd = TempDir::new("tm-test").unwrap();
+        let cwd = TempDir::new().unwrap();
         let mut dag = ExecutionDAG::new();
 
         let file = File::new("Input file");

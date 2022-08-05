@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn test_extract_imports() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("script.py");
         write(
             &path,
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_find_python_deps() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("script.py");
         let foo_path = tmpdir.path().join("foo.py");
         let bar_path = tmpdir.path().join("bar.py");
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_find_python_deps_loop() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let script_path = tmpdir.path().join("script.py");
         let foo_path = tmpdir.path().join("foo.py");
         // script imports itself and foo and script import each other

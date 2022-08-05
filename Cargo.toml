@@ -78,7 +78,7 @@ scopeguard = "1.0"
 # URL parsing for connecting to a remote server
 url = "2.1"
 # Temporary directory for sandboxes
-tempdir = "0.3"
+tempfile = "3.3"
 # Regex
 regex = "1"
 # setrlimit for setting unlimited stack for the checker in the fuzzer

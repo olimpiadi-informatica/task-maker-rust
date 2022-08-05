@@ -20,14 +20,14 @@
 //! # Example
 //!
 //! ```
-//! use tempdir::TempDir;
+//! use tempfile::TempDir;
 //! use task_maker_cache::{Cache, CacheResult};
 //! use std::collections::HashMap;
 //! use task_maker_dag::{Execution, ExecutionCommand, ExecutionResult, ExecutionStatus, ExecutionResourcesUsage, File};
 //! use task_maker_store::{FileStore, FileStoreKey, ReadFileIterator};
 //!
 //! // make a new store and a new cache in a testing environment
-//! let dir = TempDir::new("tm-test").unwrap();
+//! let dir = TempDir::new().unwrap();
 //! let mut cache = Cache::new(dir.path()).expect("Cannot create the cache");
 //! let mut store = FileStore::new(dir.path(), 1000, 1000).expect("Cannot create the store");
 //!

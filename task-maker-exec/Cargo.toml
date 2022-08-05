@@ -21,7 +21,7 @@ log = "0.4"
 # UUID generation
 uuid = { version = "1.1", features = ["v4", "fast-rng", "serde"] }
 # Temporary directory for sandboxes and FIFO directory
-tempdir = "0.3"
+tempfile = "3.3"
 # Resolve executable names in $PATH
 which = "4.2"
 # General iterator utilities

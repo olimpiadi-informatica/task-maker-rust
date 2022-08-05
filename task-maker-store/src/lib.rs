@@ -15,9 +15,9 @@
 //!
 //! # use anyhow::Error;
 //! # use std::fs;
-//! # use tempdir::TempDir;
+//! # use tempfile::TempDir;
 //! # fn main() -> Result<(), Error> {
-//! # let tmp = TempDir::new("tm-test").unwrap();
+//! # let tmp = TempDir::new().unwrap();
 //! # let store_dir = tmp.path().join("store");
 //! # let path = tmp.path().join("file.txt");
 //! # fs::write(&path, "hello world")?;
@@ -129,9 +129,9 @@ impl FileStore {
     ///
     /// # use anyhow::Error;
     /// # use std::fs;
-    /// # use tempdir::TempDir;
+    /// # use tempfile::TempDir;
     /// # fn main() -> Result<(), Error> {
-    /// # let dir = TempDir::new("tm-test")?;
+    /// # let dir = TempDir::new()?;
     /// # let store_dir = dir.path();
     /// // make a new store based on a directory, this will lock if the store is already in use
     /// // somewhere
@@ -189,9 +189,9 @@ impl FileStore {
     ///
     /// # use anyhow::Error;
     /// # use std::fs;
-    /// # use tempdir::TempDir;
+    /// # use tempfile::TempDir;
     /// # fn main() -> Result<(), Error> {
-    /// # let tmp = TempDir::new("tm-test").unwrap();
+    /// # let tmp = TempDir::new().unwrap();
     /// # let store_dir = tmp.path().join("store");
     /// # let path = tmp.path().join("file.txt");
     /// # fs::write(&path, "hello world")?;
@@ -224,7 +224,7 @@ impl FileStore {
             let dir = path.parent().unwrap();
             std::fs::create_dir_all(&dir)
                 .with_context(|| format!("Cannot create directory at {}", dir.display()))?;
-            let tmpdir = tempdir::TempDir::new_in(path.parent().unwrap(), "temp")
+            let tmpdir = tempfile::TempDir::new_in(path.parent().unwrap())
                 .context("Failed to create temporary directory for storing the file")?;
             let tmpfile_path = tmpdir.path().join("file");
             let mut tmpfile =
@@ -272,9 +272,9 @@ impl FileStore {
     ///
     /// # use anyhow::Error;
     /// # use std::fs;
-    /// # use tempdir::TempDir;
+    /// # use tempfile::TempDir;
     /// # fn main() -> Result<(), Error> {
-    /// # let tmp = TempDir::new("tm-test").unwrap();
+    /// # let tmp = TempDir::new().unwrap();
     /// # let store_dir = tmp.path().join("store");
     /// # let path = tmp.path().join("file.txt");
     /// # fs::write(&path, "hello world")?;
@@ -550,12 +550,12 @@ mod tests {
     use std::io::{Read, Write};
 
     use pretty_assertions::{assert_eq, assert_ne};
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use super::*;
 
     fn get_cwd() -> TempDir {
-        TempDir::new("tm-test").unwrap()
+        TempDir::new().unwrap()
     }
 
     fn fake_file<P: AsRef<Path>>(path: P, content: &str) -> FileStoreKey {

@@ -10,7 +10,7 @@ use std::thread::JoinHandle;
 
 use anyhow::{anyhow, bail, Context, Error};
 use ductile::{new_local_channel, ChannelReceiver, ChannelSender};
-use tempdir::TempDir;
+use tempfile::TempDir;
 use uuid::Uuid;
 
 use task_maker_dag::*;
@@ -322,7 +322,7 @@ fn execute_job(
         let fifo_dir = if group.fifo.is_empty() {
             None
         } else {
-            let fifo_dir = TempDir::new_in(sandbox_path, "pipes").with_context(|| {
+            let fifo_dir = TempDir::new_in(sandbox_path).with_context(|| {
                 format!(
                     "Failed to create temporary directory in {}",
                     sandbox_path.display()

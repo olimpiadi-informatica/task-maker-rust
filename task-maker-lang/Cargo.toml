@@ -24,7 +24,7 @@ typescript-definitions = { git = "https://github.com/onelson/typescript-definiti
 
 [dev-dependencies]
 task-maker-exec = { path = "../task-maker-exec" }
-tempdir = "0.3"
+tempfile = "3.3"
 # assert_that! macro
 spectral = "0.6"
 tabox = "1"

@@ -21,4 +21,4 @@ log = "0.4"
 const_format = "0.2"
 
 [dev-dependencies]
-tempdir = "0.3"
+tempfile = "3.3"

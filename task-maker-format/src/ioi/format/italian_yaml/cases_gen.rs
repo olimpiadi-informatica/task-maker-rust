@@ -764,7 +764,7 @@ mod tests {
 
     use anyhow::Error;
     use spectral::{assert_that, AssertionFailure, Spec};
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use crate::ioi::format::italian_yaml::cases_gen::{
         CasesGen, ConstraintOperand, ConstraintOperator,
@@ -794,7 +794,7 @@ mod tests {
 
     impl TestHelper {
         fn new() -> TestHelper {
-            TestHelper(TempDir::new("tm-test").unwrap())
+            TestHelper(TempDir::new().unwrap())
         }
 
         fn add_file<P: AsRef<Path>>(&self, path: P) -> &Self {

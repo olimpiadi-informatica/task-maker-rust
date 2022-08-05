@@ -20,7 +20,7 @@ pub fn setup() {
 }
 
 pub fn eval_dag(dag: ExecutionDAG) {
-    let cwd = tempdir::TempDir::new("tm-test").unwrap();
+    let cwd = tempfile::TempDir::new().unwrap();
     eval_dag_locally(
         dag,
         cwd.path(),

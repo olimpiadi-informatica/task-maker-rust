@@ -217,12 +217,12 @@ mod tests {
 
     use pretty_assertions::{assert_eq, assert_ne};
     use std::time::Duration;
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use crate::{FileStore, FileStoreHandle, FileStoreKey, ReadFileIterator};
 
     fn get_cwd() -> TempDir {
-        TempDir::new("tm-test").unwrap()
+        TempDir::new().unwrap()
     }
 
     fn fake_file<P: AsRef<Path>>(path: P, content: u8, len: usize) -> FileStoreKey {

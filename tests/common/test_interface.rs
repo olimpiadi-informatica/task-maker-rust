@@ -6,7 +6,7 @@ use std::time::Duration;
 use anyhow::Error;
 use clap::Parser;
 use itertools::Itertools;
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 use task_maker_dag::ExecutionStatus;
 use task_maker_format::ioi::{
@@ -44,7 +44,7 @@ impl TestInterface {
             .join("tests")
             .join("tasks")
             .join(path.into());
-        let tempdir = TempDir::new("tm-test-local-client").expect("Cannot crete tempdir");
+        let tempdir = TempDir::new().expect("Cannot crete tempdir");
         TestInterface {
             state: TestInterface::run_task_maker(path, false, tempdir.path(), &[]),
             _tempdir: tempdir,
@@ -67,7 +67,7 @@ impl TestInterface {
             .join("tests")
             .join("tasks")
             .join(path.into());
-        let tempdir = TempDir::new("tm-test-remote-client").expect("Cannot crete tempdir");
+        let tempdir = TempDir::new().expect("Cannot crete tempdir");
         TestInterface {
             state: TestInterface::run_task_maker(
                 path,
@@ -180,7 +180,7 @@ impl TestInterface {
         std::thread::Builder::new()
             .name("Test server".to_string())
             .spawn(|| {
-                let tmpdir = tempdir::TempDir::new("tm-test-remote-server").unwrap();
+                let tmpdir = tempfile::TempDir::new().unwrap();
                 let store = tmpdir.path().to_string_lossy().to_string();
                 let opt = ServerOpt::parse_from(&[
                     "server",
@@ -197,7 +197,7 @@ impl TestInterface {
             .name("Test worker".to_string())
             .spawn(|| {
                 TestInterface::wait_port(27183);
-                let tmpdir = tempdir::TempDir::new("tm-test-remote-worker").unwrap();
+                let tmpdir = tempfile::TempDir::new().unwrap();
                 let store = tmpdir.path().to_string_lossy().to_string();
                 let opt = WorkerOpt::parse_from(&[
                     "worker",

@@ -102,12 +102,12 @@ fn find_fpc_cfg() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use spectral::prelude::*;
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use super::*;
 
     fn setup() -> TempDir {
-        let tempdir = TempDir::new("tm-test").unwrap();
+        let tempdir = TempDir::new().unwrap();
         let foo = tempdir.path().join("foo.pas");
         std::fs::write(foo, "some code").unwrap();
         tempdir
