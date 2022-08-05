@@ -53,10 +53,8 @@ derivative = "2.2"
 nix = "0.24"
 # Typescript definition generation
 typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs"}
-# Unicode normalization for subtask names.
-unicode-normalization = "0.1"
-# Unicode General Category for subtask names.
-unic-ucd-category = "0.9.0"
+# Unicode for subtask names
+unic = "0.9"
 # Wildcard match for subtask names.
 wildmatch = "2.1.0"
 

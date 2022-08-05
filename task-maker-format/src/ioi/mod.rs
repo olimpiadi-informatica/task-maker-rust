@@ -24,7 +24,7 @@ use anyhow::{anyhow, bail, Context, Error};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
-use unicode_normalization::UnicodeNormalization;
+use unic::normal::StrNormalForm;
 use wildmatch::WildMatch;
 
 use curses_ui::CursesUI;

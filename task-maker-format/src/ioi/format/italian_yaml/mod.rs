@@ -264,7 +264,8 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Error};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use unic_ucd_category::GeneralCategory;
+use unic::normal::StrNormalForm;
+use unic::ucd::category::GeneralCategory;
 
 pub(crate) use cases_gen::{is_gen_gen_deletable, TM_ALLOW_DELETE_COOKIE};
 use task_maker_lang::GraderMap;
@@ -722,7 +723,6 @@ fn cleanup_subtask_name(id: &str) -> Result<String, Error> {
     let fail = |err| Err(anyhow!("'{}' is not a valid identifier: {}", id, err));
 
     // Normalize the identifier to avoid similar but different characters.
-    use unicode_normalization::UnicodeNormalization;
     let normalized = id.nfkc().collect::<String>();
 
     if normalized.is_empty() {
