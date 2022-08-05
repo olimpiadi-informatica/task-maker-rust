@@ -9,7 +9,7 @@ task-maker-store = { path = "../task-maker-store" }
 # Serialization/Deserialization
 serde = { version = "1.0", features = ["derive"] }
 # UUID generation
-uuid = { version = "0.7", features = ["v4", "serde"] }
+uuid = { version = "1.1", features = ["v4", "fast-rng", "serde"] }
 # Generic error utilities
 anyhow = { version = "1.0", features = ["backtrace"] }
 # Typescript definition generation
@@ -17,4 +17,4 @@ typescript-definitions = { git = "https://github.com/onelson/typescript-definiti
 
 [dev-dependencies]
 tempdir = "0.3"
-approx = "0.3"
+approx = "0.5"

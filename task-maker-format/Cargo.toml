@@ -13,11 +13,11 @@ task-maker-diagnostics = { path = "../task-maker-diagnostics" }
 # Serialization/Deserialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_yaml = "0.8"
+serde_yaml = "0.9"
 # Generic error utilities
 anyhow = { version = "1.0", features = ["backtrace"] }
 # General iterator utilities
-itertools = "0.8"
+itertools = "0.10"
 # Utilities for writing to the terminal with colors
 termcolor = "1"
 # Checks if the terminal supports the colors
@@ -25,7 +25,7 @@ supports-color = "1"
 # Logging
 log = "0.4"
 # Globbing files
-glob = "0.2"
+glob = "0.3"
 # Text parser for parsing the gen/GEN file
 pest = "2.1"
 pest_derive = "2.1"
@@ -35,18 +35,18 @@ termion = "1.5"
 # Global constants
 lazy_static = "1.3"
 # Checking equalness between floats
-approx = "0.3"
+approx = "0.5"
 # Regular expressions
 regex = "1"
 # File templating (for building statement tex file)
-askama = "0.8"
-askama_derive = "0.8"
+askama = "0.11"
+askama_derive = "0.11"
 # Detecting the content type of a file
 mime_guess = "2.0"
 # Geenrating random numbers (the seed in terry)
 rand = "0.7"
 # Split command line arguments
-shell-words = "0.1"
+shell-words = "1.1"
 # Nicer derive macros
 derivative = "2.2"
 # For sending ^C to the process
@@ -62,6 +62,6 @@ wildmatch = "2.1.0"
 
 [dev-dependencies]
 tempdir = "0.3"
-pretty_assertions = "0.6"
+pretty_assertions = "1.2"
 # assert_that! macro
 spectral = "0.6"

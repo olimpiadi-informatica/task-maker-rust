@@ -53,11 +53,11 @@ clap = { version = "3.1", features = ["derive"] }
 clap_complete = "3.1"
 num_cpus = "1.10"
 # Better stacktraces for panics
-better-panic = "0.1"
+better-panic = "0.3"
 # Worker and client name
-whoami = "0.6"
+whoami = "1.2"
 # Cross-platform cache directory
-directories = "3.0"
+directories = "4.0"
 # Generic error utilities
 anyhow = { version = "1.0", features = ["backtrace"] }
 # Message serialization for UI/sandbox/...
@@ -70,7 +70,7 @@ ctrlc = "3.1"
 # Global constants
 lazy_static = "1.4"
 # General iterator utilities
-itertools = "0.8"
+itertools = "0.10"
 # Iterate recursively the files in a directory (used for `task-maker-tools reset`)
 walkdir = "2.3"
 # defer! macro
@@ -92,10 +92,10 @@ tui = "0.5"
 typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs"}
 
 [dev-dependencies]
-approx = "0.5.0"
-port_scanner = "0.1.5"
+approx = "0.5"
+port_scanner = "0.1"
 # Resolve executable names in $PATH
-which = "2.0"
+which = "4.2"
 
 [[bin]]
 name = "task-maker"
