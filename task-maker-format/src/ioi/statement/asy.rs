@@ -280,7 +280,7 @@ impl AsyFile {
 mod tests {
     use std::fs::write;
 
-    use spectral::prelude::*;
+    use speculoos::prelude::*;
 
     use super::*;
 
@@ -296,7 +296,7 @@ mod tests {
         write(&foo_path, foo_content).unwrap();
         let deps = AsyFile::find_asy_deps(&path, tmpdir.path()).unwrap();
 
-        assert_that!(deps.len()).is_equal_to(2);
+        assert_that(&deps.len()).is_equal_to(2);
         let dep1 = AsyDependency {
             sandbox_path: PathBuf::from("foo.asy"),
             local_path: foo_path.clone(),

@@ -1350,10 +1350,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "spectral"
-version = "0.6.0"
+name = "speculoos"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae3c15181f4b14e52eeaac3efaeec4d2764716ce9c86da0c934c3e318649c5ba"
+checksum = "0bcff6a72e2ddfb09ce0064568857e70d3cf6f4342244ebb1f84fa6f89b16c26"
 dependencies = [
  "num",
 ]
@@ -1522,7 +1522,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "shell-words",
- "spectral",
+ "speculoos",
  "supports-color",
  "task-maker-dag",
  "task-maker-diagnostics",
@@ -1546,7 +1546,7 @@ dependencies = [
  "regex",
  "serde",
  "shell-words",
- "spectral",
+ "speculoos",
  "tabox",
  "task-maker-dag",
  "task-maker-exec",

@@ -62,4 +62,4 @@ wildmatch = "2.1.0"
 tempfile = "3.3"
 pretty_assertions = "1.2"
 # assert_that! macro
-spectral = "0.6"
+speculoos = "0.9"

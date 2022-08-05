@@ -101,7 +101,7 @@ fn find_fpc_cfg() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use spectral::prelude::*;
+    use speculoos::prelude::*;
     use tempfile::TempDir;
 
     use super::*;
@@ -125,6 +125,6 @@ mod tests {
         let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
 
         let args = comp.args;
-        assert_that!(args).contains("foo.pas".to_string());
+        assert_that(&args).contains("foo.pas".to_string());
     }
 }

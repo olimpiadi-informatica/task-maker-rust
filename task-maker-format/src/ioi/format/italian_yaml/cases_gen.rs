@@ -763,7 +763,7 @@ mod tests {
     use std::path::Path;
 
     use anyhow::Error;
-    use spectral::{assert_that, AssertionFailure, Spec};
+    use speculoos::{assert_that, AssertionFailure, Spec};
     use tempfile::TempDir;
 
     use crate::ioi::format::italian_yaml::cases_gen::{
@@ -977,7 +977,7 @@ mod tests {
             .add_file("gen/generator.py")
             .cases_gen(":GEN gen gen/generator.py\n:GEN gen");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("outside a subtask");
+        assert_that(&gen.unwrap_err()).has_error("outside a subtask");
     }
 
     #[test]
@@ -986,7 +986,7 @@ mod tests {
             .add_file("gen/generator.py")
             .cases_gen(":GEN gen gen/generator.py\n:SUBTASK 42\n:GEN lolnope");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("unknown generator");
+        assert_that(&gen.unwrap_err()).has_error("unknown generator");
     }
 
     #[test]
@@ -995,14 +995,14 @@ mod tests {
             .add_file("gen/generator.py")
             .cases_gen(":GEN gen gen/generator.py\n:GEN gen gen/generator.py");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("Duplicate generator");
+        assert_that(&gen.unwrap_err()).has_error("Duplicate generator");
     }
 
     #[test]
     fn test_add_generator_missing_file() {
         let gen = TestHelper::new().cases_gen(":GEN gen gen/generator.py");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("does not exists");
+        assert_that(&gen.unwrap_err()).has_error("does not exists");
     }
 
     #[test]
@@ -1011,7 +1011,7 @@ mod tests {
             .add_file("gen/gen.lolnope")
             .cases_gen(":GEN gen gen/gen.lolnope");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("unknown language");
+        assert_that(&gen.unwrap_err()).has_error("unknown language");
     }
 
     /**********************
@@ -1074,7 +1074,7 @@ mod tests {
             .add_file("gen/validator.py")
             .cases_gen(":VAL val gen/validator.py\n:VAL val");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("outside a subtask");
+        assert_that(&gen.unwrap_err()).has_error("outside a subtask");
     }
 
     #[test]
@@ -1083,7 +1083,7 @@ mod tests {
             .add_file("gen/validator.py")
             .cases_gen(":VAL val gen/validator.py\n:SUBTASK 42\n:VAL lolnope");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("unknown validator");
+        assert_that(&gen.unwrap_err()).has_error("unknown validator");
     }
 
     #[test]
@@ -1092,14 +1092,14 @@ mod tests {
             .add_file("gen/validator.py")
             .cases_gen(":VAL val gen/validator.py\n:VAL val gen/validator.py");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("Duplicate validator");
+        assert_that(&gen.unwrap_err()).has_error("Duplicate validator");
     }
 
     #[test]
     fn test_add_validator_missing_file() {
         let gen = TestHelper::new().cases_gen(":VAL val gen/validator.py");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("does not exists");
+        assert_that(&gen.unwrap_err()).has_error("does not exists");
     }
 
     #[test]
@@ -1108,7 +1108,7 @@ mod tests {
             .add_file("gen/gen.lolnope")
             .cases_gen(":VAL val gen/gen.lolnope");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("unknown language");
+        assert_that(&gen.unwrap_err()).has_error("unknown language");
     }
 
     /**********************
@@ -1192,7 +1192,7 @@ mod tests {
     fn test_add_constraint_mixed_directions() {
         let gen = TestHelper::new().cases_gen(":CONSTRAINT $K < $N > $M");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("inequality direction must be the same");
+        assert_that(&gen.unwrap_err()).has_error("inequality direction must be the same");
     }
 
     #[test]
@@ -1205,7 +1205,7 @@ mod tests {
     fn test_add_constraint_invalid_integer() {
         let gen = TestHelper::new().cases_gen(":CONSTRAINT $N < 100000000000000000000000000000000");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("Invalid integer constant");
+        assert_that(&gen.unwrap_err()).has_error("Invalid integer constant");
     }
 
     /**********************
@@ -1300,14 +1300,14 @@ mod tests {
     fn test_add_copy_missing_file() {
         let gen = TestHelper::new().cases_gen(":SUBTASK 42\n:COPY example.in");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("file not found");
+        assert_that(&gen.unwrap_err()).has_error("file not found");
     }
 
     #[test]
     fn test_add_copy_no_subtask() {
         let gen = TestHelper::new().cases_gen(":COPY example.in");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("outside a subtask");
+        assert_that(&gen.unwrap_err()).has_error("outside a subtask");
     }
 
     /**********************
@@ -1414,14 +1414,14 @@ mod tests {
             .add_file("gen/gen.py")
             .cases_gen(":GEN foo gen/gen.py\n:SUBTASK 42\n:RUN foo good ol' quotes");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("Invalid command arguments");
+        assert_that(&gen.unwrap_err()).has_error("Invalid command arguments");
     }
 
     #[test]
     fn test_add_run_missing_gen() {
         let gen = TestHelper::new().cases_gen(":SUBTASK 42\n:RUN foo 42 42");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("Generator 'foo' not declared");
+        assert_that(&gen.unwrap_err()).has_error("Generator 'foo' not declared");
     }
 
     #[test]
@@ -1430,7 +1430,7 @@ mod tests {
             .add_file("gen/gen.py")
             .cases_gen(":GEN default gen/gen.py\n:RUN default 42 42");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("outside a subtask");
+        assert_that(&gen.unwrap_err()).has_error("outside a subtask");
     }
 
     /**********************
@@ -1613,7 +1613,7 @@ mod tests {
             ":GEN default gen/generator.py N M\n:CONSTRAINT 1 <= $N < $M < 1000\n:SUBTASK 42\n1 1000",
         );
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("violates constraint");
+        assert_that(&gen.unwrap_err()).has_error("violates constraint");
     }
 
     #[test]
@@ -1630,14 +1630,14 @@ mod tests {
             .add_file("gen/gen.py")
             .cases_gen(":GEN gen gen/gen.py\n:SUBTASK 42\ngood ol' quotes");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("Invalid command arguments");
+        assert_that(&gen.unwrap_err()).has_error("Invalid command arguments");
     }
 
     #[test]
     fn test_testcase_missing_gen() {
         let gen = TestHelper::new().cases_gen(":SUBTASK 42\n42 42");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("no default generator set");
+        assert_that(&gen.unwrap_err()).has_error("no default generator set");
     }
 
     #[test]
@@ -1646,6 +1646,6 @@ mod tests {
             .add_file("gen/gen.py")
             .cases_gen(":GEN default gen/gen.py\n42 42");
         assert!(gen.is_err());
-        assert_that!(gen.unwrap_err()).has_error("outside a subtask");
+        assert_that(&gen.unwrap_err()).has_error("outside a subtask");
     }
 }
