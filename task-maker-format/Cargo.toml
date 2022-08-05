@@ -44,7 +44,7 @@ askama_derive = "0.11"
 # Detecting the content type of a file
 mime_guess = "2.0"
 # Geenrating random numbers (the seed in terry)
-rand = "0.7"
+fastrand = "1.8"
 # Split command line arguments
 shell-words = "1.1"
 # Nicer derive macros
