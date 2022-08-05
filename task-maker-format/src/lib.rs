@@ -306,8 +306,8 @@ macro_rules! bind_exec_callbacks {
         {
             #[allow(clippy::redundant_closure_call)]
             {
-                use crate::UISender;
-                use crate::ui::UIExecutionStatus;
+                use $crate::UISender;
+                use $crate::ui::UIExecutionStatus;
                 {
                     $(let $extra = $extra.clone();)*
                     let status = UIExecutionStatus::Pending;

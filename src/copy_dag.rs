@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Write;
 
 use task_maker_dag::{Execution, ExecutionDAG, File, ProvidedFile};
 
@@ -95,8 +96,9 @@ fn render_graph(nodes: Vec<Node>, edges: Vec<Edge>) -> String {
             Node::Execution(_) => "style=rounded shape=record",
             Node::File(_) => "style=dashed shape=box",
         };
-        res += &format!(
-            "    {}[label=\"{}\"][{}];\n",
+        let _ = writeln!(
+            res,
+            "    {}[label=\"{}\"][{}];",
             node_id(&node),
             node_label(&node)
                 .replace('"', "\\\"")
@@ -108,7 +110,7 @@ fn render_graph(nodes: Vec<Node>, edges: Vec<Edge>) -> String {
         );
     }
     for (a, b) in edges {
-        res += &format!("    {} -> {};\n", node_id(&a), node_id(&b));
+        let _ = writeln!(res, "    {} -> {};", node_id(&a), node_id(&b));
     }
     res += "}\n";
 

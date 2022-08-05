@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::fmt::Write;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
@@ -70,9 +71,7 @@ impl CodeSpan {
 
     /// Obtain a string (with colors) of this span.
     pub fn to_string(&self, level: DiagnosticLevel) -> String {
-        let mut result = String::new();
-
-        result += &format!(
+        let mut result = format!(
             "{}:{}:{}\n",
             self.file_name.display(),
             self.line_number,
@@ -80,14 +79,14 @@ impl CodeSpan {
         );
 
         let line_number = self.line_number.get().to_string();
-        result += &format!("{} | {}\n", line_number, self.line);
+        let _ = writeln!(result, "{} | {}", line_number, self.line);
 
         let pad = line_number.len() + 3 + self.line_offset;
         result += &" ".repeat(pad);
 
         let color = level.color();
         for _ in 0..(self.len.max(1)) {
-            result += &format!("{}", "^".color(color).bold());
+            let _ = write!(result, "{}", "^".color(color).bold());
         }
         result += "\n";
         result

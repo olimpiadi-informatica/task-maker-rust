@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -49,10 +50,15 @@ pub fn find_task<P: Into<PathBuf>>(
 
     let mut message = "\n".to_string();
     for (format, path, error) in fails {
-        message += &format!("    - Not a valid {} task at {}\n", format, path.display());
-        error
-            .chain()
-            .for_each(|cause| message += &format!("      Caused by:\n        {}\n", cause));
+        let _ = writeln!(
+            message,
+            "    - Not a valid {} task at {}",
+            format,
+            path.display()
+        );
+        error.chain().for_each(|cause| {
+            let _ = write!(message, "      Caused by:\n        {}\n", cause);
+        });
     }
 
     Err(anyhow!("{}", message)).context("Cannot find a valid task directory")
