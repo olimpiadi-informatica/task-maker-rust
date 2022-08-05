@@ -2098,6 +2098,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "blake2",
+ "const_format",
  "fs2",
  "hex",
  "log",
