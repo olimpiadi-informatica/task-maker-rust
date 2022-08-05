@@ -17,8 +17,8 @@ bincode = "1.2"
 anyhow = { version = "1.0", features = ["backtrace"] }
 # Logging
 log = "0.4"
-# Checking assertions at compile time
-static_assertions = "1.1"
+# Compile time string format
+const_format = "0.2"
 
 [dev-dependencies]
 tempdir = "0.3"
