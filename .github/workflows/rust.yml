@@ -7,17 +7,33 @@ jobs:
     name: Test and Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+
       - name: Install Deps
         run: |
           sudo apt update
           sudo apt install -yy libseccomp-dev build-essential fpc
-      - name: Install Rust
+
+      - &install_rust
+        name: Install Rust
         uses: actions-rs/toolchain@v1
+        id: install-rust
         with:
           toolchain: stable
           components: clippy
           override: true
+
+      - &rust_cache
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ steps.install-rust.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+
       - name: cargo test
         uses: actions-rs/cargo@v1
         with:
@@ -25,12 +41,14 @@ jobs:
           args: --color=always --all --no-fail-fast
         env:
           RUST_BACKTRACE: 1
+
       - name: cargo clippy
         uses: actions-rs/clippy-check@v1
         if: ${{ github.event_name != 'pull_request' }}
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-targets --all-features --tests --all -- -D warnings
+
       - name: cargo clippy (for pull requests)
         uses: actions-rs/cargo@v1
         if: ${{ github.event_name == 'pull_request' }}
@@ -42,14 +60,10 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Install Rust
-        id: component
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          components: rustfmt
-          override: true
+      - uses: actions/checkout@v3
+
+      - <<: *install_rust
+
       - name: cargo fmt
         uses: actions-rs/cargo@v1
         with:
@@ -60,14 +74,21 @@ jobs:
     name: Typescript Bindings
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+
       - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -yy libseccomp-dev
+
+      - <<: *install_rust
+
+      - <<: *rust_cache
+
       - name: Rebuild bindings
         working-directory: ./bindings/ts
         run: ./rebuild.sh
+
       - name: Check diff
         working-directory: ./bindings/ts
         run: git diff --exit-code src/ schema/
