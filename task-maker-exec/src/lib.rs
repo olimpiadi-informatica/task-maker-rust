@@ -80,7 +80,6 @@ use anyhow::Error;
 /// Re-export `ductile` since it's sensible to any version change
 pub use ductile;
 use ductile::new_local_channel;
-use scrypt::ScryptParams;
 
 pub use client::ExecutorClient;
 pub use executor::{ExecutorStatus, ExecutorWorkerStatus, WorkerCurrentJobStatus};
@@ -105,17 +104,11 @@ mod scheduler;
 mod worker;
 mod worker_manager;
 
+const KEY_MATERIAL: &str = "task-maker-rust 99e4e7117fbf4ed6f8f1850c6acb61b6";
+
 /// Derive the encryption key from a password string.
 pub fn derive_key_from_password<S: AsRef<str>>(password: S) -> [u8; 32] {
-    let mut key = [0u8; 32];
-    scrypt::scrypt(
-        password.as_ref().as_bytes(),
-        b"task-maker",
-        &ScryptParams::new(8, 8, 1).unwrap(),
-        &mut key,
-    )
-    .expect("Failed to derive key from password");
-    key
+    blake3::derive_key(password.as_ref(), KEY_MATERIAL.as_bytes())
 }
 
 /// Evaluate a DAG locally spawning a new [`LocalExecutor`](executors/struct.LocalExecutor.html)
@@ -163,7 +156,7 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use task_maker_dag::*;
 
@@ -173,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_local_evaluation() {
-        let cwd = TempDir::new("tm-test").unwrap();
+        let cwd = TempDir::new().unwrap();
         let mut dag = ExecutionDAG::new();
 
         let file = File::new("Input file");

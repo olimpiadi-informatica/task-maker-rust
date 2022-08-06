@@ -45,14 +45,14 @@ impl ExecutorClient {
     /// use std::path::PathBuf;
     /// use task_maker_cache::Cache;
     /// use ductile::new_local_channel;
-    /// # use tempdir::TempDir;
+    /// # use tempfile::TempDir;
     ///
     /// // make a new, empty, DAG
     /// let dag = ExecutionDAG::new();
     /// // setup the communication channels
     /// let (tx, rx_remote) = new_local_channel();
     /// let (tx_remote, rx) = new_local_channel();
-    /// # let tmpdir = TempDir::new("tm-test").unwrap();
+    /// # let tmpdir = TempDir::new().unwrap();
     /// # let path = tmpdir.path().to_owned();
     /// # let sandbox_runner = ErrorSandboxRunner::default();
     /// let file_store = Arc::new(FileStore::new(&path, 1000, 1000).expect("Cannot create the file store"));

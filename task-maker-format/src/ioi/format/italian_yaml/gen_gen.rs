@@ -190,7 +190,7 @@ mod tests {
 
     use anyhow::Error;
     use pretty_assertions::assert_eq;
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use TaskInputEntry::*;
 
@@ -200,7 +200,7 @@ mod tests {
     use crate::SourceFile;
 
     fn make_task<S: AsRef<str>>(gen_gen: S) -> TempDir {
-        let dir = TempDir::new("tm-test").unwrap();
+        let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("task.yaml"), "name: foo\ntitle: foo bar\n").unwrap();
         fs::create_dir(dir.path().join("gen")).unwrap();
         fs::create_dir(dir.path().join("sol")).unwrap();

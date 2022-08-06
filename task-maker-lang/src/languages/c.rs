@@ -102,15 +102,15 @@ impl Language for LanguageC {
 
 #[cfg(test)]
 mod tests {
-    use spectral::prelude::*;
-    use tempdir::TempDir;
+    use speculoos::prelude::*;
+    use tempfile::TempDir;
 
     use task_maker_dag::ExecutionDAG;
 
     use super::*;
 
     fn setup() -> TempDir {
-        let tempdir = TempDir::new("tm-test").unwrap();
+        let tempdir = TempDir::new().unwrap();
         let foo = tempdir.path().join("foo.c");
         std::fs::write(foo, "int main() {}").unwrap();
         tempdir
@@ -131,10 +131,10 @@ mod tests {
         let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
 
         let args = comp.args;
-        assert_that!(args).contains("foo.c".to_string());
-        assert_that!(args).contains("-std=c11".to_string());
-        assert_that!(args).contains("-lfoobar".to_string());
-        assert_that!(args).does_not_contain("-static".to_string());
+        assert_that(&args).contains("foo.c".to_string());
+        assert_that(&args).contains("-std=c11".to_string());
+        assert_that(&args).contains("-lfoobar".to_string());
+        assert_that(&args).does_not_contain("-static".to_string());
     }
 
     #[test]
@@ -156,9 +156,9 @@ mod tests {
         let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
 
         let args = comp.args;
-        assert_that!(args).contains("foo.c".to_string());
-        assert_that!(args).contains("-std=c11".to_string());
-        assert_that!(args).contains("-lfoobar".to_string());
-        assert_that!(args).contains("-static".to_string());
+        assert_that(&args).contains("foo.c".to_string());
+        assert_that(&args).contains("-std=c11".to_string());
+        assert_that(&args).contains("-lfoobar".to_string());
+        assert_that(&args).contains("-static".to_string());
     }
 }

@@ -101,13 +101,13 @@ fn find_fpc_cfg() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use spectral::prelude::*;
-    use tempdir::TempDir;
+    use speculoos::prelude::*;
+    use tempfile::TempDir;
 
     use super::*;
 
     fn setup() -> TempDir {
-        let tempdir = TempDir::new("tm-test").unwrap();
+        let tempdir = TempDir::new().unwrap();
         let foo = tempdir.path().join("foo.pas");
         std::fs::write(foo, "some code").unwrap();
         tempdir
@@ -125,6 +125,6 @@ mod tests {
         let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
 
         let args = comp.args;
-        assert_that!(args).contains("foo.pas".to_string());
+        assert_that(&args).contains("foo.pas".to_string());
     }
 }

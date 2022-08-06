@@ -10,7 +10,7 @@ mod utils;
 
 #[test]
 fn test_ioi_task_execute_copy() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
     let (mut eval, _receiver) = EvaluationData::new(tmpdir.path());
     task.build_dag(&mut eval, &EvaluationConfig::default())
@@ -20,7 +20,7 @@ fn test_ioi_task_execute_copy() {
 
 #[test]
 fn test_ioi_task_execute_gen() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::write(tmpdir.path().join("gen.py"), "x").unwrap();
@@ -43,7 +43,7 @@ fn test_ioi_task_execute_gen() {
 
 #[test]
 fn test_ioi_task_execute_val() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::write(tmpdir.path().join("val.py"), "x").unwrap();
@@ -66,7 +66,7 @@ fn test_ioi_task_execute_val() {
 
 #[test]
 fn test_ioi_task_execute_sol() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::write(tmpdir.path().join("sol.py"), "x").unwrap();
@@ -89,7 +89,7 @@ fn test_ioi_task_execute_sol() {
 
 #[test]
 fn test_ioi_task_execute_eval() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::create_dir(tmpdir.path().join("sol")).unwrap();
@@ -104,7 +104,7 @@ fn test_ioi_task_execute_eval() {
 
 #[test]
 fn test_ioi_task_execute_booklet() {
-    let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+    let tmpdir = tempfile::TempDir::new().unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
 
     let config = BookletConfig::default();

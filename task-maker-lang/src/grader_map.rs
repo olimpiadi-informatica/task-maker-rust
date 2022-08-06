@@ -107,7 +107,7 @@ impl GraderMap {
 
 #[cfg(test)]
 mod tests {
-    use spectral::prelude::*;
+    use speculoos::prelude::*;
 
     use crate::languages::c::{LanguageC, LanguageCConfiguration};
     use crate::languages::cpp::{LanguageCpp, LanguageCppConfiguration};
@@ -118,7 +118,7 @@ mod tests {
     #[test]
     fn test_new() {
         let grader_map = GraderMap::new(vec!["grader.c", "grader.cpp", "grader.foobar"]);
-        assert_that!(grader_map.graders).has_length(2);
+        assert_that(&grader_map.graders).has_length(2);
     }
 
     #[test]
@@ -127,16 +127,16 @@ mod tests {
 
         let lang = LanguageCpp::new(LanguageCppConfiguration::from_env());
         let deps = grader_map.get_compilation_deps(&lang);
-        assert_that!(deps).is_some();
-        assert_that!(deps.unwrap().sandbox_path).is_equal_to(PathBuf::from("grader.cpp"));
+        assert_that(&deps).is_some();
+        assert_that(&deps.unwrap().sandbox_path).is_equal_to(PathBuf::from("grader.cpp"));
 
         let lang = LanguageC::new(LanguageCConfiguration::from_env());
         let deps = grader_map.get_compilation_deps(&lang);
-        assert_that!(deps).is_none();
+        assert_that(&deps).is_none();
 
         let lang = LanguagePython::new(LanguagePythonVersion::Autodetect);
         let deps = grader_map.get_compilation_deps(&lang);
-        assert_that!(deps).is_none();
+        assert_that(&deps).is_none();
     }
 
     #[test]
@@ -145,24 +145,24 @@ mod tests {
 
         let lang = LanguageCpp::new(LanguageCppConfiguration::from_env());
         let deps = grader_map.get_runtime_deps(&lang);
-        assert_that!(deps).is_empty();
+        assert_that(&deps).is_empty();
 
         let lang = LanguageC::new(LanguageCConfiguration::from_env());
         let deps = grader_map.get_runtime_deps(&lang);
-        assert_that!(deps).is_empty();
+        assert_that(&deps).is_empty();
 
         let lang = LanguagePython::new(LanguagePythonVersion::Autodetect);
         let deps = grader_map.get_runtime_deps(&lang);
-        assert_that!(deps).has_length(1);
-        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("grader.py"));
+        assert_that(&deps).has_length(1);
+        assert_that(&deps[0].sandbox_path).is_equal_to(PathBuf::from("grader.py"));
     }
 
     #[test]
     fn test_all_paths() {
         let grader_map = GraderMap::new(vec!["grader.cpp", "grader.py"]);
         let paths: Vec<_> = grader_map.all_paths().collect();
-        assert_that!(paths).has_length(2);
-        assert_that!(paths).contains(Path::new("grader.cpp"));
-        assert_that!(paths).contains(Path::new("grader.py"));
+        assert_that(&paths).has_length(2);
+        assert_that(&paths).contains(Path::new("grader.cpp"));
+        assert_that(&paths).contains(Path::new("grader.py"));
     }
 }

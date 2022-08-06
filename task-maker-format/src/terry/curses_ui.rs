@@ -1,7 +1,8 @@
 use itertools::Itertools;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 use tui::style::{Modifier, Style};
-use tui::widgets::{Block, Borders, Paragraph, Text, Widget};
+use tui::text::{Span, Spans};
+use tui::widgets::{Block, Borders, Paragraph};
 
 use crate::terry::finish_ui::FinishUI;
 use crate::terry::ui_state::{SolutionState, SolutionStatus, UIState};
@@ -19,22 +20,23 @@ pub(crate) type CursesUI = GenericCursesUI<UIState, Drawer, FinishUI>;
 pub(crate) struct Drawer;
 
 impl CursesDrawer<UIState> for Drawer {
-    fn draw(state: &UIState, frame: FrameType, loading: char, frame_index: usize) {
+    fn draw(state: &UIState, frame: &mut FrameType, loading: char, frame_index: usize) {
         draw_frame(state, frame, loading, frame_index);
     }
 }
 
 /// Draw a frame of interface to the provided `Frame`.
-fn draw_frame(state: &UIState, mut f: FrameType, loading: char, frame_index: usize) {
-    let header = [
-        Text::styled(
+fn draw_frame(state: &UIState, f: &mut FrameType, loading: char, frame_index: usize) {
+    let header: Spans = vec![
+        Span::styled(
             state.task.description.clone(),
-            Style::default().modifier(Modifier::BOLD),
+            Style::default().add_modifier(Modifier::BOLD),
         ),
-        Text::raw(" ("),
-        Text::raw(state.task.name.clone()),
-        Text::raw(")\n"),
-    ];
+        Span::raw(" ("),
+        Span::raw(state.task.name.clone()),
+        Span::raw(")\n"),
+    ]
+    .into();
     let header_len = 2;
     let num_compilations = state
         .compilations
@@ -76,14 +78,12 @@ fn draw_frame(state: &UIState, mut f: FrameType, loading: char, frame_index: usi
             .as_ref(),
         )
         .split(f.size());
-    Paragraph::new(header.iter())
-        .block(Block::default().borders(Borders::NONE))
-        .wrap(false)
-        .render(&mut f, chunks[0]);
+    let paragraph = Paragraph::new(header).block(Block::default().borders(Borders::NONE));
+    f.render_widget(paragraph, chunks[0]);
     if compilations_len > 0 {
-        render_block(&mut f, chunks[1], " Compilations ");
+        render_block(f, chunks[1], " Compilations ");
         draw_compilations(
-            &mut f,
+            f,
             inner_block(chunks[1]),
             state
                 .compilations
@@ -92,10 +92,10 @@ fn draw_frame(state: &UIState, mut f: FrameType, loading: char, frame_index: usi
             loading,
         );
     }
-    render_block(&mut f, chunks[2], " Evaluations ");
-    draw_evaluations(&mut f, inner_block(chunks[2]), state, loading);
+    render_block(f, chunks[2], " Evaluations ");
+    draw_evaluations(f, inner_block(chunks[2]), state, loading);
     render_server_status(
-        &mut f,
+        f,
         chunks[3],
         state.executor_status.as_ref(),
         loading,
@@ -106,13 +106,13 @@ fn draw_frame(state: &UIState, mut f: FrameType, loading: char, frame_index: usi
 /// Draw the evaluations of the solutions.
 fn draw_evaluations(frame: &mut FrameType, rect: Rect, state: &UIState, loading: char) {
     let max_len = FinishUIUtils::get_max_len(&state.solutions);
-    let text: Vec<_> = state
+    let text: Vec<Spans> = state
         .solutions
         .keys()
         .sorted()
-        .flat_map(|path| {
+        .map(|path| {
             let solution_state = &state.solutions[path];
-            let mut texts = vec![Text::raw(format!(
+            let mut spans = vec![Span::raw(format!(
                 "{:<max_len$}  ",
                 path.file_name()
                     .expect("Invalid file name")
@@ -120,44 +120,44 @@ fn draw_evaluations(frame: &mut FrameType, rect: Rect, state: &UIState, loading:
                 max_len = max_len
             ))];
             if let Some(comp_status) = state.compilations.get(path) {
-                texts.push(compilation_status_text(comp_status, loading));
+                spans.push(compilation_status_text(comp_status, loading));
             } else {
-                texts.push(Text::raw("    "));
+                spans.push(Span::raw("    "));
             }
-            texts.push(Text::raw(" "));
-            texts.push(evaluation_score(
+            spans.push(Span::raw(" "));
+            spans.push(evaluation_score(
                 state.task.max_score,
                 solution_state,
                 loading,
             ));
-            texts.push(Text::raw("  "));
-            texts.append(&mut evaluation_line(solution_state));
-            texts.push(Text::raw("\n"));
-            texts
+            spans.push(Span::raw("  "));
+            spans.append(&mut evaluation_line(solution_state));
+            spans.into()
         })
         .collect();
-    Paragraph::new(text.iter()).wrap(false).render(frame, rect);
+    let paragraph = Paragraph::new(text);
+    frame.render_widget(paragraph, rect);
 }
 
 /// Return the line with the status of the evaluation of a solution.
-fn evaluation_line<'a>(state: &SolutionState) -> Vec<Text<'a>> {
+fn evaluation_line<'a>(state: &SolutionState) -> Vec<Span<'a>> {
     match &state.status {
         SolutionStatus::Pending => vec![],
-        SolutionStatus::Generating => vec![Text::raw("Generating")],
-        SolutionStatus::Generated => vec![Text::raw("Generated")],
-        SolutionStatus::Validating => vec![Text::raw("Validating")],
-        SolutionStatus::Validated => vec![Text::raw("Validated")],
-        SolutionStatus::Solving => vec![Text::raw("Solving")],
-        SolutionStatus::Solved => vec![Text::raw("Solved")],
-        SolutionStatus::Checking => vec![Text::raw("Checking")],
+        SolutionStatus::Generating => vec![Span::raw("Generating")],
+        SolutionStatus::Generated => vec![Span::raw("Generated")],
+        SolutionStatus::Validating => vec![Span::raw("Validating")],
+        SolutionStatus::Validated => vec![Span::raw("Validated")],
+        SolutionStatus::Solving => vec![Span::raw("Solving")],
+        SolutionStatus::Solved => vec![Span::raw("Solved")],
+        SolutionStatus::Checking => vec![Span::raw("Checking")],
         SolutionStatus::Done => evaluation_outcome(state.outcome.as_ref()),
-        SolutionStatus::Failed(e) => vec![Text::raw(format!("Failed: {}", e))],
-        SolutionStatus::Skipped => vec![Text::raw("Skipped")],
+        SolutionStatus::Failed(e) => vec![Span::raw(format!("Failed: {}", e))],
+        SolutionStatus::Skipped => vec![Span::raw("Skipped")],
     }
 }
 
 /// Return the line with the outcome of the evaluation of a solution.
-fn evaluation_outcome<'a>(outcome: Option<&Result<SolutionOutcome, String>>) -> Vec<Text<'a>> {
+fn evaluation_outcome<'a>(outcome: Option<&Result<SolutionOutcome, String>>) -> Vec<Span<'a>> {
     match outcome {
         Some(Ok(outcome)) => {
             let mut res = Vec::new();
@@ -168,49 +168,49 @@ fn evaluation_outcome<'a>(outcome: Option<&Result<SolutionOutcome, String>>) -> 
                 .zip(outcome.feedback.cases.iter())
             {
                 match val.status {
-                    CaseStatus::Missing => res.push(Text::styled("m ", *YELLOW)),
+                    CaseStatus::Missing => res.push(Span::styled("m ", *YELLOW)),
                     CaseStatus::Parsed => {
                         if feed.correct {
-                            res.push(Text::styled("c ", *GREEN))
+                            res.push(Span::styled("c ", *GREEN))
                         } else {
-                            res.push(Text::styled("w ", *RED))
+                            res.push(Span::styled("w ", *RED))
                         }
                     }
-                    CaseStatus::Invalid => res.push(Text::styled("i ", *RED)),
+                    CaseStatus::Invalid => res.push(Span::styled("i ", *RED)),
                 }
             }
             res
         }
-        Some(Err(e)) => vec![Text::raw(format!("Checker failed: {}", e))],
-        None => vec![Text::raw("unknown")],
+        Some(Err(e)) => vec![Span::raw(format!("Checker failed: {}", e))],
+        None => vec![Span::raw("unknown")],
     }
 }
 
 /// Return the score column of a solution.
-fn evaluation_score<'a>(max_score: f64, state: &SolutionState, loading: char) -> Text<'a> {
+fn evaluation_score<'a>(max_score: f64, state: &SolutionState, loading: char) -> Span<'a> {
     match state.status {
-        SolutionStatus::Pending => Text::raw("..."),
+        SolutionStatus::Pending => Span::raw("..."),
         SolutionStatus::Generating
         | SolutionStatus::Generated
         | SolutionStatus::Validating
         | SolutionStatus::Validated
         | SolutionStatus::Solving
         | SolutionStatus::Solved
-        | SolutionStatus::Checking => Text::raw(format!(" {} ", loading)),
+        | SolutionStatus::Checking => Span::raw(format!(" {} ", loading)),
         SolutionStatus::Done => {
             if let Some(Ok(outcome)) = &state.outcome {
                 let score = format!("{:>3.0}", outcome.score * max_score);
                 if abs_diff_eq!(outcome.score, 0.0) {
-                    Text::styled(score, *RED)
+                    Span::styled(score, *RED)
                 } else if abs_diff_eq!(outcome.score, 1.0) {
-                    Text::styled(score, *GREEN)
+                    Span::styled(score, *GREEN)
                 } else {
-                    Text::styled(score, *YELLOW)
+                    Span::styled(score, *YELLOW)
                 }
             } else {
-                Text::raw(format!(" {} ", loading))
+                Span::raw(format!(" {} ", loading))
             }
         }
-        SolutionStatus::Failed(_) | SolutionStatus::Skipped => Text::raw(" X "),
+        SolutionStatus::Failed(_) | SolutionStatus::Skipped => Span::raw(" X "),
     }
 }

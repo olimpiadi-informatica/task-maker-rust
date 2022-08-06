@@ -8,7 +8,7 @@ use tabox::configuration::SandboxConfiguration;
 use tabox::syscall_filter::SyscallFilter;
 use tabox::{Sandbox, SandboxImplementation};
 #[cfg(not(target_os = "macos"))]
-use tempdir::TempDir;
+use tempfile::TempDir;
 
 #[cfg(not(target_os = "macos"))]
 use task_maker_exec::sandbox::READABLE_DIRS;
@@ -58,7 +58,7 @@ pub fn main_sandbox(opt: SandboxOpt) -> Result<(), Error> {
 
     #[cfg(not(target_os = "macos"))]
     let _tempdir = {
-        let tempdir = TempDir::new("tm-tools-sandbox")?;
+        let tempdir = TempDir::new()?;
         let etcdir = tempdir.path();
         config.working_directory("/box");
 

@@ -132,7 +132,7 @@ fn extract_imports(path: &Path) -> Vec<(PathBuf, PathBuf)> {
 mod tests {
     use std::fs::write;
 
-    use spectral::prelude::*;
+    use speculoos::prelude::*;
 
     use super::*;
 
@@ -141,10 +141,10 @@ mod tests {
         let lang = LanguagePython::new(LanguagePythonVersion::Autodetect);
         let path = Path::new("script.py");
         let write_to = Path::new("script.boh");
-        assert_that!(lang.runtime_command(path, Some(write_to)))
+        assert_that(&lang.runtime_command(path, Some(write_to)))
             .is_equal_to(ExecutionCommand::local(write_to));
         let args = lang.runtime_args(path, None, vec!["arg".to_string()]);
-        assert_that!(&args).is_equal_to(vec!["arg".to_string()]);
+        assert_that(&args).is_equal_to(vec!["arg".to_string()]);
     }
 
     #[test]
@@ -152,15 +152,15 @@ mod tests {
         let lang = LanguagePython::new(LanguagePythonVersion::Python3);
         let path = Path::new("script.py");
         let write_to = Path::new("script.boh");
-        assert_that!(lang.runtime_command(path, Some(write_to)))
+        assert_that(&lang.runtime_command(path, Some(write_to)))
             .is_equal_to(ExecutionCommand::system("python3"));
         let args = lang.runtime_args(path, Some(write_to), vec!["arg".to_string()]);
-        assert_that!(&args).is_equal_to(vec!["script.boh".to_string(), "arg".to_string()]);
+        assert_that(&args).is_equal_to(vec!["script.boh".to_string(), "arg".to_string()]);
     }
 
     #[test]
     fn test_extract_imports() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("script.py");
         write(
             &path,
@@ -170,13 +170,13 @@ mod tests {
         let imports = extract_imports(&path);
         for (i, import) in vec!["foo", "bar", "baz", "biz"].iter().enumerate() {
             let import = PathBuf::from(format!("{}.py", import));
-            assert_that!(imports[i]).is_equal_to((import.clone(), import));
+            assert_that(&imports[i]).is_equal_to((import.clone(), import));
         }
     }
 
     #[test]
     fn test_find_python_deps() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("script.py");
         let foo_path = tmpdir.path().join("foo.py");
         let bar_path = tmpdir.path().join("bar.py");
@@ -184,24 +184,24 @@ mod tests {
         write(&foo_path, "import bar").unwrap();
         write(&bar_path, "import not_found").unwrap();
         let deps = find_python_deps(&path);
-        assert_that!(deps).has_length(2);
-        assert_that!(deps[0].local_path).is_equal_to(foo_path);
-        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.py"));
-        assert_that!(deps[1].local_path).is_equal_to(bar_path);
-        assert_that!(deps[1].sandbox_path).is_equal_to(PathBuf::from("bar.py"));
+        assert_that(&deps).has_length(2);
+        assert_that(&deps[0].local_path).is_equal_to(foo_path);
+        assert_that(&deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.py"));
+        assert_that(&deps[1].local_path).is_equal_to(bar_path);
+        assert_that(&deps[1].sandbox_path).is_equal_to(PathBuf::from("bar.py"));
     }
 
     #[test]
     fn test_find_python_deps_loop() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let script_path = tmpdir.path().join("script.py");
         let foo_path = tmpdir.path().join("foo.py");
         // script imports itself and foo and script import each other
         write(&script_path, "import foo\nimport script").unwrap();
         write(&foo_path, "import script").unwrap();
         let deps = find_python_deps(&script_path);
-        assert_that!(deps).has_length(1);
-        assert_that!(deps[0].local_path).is_equal_to(foo_path);
-        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.py"));
+        assert_that(&deps).has_length(1);
+        assert_that(&deps[0].local_path).is_equal_to(foo_path);
+        assert_that(&deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.py"));
     }
 }

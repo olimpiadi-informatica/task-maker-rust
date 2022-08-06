@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn test_load_reject_wrong_magic() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("cache");
         let mut f = File::create(&path).unwrap();
         f.write_all(b"totally-not-the-magic").unwrap();
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn test_load_reject_wrong_version() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("cache");
         let mut f = File::create(&path).unwrap();
         f.write_all(MAGIC).unwrap();

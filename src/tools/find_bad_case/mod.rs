@@ -62,7 +62,7 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
         dry_run: false,
     };
     let working_directory =
-        tempdir::TempDir::new("find-bad-case").context("Failed to create working directory")?;
+        tempfile::TempDir::new().context("Failed to create working directory")?;
 
     // A reference to the current executor, used for sending messages to it.
     let current_executor_sender: Arc<Mutex<Option<ChannelSender<_>>>> = Arc::new(Mutex::new(None));

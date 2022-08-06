@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_send_file() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         std::fs::write(tmpdir.path().join("file.txt"), "hello world").unwrap();
 
         let (sender, receiver) = new_local_channel::<()>();

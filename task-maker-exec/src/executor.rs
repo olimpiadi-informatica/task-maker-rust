@@ -1,12 +1,11 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 use std::time::SystemTime;
 
 use anyhow::{anyhow, Context, Error};
-use chashmap::CHashMap;
 use ductile::{ChannelReceiver, ChannelSender};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
@@ -164,7 +163,7 @@ impl Executor {
         let (worker_manager_tx, worker_manager_rx) = channel();
         let (sched_executor_tx, sched_executor_rx) = channel();
 
-        let clients = Arc::new(CHashMap::new());
+        let clients = Arc::new(Mutex::new(HashMap::new()));
 
         let scheduler = Scheduler::new(
             self.file_store.clone(),
@@ -200,7 +199,10 @@ impl Executor {
                     sender,
                     receiver,
                 } => {
-                    clients.insert(client.uuid, sender.clone());
+                    {
+                        let mut clients = clients.lock().unwrap();
+                        clients.insert(client.uuid, sender.clone());
+                    }
                     let scheduler = scheduler_tx.clone();
                     let file_store = self.file_store.clone();
                     let long_running = self.long_running;
@@ -261,11 +263,12 @@ impl Executor {
     #[allow(clippy::unnecessary_wraps)]
     fn handle_scheduler_messages(
         receiver: Receiver<SchedulerExecutorMessage>,
-        clients: Arc<CHashMap<ClientUuid, ChannelSender<ExecutorServerMessage>>>,
+        clients: Arc<Mutex<HashMap<ClientUuid, ChannelSender<ExecutorServerMessage>>>>,
     ) -> Result<(), Error> {
         let mut ready_files: HashMap<ClientUuid, Vec<(FileUuid, FileStoreHandle, bool)>> =
             HashMap::new();
         while let Ok((client_uuid, message)) = receiver.recv() {
+            let clients = clients.lock().unwrap();
             let client = if let Some(client) = clients.get(&client_uuid) {
                 client
             } else {
@@ -293,7 +296,7 @@ impl Executor {
                             client.send(ExecutorServerMessage::ProvideFile(file, successful))
                         {
                             warn!("Failed to send urgent file: {:?}", e);
-                        } else if let Err(e) = ChannelFileSender::send(handle.path(), &client) {
+                        } else if let Err(e) = ChannelFileSender::send(handle.path(), client) {
                             warn!("Failed to send urgent file content: {:?}", e);
                         }
                     } else {

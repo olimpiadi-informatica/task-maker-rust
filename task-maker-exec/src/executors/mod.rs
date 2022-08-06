@@ -11,12 +11,12 @@
 //! use task_maker_exec::executors::LocalExecutor;
 //! use std::sync::{Arc, Mutex, mpsc::channel};
 //! # use std::thread;
-//! # use tempdir::TempDir;
+//! # use tempfile::TempDir;
 //! use task_maker_cache::Cache;
 //! use task_maker_exec::ErrorSandboxRunner;
 //! use ductile::new_local_channel;
 //!
-//! # let tmpdir = TempDir::new("tm-test").unwrap();
+//! # let tmpdir = TempDir::new().unwrap();
 //! # let path = tmpdir.path();
 //! let store = FileStore::new(path, 1000, 1000).unwrap();
 //! let cache = Cache::new(path).unwrap();

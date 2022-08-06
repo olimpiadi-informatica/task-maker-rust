@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use anyhow::Error;
 use itertools::Itertools;
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
@@ -181,12 +180,11 @@ impl TerryTask {
         })?;
 
         let solutions = eval.solutions.clone();
-        let mut rng = rand::thread_rng();
         for solution in solutions {
             let seed = if let Some(seed) = config.seed {
                 seed
             } else {
-                rng.gen_range(0, 1 << 31)
+                fastrand::u64(0..(i32::MAX as u64))
             };
             let input_file = self.generator.generate_and_bind(
                 eval,

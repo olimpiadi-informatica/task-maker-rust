@@ -99,10 +99,10 @@ impl SourceFile {
     /// ```
     /// use task_maker_dag::ExecutionDAG;
     /// use task_maker_lang::SourceFile;
-    /// # use tempdir::TempDir;
+    /// # use tempfile::TempDir;
     /// # use std::path::PathBuf;
     ///
-    /// # let tempdir = TempDir::new("tm-tests").unwrap();
+    /// # let tempdir = TempDir::new().unwrap();
     /// # std::fs::write(tempdir.path().join("test.cpp"), "foobar.cpp").unwrap();
     /// # let path = tempdir.path().join("test.cpp");
     /// let mut dag = ExecutionDAG::new();
@@ -123,10 +123,10 @@ impl SourceFile {
     /// ```
     /// use task_maker_dag::ExecutionDAG;
     /// use task_maker_lang::SourceFile;
-    /// # use tempdir::TempDir;
+    /// # use tempfile::TempDir;
     /// # use std::path::PathBuf;
     ///
-    /// # let tempdir = TempDir::new("tm-tests").unwrap();
+    /// # let tempdir = TempDir::new().unwrap();
     /// # std::fs::write(tempdir.path().join("test.py"), "foobar.cpp").unwrap();
     /// # let path = tempdir.path().join("test.py");
     /// let mut dag = ExecutionDAG::new();
@@ -329,7 +329,7 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use task_maker_exec::{eval_dag_locally, SuccessSandboxRunner};
 
@@ -337,7 +337,7 @@ mod tests {
 
     #[test]
     fn test_source_file_cpp() {
-        let cwd = TempDir::new("tm-test").unwrap();
+        let cwd = TempDir::new().unwrap();
 
         let mut dag = ExecutionDAG::new();
         dag.config_mut().copy_exe(true);

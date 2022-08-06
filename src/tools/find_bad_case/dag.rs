@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Error};
-use rand::distributions::Distribution;
-use rand::distributions::Uniform;
 
 use task_maker_format::ioi::{
     InputGenerator, SubtaskInfo, TestcaseId, TestcaseInfo, GENERATION_PRIORITY,
@@ -42,10 +40,6 @@ pub fn patch_task_for_batch(
 ) -> Result<Batch, Error> {
     let mut batch = Batch::default();
 
-    // [0, i32::MAX] is a safe range for the seeds, since it is compatible with `stoi` in c++.
-    let seed_distribution = Uniform::new_inclusive(0, i32::MAX);
-    let mut rng = rand::thread_rng();
-
     match task {
         TaskFormat::IOI(task) => {
             // A template testcase for selecting the generator and validator.
@@ -64,7 +58,9 @@ pub fn patch_task_for_batch(
             for testcase_index in 0..batch_size {
                 let testcase_id = (batch_index * batch_size + testcase_index) as TestcaseId;
 
-                let seed = seed_distribution.sample(&mut rng);
+                // [0, i32::MAX] is a safe range for the seeds, since it is compatible with `stoi` in c++.
+                let seed = fastrand::i32(0..i32::MAX);
+
                 let generator_args = generator_args_for_testcase(generator_args, seed);
                 let mut input_generator = testcase_template.input_generator.clone();
                 match &mut input_generator {

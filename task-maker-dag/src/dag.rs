@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_provide_file() {
-        let tmpdir = tempdir::TempDir::new("tm-test").unwrap();
+        let tmpdir = tempfile::TempDir::new().unwrap();
         let file_path = tmpdir.path().join("foo");
         std::fs::write(&file_path, "bar").unwrap();
         let mut dag = ExecutionDAG::new();

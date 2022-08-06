@@ -139,7 +139,7 @@ lazy_static! {
 
 #[cfg(test)]
 mod tests {
-    use spectral::prelude::*;
+    use speculoos::prelude::*;
 
     use crate::languages::cpp::{LanguageCpp, LanguageCppConfiguration};
 
@@ -149,32 +149,32 @@ mod tests {
     fn test_detect_language() {
         let lang = LanguageManager::detect_language("foo.cpp").unwrap();
         let name = LanguageCpp::new(LanguageCppConfiguration::from_env()).name();
-        assert_that!(lang.name()).is_equal_to(name);
+        assert_that(&lang.name()).is_equal_to(name);
     }
 
     #[test]
     fn test_detect_language_uppercase() {
         let lang = LanguageManager::detect_language("foo.CPP").unwrap();
         let name = LanguageCpp::new(LanguageCppConfiguration::from_env()).name();
-        assert_that!(lang.name()).is_equal_to(name);
+        assert_that(&lang.name()).is_equal_to(name);
     }
 
     #[test]
     fn test_detect_language_unknown() {
         let lang = LanguageManager::detect_language("foo.blah");
-        assert_that!(lang).is_none();
+        assert_that(&lang).is_none();
     }
 
     #[test]
     fn test_from_name() {
         let name = LanguageCpp::new(LanguageCppConfiguration::from_env()).name();
         let lang = LanguageManager::from_name(name).unwrap();
-        assert_that!(lang.name()).is_equal_to(name);
+        assert_that(&lang.name()).is_equal_to(name);
     }
 
     #[test]
     fn test_from_name_unknown() {
         let lang = LanguageManager::from_name("Nope, this is not a language");
-        assert_that!(lang).is_none();
+        assert_that(&lang).is_none();
     }
 }

@@ -139,13 +139,13 @@ fn extract_includes(path: &Path) -> Vec<(PathBuf, PathBuf)> {
 mod tests {
     use std::fs::write;
 
-    use spectral::prelude::*;
-    use tempdir::TempDir;
+    use speculoos::prelude::*;
+    use tempfile::TempDir;
 
     use super::*;
 
     fn setup() -> TempDir {
-        let tempdir = TempDir::new("tm-test").unwrap();
+        let tempdir = TempDir::new().unwrap();
         let foo = tempdir.path().join("foo.cpp");
         std::fs::write(foo, "int main() {}").unwrap();
         tempdir
@@ -166,10 +166,10 @@ mod tests {
         let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
 
         let args = comp.args;
-        assert_that!(args).contains("foo.cpp".to_string());
-        assert_that!(args).contains("-std=c++14".to_string());
-        assert_that!(args).contains("-lfoobar".to_string());
-        assert_that!(args).does_not_contain("-static".to_string());
+        assert_that(&args).contains("foo.cpp".to_string());
+        assert_that(&args).contains("-std=c++14".to_string());
+        assert_that(&args).contains("-lfoobar".to_string());
+        assert_that(&args).does_not_contain("-static".to_string());
     }
 
     #[test]
@@ -188,10 +188,10 @@ mod tests {
         let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
 
         let args = comp.args;
-        assert_that!(args).contains("./-foo.cpp".to_string());
-        assert_that!(args).contains("-std=c++14".to_string());
-        assert_that!(args).contains("-lfoobar".to_string());
-        assert_that!(args).does_not_contain("-static".to_string());
+        assert_that(&args).contains("./-foo.cpp".to_string());
+        assert_that(&args).contains("-std=c++14".to_string());
+        assert_that(&args).contains("-lfoobar".to_string());
+        assert_that(&args).does_not_contain("-static".to_string());
     }
 
     #[test]
@@ -213,10 +213,10 @@ mod tests {
         let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
 
         let args = comp.args;
-        assert_that!(args).contains("foo.cpp".to_string());
-        assert_that!(args).contains("-std=c++14".to_string());
-        assert_that!(args).contains("-lfoobar".to_string());
-        assert_that!(args).contains("-static".to_string());
+        assert_that(&args).contains("foo.cpp".to_string());
+        assert_that(&args).contains("-std=c++14".to_string());
+        assert_that(&args).contains("-lfoobar".to_string());
+        assert_that(&args).contains("-static".to_string());
     }
 
     #[test]
@@ -231,8 +231,8 @@ mod tests {
         let imports = extract_includes(&path);
         for (i, import) in vec!["iostream", "test.hpp"].iter().enumerate() {
             let import = PathBuf::from(import);
-            assert_that!(imports[i].0).is_equal_to(tmpdir.path().join(&import));
-            assert_that!(imports[i].1).is_equal_to(&import);
+            assert_that(&imports[i].0).is_equal_to(tmpdir.path().join(&import));
+            assert_that(&imports[i].1).is_equal_to(&import);
         }
     }
 
@@ -246,11 +246,11 @@ mod tests {
         write(&foo_path, "#include <bar.hpp>").unwrap();
         write(&bar_path, "#include <iostream>").unwrap();
         let deps = find_cpp_deps(&path);
-        assert_that!(deps).has_length(2);
-        assert_that!(deps[0].local_path).is_equal_to(foo_path);
-        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.hpp"));
-        assert_that!(deps[1].local_path).is_equal_to(bar_path);
-        assert_that!(deps[1].sandbox_path).is_equal_to(PathBuf::from("bar.hpp"));
+        assert_that(&deps).has_length(2);
+        assert_that(&deps[0].local_path).is_equal_to(foo_path);
+        assert_that(&deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.hpp"));
+        assert_that(&deps[1].local_path).is_equal_to(bar_path);
+        assert_that(&deps[1].sandbox_path).is_equal_to(PathBuf::from("bar.hpp"));
     }
 
     #[test]
@@ -267,9 +267,9 @@ mod tests {
         std::os::unix::fs::symlink(&orig_path, &path).unwrap();
         // file.cpp includes ./dep.hpp and ./inside.hpp (so it shouldn't find ./utils/inside.hpp)
         let deps = find_cpp_deps(&path);
-        assert_that!(deps).has_length(1);
-        assert_that!(deps[0].local_path).is_equal_to(dep_path);
-        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("dep.hpp"));
+        assert_that(&deps).has_length(1);
+        assert_that(&deps[0].local_path).is_equal_to(dep_path);
+        assert_that(&deps[0].sandbox_path).is_equal_to(PathBuf::from("dep.hpp"));
     }
 
     #[test]
@@ -281,8 +281,8 @@ mod tests {
         write(&file_path, "#include <file.cpp>\n#include<foo.hpp>").unwrap();
         write(&foo_path, "#include\"file.cpp\"").unwrap();
         let deps = find_cpp_deps(&file_path);
-        assert_that!(deps).has_length(1);
-        assert_that!(deps[0].local_path).is_equal_to(foo_path);
-        assert_that!(deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.hpp"));
+        assert_that(&deps).has_length(1);
+        assert_that(&deps[0].local_path).is_equal_to(foo_path);
+        assert_that(&deps[0].sandbox_path).is_equal_to(PathBuf::from("foo.hpp"));
     }
 }

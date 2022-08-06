@@ -267,14 +267,14 @@ impl StatementConfig {
 mod tests {
     use std::path::Path;
 
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use crate::ioi::{Statement, StatementConfig};
     use crate::EvaluationData;
 
     #[test]
     fn test_is_valid_pdf_dependency_valid() {
-        let tmpdir = TempDir::new("tm-test").unwrap();
+        let tmpdir = TempDir::new().unwrap();
         let path = tmpdir.path().join("test.pdf");
         std::fs::write(&path, "").unwrap();
         assert!(Statement::is_valid_pdf_dependency(&path).unwrap());
@@ -282,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_is_valid_pdf_dependency_asy() {
-        let tmpdir = TempDir::new("tm-test").unwrap();
+        let tmpdir = TempDir::new().unwrap();
         let path = tmpdir.path().join("test.pdf");
         std::fs::write(&path, "").unwrap();
         std::fs::write(&path.with_extension("asy"), "").unwrap();
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn test_is_valid_pdf_dependency_tex() {
-        let tmpdir = TempDir::new("tm-test").unwrap();
+        let tmpdir = TempDir::new().unwrap();
         let path = tmpdir.path().join("test.pdf");
         std::fs::write(&path, "").unwrap();
         std::fs::write(&path.with_extension("tex"), "").unwrap();
@@ -305,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_process_possible_dependency() {
-        let tmpdir = TempDir::new("tm-test").unwrap();
+        let tmpdir = TempDir::new().unwrap();
         let path = tmpdir.path().join("test.tex");
         let logo = tmpdir.path().join("logo.pdf");
         std::fs::write(&path, "lol").unwrap();

@@ -15,9 +15,9 @@
 //!
 //! # use anyhow::Error;
 //! # use std::fs;
-//! # use tempdir::TempDir;
+//! # use tempfile::TempDir;
 //! # fn main() -> Result<(), Error> {
-//! # let tmp = TempDir::new("tm-test").unwrap();
+//! # let tmp = TempDir::new().unwrap();
 //! # let store_dir = tmp.path().join("store");
 //! # let path = tmp.path().join("file.txt");
 //! # fs::write(&path, "hello world")?;
@@ -40,16 +40,16 @@
 #[macro_use]
 extern crate log;
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Formatter;
-use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Error};
-use blake2::{Blake2b, Digest};
-use fs2::FileExt;
+use blake3::{hash, Hash, Hasher};
+use fslock::LockFile;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::index::FileStoreIndex;
@@ -64,9 +64,6 @@ const INTEGRITY_CHECKS_ENABLED: bool = false;
 const STORE_LOCK_FILE: &str = "exclusive.lock";
 /// The name of the index of the file store.
 const STORE_INDEX_FILE: &str = "index.bin";
-
-/// The type of an hash of a file
-type HashData = Vec<u8>;
 
 /// Container with the ref counts of all the handles still alive.
 #[derive(Debug)]
@@ -86,8 +83,8 @@ struct LockedFiles {
 pub struct FileStore {
     /// Base directory of the `FileStore`.
     base_path: PathBuf,
-    /// Handle of the file with the data of the store. This handle keeps the lock alive.
-    _file: File,
+    /// Lock to the `FileStore` directory.
+    _lock: LockFile,
     /// The files locked because there are some handles still alive.
     locked_files: Arc<Mutex<LockedFiles>>,
     /// The index with the files known to the store. This is used when flushing the old files.
@@ -100,10 +97,10 @@ pub struct FileStore {
 
 /// Handle of a file in the `FileStore`, this must be computable given the content of the file, i.e.
 /// an hash of the content.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct FileStoreKey {
     /// An hash of the content of the file.
-    hash: HashData,
+    hash: Hash,
 }
 
 /// An handle to a specific file inside the store, until this handle is dropped the `FileStore` will
@@ -129,9 +126,9 @@ impl FileStore {
     ///
     /// # use anyhow::Error;
     /// # use std::fs;
-    /// # use tempdir::TempDir;
+    /// # use tempfile::TempDir;
     /// # fn main() -> Result<(), Error> {
-    /// # let dir = TempDir::new("tm-test")?;
+    /// # let dir = TempDir::new()?;
     /// # let store_dir = dir.path();
     /// // make a new store based on a directory, this will lock if the store is already in use
     /// // somewhere
@@ -153,22 +150,24 @@ impl FileStore {
                 base_path.display()
             )
         })?;
-        let lock = base_path.join(STORE_LOCK_FILE);
-        let file = File::create(&lock)
-            .with_context(|| format!("Failed to create lock file at {}", lock.display()))?;
-        if let Err(e) = file.try_lock_exclusive() {
-            if e.to_string() != fs2::lock_contended_error().to_string() {
-                return Err(e.into());
-            }
+        let lock_path = base_path.join(STORE_LOCK_FILE);
+        let mut lock = LockFile::open(&lock_path)
+            .with_context(|| format!("Failed to create lock file at {}", lock_path.display()))?;
+
+        if !lock
+            .try_lock()
+            .context("Failed to obtain exclusive lock on storage")?
+        {
             warn!("Store locked... waiting");
-            file.lock_exclusive()
+            lock.lock()
                 .context("Failed to obtain exclusive lock on storage")?;
         }
+
         let index = FileStoreIndex::load(base_path.join(STORE_INDEX_FILE))
             .context("Failed to load storage index")?;
         Ok(FileStore {
             base_path,
-            _file: file,
+            _lock: lock,
             locked_files: Arc::new(Mutex::new(LockedFiles::new())),
             index: Arc::new(Mutex::new(index)),
             max_store_size,
@@ -189,9 +188,9 @@ impl FileStore {
     ///
     /// # use anyhow::Error;
     /// # use std::fs;
-    /// # use tempdir::TempDir;
+    /// # use tempfile::TempDir;
     /// # fn main() -> Result<(), Error> {
-    /// # let tmp = TempDir::new("tm-test").unwrap();
+    /// # let tmp = TempDir::new().unwrap();
     /// # let store_dir = tmp.path().join("store");
     /// # let path = tmp.path().join("file.txt");
     /// # fs::write(&path, "hello world")?;
@@ -224,7 +223,7 @@ impl FileStore {
             let dir = path.parent().unwrap();
             std::fs::create_dir_all(&dir)
                 .with_context(|| format!("Cannot create directory at {}", dir.display()))?;
-            let tmpdir = tempdir::TempDir::new_in(path.parent().unwrap(), "temp")
+            let tmpdir = tempfile::TempDir::new_in(path.parent().unwrap())
                 .context("Failed to create temporary directory for storing the file")?;
             let tmpfile_path = tmpdir.path().join("file");
             let mut tmpfile =
@@ -272,9 +271,9 @@ impl FileStore {
     ///
     /// # use anyhow::Error;
     /// # use std::fs;
-    /// # use tempdir::TempDir;
+    /// # use tempfile::TempDir;
     /// # fn main() -> Result<(), Error> {
-    /// # let tmp = TempDir::new("tm-test").unwrap();
+    /// # let tmp = TempDir::new().unwrap();
     /// # let store_dir = tmp.path().join("store");
     /// # let path = tmp.path().join("file.txt");
     /// # fs::write(&path, "hello world")?;
@@ -402,46 +401,61 @@ impl FileStoreKey {
     /// Get the suffix of the path of this `FileStoreKey`. For example, if the key is
     /// `aabbccddeeff...` this method will return `aa/bb/aabbccddeeff...`
     fn suffix(&self) -> PathBuf {
-        let first = hex::encode([self.hash[0]]);
-        let second = hex::encode([self.hash[1]]);
-        let full = hex::encode(&self.hash);
+        let hash_hex = self.hash.to_hex();
+        let full = hash_hex.as_str();
+        let first = &full[0..2];
+        let second = &full[2..4];
         PathBuf::from(first).join(second).join(full)
     }
 
     /// Make a new `FileStoreKey` from a file on disk. The file must exist and be readable.
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<FileStoreKey, Error> {
         let path = path.as_ref();
-        let mut hasher = Blake2b::new();
+        let mut hasher = Hasher::new();
         if !path.exists() {
             bail!("Cannot read {}, maybe broken symlink?", path.display())
         }
         let file_reader = ReadFileIterator::new(path)
             .with_context(|| format!("Cannot make file iterator of {}", path.display()))?;
-        file_reader.map(|buf| hasher.input(&buf)).last();
+        file_reader
+            .map(|buf| {
+                hasher.update(&buf);
+            })
+            .last();
         Ok(FileStoreKey {
-            hash: hasher.result().to_vec(),
+            hash: hasher.finalize(),
         })
     }
 
     /// Make a new `FileStoreKey` from an in-memory file.
     pub fn from_content(content: &[u8]) -> FileStoreKey {
-        let mut hasher = Blake2b::new();
-        hasher.input(content);
         FileStoreKey {
-            hash: hasher.result().to_vec(),
+            hash: hash(content),
         }
     }
 }
 
 impl std::fmt::Display for FileStoreKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&hex::encode(&self.hash))
+        write!(f, "{}", self.hash.to_hex())
     }
 }
 
 impl std::fmt::Debug for FileStoreKey {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        f.write_str(&self.to_string())
+        write!(f, "{}", self.hash.to_hex())
+    }
+}
+
+impl PartialOrd for FileStoreKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        PartialOrd::partial_cmp(self.hash.as_bytes(), other.hash.as_bytes())
+    }
+}
+
+impl Ord for FileStoreKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        Ord::cmp(self.hash.as_bytes(), other.hash.as_bytes())
     }
 }
 
@@ -450,7 +464,7 @@ impl Serialize for FileStoreKey {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&self.to_string())
+        self.hash.as_bytes().serialize(serializer)
     }
 }
 
@@ -459,13 +473,9 @@ impl<'de> Deserialize<'de> for FileStoreKey {
     where
         D: Deserializer<'de>,
     {
-        use serde::de::Error;
-        let data = String::deserialize(deserializer)?;
-        if data.len() < 4 {
-            return Err(D::Error::custom("invalid hash"));
-        }
+        let raw_hash: [u8; blake3::OUT_LEN] = Deserialize::deserialize(deserializer)?;
         Ok(FileStoreKey {
-            hash: hex::decode(data).map_err(|_| D::Error::custom("invalid hash"))?,
+            hash: raw_hash.into(),
         })
     }
 }
@@ -550,12 +560,12 @@ mod tests {
     use std::io::{Read, Write};
 
     use pretty_assertions::{assert_eq, assert_ne};
-    use tempdir::TempDir;
+    use tempfile::TempDir;
 
     use super::*;
 
     fn get_cwd() -> TempDir {
-        TempDir::new("tm-test").unwrap()
+        TempDir::new().unwrap()
     }
 
     fn fake_file<P: AsRef<Path>>(path: P, content: &str) -> FileStoreKey {

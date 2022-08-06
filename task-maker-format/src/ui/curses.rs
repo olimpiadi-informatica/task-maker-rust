@@ -19,7 +19,8 @@ use termion::screen::AlternateScreen;
 use tui::backend::TermionBackend;
 use tui::layout::Rect;
 use tui::style::{Color, Modifier, Style};
-use tui::widgets::{Block, Borders, Paragraph, Text, Widget};
+use tui::text::{Span, Spans};
+use tui::widgets::{Block, Borders, Paragraph};
 use tui::{Frame, Terminal};
 
 use task_maker_exec::{ExecutorStatus, ExecutorWorkerStatus};
@@ -50,7 +51,7 @@ macro_rules! define_color_inner {
         }, $($tt)*)
     };
     ($color:expr, bold, $($tt:tt)*) => {
-        define_color_inner!($color.modifier(Modifier::BOLD), $($tt)*)
+        define_color_inner!($color.add_modifier(Modifier::BOLD), $($tt)*)
     };
 }
 macro_rules! define_color {
@@ -100,7 +101,7 @@ where
 pub trait CursesDrawer<State> {
     /// Draw a frame of the UI using the provided state, onto the frame, using the loading
     /// character. Frame index is a counter of the number of frames encountered so far.
-    fn draw(state: &State, frame: FrameType, loading: char, frame_index: usize);
+    fn draw(state: &State, frame: &mut FrameType, loading: char, frame_index: usize);
 }
 
 impl<State, Drawer, Finish> CursesUI<State, Drawer, Finish>
@@ -238,12 +239,12 @@ pub(crate) fn draw_compilations<'a, I>(
         .max()
         .unwrap_or(0)
         + 4;
-    let text: Vec<Text> = compilations
+    let text: Vec<Spans> = compilations
         .iter()
         .sorted_by_key(|(k, _)| *k)
-        .flat_map(|(file, status)| {
+        .map(|(file, status)| {
             vec![
-                Text::raw(format!(
+                Span::raw(format!(
                     "{:<max_len$}",
                     file.file_name()
                         .expect("Invalid file name")
@@ -251,31 +252,31 @@ pub(crate) fn draw_compilations<'a, I>(
                     max_len = max_len
                 )),
                 compilation_status_text(status, loading),
-                Text::raw("\n"),
             ]
+            .into()
         })
         .collect();
-    Paragraph::new(text.iter()).wrap(false).render(frame, rect);
+    let paragraph = Paragraph::new(text);
+    frame.render_widget(paragraph, rect);
 }
 
 /// Get the `Text` relative to the compilation status of a file.
-pub(crate) fn compilation_status_text(status: &CompilationStatus, loading: char) -> Text<'static> {
+pub(crate) fn compilation_status_text(status: &CompilationStatus, loading: char) -> Span<'static> {
     match status {
-        CompilationStatus::Pending => Text::raw("... "),
-        CompilationStatus::Running => Text::raw(format!("{}   ", loading)),
-        CompilationStatus::Done { .. } => Text::styled("OK  ", *GREEN),
-        CompilationStatus::Failed { .. } => Text::styled("FAIL", *RED),
-        CompilationStatus::Skipped => Text::styled("skip", *YELLOW),
+        CompilationStatus::Pending => Span::raw("... "),
+        CompilationStatus::Running => Span::raw(format!("{}   ", loading)),
+        CompilationStatus::Done { .. } => Span::styled("OK  ", *GREEN),
+        CompilationStatus::Failed { .. } => Span::styled("FAIL", *RED),
+        CompilationStatus::Skipped => Span::styled("skip", *YELLOW),
     }
 }
 
 /// Render a block with the specified title.
 pub fn render_block<S: AsRef<str>>(frame: &mut FrameType, rect: Rect, title: S) {
-    Block::default()
-        .title(title.as_ref())
-        .title_style(*BLUE)
-        .borders(Borders::ALL)
-        .render(frame, rect);
+    let block = Block::default()
+        .title(Span::styled(title.as_ref(), *BLUE))
+        .borders(Borders::ALL);
+    frame.render_widget(block, rect);
 }
 
 /// Draw the server status block.
@@ -318,17 +319,13 @@ fn draw_server_status_summary(
     } else {
         return;
     };
-    Paragraph::new(
-        [
-            Text::styled(" Ready ", Style::default().modifier(Modifier::BOLD)),
-            Text::raw(format!("{} ─", status.ready_execs)),
-            Text::styled(" Waiting ", Style::default().modifier(Modifier::BOLD)),
-            Text::raw(format!("{} ", status.waiting_execs)),
-        ]
-        .iter(),
-    )
-    .wrap(false)
-    .render(frame, rect);
+    let paragraph = Paragraph::new(Spans(vec![
+        Span::styled(" Ready ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(format!("{} ─", status.ready_execs)),
+        Span::styled(" Waiting ", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(format!("{} ", status.waiting_execs)),
+    ]));
+    frame.render_widget(paragraph, rect);
 }
 
 /// Draw the content of the server status box, splitting the workers in 2 groups if they don't fit,
@@ -395,12 +392,12 @@ fn draw_workers_chunk(
         .map(|worker| worker.name.len())
         .max()
         .unwrap_or(0);
-    let text: Vec<Text> = workers
+    let text: Vec<Spans> = workers
         .iter()
-        .flat_map(|worker| {
+        .map(|worker| {
             let worker_name = format!("- {:<max_len$} ", worker.name, max_len = max_len);
             let worker_name_len = worker_name.len();
-            let mut texts = vec![Text::raw(worker_name)];
+            let mut spans = vec![Span::raw(worker_name)];
 
             if let Some(job) = &worker.current_job {
                 let duration =
@@ -416,13 +413,13 @@ fn draw_workers_chunk(
                         line = format!("{} {}... ({:.2}s)", loading, job_name, duration);
                     }
                 }
-                texts.push(Text::raw(line));
+                spans.push(Span::raw(line));
             }
-            texts.push(Text::raw("\n"));
-            texts
+            spans.into()
         })
         .collect();
-    Paragraph::new(text.iter()).wrap(false).render(frame, rect);
+    let paragraph = Paragraph::new(text);
+    frame.render_widget(paragraph, rect);
 }
 
 /// Send to the current process `SIGINT`, letting it exit gracefully.
