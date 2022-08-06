@@ -30,7 +30,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ steps.install-rust.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-test-${{ steps.install-rust.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: cargo test
         uses: actions-rs/cargo@v1
@@ -101,7 +101,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ steps.install-rust.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-ts-bindings-${{ steps.install-rust.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Rebuild bindings
         working-directory: ./bindings/ts
