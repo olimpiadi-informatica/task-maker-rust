@@ -1,7 +1,7 @@
 //! This mod contains the sandbox-related code. It interfaces with tabox creating the sandbox setup
 //! (directories and configuration) for an execution.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -396,14 +396,19 @@ impl Sandbox {
                 .with_context(|| format!("Failed to chmod 111 {}", path.display()))?;
             config.mount(path, box_root.join(FIFO_SANDBOX_DIR), false);
         }
+        // The list of mounted system directories.
+        let mut mounted_dirs = HashSet::new();
         for dir in READABLE_DIRS {
-            if Path::new(dir).is_dir() {
+            let dir = Path::new(dir);
+            if !mounted_dirs.contains(dir) && dir.is_dir() {
                 config.mount(dir, dir, false);
+                mounted_dirs.insert(dir);
             }
         }
         for dir in &execution.limits.extra_readable_dirs {
-            if dir.is_dir() {
+            if !mounted_dirs.contains(dir.as_path()) && dir.is_dir() {
                 config.mount(dir, dir, false);
+                mounted_dirs.insert(dir);
             }
         }
         if execution.limits.mount_tmpfs {
@@ -415,6 +420,12 @@ impl Sandbox {
         match &execution.command {
             ExecutionCommand::System(cmd) => {
                 if let Ok(cmd) = which::which(cmd) {
+                    // Always mount the directory with the executable.
+                    let path = cmd.parent().expect("invalid binary path");
+                    if !mounted_dirs.contains(path) {
+                        config.mount(path, path, false);
+                        mounted_dirs.insert(path);
+                    }
                     config.executable(cmd);
                 } else {
                     bail!("Executable {:?} not found", cmd);
