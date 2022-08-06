@@ -72,6 +72,8 @@ impl Language for LanguageRust {
             ExecutionCommand::system("rustc"),
         );
         metadata.grader_only();
+        // Use a fixed name for the source file, so that the grader can import it.
+        metadata.source_name = "source.rs".to_string();
         let binary_name = metadata.binary_name.clone();
         metadata
             .add_arg("-O")
@@ -97,5 +99,64 @@ impl Language for LanguageRust {
         });
 
         Some(Box::new(metadata))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use speculoos::prelude::*;
+    use task_maker_dag::ExecutionDAG;
+    use tempfile::TempDir;
+
+    use crate::{
+        language::{CompilationSettings, Language},
+        GraderMap,
+    };
+
+    use super::LanguageRust;
+
+    fn setup() -> TempDir {
+        let tempdir = TempDir::new().unwrap();
+        let foo = tempdir.path().join("foo.rs");
+        std::fs::write(foo, "fn main() {}").unwrap();
+        tempdir
+    }
+
+    #[test]
+    fn test_compilation_args() {
+        let tmp = setup();
+
+        let lang = LanguageRust::new();
+        let mut builder = lang
+            .compilation_builder(&tmp.path().join("foo.rs"), CompilationSettings::default())
+            .unwrap();
+        let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
+
+        let args = comp.args;
+
+        assert_that(&args).contains("source.rs".to_string());
+    }
+
+    #[test]
+    fn test_compilation_args_with_grader() {
+        let tmp = setup();
+
+        let grader_path = tmp.path().join("grader.rs");
+        std::fs::write(&grader_path, "mod source;\nfn main() {}").unwrap();
+
+        let lang = LanguageRust::new();
+        let mut builder = lang
+            .compilation_builder(&tmp.path().join("foo.rs"), CompilationSettings::default())
+            .unwrap();
+
+        let graders = GraderMap::new(vec![&grader_path]);
+        builder.use_grader(&graders);
+
+        let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
+
+        let args = comp.args;
+
+        assert_that(&args).contains("grader.rs".to_string());
+        assert_that(&args).does_not_contain("source.rs".to_string());
     }
 }
