@@ -14,8 +14,7 @@ jobs:
           sudo apt update
           sudo apt install -yy libseccomp-dev build-essential fpc
 
-      - &install_rust
-        name: Install Rust
+      - name: Install Rust
         uses: actions-rs/toolchain@v1
         id: install-rust
         with:
@@ -23,8 +22,7 @@ jobs:
           components: clippy
           override: true
 
-      - &rust_cache
-        uses: actions/cache@v3
+      - uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/bin/
@@ -62,7 +60,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - <<: *install_rust
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        id: install-rust
+        with:
+          toolchain: stable
+          components: clippy
+          override: true
 
       - name: cargo fmt
         uses: actions-rs/cargo@v1
@@ -81,9 +85,23 @@ jobs:
           sudo apt update
           sudo apt install -yy libseccomp-dev
 
-      - <<: *install_rust
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        id: install-rust
+        with:
+          toolchain: stable
+          components: clippy
+          override: true
 
-      - <<: *rust_cache
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ steps.install-rust.outputs.rustc_hash }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Rebuild bindings
         working-directory: ./bindings/ts
