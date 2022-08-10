@@ -431,7 +431,7 @@ pub fn parse_task<P: AsRef<Path>>(
                     .context("Failed to detect output generator")?,
             )
         } else {
-            Box::new(|_| OutputGenerator::StaticFile("/dev/null".into()))
+            Box::new(|_| OutputGenerator::NotAvailable)
         };
 
     let inputs = if cases_gen.exists() {
