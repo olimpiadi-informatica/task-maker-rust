@@ -13,16 +13,19 @@ fn communication_stdio(test: TestInterface) {
         .must_compile("solution.c")
         .must_compile("no_output.cpp")
         .must_compile("wrong.cpp")
+        .must_compile("tle.cpp")
         .solution_score("solution.cpp", vec![100.0])
         .solution_score("solution.c", vec![100.0])
         .solution_score("solution.py", vec![100.0])
         .solution_score("no_output.cpp", vec![0.0])
         .solution_score("wrong.cpp", vec![0.0])
+        .solution_score("tle.cpp", vec![0.0])
         .solution_statuses("solution.cpp", vec![Accepted("Ok!".into())])
         .solution_statuses("solution.c", vec![Accepted("Ok!".into())])
         .solution_statuses("solution.py", vec![Accepted("Ok!".into())])
         .solution_statuses("no_output.cpp", vec![WrongAnswer("Ko!".into())])
         .solution_statuses("wrong.cpp", vec![WrongAnswer("Ko!".into())])
+        .solution_statuses("tle.cpp", vec![TimeLimitExceeded])
         .file_exists("check/manager");
 }
 
