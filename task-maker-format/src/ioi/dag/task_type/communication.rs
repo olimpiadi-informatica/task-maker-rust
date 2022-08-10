@@ -45,8 +45,13 @@ struct ScoreSenderData {
     path: PathBuf,
     /// The score manager to use for sending the score.
     score_manager: Arc<Mutex<ScoreManager>>,
-    /// Whether the score has already been sent. This avoids sending the score more than once.
-    done: bool,
+    /// The number of missing calls to `send` or to `skip`.
+    missing_answers: usize,
+    /// The score to send to the [`ScoreManager`].
+    ///
+    /// This will be sent only then the `missing_answers` counter reaches zero, and if multiple
+    /// answers are received, the smallest one will be sent.
+    answer: Option<(f64, String)>,
 }
 
 /// Utility structure for sending the score only once. Since there are many points where the score
@@ -108,6 +113,7 @@ pub fn evaluate(
         eval.sender.clone(),
         path.clone(),
         score_manager,
+        num_processes + 1, // num_processes + the manager
     );
     for process_index in 0..num_processes {
         let mut args = match data.user_io {
@@ -120,7 +126,7 @@ pub fn evaluate(
         if num_processes > 1 {
             args.push(process_index.to_string());
         }
-        let mut exec = source_file
+        let mut sol_exec = source_file
             .execute(
                 eval,
                 format!(
@@ -135,12 +141,12 @@ pub fn evaluate(
             )
             .context("Failed to execute solution source file")?;
         if data.user_io == UserIo::StdIo {
-            exec.stdin_redirect_path(&fifo_man2sol[process_index]);
-            exec.stdout_redirect_path(&fifo_sol2man[process_index]);
+            sol_exec.stdin_redirect_path(&fifo_man2sol[process_index]);
+            sol_exec.stdout_redirect_path(&fifo_sol2man[process_index]);
         }
-        exec.tag(Tag::Evaluation.into());
-        exec.priority(EVALUATION_PRIORITY - testcase_id as Priority);
-        let limits = exec.limits_mut();
+        sol_exec.tag(Tag::Evaluation.into());
+        sol_exec.priority(EVALUATION_PRIORITY - testcase_id as Priority);
+        let limits = sol_exec.limits_mut();
         if let Some(time_limit) = task.time_limit {
             limits.cpu_time(time_limit);
             limits.wall_time(time_limit * 1.5 + 1.0); // some margin
@@ -150,7 +156,7 @@ pub fn evaluate(
         }
         bind_exec_callbacks!(
             eval,
-            exec.uuid,
+            sol_exec.uuid,
             |status, solution| UIMessage::IOIEvaluation {
                 subtask: subtask_id,
                 testcase: testcase_id,
@@ -162,13 +168,16 @@ pub fn evaluate(
             path
         )?;
         let score_sender = score_sender.clone();
-        eval.dag.on_execution_done(&exec.uuid, move |result| {
+        eval.dag.on_execution_done(&sol_exec.uuid, move |result| {
             if !result.status.is_success() {
                 score_sender.send(0.0, format!("{:?}", result.status))?;
+            } else {
+                // We cannot compute the score here, we should wait for the manager.
+                score_sender.skip()?;
             }
             Ok(())
         });
-        group.add_execution(exec);
+        group.add_execution(sol_exec);
     }
 
     let mut args = Vec::new();
@@ -176,7 +185,7 @@ pub fn evaluate(
         args.push(&fifo_sol2man[process_index]);
         args.push(&fifo_man2sol[process_index]);
     }
-    let mut exec = data
+    let mut manager_exec = data
         .manager
         .execute(
             eval,
@@ -189,12 +198,13 @@ pub fn evaluate(
             args,
         )
         .context("Failed to execute manager source file")?;
-    exec.tag(Tag::Evaluation.into())
+    manager_exec
+        .tag(Tag::Evaluation.into())
         .priority(EVALUATION_PRIORITY - testcase_id as Priority)
         .capture_stdout(128)
         .capture_stderr(1024);
-    bind_exec_io!(exec, task, input, validation_handle);
-    let limits = exec.limits_mut();
+    bind_exec_io!(manager_exec, task, input, validation_handle);
+    let limits = manager_exec.limits_mut();
     if let Some(time_limit) = task.time_limit {
         let cpu_time = (time_limit + 1.0) * num_processes as f64;
         let wall_time = cpu_time * 1.5 + 1.0; // some margin
@@ -206,7 +216,7 @@ pub fn evaluate(
     }
     bind_exec_callbacks!(
         eval,
-        exec.uuid,
+        manager_exec.uuid,
         |status, solution| UIMessage::IOIChecker {
             subtask: subtask_id,
             testcase: testcase_id,
@@ -215,30 +225,26 @@ pub fn evaluate(
         },
         path
     )?;
-    eval.dag.on_execution_done(&exec.uuid, move |result| {
-        if !result.status.is_success() {
-            score_sender.send(0.0, "Checker failed".to_string())?;
-            return Ok(());
-        }
-        let stdout = result
-            .stdout
-            .ok_or_else(|| anyhow!("Checker stdout not captured"))?;
-        let stderr = result
-            .stderr
-            .ok_or_else(|| anyhow!("Checker stderr not captured"))?;
-        let score = String::from_utf8_lossy(&stdout);
-        let score: f64 = score.trim().parse().context("Invalid score from checker")?;
-        let message = String::from_utf8_lossy(&stderr).trim().to_string();
-        let message = Checker::translate_checker_message(message);
-        // FIXME: this, combined with the send from the exec of the solution (in case of failures),
-        //        cause a race condition. If the manager exits first with an outcome (let's say AC),
-        //        but the solution afterwards got stuck (or just is slow at exiting, or crashes) the
-        //        failure is not registered in the score, but the exit status is. The result is that
-        //        a solution can get the points for a testcase even if it crashes.
-        score_sender.send(score, message)?;
-        Ok(())
-    });
-    group.add_execution(exec);
+    eval.dag
+        .on_execution_done(&manager_exec.uuid, move |result| {
+            if !result.status.is_success() {
+                score_sender.send(0.0, "Checker failed".to_string())?;
+                return Ok(());
+            }
+            let stdout = result
+                .stdout
+                .ok_or_else(|| anyhow!("Checker stdout not captured"))?;
+            let stderr = result
+                .stderr
+                .ok_or_else(|| anyhow!("Checker stderr not captured"))?;
+            let score = String::from_utf8_lossy(&stdout);
+            let score: f64 = score.trim().parse().context("Invalid score from checker")?;
+            let message = String::from_utf8_lossy(&stderr).trim().to_string();
+            let message = Checker::translate_checker_message(message);
+            score_sender.send(score, message)?;
+            Ok(())
+        });
+    group.add_execution(manager_exec);
     eval.dag.add_execution_group(group);
     Ok(())
 }
@@ -251,6 +257,7 @@ impl ScoreSender {
         sender: Arc<Mutex<UIMessageSender>>,
         path: PathBuf,
         score_manager: Arc<Mutex<ScoreManager>>,
+        num_answers: usize,
     ) -> ScoreSender {
         ScoreSender {
             data: Arc::new(Mutex::new(ScoreSenderData {
@@ -259,35 +266,71 @@ impl ScoreSender {
                 sender,
                 path,
                 score_manager,
-                done: false,
+                missing_answers: num_answers,
+                answer: None,
             })),
         }
     }
 
-    /// Send the score to the `ScoreManager`, if not already sent.
+    /// Set the score and message for a testcase. Note that this may be overridden by a call with a
+    /// smaller score.
+    ///
+    /// The score will be sent to the [`ScoreManager`] only if this is the last missing call.
     fn send(&self, score: f64, message: String) -> Result<(), Error> {
-        let data = self.data.lock().unwrap();
-        // do not send the score twice
-        if data.done {
+        let mut data = self.data.lock().unwrap();
+        assert!(
+            data.missing_answers > 0,
+            "send() called with missing_answers = 0"
+        );
+        data.missing_answers -= 1;
+
+        let answer = (score, message);
+        if data.answer.is_none() || data.answer.as_ref().unwrap().0 > score {
+            data.answer = Some(answer);
+        }
+
+        Self::maybe_flush(&data)
+    }
+
+    /// Decrease the number of missing calls by one, but without setting a score/message.
+    ///
+    /// The score will be sent to the [`ScoreManager`] only if this is the last missing call.
+    fn skip(&self) -> Result<(), Error> {
+        let mut data = self.data.lock().unwrap();
+        assert!(
+            data.missing_answers > 0,
+            "skip() called with missing_answers = 0"
+        );
+        data.missing_answers -= 1;
+
+        Self::maybe_flush(&data)
+    }
+
+    /// Check if all the answers have been received, and if so send to the [`ScoreManager`] the score
+    /// and message.
+    fn maybe_flush(data: &ScoreSenderData) -> Result<(), Error> {
+        if data.missing_answers > 0 {
             return Ok(());
         }
-        data.score_manager
-            .lock()
-            .unwrap()
-            .score(
-                data.subtask_id,
-                data.testcase_id,
-                score,
-                message.clone(),
-                data.sender.clone(),
-                data.path.clone(),
-            )
-            .with_context(|| {
-                format!(
-                    "Failed to store testcase score (score: {}, message: {})",
-                    score, message
+        if let Some((score, message)) = &data.answer {
+            data.score_manager
+                .lock()
+                .unwrap()
+                .score(
+                    data.subtask_id,
+                    data.testcase_id,
+                    *score,
+                    message.clone(),
+                    data.sender.clone(),
+                    data.path.clone(),
                 )
-            })?;
+                .with_context(|| {
+                    format!(
+                        "Failed to store testcase score (score: {}, message: {})",
+                        score, message
+                    )
+                })?;
+        }
         Ok(())
     }
 }
