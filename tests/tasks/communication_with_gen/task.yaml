@@ -1,0 +1,6 @@
+name: communication_with_gen
+title: Testing task-maker
+time_limit: 1
+memory_limit: 64
+infile: input.txt
+num_processes: 2
