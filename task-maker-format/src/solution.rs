@@ -100,6 +100,8 @@ impl SolutionCheck {
 pub enum SolutionCheckResult {
     /// The solution should get "Accepted" on all the testcases of the subtask.
     Accepted,
+    /// The solution should get "Partial Score" on at least one testcase and "Accepted" on the others.
+    PartialScore,
     /// The solution should get "Wrong Answer" on at least one testcase of the subtask.
     WrongAnswer,
     /// The solution should get "Time Limit Exceeded" on at least one testcase of the subtask.
@@ -116,6 +118,7 @@ impl FromStr for SolutionCheckResult {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "accepted" => Ok(Self::Accepted),
+            "partial-score" => Ok(Self::PartialScore),
             "wrong-answer" => Ok(Self::WrongAnswer),
             "time-limit-exceeded" => Ok(Self::TimeLimitExceeded),
             "memory-limit-exceeded" => Ok(Self::MemoryLimitExceeded),
@@ -130,6 +133,7 @@ impl SolutionCheckResult {
     pub fn as_str(&self) -> &'static str {
         match self {
             SolutionCheckResult::Accepted => "accepted",
+            SolutionCheckResult::PartialScore => "partial-score",
             SolutionCheckResult::WrongAnswer => "wrong-answer",
             SolutionCheckResult::TimeLimitExceeded => "time-limit-exceeded",
             SolutionCheckResult::MemoryLimitExceeded => "memory-limit-exceeded",
@@ -143,6 +147,7 @@ impl SolutionCheckResult {
     pub fn as_compact_str(&self) -> &'static str {
         match self {
             SolutionCheckResult::Accepted => "AC",
+            SolutionCheckResult::PartialScore => "PS",
             SolutionCheckResult::WrongAnswer => "WA",
             SolutionCheckResult::TimeLimitExceeded => "TLE",
             SolutionCheckResult::MemoryLimitExceeded => "MLE",
@@ -154,6 +159,12 @@ impl SolutionCheckResult {
     pub fn check(&self, outcomes: &[SolutionCheckResult]) -> bool {
         match self {
             SolutionCheckResult::Accepted => outcomes.iter().all(|o| o == self),
+            SolutionCheckResult::PartialScore => {
+                outcomes.iter().any(|o| o == self)
+                    && outcomes
+                        .iter()
+                        .all(|o| o == self || o == &SolutionCheckResult::Accepted)
+            }
             _ => outcomes.iter().any(|o| o == self),
         }
     }
@@ -170,7 +181,7 @@ impl SolutionCheck {
             static ref EXTRACT_CHECKS: Regex = Regex::new(
                 r"(?x)
             @check-     # signal the start of a check
-            (?P<result>accepted|wrong-answer|time-limit-exceeded|memory-limit-exceeded|runtime-error)
+            (?P<result>accepted|partial-score|wrong-answer|time-limit-exceeded|memory-limit-exceeded|runtime-error)
             :
             (?P<subtasks>
               (?:
