@@ -272,6 +272,7 @@ mod tests {
             r"
            /*
             * @check-accepted: st1 st2 st3*
+            * @check-partial-score: asd
             * @check-wrong-answer: asd
             * @check-wrong-answer:
             * @check-time-limit-exceeded: asd
@@ -299,24 +300,27 @@ mod tests {
             checks[2].code_span.as_str(),
             "@check-accepted: st1 st2 st3*"
         );
-        assert_eq!(checks[3].result, SolutionCheckResult::WrongAnswer);
+        assert_eq!(checks[3].result, SolutionCheckResult::PartialScore);
         assert_eq!(checks[3].subtask_name_pattern, "asd");
-        assert_eq!(checks[3].code_span.as_str(), "@check-wrong-answer: asd");
-        assert_eq!(checks[4].result, SolutionCheckResult::TimeLimitExceeded);
+        assert_eq!(checks[3].code_span.as_str(), "@check-partial-score: asd");
+        assert_eq!(checks[4].result, SolutionCheckResult::WrongAnswer);
         assert_eq!(checks[4].subtask_name_pattern, "asd");
-        assert_eq!(
-            checks[4].code_span.as_str(),
-            "@check-time-limit-exceeded: asd"
-        );
-        assert_eq!(checks[5].result, SolutionCheckResult::MemoryLimitExceeded);
+        assert_eq!(checks[4].code_span.as_str(), "@check-wrong-answer: asd");
+        assert_eq!(checks[5].result, SolutionCheckResult::TimeLimitExceeded);
         assert_eq!(checks[5].subtask_name_pattern, "asd");
         assert_eq!(
             checks[5].code_span.as_str(),
+            "@check-time-limit-exceeded: asd"
+        );
+        assert_eq!(checks[6].result, SolutionCheckResult::MemoryLimitExceeded);
+        assert_eq!(checks[6].subtask_name_pattern, "asd");
+        assert_eq!(
+            checks[6].code_span.as_str(),
             "@check-memory-limit-exceeded: asd"
         );
-        assert_eq!(checks[6].result, SolutionCheckResult::RuntimeError);
-        assert_eq!(checks[6].subtask_name_pattern, "asd");
-        assert_eq!(checks[6].code_span.as_str(), "@check-runtime-error: asd");
+        assert_eq!(checks[7].result, SolutionCheckResult::RuntimeError);
+        assert_eq!(checks[7].subtask_name_pattern, "asd");
+        assert_eq!(checks[7].code_span.as_str(), "@check-runtime-error: asd");
     }
 
     #[test]
