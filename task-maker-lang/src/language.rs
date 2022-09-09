@@ -161,6 +161,7 @@ pub struct SimpleCompiledLanguageBuilder<'l, 'c> {
     /// files to compile together.
     pub grader_only: bool,
     /// The callback to call with the built `Execution` for additional customizations.
+    #[allow(clippy::type_complexity)]
     pub callback: Option<Box<dyn FnOnce(&mut Execution) + 'c>>,
 }
 

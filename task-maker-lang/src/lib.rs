@@ -47,7 +47,7 @@ mod languages;
 mod source_file;
 
 /// A dependency of an execution, all the sandbox paths must be relative and inside of the sandbox.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TypeScriptify)]
 pub struct Dependency {
     /// The handle of the file.
     pub file: File,

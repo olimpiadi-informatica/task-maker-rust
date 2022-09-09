@@ -33,7 +33,7 @@ pub struct FileCallbacks {
 }
 
 /// An handle to a file in the evaluation, this only tracks dependencies between executions.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, PartialOrd, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, TypeScriptify)]
 pub struct File {
     /// Uuid of the file.
     pub uuid: FileUuid,

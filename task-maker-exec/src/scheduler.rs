@@ -23,7 +23,7 @@ use crate::worker_manager::WorkerManagerInMessage;
 pub type ClientUuid = Uuid;
 
 /// Information about a client of the scheduler.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TypeScriptify)]
 pub struct ClientInfo {
     /// Unique identifier of the client.
     pub uuid: ClientUuid,

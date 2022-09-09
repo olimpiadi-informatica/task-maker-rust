@@ -218,7 +218,7 @@ pub struct ExecutionLimits {
 }
 
 /// Status of a completed [`Execution`](struct.Execution.html).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TypeScriptify)]
 pub enum ExecutionStatus {
     /// The program exited with status 0 within the limits.
     Success,
