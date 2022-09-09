@@ -69,7 +69,7 @@ impl From<&TestcaseEvaluationStatus> for Option<SolutionCheckResult> {
         match status {
             TestcaseEvaluationStatus::Accepted(_) => Some(SolutionCheckResult::Accepted),
             TestcaseEvaluationStatus::Partial(_) | TestcaseEvaluationStatus::WrongAnswer(_) => {
-                Some(SolutionCheckResult::WrongAnswer)
+                Some(SolutionCheckResult::PartialScore)
             }
             TestcaseEvaluationStatus::TimeLimitExceeded => {
                 Some(SolutionCheckResult::TimeLimitExceeded)
