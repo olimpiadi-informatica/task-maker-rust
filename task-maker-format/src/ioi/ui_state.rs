@@ -68,9 +68,8 @@ impl From<&TestcaseEvaluationStatus> for Option<SolutionCheckResult> {
     fn from(status: &TestcaseEvaluationStatus) -> Self {
         match status {
             TestcaseEvaluationStatus::Accepted(_) => Some(SolutionCheckResult::Accepted),
-            TestcaseEvaluationStatus::Partial(_) | TestcaseEvaluationStatus::WrongAnswer(_) => {
-                Some(SolutionCheckResult::PartialScore)
-            }
+            TestcaseEvaluationStatus::Partial(_) => Some(SolutionCheckResult::PartialScore),
+            TestcaseEvaluationStatus::WrongAnswer(_) => Some(SolutionCheckResult::WrongAnswer),
             TestcaseEvaluationStatus::TimeLimitExceeded => {
                 Some(SolutionCheckResult::TimeLimitExceeded)
             }
