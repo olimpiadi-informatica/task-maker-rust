@@ -110,6 +110,9 @@ pub enum SolutionCheckResult {
     MemoryLimitExceeded,
     /// The solution should get "Runtime Error" on at least one testcase of the subtask.
     RuntimeError,
+    /// The solution should get "WrongAnswer", "TimeLimitExceeded", "MemoryLimitExceeded" or
+    /// "RuntimeError" on at least one testcase of the subtask.
+    Zero,
 }
 
 impl FromStr for SolutionCheckResult {
@@ -123,6 +126,7 @@ impl FromStr for SolutionCheckResult {
             "time-limit-exceeded" => Ok(Self::TimeLimitExceeded),
             "memory-limit-exceeded" => Ok(Self::MemoryLimitExceeded),
             "runtime-error" => Ok(Self::RuntimeError),
+            "zero" => Ok(Self::Zero),
             _ => bail!("Invalid check name: @check-{}", s),
         }
     }
@@ -138,6 +142,7 @@ impl SolutionCheckResult {
             SolutionCheckResult::TimeLimitExceeded => "time-limit-exceeded",
             SolutionCheckResult::MemoryLimitExceeded => "memory-limit-exceeded",
             SolutionCheckResult::RuntimeError => "runtime-error",
+            SolutionCheckResult::Zero => "zero",
         }
     }
 
@@ -152,6 +157,7 @@ impl SolutionCheckResult {
             SolutionCheckResult::TimeLimitExceeded => "TLE",
             SolutionCheckResult::MemoryLimitExceeded => "MLE",
             SolutionCheckResult::RuntimeError => "RE",
+            SolutionCheckResult::Zero => "ZR",
         }
     }
 
@@ -165,6 +171,15 @@ impl SolutionCheckResult {
                         .iter()
                         .all(|o| o == self || o == &SolutionCheckResult::Accepted)
             }
+            SolutionCheckResult::Zero => outcomes.iter().any(|o| {
+                matches!(
+                    o,
+                    SolutionCheckResult::WrongAnswer
+                        | SolutionCheckResult::TimeLimitExceeded
+                        | SolutionCheckResult::MemoryLimitExceeded
+                        | SolutionCheckResult::RuntimeError
+                )
+            }),
             _ => outcomes.iter().any(|o| o == self),
         }
     }
@@ -181,7 +196,7 @@ impl SolutionCheck {
             static ref EXTRACT_CHECKS: Regex = Regex::new(
                 r"(?x)
             @check-     # signal the start of a check
-            (?P<result>accepted|partial-score|wrong-answer|time-limit-exceeded|memory-limit-exceeded|runtime-error)
+            (?P<result>accepted|partial-score|wrong-answer|time-limit-exceeded|memory-limit-exceeded|runtime-error|zero)
             :
             (?P<subtasks>
               (?:
@@ -278,6 +293,7 @@ mod tests {
             * @check-time-limit-exceeded: asd
             * @check-memory-limit-exceeded: asd
             * @check-runtime-error: asd
+            * @check-zero: asd
             */
         ",
         )
@@ -321,6 +337,9 @@ mod tests {
         assert_eq!(checks[7].result, SolutionCheckResult::RuntimeError);
         assert_eq!(checks[7].subtask_name_pattern, "asd");
         assert_eq!(checks[7].code_span.as_str(), "@check-runtime-error: asd");
+        assert_eq!(checks[8].result, SolutionCheckResult::Zero);
+        assert_eq!(checks[8].subtask_name_pattern, "asd");
+        assert_eq!(checks[8].code_span.as_str(), "@check-zero: asd");
     }
 
     #[test]
