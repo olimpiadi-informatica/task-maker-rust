@@ -23,8 +23,8 @@ pkgver() {
 
 build() {
     cd "$srcdir/task-maker-rust"
-    TM_DATA_DIR=/usr/share/task-maker-rust cargo build --release --bin task-maker
-    cargo run --release --bin task-maker-tools gen-autocompletion
+    TM_DATA_DIR=/usr/share/task-maker-rust cargo build --release --bins
+    target/release/task-maker-tools gen-autocompletion
 }
 
 package() {
