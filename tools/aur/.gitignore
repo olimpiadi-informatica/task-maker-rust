@@ -1,0 +1,5 @@
+pkg/
+src/
+*.tar.zst
+task-maker-rust-git/task-maker-rust/
+task-maker-rust/task-maker-rust/
