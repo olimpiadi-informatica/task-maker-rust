@@ -34,7 +34,7 @@ fn draw_frame(state: &UIState, f: &mut FrameType, loading: char, frame_index: us
         ),
         Span::raw(" ("),
         Span::raw(state.task.name.clone()),
-        Span::raw(")\n"),
+        Span::raw(")"),
     ]
     .into();
     let header_len = 2;

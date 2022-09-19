@@ -160,6 +160,7 @@ fn draw_booklets(frame: &mut FrameType, rect: Rect, state: &UIState, loading: ch
                 for step in dep {
                     line.push(ui_execution_status_text(&step.status, loading));
                 }
+                line.push(Span::raw("]"));
                 text.push(line.into());
             }
             text
@@ -184,11 +185,11 @@ fn ui_execution_status_text(status: &UIExecutionStatus, loading: char) -> Span {
 
 /// Draw the content of the generation box.
 fn draw_generations(frame: &mut FrameType, rect: Rect, state: &UIState, loading: char) {
-    let text: Vec<Spans> = state
+    let text: Vec<Span> = state
         .generations
         .iter()
         .sorted_by_key(|(k, _)| *k)
-        .map(|(_, subtask)| {
+        .flat_map(|(_, subtask)| {
             let mut testcases: Vec<Span> = subtask
                 .testcases
                 .iter()
@@ -198,10 +199,10 @@ fn draw_generations(frame: &mut FrameType, rect: Rect, state: &UIState, loading:
             let mut res = vec![Span::raw("[")];
             res.append(&mut testcases);
             res.push(Span::raw("]"));
-            res.into()
+            res
         })
         .collect();
-    let paragraph = Paragraph::new(text);
+    let paragraph = Paragraph::new(Spans(text));
     frame.render_widget(paragraph, rect);
 }
 
