@@ -313,9 +313,9 @@ fn subtask_evaluation_status_text<'a>(
     }
     let subtask = &solution.subtasks[&subtask];
     let par_style = if let Some(normalized_score) = subtask.normalized_score {
-        if abs_diff_eq!(normalized_score, 1.0) {
+        if (normalized_score - 1.0).abs() < 0.001 {
             *GREEN
-        } else if abs_diff_eq!(normalized_score, 0.0) {
+        } else if normalized_score == 0.0 {
             *RED
         } else {
             *YELLOW

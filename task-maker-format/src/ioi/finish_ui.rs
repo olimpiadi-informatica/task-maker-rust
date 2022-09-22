@@ -400,9 +400,9 @@ impl FinishUI {
 
     /// Color to use for displaying a score.
     fn score_color(&mut self, normalized_score: f64) -> &'static ColorSpec {
-        if abs_diff_eq!(normalized_score, 1.0) {
+        if (normalized_score - 1.0).abs() < 0.001 {
             &GREEN
-        } else if abs_diff_eq!(normalized_score, 0.0) {
+        } else if normalized_score == 0.0 {
             &RED
         } else {
             &YELLOW
