@@ -1,8 +1,8 @@
 use std::fs;
 
 use anyhow::Error;
-use task_maker_diagnostics::Diagnostic;
 use regex::Regex;
+use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::IOITask;
 use crate::sanity_checks::SanityCheck;
@@ -72,7 +72,8 @@ impl SanityCheck<IOITask> for NoBitsStdCpp {
 
     fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         lazy_static! {
-            static ref RE: Regex = Regex::new(r"(?m)^#\s*include\s*<bits/stdc\+\+\.h>.*$").expect("Invalid regex");
+            static ref RE: Regex =
+                Regex::new(r"(?m)^#\s*include\s*<bits/stdc\+\+\.h>.*$").expect("Invalid regex");
         }
 
         for att in list_files(&task.path, vec!["**/*.cpp", "**/*.cc"]) {
