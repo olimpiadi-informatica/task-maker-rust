@@ -1,5 +1,8 @@
+use std::fs;
+
 use anyhow::Error;
 use task_maker_diagnostics::Diagnostic;
+use regex::Regex;
 
 use crate::ioi::IOITask;
 use crate::sanity_checks::SanityCheck;
@@ -51,6 +54,35 @@ impl SanityCheck<IOITask> for BrokenSymlinks {
                         Diagnostic::warning(format!("{} is a broken symlink", path.display()))
                             .with_note(format!("It points to {}", content.display())),
                     )?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Check that cpp source files don't contain #include <bits/stdc++.h> (or whitespace variants of it)
+#[derive(Debug, Default)]
+pub struct NoBitsStdCpp;
+
+impl SanityCheck<IOITask> for NoBitsStdCpp {
+    fn name(&self) -> &'static str {
+        "NoBitsStdCpp"
+    }
+
+    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        lazy_static! {
+            static ref RE: Regex = Regex::new(r"(?m)^#\s*include\s*<bits/stdc\+\+\.h>.*$").expect("Invalid regex");
+        }
+
+        for att in list_files(&task.path, vec!["**/*.cpp", "**/*.cc"]) {
+            let path = task.path_of(&att);
+            if let Ok(content) = fs::read_to_string(path) {
+                if RE.is_match(&content) {
+                    eval.add_diagnostic(Diagnostic::warning(format!(
+                        "#include <bits/stdc++.h> found in {}",
+                        path.display()
+                    )))?;
                 }
             }
         }
