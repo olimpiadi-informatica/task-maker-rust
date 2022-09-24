@@ -75,7 +75,7 @@ pub fn patch_task_for_batch(
                 let testcase = TestcaseInfo {
                     id: testcase_id,
                     input_generator,
-                    input_validator: task.input_validator.clone(),
+                    input_validator: task.input_validator_generator.generate(Some(0)),
                     output_generator: testcase_template.output_generator.clone(),
                 };
 

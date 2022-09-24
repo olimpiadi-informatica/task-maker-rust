@@ -165,7 +165,7 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
     }
 
     fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
-        let validator = &task.input_validator;
+        let validator = &task.input_validator_generator;
         let task_type = if let TaskType::Batch(data) = &task.task_type {
             data
         } else {
@@ -183,11 +183,12 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
 
             // validate the input file
             let (val_handle, val) = validator
+                .generate(None)
                 .validate(
                     eval,
                     format!("Validation of sample case {}", input_name.display()),
                     0,
-                    None,
+                    Some("att"),
                     0,
                     input_uuid,
                 )

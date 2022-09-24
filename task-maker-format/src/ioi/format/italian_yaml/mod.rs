@@ -271,12 +271,12 @@ pub(crate) use cases_gen::{is_gen_gen_deletable, TM_ALLOW_DELETE_COOKIE};
 use task_maker_lang::GraderMap;
 
 use crate::ioi::sanity_checks::get_sanity_checks;
-use crate::ioi::TM_VALIDATION_FILE_NAME;
 use crate::ioi::{
     make_task_booklets, Checker, IOITask, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo,
     TaskType, TestcaseId, TestcaseInfo, TestcaseScoreAggregator,
 };
 use crate::ioi::{BatchTypeData, CommunicationTypeData, UserIo};
+use crate::ioi::{InputValidatorGenerator, TM_VALIDATION_FILE_NAME};
 use crate::{find_source_file, list_files, EvaluationConfig, WriteBinTo};
 
 mod cases_gen;
@@ -508,8 +508,9 @@ pub fn parse_task<P: AsRef<Path>>(
         difficulty: yaml.difficulty,
         syllabus_level: yaml.syllabuslevel,
         sanity_checks: Arc::new(get_sanity_checks(&eval_config.disabled_sanity_checks)),
-        input_validator: detect_validator(task_dir.to_path_buf())
-            .context("Failed to detect validator")?(0),
+        input_validator_generator: InputValidatorGenerator::new(
+            detect_validator(task_dir.to_path_buf()).context("Failed to detect validator")?,
+        ),
     };
     // split the creation of the task because make_booklets need an instance of Task
     if !eval_config.no_statement {
@@ -522,7 +523,9 @@ pub fn parse_task<P: AsRef<Path>>(
 /// Search for a valid input validator inside the task directory. Will return a function that, given
 /// a subtask id, returns an `InputValidator` using that validator. If no validator is found,
 /// `InputValidator::AssumeValid` is used.
-fn detect_validator(task_dir: PathBuf) -> Result<impl Fn(SubtaskId) -> InputValidator, Error> {
+fn detect_validator(
+    task_dir: PathBuf,
+) -> Result<impl Fn(Option<SubtaskId>) -> InputValidator, Error> {
     let mut validators = find_source_file(
         &task_dir,
         vec![
@@ -541,12 +544,15 @@ fn detect_validator(task_dir: PathBuf) -> Result<impl Fn(SubtaskId) -> InputVali
     }
     let validator = validators.pop().map(Arc::new);
     debug!("Detected input validator: {:?}", validator);
-    Ok(move |st: SubtaskId| -> InputValidator {
+    Ok(move |st: Option<SubtaskId>| -> InputValidator {
         if let Some(validator) = validator.as_ref() {
             InputValidator::Custom(
                 validator.clone(),
                 // for legacy support reasons the subtask is passed 1-based
-                vec![TM_VALIDATION_FILE_NAME.to_string(), (st + 1).to_string()],
+                vec![
+                    TM_VALIDATION_FILE_NAME.to_string(),
+                    st.map(|x| x + 1).unwrap_or(0).to_string(),
+                ],
             )
         } else {
             InputValidator::AssumeValid

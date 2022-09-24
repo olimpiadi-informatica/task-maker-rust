@@ -12,7 +12,7 @@ use crate::ioi::{
 /// generator.
 struct StaticInputIter<V, O>
 where
-    V: Fn(SubtaskId) -> InputValidator,
+    V: Fn(Option<SubtaskId>) -> InputValidator,
     O: Fn(TestcaseId) -> OutputGenerator,
 {
     /// The path to the input files directory.
@@ -27,7 +27,7 @@ where
 
 impl<V, O> Iterator for StaticInputIter<V, O>
 where
-    V: Fn(SubtaskId) -> InputValidator,
+    V: Fn(Option<SubtaskId>) -> InputValidator,
     O: Fn(TestcaseId) -> OutputGenerator,
 {
     type Item = TaskInputEntry;
@@ -52,7 +52,7 @@ where
             Some(TaskInputEntry::Testcase(TestcaseInfo {
                 id,
                 input_generator: InputGenerator::StaticFile(path),
-                input_validator: (self.get_validator)(0),
+                input_validator: (self.get_validator)(Some(0)),
                 output_generator: (self.get_output_gen)(id),
             }))
         } else {
@@ -72,7 +72,7 @@ pub(crate) fn static_inputs<P: Into<PathBuf>, V, O>(
     get_output_gen: O,
 ) -> Box<dyn Iterator<Item = TaskInputEntry>>
 where
-    V: Fn(SubtaskId) -> InputValidator + 'static,
+    V: Fn(Option<SubtaskId>) -> InputValidator + 'static,
     O: Fn(TestcaseId) -> OutputGenerator + 'static,
 {
     Box::new(StaticInputIter {
@@ -96,7 +96,7 @@ mod tests {
 
     use super::*;
 
-    fn get_validator(_subtask: SubtaskId) -> InputValidator {
+    fn get_validator(_subtask: Option<SubtaskId>) -> InputValidator {
         InputValidator::AssumeValid
     }
 
