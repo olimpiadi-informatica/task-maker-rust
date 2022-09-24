@@ -73,10 +73,21 @@ impl SanityCheck<IOITask> for NoBitsStdCpp {
     fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         lazy_static! {
             static ref RE: Regex =
-                Regex::new(r###"(?m)^#\s*include\s*(?:<|")bits/stdc\+\+\.h(?:>|").*$"###).expect("Invalid regex");
+                Regex::new(r###"(?m)^#\s*include\s*(?:<|")bits/stdc\+\+\.h(?:>|").*$"###)
+                    .expect("Invalid regex");
         }
 
-        for att in list_files(&task.path, vec!["**/*.cpp", "**/*.cc"]) {
+        for att in list_files(
+            &task.path,
+            vec![
+                "att/*.cpp",
+                "att/*.cc",
+                "sol/grader.cpp",
+                "sol/grader.cc",
+                "sol/stub.cpp",
+                "sol/stub.cc",
+            ],
+        ) {
             let path = task.path_of(&att);
             if let Ok(content) = fs::read_to_string(path) {
                 if let Some(span) = RE.find(&content) {
