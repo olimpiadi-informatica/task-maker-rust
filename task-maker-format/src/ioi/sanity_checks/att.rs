@@ -183,12 +183,12 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
 
             // validate the input file
             let (val_handle, val) = validator
-                .generate(0)
+                .generate(None)
                 .validate(
                     eval,
                     format!("Validation of sample case {}", input_name.display()),
                     0,
-                    None,
+                    Some("att"),
                     0,
                     input_uuid,
                 )

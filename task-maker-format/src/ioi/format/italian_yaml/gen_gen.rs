@@ -31,7 +31,7 @@ pub(crate) fn parse_gen_gen<P: AsRef<Path>, V, O>(
     get_output_gen: O,
 ) -> Result<Vec<TaskInputEntry>, Error>
 where
-    V: Fn(SubtaskId) -> InputValidator,
+    V: Fn(Option<SubtaskId>) -> InputValidator,
     O: Fn(TestcaseId) -> OutputGenerator,
 {
     let path = path.as_ref();
@@ -146,7 +146,7 @@ where
                         entries.push(TaskInputEntry::Testcase(TestcaseInfo {
                             id: testcase_count,
                             input_generator: InputGenerator::StaticFile(task_dir.join(what)),
-                            input_validator: get_validator(subtask_id - 1),
+                            input_validator: get_validator(Some(subtask_id - 1)),
                             output_generator: get_output_gen(testcase_count),
                         }));
                         testcase_count += 1;
@@ -165,7 +165,7 @@ where
                         entries.push(TaskInputEntry::Testcase(TestcaseInfo {
                             id: testcase_count,
                             input_generator: InputGenerator::Custom(generator.clone(), cmd),
-                            input_validator: get_validator(subtask_id - 1),
+                            input_validator: get_validator(Some(subtask_id - 1)),
                             output_generator,
                         }));
                         testcase_count += 1;
@@ -218,7 +218,7 @@ mod tests {
         dir
     }
 
-    fn get_validator(_subtask: SubtaskId) -> InputValidator {
+    fn get_validator(_subtask: Option<SubtaskId>) -> InputValidator {
         InputValidator::AssumeValid
     }
 

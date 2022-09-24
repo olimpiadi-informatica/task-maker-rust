@@ -523,7 +523,9 @@ pub fn parse_task<P: AsRef<Path>>(
 /// Search for a valid input validator inside the task directory. Will return a function that, given
 /// a subtask id, returns an `InputValidator` using that validator. If no validator is found,
 /// `InputValidator::AssumeValid` is used.
-fn detect_validator(task_dir: PathBuf) -> Result<impl Fn(SubtaskId) -> InputValidator, Error> {
+fn detect_validator(
+    task_dir: PathBuf,
+) -> Result<impl Fn(Option<SubtaskId>) -> InputValidator, Error> {
     let mut validators = find_source_file(
         &task_dir,
         vec![
@@ -542,12 +544,15 @@ fn detect_validator(task_dir: PathBuf) -> Result<impl Fn(SubtaskId) -> InputVali
     }
     let validator = validators.pop().map(Arc::new);
     debug!("Detected input validator: {:?}", validator);
-    Ok(move |st: SubtaskId| -> InputValidator {
+    Ok(move |st: Option<SubtaskId>| -> InputValidator {
         if let Some(validator) = validator.as_ref() {
             InputValidator::Custom(
                 validator.clone(),
                 // for legacy support reasons the subtask is passed 1-based
-                vec![TM_VALIDATION_FILE_NAME.to_string(), (st + 1).to_string()],
+                vec![
+                    TM_VALIDATION_FILE_NAME.to_string(),
+                    st.map(|x| x + 1).unwrap_or(0).to_string(),
+                ],
             )
         } else {
             InputValidator::AssumeValid

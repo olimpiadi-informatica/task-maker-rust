@@ -75,7 +75,7 @@ pub struct ScoreManager {
 
 /// A simple struct that generates input validators for a given subtask.
 #[derive(Clone)]
-pub struct InputValidatorGenerator(Arc<dyn Fn(SubtaskId) -> InputValidator + Send + Sync>);
+pub struct InputValidatorGenerator(Arc<dyn Fn(Option<SubtaskId>) -> InputValidator + Send + Sync>);
 
 impl Debug for InputValidatorGenerator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -91,12 +91,12 @@ impl Default for InputValidatorGenerator {
 
 impl InputValidatorGenerator {
     /// Build a generator based on a generating function.
-    pub fn new<F: Fn(SubtaskId) -> InputValidator + Send + Sync + 'static>(f: F) -> Self {
+    pub fn new<F: Fn(Option<SubtaskId>) -> InputValidator + Send + Sync + 'static>(f: F) -> Self {
         InputValidatorGenerator(Arc::new(f))
     }
 
     /// Obtain a validator for the given subtask.
-    pub fn generate(&self, subtask: SubtaskId) -> InputValidator {
+    pub fn generate(&self, subtask: Option<SubtaskId>) -> InputValidator {
         (self.0)(subtask)
     }
 }
