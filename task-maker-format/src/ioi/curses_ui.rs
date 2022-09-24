@@ -18,6 +18,7 @@ use crate::ui::curses::{
     CursesDrawer, CursesUI as GenericCursesUI, FrameType, GREEN, ORANGE, RED, YELLOW,
 };
 use crate::ui::UIExecutionStatus;
+use crate::ScoreStatus;
 
 /// An animated UI for IOI tasks, dynamically refreshing using curses as a backend.
 pub(crate) type CursesUI = GenericCursesUI<UIState, Drawer, FinishUI>;
@@ -266,12 +267,10 @@ fn evaluation_score<'a>(state: &'a UIState, solution: &Path, loading: char) -> S
         return Span::raw("  ?  ");
     };
     if let Some(score) = sol_state.score {
-        if score == 0.0 {
-            Span::styled(format!(" {:>3.0} ", score), *RED)
-        } else if (score - state.max_score).abs() < 0.001 {
-            Span::styled(format!(" {:>3.0} ", score), *GREEN)
-        } else {
-            Span::styled(format!(" {:>3.0} ", score), *YELLOW)
+        match ScoreStatus::from_score(score, state.max_score) {
+            ScoreStatus::WrongAnswer => Span::styled(format!(" {:>3.0} ", score), *RED),
+            ScoreStatus::Accepted => Span::styled(format!(" {:>3.0} ", score), *GREEN),
+            ScoreStatus::PartialScore => Span::styled(format!(" {:>3.0} ", score), *YELLOW),
         }
     } else {
         let has_skipped = sol_state.subtasks.values().any(|st| {
@@ -313,12 +312,10 @@ fn subtask_evaluation_status_text<'a>(
     }
     let subtask = &solution.subtasks[&subtask];
     let par_style = if let Some(normalized_score) = subtask.normalized_score {
-        if abs_diff_eq!(normalized_score, 1.0) {
-            *GREEN
-        } else if abs_diff_eq!(normalized_score, 0.0) {
-            *RED
-        } else {
-            *YELLOW
+        match ScoreStatus::from_score(normalized_score, 1.0) {
+            ScoreStatus::Accepted => *GREEN,
+            ScoreStatus::WrongAnswer => *RED,
+            ScoreStatus::PartialScore => *YELLOW,
         }
     } else {
         Style::default()
