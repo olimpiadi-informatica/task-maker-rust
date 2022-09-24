@@ -271,12 +271,12 @@ pub(crate) use cases_gen::{is_gen_gen_deletable, TM_ALLOW_DELETE_COOKIE};
 use task_maker_lang::GraderMap;
 
 use crate::ioi::sanity_checks::get_sanity_checks;
-use crate::ioi::TM_VALIDATION_FILE_NAME;
 use crate::ioi::{
     make_task_booklets, Checker, IOITask, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo,
     TaskType, TestcaseId, TestcaseInfo, TestcaseScoreAggregator,
 };
 use crate::ioi::{BatchTypeData, CommunicationTypeData, UserIo};
+use crate::ioi::{InputValidatorGenerator, TM_VALIDATION_FILE_NAME};
 use crate::{find_source_file, list_files, EvaluationConfig, WriteBinTo};
 
 mod cases_gen;
@@ -508,8 +508,9 @@ pub fn parse_task<P: AsRef<Path>>(
         difficulty: yaml.difficulty,
         syllabus_level: yaml.syllabuslevel,
         sanity_checks: Arc::new(get_sanity_checks(&eval_config.disabled_sanity_checks)),
-        input_validator: detect_validator(task_dir.to_path_buf())
-            .context("Failed to detect validator")?(0),
+        input_validator_generator: InputValidatorGenerator::new(
+            detect_validator(task_dir.to_path_buf()).context("Failed to detect validator")?,
+        ),
     };
     // split the creation of the task because make_booklets need an instance of Task
     if !eval_config.no_statement {

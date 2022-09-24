@@ -114,7 +114,7 @@ mod tests {
             infile: None,
             outfile: None,
             subtasks: Default::default(),
-            input_validator: InputValidator::AssumeValid,
+            input_validator_generator: Default::default(),
             testcase_score_aggregator: TestcaseScoreAggregator::Min,
             grader_map: Arc::new(GraderMap::new(Vec::<PathBuf>::new())),
             booklets: vec![],

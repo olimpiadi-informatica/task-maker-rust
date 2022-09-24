@@ -16,6 +16,7 @@
 //! file and the _correct_ output file (the one produced by the jury).
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -72,6 +73,34 @@ pub struct ScoreManager {
     aggregator: TestcaseScoreAggregator,
 }
 
+/// A simple struct that generates input validators for a given subtask.
+#[derive(Clone)]
+pub struct InputValidatorGenerator(Arc<dyn Fn(SubtaskId) -> InputValidator + Send + Sync>);
+
+impl Debug for InputValidatorGenerator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InputValidatorGenerator").finish()
+    }
+}
+
+impl Default for InputValidatorGenerator {
+    fn default() -> Self {
+        InputValidatorGenerator(Arc::new(|_| InputValidator::AssumeValid))
+    }
+}
+
+impl InputValidatorGenerator {
+    /// Build a generator based on a generating function.
+    pub fn new<F: Fn(SubtaskId) -> InputValidator + Send + Sync + 'static>(f: F) -> Self {
+        InputValidatorGenerator(Arc::new(f))
+    }
+
+    /// Obtain a validator for the given subtask.
+    pub fn generate(&self, subtask: SubtaskId) -> InputValidator {
+        (self.0)(subtask)
+    }
+}
+
 /// Information about a generic IOI task.
 #[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct IOITask {
@@ -93,9 +122,9 @@ pub struct IOITask {
     pub outfile: Option<PathBuf>,
     /// The list of the subtasks.
     pub subtasks: HashMap<SubtaskId, SubtaskInfo>,
-    /// The default input validator for this task, if any.
-    #[serde(skip_serializing)]
-    pub input_validator: InputValidator,
+    /// The generator of validators for the various subtasks.
+    #[serde(skip_serializing, skip_deserializing)]
+    pub input_validator_generator: InputValidatorGenerator,
     /// The aggregator to use to compute the score of the subtask based on the score of the
     /// testcases.
     pub testcase_score_aggregator: TestcaseScoreAggregator,
@@ -160,7 +189,7 @@ impl IOITask {
     /// Create a "fake" `IOITask` that will not contain any data.
     ///
     /// This can be used to setup executions that are not related to tasks (e.g. booklet
-    /// compilations).  
+    /// compilations).
     pub fn fake() -> IOITask {
         IOITask {
             path: Default::default(),
@@ -172,7 +201,7 @@ impl IOITask {
             infile: None,
             outfile: None,
             subtasks: Default::default(),
-            input_validator: InputValidator::AssumeValid,
+            input_validator_generator: Default::default(),
             testcase_score_aggregator: TestcaseScoreAggregator::Min,
             grader_map: Arc::new(GraderMap::new::<&Path>(vec![])),
             booklets: vec![],
