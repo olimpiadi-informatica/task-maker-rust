@@ -2,7 +2,7 @@ use std::fs;
 
 use anyhow::Error;
 use regex::Regex;
-use task_maker_diagnostics::Diagnostic;
+use task_maker_diagnostics::{CodeSpan, Diagnostic};
 
 use crate::ioi::IOITask;
 use crate::sanity_checks::SanityCheck;
@@ -73,17 +73,26 @@ impl SanityCheck<IOITask> for NoBitsStdCpp {
     fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         lazy_static! {
             static ref RE: Regex =
-                Regex::new(r"(?m)^#\s*include\s*<bits/stdc\+\+\.h>.*$").expect("Invalid regex");
+                Regex::new(r###"(?m)^#\s*include\s*(?:<|")bits/stdc\+\+\.h(?:>|").*$"###).expect("Invalid regex");
         }
 
         for att in list_files(&task.path, vec!["**/*.cpp", "**/*.cc"]) {
             let path = task.path_of(&att);
             if let Ok(content) = fs::read_to_string(path) {
-                if RE.is_match(&content) {
-                    eval.add_diagnostic(Diagnostic::warning(format!(
-                        "#include <bits/stdc++.h> found in {}",
-                        path.display()
-                    )))?;
+                if let Some(span) = RE.find(&content) {
+                    eval.add_diagnostic(
+                        Diagnostic::warning(format!(
+                            "bits/stdc++.h included from {}",
+                            path.display()
+                        ))
+                        .with_note("This won't compile under Clang")
+                        .with_code_span(CodeSpan::from_str(
+                            path,
+                            &content,
+                            span.start(),
+                            span.end() - span.start(),
+                        )?),
+                    )?;
                 }
             }
         }
