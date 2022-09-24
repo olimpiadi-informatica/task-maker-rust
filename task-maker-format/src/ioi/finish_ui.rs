@@ -12,7 +12,7 @@ use crate::ui::{
     FinishUI as FinishUITrait, FinishUIUtils, UIExecutionStatus, BLUE, BOLD, GREEN, ORANGE, RED,
     YELLOW,
 };
-use crate::{cwrite, cwriteln};
+use crate::{cwrite, cwriteln, ScoreStatus};
 
 /// Percentage threshold for showing a resource usage in bold for a solution. If the maximum
 /// cpu_time used by the solution among the testcases is X, all the cpu_time of that solution that
@@ -400,12 +400,10 @@ impl FinishUI {
 
     /// Color to use for displaying a score.
     fn score_color(&mut self, normalized_score: f64) -> &'static ColorSpec {
-        if (normalized_score - 1.0).abs() < 0.001 {
-            &GREEN
-        } else if normalized_score == 0.0 {
-            &RED
-        } else {
-            &YELLOW
+        match ScoreStatus::from_score(normalized_score, 1.0) {
+            ScoreStatus::Accepted => &GREEN,
+            ScoreStatus::WrongAnswer => &RED,
+            ScoreStatus::PartialScore => &YELLOW,
         }
     }
 

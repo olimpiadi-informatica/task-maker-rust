@@ -45,6 +45,7 @@ use crate::solution::Solution;
 pub use crate::solution::*;
 use crate::terry::{Seed, TerryTask};
 use crate::ui::UI;
+pub use testcase_score_status::ScoreStatus;
 
 mod detect_format;
 pub mod ioi;
@@ -54,6 +55,7 @@ mod source_file;
 mod tag;
 mod task_format;
 pub mod terry;
+mod testcase_score_status;
 pub mod ui;
 
 lazy_static! {

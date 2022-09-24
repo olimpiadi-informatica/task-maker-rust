@@ -6,9 +6,9 @@ use task_maker_dag::*;
 use task_maker_diagnostics::DiagnosticContext;
 use task_maker_exec::ExecutorStatus;
 
-use crate::ioi::*;
 use crate::solution::{SolutionCheck, SolutionCheckResult, SolutionInfo};
 use crate::ui::{CompilationStatus, UIExecutionStatus, UIMessage, UIStateT};
+use crate::{ioi::*, ScoreStatus};
 
 /// Status of the generation of a testcase input and output.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -636,13 +636,11 @@ impl UIStateT for UIState {
                     .expect("Missing testcase");
                 testcase.score = Some(score);
                 if !testcase.status.has_completed() {
-                    if score == 0.0 {
-                        testcase.status = TestcaseEvaluationStatus::WrongAnswer(message);
-                    } else if (score - 1.0).abs() < 0.001 {
-                        testcase.status = TestcaseEvaluationStatus::Accepted(message);
-                    } else {
-                        testcase.status = TestcaseEvaluationStatus::Partial(message);
-                    }
+                    testcase.status = match ScoreStatus::from_score(score, 1.0) {
+                        ScoreStatus::WrongAnswer => TestcaseEvaluationStatus::WrongAnswer(message),
+                        ScoreStatus::Accepted => TestcaseEvaluationStatus::Accepted(message),
+                        ScoreStatus::PartialScore => TestcaseEvaluationStatus::Partial(message),
+                    };
                 }
             }
             UIMessage::IOISubtaskScore {
