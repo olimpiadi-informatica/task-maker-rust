@@ -43,7 +43,7 @@ pub struct FindBadCaseOpt {
     pub solution: PathBuf,
 
     /// Arguments to pass to the generator. The value '{}' will be replaced with a random seed.
-    #[clap(multiple_values = true)]
+    #[clap(num_args = 0..)]
     pub generator_args: Vec<String>,
 }
 
