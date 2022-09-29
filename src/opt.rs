@@ -92,7 +92,7 @@ pub struct ExecutionOpt {
     pub dry_run: bool,
 
     /// Disable the cache for this comma separated list of tags
-    #[clap(long = "no-cache", long_help = no_cache_long_help())]
+    #[clap(long = "no-cache", long_help = no_cache_long_help(), require_equals = true)]
     #[allow(clippy::option_option)]
     pub no_cache: Option<Option<String>>,
 
