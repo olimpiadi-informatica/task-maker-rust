@@ -6,12 +6,12 @@ use anyhow::{anyhow, bail, Context, Result};
 use crate::{ioi, terry, EvaluationConfig, TaskFormat};
 
 /// Search for a valid task directory, starting from base and going _at most_ `max_depth` times up.
-pub fn find_task<P: Into<PathBuf>>(
-    base: P,
+pub fn find_task(
+    base: Option<PathBuf>,
     max_depth: u32,
     eval_config: &EvaluationConfig,
 ) -> Result<TaskFormat> {
-    let mut base = base.into();
+    let mut base = base.unwrap_or_else(getcwd);
     if !base.is_absolute() {
         base = getcwd().join(base);
     }

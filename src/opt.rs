@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Error};
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use itertools::Itertools;
 
 use task_maker_dag::DagPriority;
@@ -57,15 +57,15 @@ pub struct Opt {
 #[derive(Parser, Debug, Clone)]
 pub struct LoggerOpt {
     /// Verbose mode (-v, -vv, -vvv, etc.). Note that it does not play well with curses ui.
-    #[clap(short, long, parse(from_occurrences))]
+    #[clap(short, long, action = ArgAction::Count)]
     pub verbose: u8,
 }
 
 #[derive(Parser, Debug, Clone)]
 pub struct FindTaskOpt {
     /// Directory of the task
-    #[clap(short = 't', long = "task-dir", default_value = "")]
-    pub task_dir: PathBuf,
+    #[clap(short = 't', long = "task-dir")]
+    pub task_dir: Option<PathBuf>,
 
     /// Look at most for this number of parents for searching the task
     #[clap(long = "max-depth", default_value = "3")]
@@ -92,7 +92,7 @@ pub struct ExecutionOpt {
     pub dry_run: bool,
 
     /// Disable the cache for this comma separated list of tags
-    #[clap(long = "no-cache", long_help = no_cache_long_help())]
+    #[clap(long = "no-cache", long_help = no_cache_long_help(), require_equals = true)]
     #[allow(clippy::option_option)]
     pub no_cache: Option<Option<String>>,
 
@@ -286,6 +286,7 @@ impl LoggerOpt {
 impl FindTaskOpt {
     /// Use the specified options to find a task.
     pub fn find_task(&self, eval_config: &EvaluationConfig) -> Result<TaskFormat, Error> {
-        find_task(&self.task_dir, self.max_depth, eval_config).context("Invalid task directory")
+        find_task(self.task_dir.clone(), self.max_depth, eval_config)
+            .context("Invalid task directory")
     }
 }

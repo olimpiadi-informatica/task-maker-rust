@@ -130,7 +130,7 @@ fn get_booklets_from_current_dir(
     opt: &BookletOpt,
     eval_config: &EvaluationConfig,
 ) -> Result<(IOITask, Vec<Booklet>), Error> {
-    let task = find_task("", opt.max_depth, eval_config)?;
+    let task = find_task(None, opt.max_depth, eval_config)?;
     let path = task.path();
     let task = IOITask::new(path, eval_config).with_context(|| {
         format!(

@@ -49,8 +49,8 @@ task-maker-format = { path = "./task-maker-format" }
 log = "0.4"
 env_logger = "0.9"
 # Argument parsing
-clap = { version = "3.1", features = ["derive"] }
-clap_complete = "3.1"
+clap = { version = "4.0", features = ["derive"] }
+clap_complete = "4.0"
 num_cpus = "1.10"
 # Better stacktraces for panics
 better-panic = "0.3"
