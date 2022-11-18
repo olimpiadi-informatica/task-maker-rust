@@ -1425,7 +1425,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-cache"
-version = "0.5.7"
+version = "0.5.8"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1440,7 +1440,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-dag"
-version = "0.5.7"
+version = "0.5.8"
 dependencies = [
  "anyhow",
  "approx",
@@ -1453,7 +1453,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-diagnostics"
-version = "0.5.7"
+version = "0.5.8"
 dependencies = [
  "anyhow",
  "colored",
@@ -1462,7 +1462,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-exec"
-version = "0.5.7"
+version = "0.5.8"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1489,7 +1489,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-format"
-version = "0.5.7"
+version = "0.5.8"
 dependencies = [
  "anyhow",
  "approx",
@@ -1528,7 +1528,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-lang"
-version = "0.5.7"
+version = "0.5.8"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -1546,7 +1546,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-rust"
-version = "0.5.7"
+version = "0.5.8"
 dependencies = [
  "anyhow",
  "approx",
@@ -1585,7 +1585,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-store"
-version = "0.5.7"
+version = "0.5.8"
 dependencies = [
  "anyhow",
  "bincode",
