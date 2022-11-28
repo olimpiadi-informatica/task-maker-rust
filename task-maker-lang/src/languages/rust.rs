@@ -22,7 +22,9 @@ pub struct LanguageRustConfiguration {
 
 impl LanguageRustConfiguration {
     fn from_env() -> Self {
-        let rustup_home_path = std::env::var_os("TM_RUSTUP_HOME").map(Into::into);
+        let rustup_home_path = std::env::var_os("TM_RUSTUP_HOME")
+            .or_else(|| std::env::var_os("RUSTUP_HOME"))
+            .map(Into::into);
         Self { rustup_home_path }
     }
 }
