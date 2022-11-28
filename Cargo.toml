@@ -51,7 +51,7 @@ env_logger = "0.9"
 # Argument parsing
 clap = { version = "4.0", features = ["derive"] }
 clap_complete = "4.0"
-num_cpus = "1.10"
+num_cpus = "1.14"
 # Better stacktraces for panics
 better-panic = "0.3"
 # Worker and client name
