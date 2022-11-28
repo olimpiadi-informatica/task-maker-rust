@@ -47,7 +47,7 @@ task-maker-format = { path = "./task-maker-format" }
 
 # Logging and setting up the global logger
 log = "0.4"
-env_logger = "0.9"
+env_logger = "0.10"
 # Argument parsing
 clap = { version = "4.0", features = ["derive"] }
 clap_complete = "4.0"
