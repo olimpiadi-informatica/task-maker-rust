@@ -44,7 +44,7 @@ impl InputGenerator {
                     subtask_id, testcase_id, path
                 ));
                 let uuid = file.uuid;
-                eval.dag.provide_file(file, &path).with_context(|| {
+                eval.dag.provide_file(file, path).with_context(|| {
                     format!(
                         "Failed to provide static input file from {}",
                         path.display()

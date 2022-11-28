@@ -182,7 +182,7 @@ impl TestInterface {
             .spawn(|| {
                 let tmpdir = tempfile::TempDir::new().unwrap();
                 let store = tmpdir.path().to_string_lossy().to_string();
-                let opt = ServerOpt::parse_from(&[
+                let opt = ServerOpt::parse_from([
                     "server",
                     "--store-dir",
                     &store,
@@ -199,7 +199,7 @@ impl TestInterface {
                 TestInterface::wait_port(27183);
                 let tmpdir = tempfile::TempDir::new().unwrap();
                 let store = tmpdir.path().to_string_lossy().to_string();
-                let opt = WorkerOpt::parse_from(&[
+                let opt = WorkerOpt::parse_from([
                     "worker",
                     "--store-dir",
                     &store,

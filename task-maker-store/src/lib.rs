@@ -221,7 +221,7 @@ impl FileStore {
         } else {
             // assuming moving files is atomic this should be MT-safe
             let dir = path.parent().unwrap();
-            std::fs::create_dir_all(&dir)
+            std::fs::create_dir_all(dir)
                 .with_context(|| format!("Cannot create directory at {}", dir.display()))?;
             let tmpdir = tempfile::TempDir::new_in(path.parent().unwrap())
                 .context("Failed to create temporary directory for storing the file")?;
@@ -584,7 +584,7 @@ mod tests {
 
     fn corrupt_file(path: &Path) {
         {
-            let file = File::open(&path).unwrap();
+            let file = File::open(path).unwrap();
             let mut perm = file.metadata().unwrap().permissions();
             perm.set_readonly(false);
             file.set_permissions(perm).unwrap();
@@ -734,7 +734,7 @@ mod tests {
             return;
         }
         let cwd = get_cwd();
-        let store = FileStore::new(&cwd.path(), 1000, 1000).unwrap();
+        let store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
         let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &store);
         let path = store.key_to_path(&handle.key);
         corrupt_file(&path);
@@ -744,7 +744,7 @@ mod tests {
     #[test]
     fn test_locked_files() {
         let cwd = get_cwd();
-        let store = FileStore::new(&cwd.path(), 1000, 1000).unwrap();
+        let store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
         let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &store);
         let key = handle.key.clone();
         assert_eq!(store.locked_files.lock().unwrap().ref_counts[&key], 1);
@@ -764,7 +764,7 @@ mod tests {
     #[test]
     fn test_locked_files_different_means() {
         let cwd = get_cwd();
-        let store = FileStore::new(&cwd.path(), 1000, 1000).unwrap();
+        let store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
         let handle = add_file_to_store(&cwd.path().join("test.txt"), "ciaone", &store);
         let key = handle.key.clone();
         assert_eq!(store.locked_files.lock().unwrap().ref_counts[&key], 1);

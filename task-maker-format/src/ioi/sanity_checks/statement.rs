@@ -44,7 +44,7 @@ impl SanityCheck<IOITask> for StatementSubtasks {
                 None => continue,
                 Some(subtasks) => subtasks,
             };
-            let one_based = if subtasks[0].id == 1 { 1 } else { 0 };
+            let one_based = (subtasks[0].id == 1) as u32;
             for (expected, actual) in expected_subtasks.iter().zip(subtasks.iter()) {
                 let expected_id = expected.id + one_based;
                 if expected_id != actual.id {

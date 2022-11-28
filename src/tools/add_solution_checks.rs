@@ -267,6 +267,7 @@ fn write_comments_to_file(
 
     // If the source file starts with the shebang, we cannot simply add the comments at the
     // beginning.
+    #[allow(clippy::bool_to_int_with_if)]
     let insert_position = if content.starts_with("#!") { 1 } else { 0 };
     let comments = comments.iter().join("\n");
     lines.insert(insert_position, &comments);

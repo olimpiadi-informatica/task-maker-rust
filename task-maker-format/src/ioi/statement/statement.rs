@@ -186,7 +186,7 @@ impl Statement {
         if ext.as_str() == "asy" {
             let dest = suffix.with_extension("pdf");
             if self.content.contains(dest.to_string_lossy().as_ref()) {
-                let file = AsyFile::compile(&path, eval, booklet_name)
+                let file = AsyFile::compile(path, eval, booklet_name)
                     .context("Failed to compile asy file")?;
                 deps.push((dest, file));
             }
@@ -208,7 +208,7 @@ impl Statement {
                 self.config.name, suffix
             ));
             eval.dag
-                .provide_file(file.clone(), &path)
+                .provide_file(file.clone(), path)
                 .context("Failed to provide statement dependency")?;
             deps.push((suffix.into(), file));
         }

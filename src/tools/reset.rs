@@ -52,7 +52,7 @@ pub fn main_reset(opt: ResetOpt) -> Result<(), Error> {
         .filter_entry(|e| {
             let path = e.path();
             if path.is_dir() {
-                let mut permisions = std::fs::metadata(&path).unwrap().permissions();
+                let mut permisions = std::fs::metadata(path).unwrap().permissions();
                 permisions.set_mode(0o755);
                 if let Err(e) = std::fs::set_permissions(path, permisions) {
                     eprintln!("Failed to chmod 755 {}: {}", path.display(), e);

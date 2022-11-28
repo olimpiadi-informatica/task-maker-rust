@@ -559,7 +559,7 @@ fn organize_failures(
                 )
             },
         )?;
-        std::os::unix::fs::symlink(&artifact, &target_artifact_path).with_context(|| {
+        std::os::unix::fs::symlink(artifact, &target_artifact_path).with_context(|| {
             anyhow!(
                 "Failed to create symlink: {} -> {}",
                 target_artifact_path.display(),

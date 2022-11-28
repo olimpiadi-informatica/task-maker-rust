@@ -145,7 +145,7 @@ where
             .context("Invalid gen/cases.gen path")?
             .parent()
             .context("Invalid gen/cases.gen path")?;
-        let content = std::fs::read_to_string(&path)
+        let content = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read {}", path.display()))?;
         let mut file = parser::CasesGenParser::parse(parser::Rule::file, &content)
             .context("Cannot parse cases.gen")?;

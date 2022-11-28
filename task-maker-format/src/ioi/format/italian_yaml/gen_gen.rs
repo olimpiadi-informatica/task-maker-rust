@@ -40,7 +40,7 @@ where
         .context("Invalid gen/GEN path")?
         .parent()
         .context("Invalid gen/GEN path")?;
-    let content = std::fs::read_to_string(&path)
+    let content = std::fs::read_to_string(path)
         .with_context(|| format!("Cannot read gen/GEN from {}", path.display()))?;
     let mut file =
         parser::GENParser::parse(parser::Rule::file, &content).context("Cannot parse gen/GEN")?;

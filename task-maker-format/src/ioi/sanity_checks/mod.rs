@@ -84,7 +84,7 @@ fn check_missing_graders<P: AsRef<Path>>(
         if stem == "grader" || stem == "stub" {
             continue;
         }
-        if let Some(lang) = LanguageManager::detect_language(&file) {
+        if let Some(lang) = LanguageManager::detect_language(file) {
             let ext = lang.extensions()[0];
             let name = format!("{}.{}", if is_stub { "stub" } else { "grader" }, ext);
             let grader_name = file.with_file_name(name);

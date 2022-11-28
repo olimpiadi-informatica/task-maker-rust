@@ -142,7 +142,7 @@ impl RuntimeContext {
 
         // connect either to the remote executor or spawn a local one
         let (tx, rx, local_executor) = if let Some(evaluate_on) = &opt.evaluate_on {
-            let (tx, rx) = connect_to_remote_server(&evaluate_on, 27182)
+            let (tx, rx) = connect_to_remote_server(evaluate_on, 27182)
                 .context("Cannot connect to the remote server")?;
             let name = opt
                 .name

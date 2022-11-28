@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_some_inputs() {
-        let task = make_task(&[0, 1, 2]);
+        let task = make_task([0, 1, 2]);
         let entries: Vec<_> =
             static_inputs(task.path(), get_validator, get_output_generator).collect();
         if let [Subtask(subtask), Testcase(testcase0), Testcase(testcase1), Testcase(testcase2)] =

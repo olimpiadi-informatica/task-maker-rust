@@ -493,7 +493,7 @@ impl Sandbox {
         }
         for (path, input) in execution.inputs.iter() {
             Sandbox::write_sandbox_file(
-                &box_dir.join("box").join(&path),
+                &box_dir.join("box").join(path),
                 dep_keys
                     .get(&input.file)
                     .context("file not provided")?
@@ -502,7 +502,7 @@ impl Sandbox {
             )?;
         }
         for path in execution.outputs.keys() {
-            Sandbox::touch_file(&box_dir.join("box").join(&path), 0o600)?;
+            Sandbox::touch_file(&box_dir.join("box").join(path), 0o600)?;
         }
         // remove the write bit on the box folder
         if execution.limits.read_only {

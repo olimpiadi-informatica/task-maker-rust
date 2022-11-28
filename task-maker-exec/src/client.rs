@@ -235,7 +235,7 @@ impl ExecutorClient {
         for (uuid, file) in dag.data.provided_files.iter() {
             match file {
                 ProvidedFile::LocalFile { local_path, .. } => {
-                    let iterator = ReadFileIterator::new(&local_path).with_context(|| {
+                    let iterator = ReadFileIterator::new(local_path).with_context(|| {
                         format!("Failed to read local file: {}", local_path.display())
                     })?;
                     process_provided_file(
@@ -306,7 +306,7 @@ fn handle_server_ask_file(
             sender
                 .send(ExecutorClientMessage::ProvideFile(uuid, key.clone()))
                 .context("Failed to send ExecutorClientMessage::ProvideFile")?;
-            ChannelFileSender::send(&local_path, sender).with_context(|| {
+            ChannelFileSender::send(local_path, sender).with_context(|| {
                 format!("Failed to send local file from {}", local_path.display())
             })?;
         }
@@ -398,7 +398,7 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
                                 dest.display()
                             )
                         })?;
-                        let file = std::fs::File::create(&dest).with_context(|| {
+                        let file = std::fs::File::create(dest).with_context(|| {
                             format!("Failed to create file: {}", dest.display())
                         })?;
                         (Some(file), Some(dest.clone()))
