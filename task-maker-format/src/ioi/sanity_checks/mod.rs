@@ -28,6 +28,7 @@ fn get_sanity_check_list(skip: &[String]) -> Vec<Box<dyn SanityCheck<IOITask>>> 
     let all: Vec<Box<dyn SanityCheck<_>>> = vec![
         Box::new(task::TaskMaxScore::default()),
         Box::new(task::BrokenSymlinks::default()),
+        Box::new(task::NoBitsStdCpp::default()),
         Box::new(att::AttGraders::default()),
         Box::new(att::AttTemplates::default()),
         Box::new(att::AttSampleFiles::default()),
