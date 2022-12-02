@@ -495,7 +495,7 @@ impl SanityCheck<IOITask> for AttTemplatesShouldCompile {
                 .file_name()
                 .ok_or_else(|| anyhow!("Grader has no file name"))?
                 .to_string_lossy();
-            let att_grader = format!("att/{}", grader_name);
+            let att_grader = task.path.join(format!("att/{}", grader_name));
 
             let grader_map = GraderMap::new(vec![att_grader]);
 
