@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use crate::ioi::IOITask;
@@ -25,26 +26,30 @@ pub struct CheckEndWithNewLine {
 }
 
 impl CheckEndWithNewLine {
-    fn new(eval: &mut EvaluationData, file: FileUuid, file_type: &str, path: &str) {
-        let mut checker = Self {
+    pub fn new(eval: &mut EvaluationData, file_type: &str, path: impl Display) -> Self {
+        Self {
             last_chunk_ends_with_new_line: true,
             sender: eval.sender.clone(),
             diagnostic_message: format!(
-                "{} file at {} is not ending with a new-line",
+                "{} file at {} does not end with a new-line",
                 file_type, path
             ),
-        };
+        }
+    }
+
+    pub fn bind(eval: &mut EvaluationData, file: FileUuid, file_type: &str, path: impl Display) {
+        let mut checker = Self::new(eval, file_type, path);
         eval.dag
             .get_file_content_chunked(file, move |chunk| checker.add_chunk(chunk));
     }
 
-    fn add_chunk(&mut self, chunk: &[u8]) -> Result<(), Error> {
+    pub fn add_chunk(&mut self, chunk: &[u8]) -> Result<(), Error> {
         if chunk.is_empty() {
             if !self.last_chunk_ends_with_new_line {
-                self.sender.add_diagnostic(
-                    Diagnostic::warning(&self.diagnostic_message)
-                        .with_help("It's bad practice to have files not ending with new-line"),
-                )?;
+                self.sender
+                    .add_diagnostic(Diagnostic::warning(&self.diagnostic_message).with_note(
+                        "It's bad practice to have files that do not end with new-line",
+                    ))?;
             }
         } else {
             self.last_chunk_ends_with_new_line = chunk.last().map(|&c| c == b'\n').unwrap_or(false);
@@ -62,7 +67,7 @@ impl SanityCheck<IOITask> for IOEndWithNewLine {
         for subtask in task.subtasks.values() {
             for (&testcase_id, testcase) in &subtask.testcases {
                 if let Some(input_file) = testcase.input_file {
-                    CheckEndWithNewLine::new(
+                    CheckEndWithNewLine::bind(
                         eval,
                         input_file,
                         "Input",
@@ -70,7 +75,7 @@ impl SanityCheck<IOITask> for IOEndWithNewLine {
                     );
                 }
                 if let Some(output_file) = testcase.official_output_file {
-                    CheckEndWithNewLine::new(
+                    CheckEndWithNewLine::bind(
                         eval,
                         output_file,
                         "Official output",

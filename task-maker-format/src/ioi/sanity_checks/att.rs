@@ -1,4 +1,5 @@
 use std::collections::{BTreeSet, HashMap};
+use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Error};
@@ -12,6 +13,8 @@ use crate::ioi::sanity_checks::check_missing_graders;
 use crate::ioi::{IOITask, InputGenerator, TaskType, TestcaseId};
 use crate::sanity_checks::SanityCheck;
 use crate::{list_files, EvaluationData, SolutionCheck, UISender};
+
+use super::io::CheckEndWithNewLine;
 
 /// Check that all the graders are present inside att.
 #[derive(Debug, Default)]
@@ -396,6 +399,45 @@ impl SanityCheck<IOITask> for AttWithNoCheck {
                     )?;
                 }
             }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct AttEndWithNewLine;
+
+impl SanityCheck<IOITask> for AttEndWithNewLine {
+    fn name(&self) -> &'static str {
+        "AttEndWithNewLine"
+    }
+
+    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        for att in list_files(&task.path, vec!["att/*"]) {
+            let path = task.path_of(&att);
+
+            let mut file = std::fs::File::open(&att)
+                .with_context(|| format!("Failed to open attachment {}", path.display()))?;
+            // Check the file size to avoid seeking to end-1 if the file is empty (which is not
+            // allowed).
+            let metadata = file
+                .metadata()
+                .with_context(|| format!("Failed to read file size at {}", path.display()))?;
+
+            let mut buf = [0u8; 1];
+            let chunk = if metadata.len() == 0 {
+                &[]
+            } else {
+                file.seek(SeekFrom::End(-1))
+                    .with_context(|| format!("Failed to seek to the end of {}", path.display()))?;
+                file.read_exact(&mut buf)
+                    .with_context(|| format!("Failed to read last byte of {}", path.display()))?;
+                &buf[..]
+            };
+
+            let mut checker = CheckEndWithNewLine::new(eval, "Attached", path.display());
+            checker.add_chunk(chunk)?;
+            checker.add_chunk(&[])?;
         }
         Ok(())
     }
