@@ -442,3 +442,31 @@ impl SanityCheck<IOITask> for AttEndWithNewLine {
         Ok(())
     }
 }
+
+#[derive(Debug, Default)]
+pub struct AttNoDirectory;
+
+impl SanityCheck<IOITask> for AttNoDirectory {
+    fn name(&self) -> &'static str {
+        "AttNoDirectory"
+    }
+
+    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        let dir =
+            std::fs::read_dir(task.path.join("att")).context("Failed to open att/ directory")?;
+        for entry in dir {
+            let entry = entry.context("Error while reading att/ content")?;
+            let path = entry.path();
+            let canonical_path = path
+                .canonicalize()
+                .with_context(|| format!("Failed to find canonical path of {}", path.display()))?;
+            if canonical_path.is_dir() {
+                eval.add_diagnostic(Diagnostic::error(format!(
+                    "Only file attachments are supported: {} is a directory",
+                    task.path_of(&path).display()
+                )))?;
+            }
+        }
+        Ok(())
+    }
+}

@@ -36,6 +36,7 @@ fn get_sanity_check_list(skip: &[String]) -> Vec<Box<dyn SanityCheck<IOITask>>> 
         Box::new(att::AttSampleFilesValid::default()),
         Box::new(att::AttWithNoCheck::default()),
         Box::new(att::AttEndWithNewLine::default()),
+        Box::new(att::AttNoDirectory::default()),
         Box::new(sol::SolGraders::default()),
         Box::new(sol::SolSymlink::default()),
         Box::new(statement::StatementSubtasks::default()),
