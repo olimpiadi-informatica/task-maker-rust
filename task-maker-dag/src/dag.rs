@@ -208,11 +208,23 @@ impl ExecutionDAG {
     ///
     /// If the generation of the file fails (i.e. the `Execution` that produced that file was
     /// unsuccessful) the callback **is called** anyways with the content of the file, if any.
+    ///
+    /// Calling this method twice on the same file will panic (this behaviour can be changed in the
+    /// future).
     pub fn get_file_content<G: Into<FileUuid>, F>(&mut self, file: G, limit: usize, callback: F)
     where
         F: (FnOnce(Vec<u8>) -> Result<(), Error>) + 'static,
     {
-        self.file_callback(file.into()).get_content = Some((limit, Box::new(callback)));
+        let file = file.into();
+        // FIXME: add support for multiple get_content file callbacks on the same file. This may be
+        // needed for the sanity checks.
+        let old = self
+            .file_callback(file)
+            .get_content
+            .replace((limit, Box::new(callback)));
+        if old.is_some() {
+            panic!("Overwriting get_file_content callback for {}", file);
+        }
     }
 
     /// Add a callback that will be called when the execution starts.
