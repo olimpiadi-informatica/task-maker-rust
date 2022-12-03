@@ -52,6 +52,8 @@ impl<Task> SanityChecks<Task> {
     /// Function called for the first pass of sanity checks of the task. This will check all the
     /// statically checkable properties of the task and may add some executions for checking dynamic
     /// properties of the task.
+    ///
+    /// This is executed after the DAG of the task is built.
     pub fn pre_hook(&self, task: &Task, eval: &mut EvaluationData) -> Result<(), Error> {
         let mut state = self.state.lock().unwrap();
         for check in state.sanity_checks.iter_mut() {

@@ -258,9 +258,6 @@ impl IOITask {
             Some(self.grader_map.clone()),
             eval,
         );
-        self.sanity_checks
-            .pre_hook(self, eval)
-            .context("Sanity check pre-hooks failed")?;
 
         let empty_score_manager = ScoreManager::new(self);
         let solutions: Vec<_> = eval
@@ -363,6 +360,9 @@ impl IOITask {
                 .build(eval)
                 .context("Failed to bind booklet compilation")?;
         }
+        self.sanity_checks
+            .pre_hook(self, eval)
+            .context("Sanity check pre-hooks failed")?;
         Ok(())
     }
 
