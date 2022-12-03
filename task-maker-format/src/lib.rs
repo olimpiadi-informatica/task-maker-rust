@@ -256,14 +256,18 @@ impl WriteBinTo {
 
 /// Make a `SourceFile` with each file that match the patterns provided, that is in a recognised
 /// language.
+///
+/// The file name is appended to `description_prefix` and used as description for the source file.
 pub(crate) fn find_source_file<
     CwdPath: AsRef<Path>,
     Pattern: AsRef<str>,
     BasePath: Into<PathBuf>,
+    S: AsRef<str>,
 >(
     cwd: CwdPath,
     patterns: Vec<Pattern>,
     base_path: BasePath,
+    description_prefix: S,
     grader_map: Option<Arc<GraderMap>>,
     write_bin_to: WriteBinTo,
 ) -> Vec<SourceFile> {
@@ -276,9 +280,17 @@ pub(crate) fn find_source_file<
                 WriteBinTo::WithoutExtension => Some(path.with_extension("")),
                 WriteBinTo::Path(path) => Some(base_path.join(path)),
             };
+            let name = path.strip_prefix(&base_path).unwrap_or(&path);
             // SourceFile::new may fail if the language is unknown
             result.push(
-                SourceFile::new(&path, &base_path, grader_map.clone(), write_bin_to).unwrap(),
+                SourceFile::new(
+                    &path,
+                    &base_path,
+                    format!("{} {}", description_prefix.as_ref(), name.display()),
+                    grader_map.clone(),
+                    write_bin_to,
+                )
+                .unwrap(),
             );
         }
     }
@@ -380,6 +392,7 @@ mod tests {
             tmpdir.path(),
             vec!["foo/bar/*.py"],
             "",
+            "",
             None,
             WriteBinTo::None,
         );
@@ -394,7 +407,14 @@ mod tests {
         std::fs::create_dir_all(tmpdir.path().join("foo")).unwrap();
         std::fs::write(tmpdir.path().join("foo/xxx.py"), "x").unwrap();
         std::fs::write(tmpdir.path().join("foo/zzz.py"), "x").unwrap();
-        let source = find_source_file(tmpdir.path(), vec!["foo/*.py"], "", None, WriteBinTo::None);
+        let source = find_source_file(
+            tmpdir.path(),
+            vec!["foo/*.py"],
+            "",
+            "",
+            None,
+            WriteBinTo::None,
+        );
         assert_eq!(source.len(), 2);
     }
 
@@ -406,6 +426,7 @@ mod tests {
         let source = find_source_file(
             tmpdir.path(),
             vec!["foo/bar/*.py"],
+            "",
             "",
             None,
             WriteBinTo::None,

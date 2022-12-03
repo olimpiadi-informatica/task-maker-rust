@@ -24,7 +24,8 @@ fn test_ioi_task_execute_gen() {
     let mut task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::write(tmpdir.path().join("gen.py"), "x").unwrap();
-    let source = SourceFile::new(tmpdir.path().join("gen.py"), "", None, None::<PathBuf>).unwrap();
+    let source =
+        SourceFile::new(tmpdir.path().join("gen.py"), "", "", None, None::<PathBuf>).unwrap();
     let gen = InputGenerator::Custom(Arc::new(source), vec![]);
     task.subtasks
         .get_mut(&0)
@@ -47,7 +48,8 @@ fn test_ioi_task_execute_val() {
     let mut task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::write(tmpdir.path().join("val.py"), "x").unwrap();
-    let source = SourceFile::new(tmpdir.path().join("val.py"), "", None, None::<PathBuf>).unwrap();
+    let source =
+        SourceFile::new(tmpdir.path().join("val.py"), "", "", None, None::<PathBuf>).unwrap();
     let val = InputValidator::Custom(Arc::new(source), vec![]);
     task.subtasks
         .get_mut(&0)
@@ -70,7 +72,8 @@ fn test_ioi_task_execute_sol() {
     let mut task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::write(tmpdir.path().join("sol.py"), "x").unwrap();
-    let source = SourceFile::new(tmpdir.path().join("sol.py"), "", None, None::<PathBuf>).unwrap();
+    let source =
+        SourceFile::new(tmpdir.path().join("sol.py"), "", "", None, None::<PathBuf>).unwrap();
     let sol = OutputGenerator::Custom(Arc::new(source), vec![]);
     task.subtasks
         .get_mut(&0)

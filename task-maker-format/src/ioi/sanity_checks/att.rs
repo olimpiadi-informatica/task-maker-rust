@@ -508,24 +508,15 @@ impl SanityCheck<IOITask> for AttTemplatesShouldCompile {
             let source_file = SourceFile::new(
                 template,
                 &task.path,
+                format!(
+                    "Template {} compiled with attached grader {}",
+                    att_name, att_grader_name
+                ),
                 Some(Arc::new(grader_map)),
                 None::<String>,
             );
             if let Some(source_file) = source_file {
-                let comp = source_file.prepare(eval)?;
-                if let Some(uuid) = comp {
-                    let sender = eval.sender.clone();
-                    eval.dag.on_execution_done(&uuid, move |result| {
-                        if !result.status.is_success() {
-                            let diagnostic = Diagnostic::error(format!(
-                                "Template {} failed to compile with grader {}",
-                                att_name, att_grader_name
-                            ));
-                            sender.add_diagnostic(diagnostic)?;
-                        }
-                        Ok(())
-                    });
-                }
+                source_file.prepare(eval)?;
             }
         }
         Ok(())

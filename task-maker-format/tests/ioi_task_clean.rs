@@ -74,8 +74,14 @@ fn test_ioi_task_clean_checker() {
     std::fs::write(check.join("checker"), "x").unwrap();
     std::fs::write(cor.join("correttore"), "x").unwrap();
     std::fs::write(tmpdir.path().join("check.py"), "x").unwrap();
-    let source =
-        SourceFile::new(tmpdir.path().join("check.py"), "", None, None::<PathBuf>).unwrap();
+    let source = SourceFile::new(
+        tmpdir.path().join("check.py"),
+        "",
+        "",
+        None,
+        None::<PathBuf>,
+    )
+    .unwrap();
     if let TaskType::Batch(data) = &mut task.task_type {
         data.checker = Checker::Custom(Arc::new(source));
     }

@@ -64,6 +64,7 @@ fn get_manager(task_dir: &Path, manager: &str) -> Result<Option<Arc<SourceFile>>
         task_dir,
         vec![&format!("managers/{}.*", manager)],
         task_dir,
+        "Terry manager at",
         None,
         WriteBinTo::path(format!("managers/{}.{}", manager, *EXE_EXTENSION)),
     );

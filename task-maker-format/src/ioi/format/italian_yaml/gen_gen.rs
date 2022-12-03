@@ -67,6 +67,7 @@ where
             "gen/generatore",
         ],
         task_dir,
+        "Input file generator at",
         None,
         WriteBinTo::path("bin/generator"),
     );
@@ -223,7 +224,7 @@ mod tests {
     }
 
     fn get_output_generator(_testcase: TestcaseId) -> OutputGenerator {
-        let source = SourceFile::new("a.py", "", None, None::<&str>).unwrap();
+        let source = SourceFile::new("a.py", "", "", None, None::<&str>).unwrap();
         OutputGenerator::Custom(Arc::new(source), vec![])
     }
 

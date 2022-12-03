@@ -188,7 +188,7 @@ mod tests {
         let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("gen.py");
         std::fs::write(&path, "x").unwrap();
-        let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
+        let source = SourceFile::new(&path, "", "", None, None::<PathBuf>).unwrap();
         let generator = InputGenerator::Custom(Arc::new(source), vec![]);
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let out = generator.generate_and_bind(&mut eval, 0, 0).unwrap();
@@ -224,7 +224,7 @@ mod tests {
         let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("val.py");
         std::fs::write(&path, "x").unwrap();
-        let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
+        let source = SourceFile::new(&path, "", "", None, None::<PathBuf>).unwrap();
         let validator = InputValidator::Custom(Arc::new(source), vec![]);
         let file = File::new("input");
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
@@ -248,7 +248,7 @@ mod tests {
         let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("val.py");
         std::fs::write(&path, "x").unwrap();
-        let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
+        let source = SourceFile::new(&path, "", "", None, None::<PathBuf>).unwrap();
         let validator = InputValidator::Custom(Arc::new(source), vec![]);
         let file = File::new("input");
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
@@ -311,7 +311,7 @@ mod tests {
         let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("sol.py");
         std::fs::write(&path, "x").unwrap();
-        let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
+        let source = SourceFile::new(&path, "", "", None, None::<PathBuf>).unwrap();
         let generator = OutputGenerator::Custom(Arc::new(source), vec![]);
         let file = File::new("input");
         let val = File::new("validation");
@@ -444,7 +444,7 @@ mod tests {
         let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("check.py");
         std::fs::write(&path, "x").unwrap();
-        let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
+        let source = SourceFile::new(&path, "", "", None, None::<PathBuf>).unwrap();
         let checker = Checker::Custom(Arc::new(source));
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let input = File::new("input").uuid;
@@ -469,7 +469,7 @@ mod tests {
         let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("check.py");
         std::fs::write(&path, "x").unwrap();
-        let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
+        let source = SourceFile::new(&path, "", "", None, None::<PathBuf>).unwrap();
         let checker = Checker::Custom(Arc::new(source));
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let input = File::new("input").uuid;
@@ -507,7 +507,7 @@ mod tests {
         let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("check.py");
         std::fs::write(&path, "x").unwrap();
-        let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
+        let source = SourceFile::new(&path, "", "", None, None::<PathBuf>).unwrap();
         let checker = Checker::Custom(Arc::new(source));
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let input = File::new("input").uuid;
@@ -545,7 +545,7 @@ mod tests {
         let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("check.py");
         std::fs::write(&path, "x").unwrap();
-        let source = SourceFile::new(&path, "", None, None::<PathBuf>).unwrap();
+        let source = SourceFile::new(&path, "", "", None, None::<PathBuf>).unwrap();
         let checker = Checker::Custom(Arc::new(source));
         let (mut eval, recv) = EvaluationData::new(tmpdir.path());
         let input = File::new("input").uuid;

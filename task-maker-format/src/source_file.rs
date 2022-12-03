@@ -20,19 +20,22 @@ use crate::{bind_exec_callbacks, UISender};
 pub struct SourceFile {
     #[serde(flatten)]
     base: task_maker_lang::SourceFile,
+    description: String,
 }
 
 impl SourceFile {
     /// Make a new `SourceFile`. See
     /// [`task_maker_lang::SourceFile`](../task_maker_lang/struct.SourceFile.html) for the details.
-    pub fn new<P: Into<PathBuf>, P2: Into<PathBuf>, P3: Into<PathBuf>>(
+    pub fn new<P: Into<PathBuf>, P2: Into<PathBuf>, P3: Into<PathBuf>, S: Into<String>>(
         path: P,
         base_path: P3,
+        description: S,
         grader_map: Option<Arc<GraderMap>>,
         write_bin_to: Option<P2>,
     ) -> Option<SourceFile> {
         Some(SourceFile {
             base: task_maker_lang::SourceFile::new(path, base_path, grader_map, write_bin_to)?,
+            description: description.into(),
         })
     }
 
@@ -96,10 +99,12 @@ impl SourceFile {
                 .unwrap_or(&self.path)
                 .to_owned();
             let sender = eval.sender.clone();
+            let description = self.description.clone();
             eval.dag.on_execution_done(&comp_uuid, move |result| {
                 if !result.status.is_success() {
                     let mut diagnostic =
-                        Diagnostic::error(format!("Failed to compile {}", path.display()));
+                        Diagnostic::error(format!("Failed to compile {}", path.display()))
+                            .with_note(description);
                     if let Some(stderr) = result.stderr {
                         diagnostic = diagnostic.with_help_attachment(stderr);
                     }

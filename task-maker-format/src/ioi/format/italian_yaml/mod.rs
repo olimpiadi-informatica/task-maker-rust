@@ -535,6 +535,7 @@ fn detect_validator(
             "gen/valida",
         ],
         &task_dir,
+        "Input file validator at",
         None,
         WriteBinTo::path("bin/validator"),
     );
@@ -576,6 +577,7 @@ fn detect_output_generator(
             "sol/soluzione",
         ],
         &task_dir,
+        "Official solution at",
         Some(grader_map),
         WriteBinTo::path("bin/official_solution"),
     );
@@ -604,6 +606,7 @@ fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> Result<
         task_dir,
         vec!["check/checker.*", "cor/correttore.*"],
         task_dir,
+        "Checker at",
         None,
         WriteBinTo::WithoutExtension,
     );
@@ -645,6 +648,7 @@ fn parse_communication_task_data(
         task_dir,
         vec!["check/manager.*", "cor/manager.*"],
         task_dir,
+        "Communication manager at",
         None,
         WriteBinTo::WithoutExtension,
     );

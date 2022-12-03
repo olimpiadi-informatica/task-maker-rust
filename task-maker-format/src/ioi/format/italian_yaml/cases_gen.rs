@@ -388,6 +388,7 @@ where
             let source = SourceFile::new(
                 &path,
                 task_dir,
+                format!("The {} named {}", kind, name),
                 None,
                 Some(
                     task_dir

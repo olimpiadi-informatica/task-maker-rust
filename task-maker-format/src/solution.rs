@@ -36,7 +36,13 @@ impl Solution {
             .join("bin")
             .join("sol")
             .join(path.file_name().unwrap());
-        let source_file = SourceFile::new(path, base_dir, grader_map, Some(write_to))?;
+        let source_file = SourceFile::new(
+            path,
+            base_dir,
+            format!("Solution at {}", path.display()),
+            grader_map,
+            Some(write_to),
+        )?;
         Some(Self {
             source_file: Arc::new(source_file),
             checks: SolutionCheck::extract_check_list(path, eval).ok()?,
@@ -361,7 +367,7 @@ mod tests {
         let checks = get_checks(
             "
            /*
-            * @check-accepted: \tst1 \t\u{000B}\u{000C}\u{00A0}\u{1680}\u{2000}\u{2001}\u{2002}\u{2003}\u{2004}\u{2005}\u{2006}\u{200A} st2\t  \t   
+            * @check-accepted: \tst1 \t\u{000B}\u{000C}\u{00A0}\u{1680}\u{2000}\u{2001}\u{2002}\u{2003}\u{2004}\u{2005}\u{2006}\u{200A} st2\t  \t
             */
         ",
         )
