@@ -1,6 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Error};
 use itertools::Itertools;
@@ -8,11 +9,12 @@ use regex::Regex;
 
 use task_maker_dag::File;
 use task_maker_diagnostics::Diagnostic;
+use task_maker_lang::GraderMap;
 
 use crate::ioi::sanity_checks::check_missing_graders;
 use crate::ioi::{IOITask, InputGenerator, TaskType, TestcaseId};
 use crate::sanity_checks::SanityCheck;
-use crate::{list_files, EvaluationData, SolutionCheck, UISender};
+use crate::{list_files, EvaluationData, SolutionCheck, SourceFile, UISender};
 
 use super::io::CheckEndWithNewLine;
 
@@ -465,6 +467,65 @@ impl SanityCheck<IOITask> for AttNoDirectory {
                     "Only file attachments are supported: {} is a directory",
                     task.path_of(&path).display()
                 )))?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Check that the template and grader in att compile together
+#[derive(Debug, Default)]
+pub struct AttTemplatesShouldCompile;
+
+impl SanityCheck<IOITask> for AttTemplatesShouldCompile {
+    fn name(&self) -> &'static str {
+        "AttTemplatesShouldCompile"
+    }
+
+    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        for grader in task.grader_map.all_paths() {
+            let ext = grader
+                .extension()
+                .ok_or_else(|| anyhow!("Grader has no extension"))?
+                .to_string_lossy();
+            let att_name = format!("att/{}.{}", task.name, ext);
+            let template = task.path.join(&att_name);
+
+            let grader_name = grader
+                .file_name()
+                .ok_or_else(|| anyhow!("Grader has no file name"))?
+                .to_string_lossy();
+            let att_grader_name = format!("att/{}", grader_name);
+            let att_grader = task.path.join(&att_grader_name);
+
+            // Only run the check if the grader is not a symlink, as otherwise we are already
+            // testing this when evaluating sol/template.<ext>
+            if att_grader.is_symlink() {
+                continue;
+            }
+            let grader_map = GraderMap::new(vec![att_grader]);
+
+            let source_file = SourceFile::new(
+                template,
+                &task.path,
+                Some(Arc::new(grader_map)),
+                None::<String>,
+            );
+            if let Some(source_file) = source_file {
+                let comp = source_file.prepare(eval)?;
+                if let Some(uuid) = comp {
+                    let sender = eval.sender.clone();
+                    eval.dag.on_execution_done(&uuid, move |result| {
+                        if !result.status.is_success() {
+                            let diagnostic = Diagnostic::error(format!(
+                                "Template {} failed to compile with grader {}",
+                                att_name, att_grader_name
+                            ));
+                            sender.add_diagnostic(diagnostic)?;
+                        }
+                        Ok(())
+                    });
+                }
             }
         }
         Ok(())

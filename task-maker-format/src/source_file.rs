@@ -61,10 +61,10 @@ impl SourceFile {
 
     /// Prepare an execution of the source file, eventually adding the compilation to the DAG.
     /// The compilation messages are sent to the UI.
-    pub fn prepare(&self, eval: &mut EvaluationData) -> Result<(), Error> {
+    pub fn prepare(&self, eval: &mut EvaluationData) -> Result<Option<ExecutionUuid>, Error> {
         let comp = self.base.prepare(&mut eval.dag)?;
         self.bind_compilation_exe(eval, comp)?;
-        Ok(())
+        Ok(comp)
     }
 
     /// Prepare the source file if needed and return the executable file.
