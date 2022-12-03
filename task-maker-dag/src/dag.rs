@@ -227,6 +227,21 @@ impl ExecutionDAG {
         }
     }
 
+    /// Call `callback` with the chunks of the file when it's ready. The file must be present in
+    /// the DAG before the evaluation starts.
+    ///
+    /// If the generation of the file fails (i.e. the `Execution` that produced that file was
+    /// unsuccessful) the callback **is called** anyways with the content of the file, if any.
+    pub fn get_file_content_chunked<G: Into<FileUuid>, F>(&mut self, file: G, callback: F)
+    where
+        F: (FnMut(&[u8]) -> Result<(), Error>) + 'static,
+    {
+        let file = file.into();
+        self.file_callback(file)
+            .get_content_chunked
+            .push(Box::new(callback));
+    }
+
     /// Add a callback that will be called when the execution starts.
     pub fn on_execution_start<F>(&mut self, execution: &ExecutionUuid, callback: F)
     where

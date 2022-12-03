@@ -11,6 +11,8 @@ pub type FileUuid = Uuid;
 
 /// Type of the callback called when a file is returned to the client.
 pub type GetContentCallback = Box<dyn FnOnce(Vec<u8>) -> Result<(), Error> + 'static>;
+/// Type of the callback called with the chunks of a file when it's ready.
+pub type GetContentChunkedCallback = Box<dyn FnMut(&[u8]) -> Result<(), Error> + 'static>;
 
 /// Where to write the file to with some other information.
 #[derive(Debug, Clone)]
@@ -30,6 +32,8 @@ pub struct FileCallbacks {
     pub write_to: Option<WriteToCallback>,
     /// Callback to be called with the first bytes of the file.
     pub get_content: Option<(usize, GetContentCallback)>,
+    /// Callbacks to be called with the chunks of a file ready.
+    pub get_content_chunked: Vec<GetContentChunkedCallback>,
 }
 
 /// An handle to a file in the evaluation, this only tracks dependencies between executions.

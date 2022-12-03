@@ -412,10 +412,17 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
                 file.write_all(&chunk)
                     .with_context(|| format!("Failed to write chunk to {}", dest.display()))?;
             }
+            for get_content_chunked in &mut callback.get_content_chunked {
+                get_content_chunked(&chunk).context("Get content chunked callback failed")?;
+            }
             if buffer.len() < limit {
                 let len = std::cmp::min(chunk.len(), limit - buffer.len());
                 buffer.extend_from_slice(&chunk[..len]);
             }
+        }
+        // Tell the callbacks the file has ended.
+        for get_content_chunked in &mut callback.get_content_chunked {
+            get_content_chunked(&[]).context("Get content chunked callback failed")?;
         }
         drop(file);
         if let Some(write_to) = &callback.write_to {
