@@ -495,7 +495,8 @@ impl SanityCheck<IOITask> for AttTemplatesShouldCompile {
                 .file_name()
                 .ok_or_else(|| anyhow!("Grader has no file name"))?
                 .to_string_lossy();
-            let att_grader = task.path.join(format!("att/{}", grader_name));
+            let att_grader_name = format!("att/{}", grader_name);
+            let att_grader = task.path.join(&att_grader_name);
 
             let grader_map = GraderMap::new(vec![att_grader]);
 
@@ -505,7 +506,20 @@ impl SanityCheck<IOITask> for AttTemplatesShouldCompile {
                 Some(Arc::new(grader_map)),
                 None::<String>,
             ) {
-                source_file.prepare(eval)?;
+                let comp = source_file.prepare(eval)?;
+                if let Some(uuid) = comp {
+                    let sender = eval.sender.clone();
+                    eval.dag.on_execution_done(&uuid, move |result| {
+                        if !result.status.is_success() {
+                            let diagnostic = Diagnostic::error(format!(
+                                "Template {} failed to compile with grader {}",
+                                att_name, att_grader_name
+                            ));
+                            sender.add_diagnostic(diagnostic)?;
+                        }
+                        Ok(())
+                    });
+                }
             }
         }
         Ok(())
