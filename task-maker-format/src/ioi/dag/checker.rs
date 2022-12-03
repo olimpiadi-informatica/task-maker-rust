@@ -109,7 +109,7 @@ impl Checker {
                                 testcase_id
                             )
                         } else {
-                            format!("Checker failed while computing a score for a testcase")
+                            "Checker failed while computing a score for a testcase".into()
                         };
                         let diagnostic = Diagnostic::error(message)
                             .with_note(description)
