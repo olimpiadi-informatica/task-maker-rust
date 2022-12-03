@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use task_maker_diagnostics::Diagnostic;
 
 mod att;
+mod checker;
 mod io;
 mod sol;
 mod statement;
@@ -47,6 +48,7 @@ fn get_sanity_check_list(skip: &[String]) -> Vec<Box<dyn SanityCheck<IOITask>>> 
         Box::new(subtasks::SolutionsWithNoChecks::default()),
         Box::new(subtasks::InvalidSubtaskName::default()),
         Box::new(io::IOEndWithNewLine::default()),
+        Box::new(checker::FuzzCheckerWithJunkOutput::default()),
     ];
     all.into_iter()
         .filter(|s| !skip.contains(&s.name().into()))

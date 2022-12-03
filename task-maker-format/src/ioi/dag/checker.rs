@@ -36,7 +36,7 @@ impl Checker {
     pub(crate) fn check<F>(
         &self,
         eval: &mut EvaluationData,
-        testcase_id: TestcaseId,
+        testcase_id: Option<TestcaseId>,
         description: String,
         input: FileUuid,
         correct_output: FileUuid,
@@ -58,7 +58,7 @@ impl Checker {
                 .input(correct_output, "correct", false)
                 .input(test_output, "test", false)
                 .tag(Tag::Checking.into())
-                .priority(EVALUATION_PRIORITY - testcase_id as Priority);
+                .priority(EVALUATION_PRIORITY - testcase_id.unwrap_or_default() as Priority);
 
                 eval.dag.on_execution_done(&exec.uuid, move |result| {
                     match result.status {
@@ -90,7 +90,7 @@ impl Checker {
                     .tag(Tag::Checking.into())
                     .capture_stdout(128)
                     .capture_stderr(STDERR_CONTENT_LENGTH)
-                    .priority(EVALUATION_PRIORITY - testcase_id as Priority);
+                    .priority(EVALUATION_PRIORITY - testcase_id.unwrap_or_default() as Priority);
                 exec.limits_mut().allow_multiprocess();
                 let sender = eval.sender.clone();
                 eval.dag.on_execution_done(&exec.uuid, move |res| {
@@ -103,13 +103,18 @@ impl Checker {
                     let message = String::from_utf8_lossy(&stderr).trim().to_string();
                     let message = Self::translate_checker_message(message);
                     if !res.status.is_success() {
-                        let diagnostic = Diagnostic::error(format!(
-                            "Checker failed while computing a score for testcase {}",
-                            testcase_id
-                        ))
-                        .with_note(description)
-                        .with_help(format!("The checker crashed with: {:?}", res.status))
-                        .with_help_attachment(stderr);
+                        let message = if let Some(testcase_id) = testcase_id {
+                            format!(
+                                "Checker failed while computing a score for testcase {}",
+                                testcase_id
+                            )
+                        } else {
+                            format!("Checker failed while computing a score for a testcase")
+                        };
+                        let diagnostic = Diagnostic::error(message)
+                            .with_note(description)
+                            .with_help(format!("The checker crashed with: {:?}", res.status))
+                            .with_help_attachment(stderr);
                         sender.add_diagnostic(diagnostic)?;
                         return Ok(());
                     }
@@ -117,13 +122,18 @@ impl Checker {
                     let score: f64 = match score.trim().parse() {
                         Ok(score) => score,
                         Err(e) => {
-                            let diagnostic = Diagnostic::error(format!(
-                                "Checker returned an invalid score ({:?}) for testcase {}",
-                                score, testcase_id
-                            ))
-                            .with_note(description)
-                            .with_help(format!("The parse error is: {:?}", e))
-                            .with_help_attachment(stdout);
+                            let message = if let Some(testcase_id) = testcase_id {
+                                format!(
+                                    "Checker returned an invalid score ({:?}) for testcase {}",
+                                    score, testcase_id
+                                )
+                            } else {
+                                format!("Checker returned an invalid score ({:?})", score)
+                            };
+                            let diagnostic = Diagnostic::error(message)
+                                .with_note(description)
+                                .with_help(format!("The parse error is: {:?}", e))
+                                .with_help_attachment(stdout);
                             sender.add_diagnostic(diagnostic)?;
                             return Ok(());
                         }
@@ -155,7 +165,7 @@ impl Checker {
         let solution = solution.into();
         let exec = self.check(
             eval,
-            testcase_id,
+            Some(testcase_id),
             format!(
                 "Checking output of {:?} of testcase {}, subtask {}",
                 solution.file_name().unwrap(),

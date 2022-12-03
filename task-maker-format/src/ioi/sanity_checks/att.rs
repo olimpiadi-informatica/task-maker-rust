@@ -273,7 +273,7 @@ impl SanityCheck<IOITask> for AttSampleFilesValid {
                     .checker
                     .check(
                         eval,
-                        0,
+                        None,
                         format!("Checking sample output {}", output_name.display()),
                         input_uuid,
                         correct_output,
