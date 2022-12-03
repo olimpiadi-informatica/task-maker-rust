@@ -191,9 +191,13 @@ impl ChannelFileSender {
         sender
             .send_raw(&data)
             .context("Failed to send file chunk")?;
-        sender
-            .send_raw(&[])
-            .context("Failed to send file terminator")?;
+        // Send the EOF chunk only if the buffer is not empty (otherwise we would send EOF twice
+        // breaking the protocol).
+        if !data.is_empty() {
+            sender
+                .send_raw(&[])
+                .context("Failed to send file terminator")?;
+        }
         Ok(())
     }
 }
