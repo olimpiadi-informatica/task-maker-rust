@@ -330,14 +330,13 @@ where
             }
         }
         let generator = InputGenerator::Custom(generator.source.clone(), args);
-        self.result.push(TaskInputEntry::Testcase(TestcaseInfo {
-            id: self.testcase_id,
-            input_generator: generator,
-            input_validator: self
-                .get_validator(&variables)
+        self.result.push(TaskInputEntry::Testcase(TestcaseInfo::new(
+            self.testcase_id,
+            generator,
+            self.get_validator(&variables)
                 .context("Cannot get testcase validator")?,
-            output_generator: (self.get_output_gen)(self.testcase_id),
-        }));
+            (self.get_output_gen)(self.testcase_id),
+        )));
         self.testcase_id += 1;
         Ok(())
     }
@@ -560,14 +559,13 @@ where
                 path.display()
             );
         }
-        self.result.push(TaskInputEntry::Testcase(TestcaseInfo {
-            id: self.testcase_id,
-            input_generator: InputGenerator::StaticFile(path),
-            input_validator: self
-                .get_validator(&self.get_auto_variables())
+        self.result.push(TaskInputEntry::Testcase(TestcaseInfo::new(
+            self.testcase_id,
+            InputGenerator::StaticFile(path),
+            self.get_validator(&self.get_auto_variables())
                 .context("Cannot get testcase validator")?,
-            output_generator: (self.get_output_gen)(self.testcase_id),
-        }));
+            (self.get_output_gen)(self.testcase_id),
+        )));
         self.testcase_id += 1;
         Ok(())
     }

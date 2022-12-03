@@ -67,12 +67,12 @@ impl RuntimeContext {
     /// execution DAG for the execution. The closure is given a reference to the given task and a
     /// reference to the evaluation data.
     pub fn new<BuildDag>(
-        task: TaskFormat,
+        mut task: TaskFormat,
         opt: &ExecutionOpt,
         build_dag: BuildDag,
     ) -> Result<Self, Error>
     where
-        BuildDag: FnOnce(&TaskFormat, &mut EvaluationData) -> Result<(), Error>,
+        BuildDag: FnOnce(&mut TaskFormat, &mut EvaluationData) -> Result<(), Error>,
     {
         let (mut eval, ui_receiver) = EvaluationData::new(task.path());
 
@@ -98,7 +98,7 @@ impl RuntimeContext {
         }
 
         // build the execution dag
-        build_dag(&task, &mut eval)?;
+        build_dag(&mut task, &mut eval)?;
 
         trace!("The DAG is: {:#?}", eval.dag);
         if opt.copy_dag {

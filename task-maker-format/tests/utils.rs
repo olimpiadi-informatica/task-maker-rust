@@ -47,12 +47,12 @@ pub fn new_task_with_context(path: &Path) -> IOITask {
         testcases: HashMap::default(),
         span: None,
     });
-    st0.testcases.entry(0).or_insert(TestcaseInfo {
-        id: 0,
-        input_generator: InputGenerator::StaticFile(p.clone()),
-        input_validator: InputValidator::AssumeValid,
-        output_generator: OutputGenerator::StaticFile(p.clone()),
-    });
+    st0.testcases.entry(0).or_insert(TestcaseInfo::new(
+        0,
+        InputGenerator::StaticFile(p.clone()),
+        InputValidator::AssumeValid,
+        OutputGenerator::StaticFile(p.clone()),
+    ));
     let st1 = task.subtasks.entry(1).or_insert(SubtaskInfo {
         id: 1,
         name: None,
@@ -61,18 +61,18 @@ pub fn new_task_with_context(path: &Path) -> IOITask {
         testcases: HashMap::default(),
         span: None,
     });
-    st1.testcases.entry(1).or_insert(TestcaseInfo {
-        id: 1,
-        input_generator: InputGenerator::StaticFile(p.clone()),
-        input_validator: InputValidator::AssumeValid,
-        output_generator: OutputGenerator::StaticFile(p.clone()),
-    });
-    st1.testcases.entry(2).or_insert(TestcaseInfo {
-        id: 2,
-        input_generator: InputGenerator::StaticFile(p.clone()),
-        input_validator: InputValidator::AssumeValid,
-        output_generator: OutputGenerator::StaticFile(p),
-    });
+    st1.testcases.entry(1).or_insert(TestcaseInfo::new(
+        1,
+        InputGenerator::StaticFile(p.clone()),
+        InputValidator::AssumeValid,
+        OutputGenerator::StaticFile(p.clone()),
+    ));
+    st1.testcases.entry(2).or_insert(TestcaseInfo::new(
+        2,
+        InputGenerator::StaticFile(p.clone()),
+        InputValidator::AssumeValid,
+        OutputGenerator::StaticFile(p),
+    ));
     task
 }
 

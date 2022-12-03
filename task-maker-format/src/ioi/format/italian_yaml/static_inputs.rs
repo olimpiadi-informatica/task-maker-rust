@@ -49,12 +49,12 @@ where
         let path = self.path.join(format!("input{}.txt", id));
         if path.exists() {
             self.index += 1;
-            Some(TaskInputEntry::Testcase(TestcaseInfo {
+            Some(TaskInputEntry::Testcase(TestcaseInfo::new(
                 id,
-                input_generator: InputGenerator::StaticFile(path),
-                input_validator: (self.get_validator)(Some(0)),
-                output_generator: (self.get_output_gen)(id),
-            }))
+                InputGenerator::StaticFile(path),
+                (self.get_validator)(Some(0)),
+                (self.get_output_gen)(id),
+            )))
         } else {
             None
         }

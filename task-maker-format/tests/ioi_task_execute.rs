@@ -11,7 +11,7 @@ mod utils;
 #[test]
 fn test_ioi_task_execute_copy() {
     let tmpdir = tempfile::TempDir::new().unwrap();
-    let task = utils::new_task_with_context(tmpdir.path());
+    let mut task = utils::new_task_with_context(tmpdir.path());
     let (mut eval, _receiver) = EvaluationData::new(tmpdir.path());
     task.build_dag(&mut eval, &EvaluationConfig::default())
         .unwrap();
@@ -90,7 +90,7 @@ fn test_ioi_task_execute_sol() {
 #[test]
 fn test_ioi_task_execute_eval() {
     let tmpdir = tempfile::TempDir::new().unwrap();
-    let task = utils::new_task_with_context(tmpdir.path());
+    let mut task = utils::new_task_with_context(tmpdir.path());
 
     std::fs::create_dir(tmpdir.path().join("sol")).unwrap();
     std::fs::write(tmpdir.path().join("sol").join("sol.py"), "foo").unwrap();

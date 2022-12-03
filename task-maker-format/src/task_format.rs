@@ -41,7 +41,7 @@ impl TaskFormat {
 
     /// Add the executions required for evaluating this task to the execution DAG.
     pub fn build_dag(
-        &self,
+        &mut self,
         eval: &mut EvaluationData,
         config: &EvaluationConfig,
     ) -> Result<(), Error> {

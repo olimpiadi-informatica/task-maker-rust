@@ -33,7 +33,7 @@ pub use dag::*;
 pub use format::italian_yaml;
 pub use statement::*;
 pub use task_info::*;
-use task_maker_dag::ExecutionDAGConfig;
+use task_maker_dag::{ExecutionDAGConfig, FileUuid};
 use task_maker_diagnostics::CodeSpan;
 use task_maker_lang::GraderMap;
 pub use ui_state::*;
@@ -177,6 +177,10 @@ pub struct TestcaseInfo {
     pub input_validator: InputValidator,
     /// The generator of the output file for this testcase.
     pub output_generator: OutputGenerator,
+    /// The generated input file UUID. This is set only after the DAG is built.
+    pub input_file: Option<FileUuid>,
+    /// The generated official output file UUID. This is set only after the DAG is built.
+    pub official_output_file: Option<FileUuid>,
 }
 
 impl IOITask {
@@ -241,7 +245,7 @@ impl IOITask {
 
     /// Add the executions required for evaluating this task to the execution DAG.
     pub fn build_dag(
-        &self,
+        &mut self,
         eval: &mut EvaluationData,
         config: &EvaluationConfig,
     ) -> Result<(), Error> {
@@ -278,6 +282,8 @@ impl IOITask {
             .prepare_dag(eval)
             .context("Failed to prepare DAG")?;
 
+        let mut generated_io: HashMap<_, HashMap<_, _>> = HashMap::new();
+
         for subtask in self.subtasks.values() {
             trace!("Executing the generation of subtask {}", subtask.id);
 
@@ -306,6 +312,12 @@ impl IOITask {
                     .output_generator
                     .generate_and_bind(self, eval, subtask.id, testcase.id, input, val_handle)
                     .context("Failed to bind output generator")?;
+                // Store the generated input and output files for setting them into the task
+                // outside the loop.
+                generated_io
+                    .entry(subtask.id)
+                    .or_default()
+                    .insert(testcase.id, (input, output));
 
                 for (solution, score_manager) in solutions.iter() {
                     trace!(
@@ -329,6 +341,21 @@ impl IOITask {
                         )
                         .context("Failed to bind evaluation")?;
                 }
+            }
+        }
+        // Store inside the task the FileUuid of the input and official output files. This cannot
+        // be done while generating because task cannot be borrowed mutably in the loop.
+        for (subtask_id, subtask) in generated_io {
+            for (testcase_id, (input, output)) in subtask {
+                let testcase = self
+                    .subtasks
+                    .get_mut(&subtask_id)
+                    .unwrap()
+                    .testcases
+                    .get_mut(&testcase_id)
+                    .unwrap();
+                testcase.input_file = Some(input);
+                testcase.official_output_file = output;
             }
         }
         for booklet in self.booklets.iter() {
@@ -460,6 +487,25 @@ impl SubtaskInfo {
             pattern.matches(name)
         } else {
             false
+        }
+    }
+}
+
+impl TestcaseInfo {
+    /// Make a new instance of [`TestcaseInfo`].
+    pub fn new(
+        id: TestcaseId,
+        input_generator: InputGenerator,
+        input_validator: InputValidator,
+        output_generator: OutputGenerator,
+    ) -> Self {
+        Self {
+            id,
+            input_generator,
+            input_validator,
+            output_generator,
+            input_file: None,
+            official_output_file: None,
         }
     }
 }

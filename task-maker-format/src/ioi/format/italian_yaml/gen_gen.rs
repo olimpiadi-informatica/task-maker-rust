@@ -143,12 +143,12 @@ where
                             .next()
                             .ok_or_else(|| anyhow!("Corrupted parser"))?
                             .as_str();
-                        entries.push(TaskInputEntry::Testcase(TestcaseInfo {
-                            id: testcase_count,
-                            input_generator: InputGenerator::StaticFile(task_dir.join(what)),
-                            input_validator: get_validator(Some(subtask_id - 1)),
-                            output_generator: get_output_gen(testcase_count),
-                        }));
+                        entries.push(TaskInputEntry::Testcase(TestcaseInfo::new(
+                            testcase_count,
+                            InputGenerator::StaticFile(task_dir.join(what)),
+                            get_validator(Some(subtask_id - 1)),
+                            get_output_gen(testcase_count),
+                        )));
                         testcase_count += 1;
                     }
                     parser::Rule::command => {
@@ -162,12 +162,12 @@ where
                         if let OutputGenerator::StaticFile(_) = output_generator {
                             bail!("Generator detected but no solution found. Cannot generate output files.");
                         }
-                        entries.push(TaskInputEntry::Testcase(TestcaseInfo {
-                            id: testcase_count,
-                            input_generator: InputGenerator::Custom(generator.clone(), cmd),
-                            input_validator: get_validator(Some(subtask_id - 1)),
+                        entries.push(TaskInputEntry::Testcase(TestcaseInfo::new(
+                            testcase_count,
+                            InputGenerator::Custom(generator.clone(), cmd),
+                            get_validator(Some(subtask_id - 1)),
                             output_generator,
-                        }));
+                        )));
                         testcase_count += 1;
                     }
                     parser::Rule::comment => {}
