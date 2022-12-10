@@ -31,7 +31,7 @@ scopeguard = "1.0"
 # Sandbox
 tabox = "1"
 # For killing processes and making FIFOs
-nix = "0.24"
+nix = "0.26"
 # In-memory and remote channels
 ductile = "0.2"
 # Key Derivation Function from a password
@@ -41,4 +41,4 @@ typescript-definitions = { git = "https://github.com/onelson/typescript-definiti
 
 [dev-dependencies]
 pretty_assertions = "1.2"
-env_logger = "0.9"
+env_logger = "0.10"

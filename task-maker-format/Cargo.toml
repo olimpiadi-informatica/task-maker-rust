@@ -50,7 +50,7 @@ shell-words = "1.1"
 # Nicer derive macros
 derivative = "2.2"
 # For sending ^C to the process
-nix = "0.24"
+nix = "0.26"
 # Typescript definition generation
 typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs"}
 # Unicode for subtask names
@@ -62,4 +62,4 @@ wildmatch = "2.1.0"
 tempfile = "3.3"
 pretty_assertions = "1.2"
 # assert_that! macro
-speculoos = "0.9"
+speculoos = "0.11"
