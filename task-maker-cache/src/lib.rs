@@ -87,10 +87,9 @@ use entry::CacheEntry;
 use key::CacheKey;
 use storage::CacheFile;
 
-use std::collections::hash_map::{DefaultHasher, Entry};
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs::create_dir_all;
-use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 
 use anyhow::{Context, Error};
@@ -105,10 +104,8 @@ const CACHE_FILE: &str = "cache.bin";
 /// Handle the cached executions, loading and storing them to disk.
 #[derive(Debug)]
 pub struct Cache {
-    /// Entries to flush to disk.
-    to_flush: HashMap<u8, CacheFile>,
-    /// The base directory where the cache files are stored.
-    cache_dir: PathBuf,
+    /// Cache entries.
+    file: CacheFile,
 }
 
 /// The result of a cache query, can be either successful (`Hit`) or unsuccessful (`Miss`).
@@ -132,10 +129,9 @@ impl Cache {
         create_dir_all(&cache_dir).with_context(|| {
             format!("Failed to create cache directory: {}", cache_dir.display())
         })?;
-        Ok(Self {
-            to_flush: Default::default(),
-            cache_dir,
-        })
+        let path = cache_dir.join(CACHE_FILE);
+        let file = CacheFile::load(path).context("Failed to load cache file")?;
+        Ok(Self { file })
     }
 
     /// Insert a new entry inside the cache. They key is computed based on the execution's metadata
@@ -148,15 +144,7 @@ impl Cache {
         result: Vec<ExecutionResult>,
     ) {
         let key = CacheKey::from_execution_group(group, file_keys);
-        let file = match self.get_file(&key) {
-            Ok(file) => file,
-            Err(e) => {
-                warn!("Failed to insert entry in the cache: {:?}", e);
-                return;
-            }
-        };
-
-        let set = file.entry(key).or_default();
+        let set = self.file.entry(key).or_default();
         let entry = CacheEntry::from_execution_group(group, file_keys, result);
         // Do not insert duplicated keys, replace if the limits are the same.
         let pos = set.iter().find_position(|e| e.same_limits(&entry));
@@ -165,7 +153,7 @@ impl Cache {
         } else {
             set.push(entry);
         }
-        file.mark_dirty();
+        self.file.mark_dirty();
     }
 
     /// Search in the cache for a valid entry, returning a cache hit if it's found or a cache miss
@@ -180,14 +168,7 @@ impl Cache {
         file_store: &FileStore,
     ) -> CacheResult {
         let key = CacheKey::from_execution_group(group, file_keys);
-        let file = match self.get_file(&key) {
-            Ok(file) => file,
-            Err(e) => {
-                warn!("Failed to get entry from the cache: {:?}", e);
-                return CacheResult::Miss;
-            }
-        };
-        let entry = file.entry(key);
+        let entry = self.file.entry(key);
         let entry = match &entry {
             Entry::Vacant(_) => return CacheResult::Miss,
             Entry::Occupied(entry) => entry.get(),
@@ -231,29 +212,12 @@ impl Cache {
     pub fn is_cacheable(result: &ExecutionResult) -> bool {
         !matches!(result.status, ExecutionStatus::InternalError(_))
     }
-
-    /// Try to load the cache file for this key.
-    fn get_file(&mut self, key: &CacheKey) -> Result<&mut CacheFile, Error> {
-        let mut hasher = DefaultHasher::default();
-        key.hash(&mut hasher);
-        let hash = hasher.finish();
-        let lv1 = (hash % 256) as u8;
-        match self.to_flush.entry(lv1) {
-            Entry::Occupied(entry) => Ok(entry.into_mut()),
-            Entry::Vacant(entry) => {
-                let path = self.cache_dir.join(lv1.to_string()).join(CACHE_FILE);
-                Ok(entry.insert(CacheFile::load(path)?))
-            }
-        }
-    }
 }
 
 impl Drop for Cache {
     fn drop(&mut self) {
-        for (_, file) in self.to_flush.drain() {
-            if let Err(e) = file.store() {
-                warn!("Failed to store cache file: {:?}", e);
-            }
+        if let Err(e) = self.file.store() {
+            warn!("Failed to store cache file: {:?}", e);
         }
     }
 }
