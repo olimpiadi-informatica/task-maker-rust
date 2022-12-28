@@ -58,4 +58,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.PAT_PPA_ACTION_TRIGGER }}
         run: |
-          gh workflow run -R dp1/task-maker-rust-ppa check-for-release.yml
+          gh workflow run -R dp1/task-maker-rust-ppa --ref master check-for-release.yml
