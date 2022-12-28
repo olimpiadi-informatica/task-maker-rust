@@ -16,17 +16,9 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -yy libseccomp-dev build-essential
-      - name: Install Rust
-        id: component
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+      - uses: dtolnay/rust-toolchain@stable
       - name: cargo doc
-        uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --color=always --no-deps --all
+        run: cargo doc --color=always --no-deps --all
       - name: Make index.html
         run: |
           echo '<meta http-equiv="Refresh" content="0; url=./task_maker/index.html">' > target/doc/index.html
