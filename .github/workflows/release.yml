@@ -48,3 +48,14 @@ jobs:
           commit_username: ${{ secrets.AUR_USERNAME }}
           commit_email: ${{ secrets.AUR_EMAIL }}
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+
+  ppa:
+    name: Publish PPA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Trigger PPA build
+        env:
+          GH_TOKEN: ${{ secrets.PAT_PPA_ACTION_TRIGGER }}
+        run: |
+          gh workflow run -R dp1/task-maker-rust-ppa check-for-release.yml
