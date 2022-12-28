@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
@@ -18,7 +17,7 @@ use crate::executor::{ExecutionDAGWatchSet, ExecutorStatus, ExecutorWorkerStatus
 use crate::proto::*;
 
 /// Interval between each Status message is sent asking for server status updates.
-const STATUS_POLL_INTERVAL_MS: u64 = 1000;
+const STATUS_POLL_INTERVAL: Duration = Duration::from_millis(1000);
 
 /// This is a client of the `Executor`, the client is who sends a DAG for an evaluation, provides
 /// some files and receives the callbacks from the server. When the server notifies a callback
@@ -84,14 +83,14 @@ impl ExecutorClient {
 
         // setup the status poller that will send to the server a Status message every
         // STATUS_POLL_INTERVAL_MS milliseconds.
-        let done = Arc::new(AtomicBool::new(false));
+        let (done_sender, done_receiver) = crossbeam_channel::bounded(1);
         let file_mode = Arc::new(Mutex::new(()));
         let status_poller =
-            ExecutorClient::spawn_status_poller(done.clone(), file_mode.clone(), sender.clone());
+            ExecutorClient::spawn_status_poller(done_receiver, file_mode.clone(), sender.clone());
 
         defer! {{
             info!("Client has done, exiting");
-            done.store(true, Ordering::Relaxed);
+            done_sender.send(()).context("Failed to send done signal to status poller").unwrap();
             status_poller
                 .join()
                 .map_err(|e| anyhow!("Failed to join status poller: {:?}", e)).unwrap();
@@ -268,23 +267,28 @@ impl ExecutorClient {
     /// Spawn a thread that will ask the server status every `STATUS_POLL_INTERVAL_MS`, making sure
     /// that the messages are not sent while being in the middle of sending a file.
     fn spawn_status_poller(
-        done: Arc<AtomicBool>,
+        done: crossbeam_channel::Receiver<()>,
         file_mode: Arc<Mutex<()>>,
         sender: ChannelSender<ExecutorClientMessage>,
     ) -> JoinHandle<()> {
         thread::Builder::new()
             .name("Client status poller".into())
             .spawn(move || {
-                while !done.load(Ordering::Relaxed) {
-                    {
-                        // make sure to not interfere with the file sending protocol.
-                        let _lock = file_mode.lock().unwrap();
-                        // this may fail if the server is gone
-                        if sender.send(ExecutorClientMessage::Status).is_err() {
+                let clock = crossbeam_channel::tick(STATUS_POLL_INTERVAL);
+                loop {
+                    crossbeam_channel::select! {
+                        recv(clock) -> _msg => {
+                            // Make sure to not interfere with the file sending protocol.
+                            let _lock = file_mode.lock().unwrap();
+                            // This may fail if the server is gone.
+                            if sender.send(ExecutorClientMessage::Status).is_err() {
+                                break;
+                            }
+                        }
+                        recv(done) -> _msg => {
                             break;
                         }
                     }
-                    thread::sleep(Duration::from_millis(STATUS_POLL_INTERVAL_MS));
                 }
             })
             .expect("Failed to start client status poller thread")

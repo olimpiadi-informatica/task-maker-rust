@@ -1545,6 +1545,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "blake3",
+ "crossbeam-channel",
  "ductile",
  "env_logger",
  "itertools",
