@@ -30,7 +30,7 @@ glob = "0.3"
 pest = "2.1"
 pest_derive = "2.1"
 # Curses UI
-tui = { version = "0.18", default-features = false, features = ["termion"] }
+tui = { version = "0.19", default-features = false, features = ["termion"] }
 termion = "1.5"
 # Global constants
 lazy_static = "1.3"

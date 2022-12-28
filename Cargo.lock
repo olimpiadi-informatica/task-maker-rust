@@ -1586,7 +1586,7 @@ dependencies = [
  "tempfile",
  "termcolor",
  "termion",
- "tui 0.18.0",
+ "tui",
  "typescript-definitions",
  "unic",
  "wildmatch",
@@ -1641,7 +1641,7 @@ dependencies = [
  "task-maker-lang",
  "task-maker-store",
  "tempfile",
- "tui 0.19.0",
+ "tui",
  "typescript-definitions",
  "url",
  "walkdir",
@@ -1751,19 +1751,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1333c76748e868a4d9d1017b5ab53171dfd095f70c712fdb4653a406547f598f"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "tui"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96fe69244ec2af261bced1d9046a6fee6c8c2a6b0228e59e5ba39bc8ba4ed729"
-dependencies = [
- "bitflags",
- "cassowary",
- "termion",
- "unicode-segmentation",
- "unicode-width",
 ]
 
 [[package]]
