@@ -266,7 +266,7 @@ mod tests {
         let inside_path = tmpdir.path().join("utils").join("inside.hpp");
         let orig_path = tmpdir.path().join("utils").join("orig.cpp");
         write(&dep_path, "#define 42 42").unwrap();
-        write(&inside_path, "#define 42 41").unwrap();
+        write(inside_path, "#define 42 41").unwrap();
         write(&orig_path, "#include<dep.hpp>\n#include<inside.hpp>").unwrap();
         std::os::unix::fs::symlink(&orig_path, &path).unwrap();
         // file.cpp includes ./dep.hpp and ./inside.hpp (so it shouldn't find ./utils/inside.hpp)

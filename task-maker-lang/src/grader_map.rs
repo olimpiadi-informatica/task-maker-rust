@@ -36,7 +36,7 @@ impl GraderMap {
             let grader = grader.into();
             let lang = LanguageManager::detect_language(&grader);
             if let Some(lang) = lang {
-                let file = File::new(&format!("Grader for {}", lang.name()));
+                let file = File::new(format!("Grader for {}", lang.name()));
                 map.graders.insert(
                     lang.name().into(),
                     Dependency {

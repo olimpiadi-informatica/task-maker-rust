@@ -614,7 +614,7 @@ mod tests {
         let store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
         let thr = std::thread::spawn(move || {
             let start = Instant::now();
-            let _store = FileStore::new(&store_dir, 1000, 1000).unwrap();
+            let _store = FileStore::new(store_dir, 1000, 1000).unwrap();
             let end = Instant::now();
             assert!(end - start >= Duration::from_millis(300));
         });
@@ -673,7 +673,7 @@ mod tests {
     fn test_get_not_known() {
         let cwd = get_cwd();
         let store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
-        let key = fake_file(&cwd.path().join("test.txt"), "ciao");
+        let key = fake_file(cwd.path().join("test.txt"), "ciao");
         let handle = store.get(&key);
         assert!(handle.is_none());
     }
@@ -696,7 +696,7 @@ mod tests {
     fn test_key_to_path() {
         let cwd = get_cwd();
         let store = FileStore::new(cwd.path(), 1000, 1000).unwrap();
-        let key = fake_file(&cwd.path().join("test.txt"), "ciao");
+        let key = fake_file(cwd.path().join("test.txt"), "ciao");
         let path = store.key_to_path(&key);
         assert!(path.starts_with(&store.base_path));
         assert!(path.ends_with(key.to_string()));
@@ -788,13 +788,13 @@ mod tests {
     #[test]
     fn test_file_store_key_from_file() {
         let cwd = get_cwd();
-        fake_file(&cwd.path().join("file1a.txt"), "ciao");
-        fake_file(&cwd.path().join("file1b.txt"), "ciao");
-        fake_file(&cwd.path().join("file2.txt"), "ciaone");
+        fake_file(cwd.path().join("file1a.txt"), "ciao");
+        fake_file(cwd.path().join("file1b.txt"), "ciao");
+        fake_file(cwd.path().join("file2.txt"), "ciaone");
 
-        let key1a = FileStoreKey::from_file(&cwd.path().join("file1a.txt")).unwrap();
-        let key1b = FileStoreKey::from_file(&cwd.path().join("file1b.txt")).unwrap();
-        let key2 = FileStoreKey::from_file(&cwd.path().join("file2.txt")).unwrap();
+        let key1a = FileStoreKey::from_file(cwd.path().join("file1a.txt")).unwrap();
+        let key1b = FileStoreKey::from_file(cwd.path().join("file1b.txt")).unwrap();
+        let key2 = FileStoreKey::from_file(cwd.path().join("file2.txt")).unwrap();
 
         assert_eq!(key1a, key1b);
         assert_ne!(key1a, key2);

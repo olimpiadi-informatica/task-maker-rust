@@ -168,7 +168,7 @@ impl Sandbox {
             cpu_time: res.resource_usage.user_cpu_time,
             sys_time: res.resource_usage.system_cpu_time,
             wall_time: res.resource_usage.wall_time_usage,
-            memory: res.resource_usage.memory_usage as u64 / 1024,
+            memory: res.resource_usage.memory_usage / 1024,
         };
 
         use tabox::result::ExitStatus::*;

@@ -33,7 +33,7 @@ pub fn parse_task<P: AsRef<Path>>(
     eval_config: &EvaluationConfig,
 ) -> Result<TerryTask, Error> {
     let task_dir = task_dir.as_ref();
-    let yaml: TaskYAML = serde_yaml::from_reader(fs::File::open(&task_dir.join("task.yaml"))?)?;
+    let yaml: TaskYAML = serde_yaml::from_reader(fs::File::open(task_dir.join("task.yaml"))?)?;
 
     let generator = get_manager(task_dir, "generator")?
         .map(InputGenerator::new)

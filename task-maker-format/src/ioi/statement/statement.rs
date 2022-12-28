@@ -285,7 +285,7 @@ mod tests {
         let tmpdir = TempDir::new().unwrap();
         let path = tmpdir.path().join("test.pdf");
         std::fs::write(&path, "").unwrap();
-        std::fs::write(&path.with_extension("asy"), "").unwrap();
+        std::fs::write(path.with_extension("asy"), "").unwrap();
         assert!(!Statement::is_valid_pdf_dependency(&path).unwrap());
     }
 
@@ -294,7 +294,7 @@ mod tests {
         let tmpdir = TempDir::new().unwrap();
         let path = tmpdir.path().join("test.pdf");
         std::fs::write(&path, "").unwrap();
-        std::fs::write(&path.with_extension("tex"), "").unwrap();
+        std::fs::write(path.with_extension("tex"), "").unwrap();
         assert!(!Statement::is_valid_pdf_dependency(&path).unwrap());
     }
 

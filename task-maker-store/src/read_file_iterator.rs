@@ -78,7 +78,7 @@ mod tests {
     fn test_read_file_iterator_404() {
         let cwd = get_cwd();
         let path = cwd.path().join("file.txt");
-        let iter = ReadFileIterator::new(&path);
+        let iter = ReadFileIterator::new(path);
         assert!(iter.is_err());
     }
 

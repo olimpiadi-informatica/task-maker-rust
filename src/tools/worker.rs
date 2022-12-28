@@ -68,7 +68,7 @@ pub fn main_worker(opt: WorkerOpt) -> Result<(), Error> {
     };
 
     let worker = Worker::new_with_channel(
-        &name,
+        name,
         file_store,
         sandbox_path,
         executor_tx.change_type(),

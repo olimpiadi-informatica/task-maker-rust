@@ -574,7 +574,7 @@ impl Execution {
     /// ```
     pub fn stdout(&mut self) -> File {
         if self.stdout.is_none() {
-            let file = File::new(&format!("Stdout of '{}'", self.description));
+            let file = File::new(format!("Stdout of '{}'", self.description));
             self.stdout = Some(file);
         }
         self.stdout.clone().unwrap()
@@ -608,7 +608,7 @@ impl Execution {
     /// ```
     pub fn stderr(&mut self) -> File {
         if self.stderr.is_none() {
-            let file = File::new(&format!("Stderr of '{}'", self.description));
+            let file = File::new(format!("Stderr of '{}'", self.description));
             self.stderr = Some(file);
         }
         self.stderr.clone().unwrap()
@@ -701,7 +701,7 @@ impl Execution {
     /// assert_eq!(exec.outputs[&PathBuf::from("foo/bar.txt")], file);
     /// ```
     pub fn output<P: Into<PathBuf> + std::fmt::Debug>(&mut self, path: P) -> File {
-        let file = File::new(&format!("Output of '{}' at {:?}", self.description, path));
+        let file = File::new(format!("Output of '{}' at {:?}", self.description, path));
         self.outputs.entry(path.into()).or_insert(file).clone()
     }
 

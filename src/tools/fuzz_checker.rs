@@ -566,6 +566,7 @@ fn organize_failures(
                 artifact.display()
             )
         })?;
+        #[allow(clippy::needless_borrow)] // https://github.com/rust-lang/rust-clippy/issues/9778
         std::fs::write(target_dir.join("README"), &readme).context("Failed to write README")?;
         cwrite!(printer, RED, "[FAIL] {:<8}", fail_type);
         println!(" {}", target_dir.display());

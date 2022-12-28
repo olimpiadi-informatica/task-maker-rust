@@ -105,7 +105,7 @@ impl RuntimeContext {
             let dot = render_dag(&eval.dag);
             let bin = task.path().join("bin");
             std::fs::create_dir_all(&bin).context("Failed to create bin/ directory")?;
-            std::fs::write(bin.join("DAG.dot"), &dot).context("Failed to write bin/DAG.dot")?;
+            std::fs::write(bin.join("DAG.dot"), dot).context("Failed to write bin/DAG.dot")?;
         }
 
         Ok(Self {

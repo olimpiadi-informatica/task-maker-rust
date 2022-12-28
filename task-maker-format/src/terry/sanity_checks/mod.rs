@@ -13,9 +13,9 @@ pub fn get_sanity_checks(skip: &[String]) -> SanityChecks<TerryTask> {
 /// Return the list of sanity checks excluding the ones with their name in the provided list.
 fn get_sanity_check_list(skip: &[String]) -> Vec<Box<dyn SanityCheck<TerryTask>>> {
     let all: Vec<Box<dyn SanityCheck<_>>> = vec![
-        Box::new(task::ValidatorPresent::default()),
-        Box::new(statement::StatementPresent::default()),
-        Box::new(checker::FuzzChecker::default()),
+        Box::<task::ValidatorPresent>::default(),
+        Box::<statement::StatementPresent>::default(),
+        Box::<checker::FuzzChecker>::default(),
     ];
     all.into_iter()
         .filter(|s| !skip.contains(&s.name().into()))

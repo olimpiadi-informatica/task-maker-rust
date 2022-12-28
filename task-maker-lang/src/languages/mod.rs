@@ -38,7 +38,7 @@ where
         let path = pending.pop_front().unwrap();
         done.insert(path.clone());
         for (local_path, sandbox_path) in extract_imports(&path) {
-            let local_path = base.join(&local_path);
+            let local_path = base.join(local_path);
             if local_path.exists()
                 && !done.contains(&local_path)
                 && !result_files.contains(&sandbox_path)
@@ -46,7 +46,7 @@ where
                 result_files.insert(sandbox_path.clone());
                 pending.push_back(local_path.clone());
                 result.push(Dependency {
-                    file: File::new(&format!(
+                    file: File::new(format!(
                         "Dependency {:?} at {:?} of {:?}",
                         sandbox_path, local_path, filename
                     )),

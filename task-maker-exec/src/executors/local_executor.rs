@@ -71,7 +71,7 @@ impl LocalExecutor {
         for i in 0..self.num_workers {
             let runner = sandbox_runner.clone();
             let (worker, conn) = Worker::new(
-                &format!("Local worker {}", i),
+                format!("Local worker {}", i),
                 self.file_store.clone(),
                 self.sandbox_path.clone(),
                 runner,

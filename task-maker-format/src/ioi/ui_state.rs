@@ -343,8 +343,8 @@ impl UIState {
                     SubtaskGenerationState {
                         testcases: subtask
                             .testcases
-                            .iter()
-                            .map(|(tc_num, _)| {
+                            .keys()
+                            .map(|tc_num| {
                                 (
                                     *tc_num,
                                     TestcaseGenerationState {

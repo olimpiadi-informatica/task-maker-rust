@@ -284,7 +284,7 @@ impl SourceFile {
             *self.executable.lock().unwrap() = Some(exec);
             Ok(Some(comp_uuid))
         } else {
-            let executable = File::new(&format!("Source file of {:?}", self.path));
+            let executable = File::new(format!("Source file of {:?}", self.path));
             if dag.config_mut().copy_exe || self.copy_exe {
                 if let Some(write_bin_to) = &self.write_bin_to {
                     dag.write_file_to(&executable, write_bin_to, true);
