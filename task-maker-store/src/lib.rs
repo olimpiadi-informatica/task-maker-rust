@@ -403,7 +403,9 @@ impl FileStoreKey {
     fn suffix(&self) -> PathBuf {
         let hash_hex = self.hash.to_hex();
         let full = hash_hex.as_str();
+        #[allow(clippy::string_slice)]
         let first = &full[0..2];
+        #[allow(clippy::string_slice)]
         let second = &full[2..4];
         PathBuf::from(first).join(second).join(full)
     }

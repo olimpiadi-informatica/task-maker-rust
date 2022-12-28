@@ -247,7 +247,9 @@ impl Booklet {
         // latexmk sometimes emit the same warning more than once
         let mut errors = HashSet::new();
         for cap in FIND_ERRORS.captures_iter(&String::from_utf8_lossy(content)) {
-            let line = cap[2][2..].parse::<i32>().ok();
+            let line = cap[2]
+                .strip_prefix("l.")
+                .and_then(|line| line.parse::<i32>().ok());
             errors.insert((line, cap[1].to_string()));
         }
         if !errors.is_empty() {

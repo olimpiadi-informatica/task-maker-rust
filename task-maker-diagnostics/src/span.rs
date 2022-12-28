@@ -66,6 +66,7 @@ impl CodeSpan {
 
     /// Get the content of the span as a `&str`.
     pub fn as_str(&self) -> &str {
+        #[allow(clippy::string_slice)] // All the offsets are byte-related
         &self.line[self.line_offset..self.line_offset + self.len]
     }
 

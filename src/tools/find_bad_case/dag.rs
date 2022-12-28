@@ -130,6 +130,7 @@ pub fn patch_dag(eval: &mut EvaluationData, batch_size: usize, batch: &Batch) ->
         let file_name = file_name.to_string_lossy().to_string();
         let put = file_name.rfind("put")?;
         let dot = file_name.rfind('.')?;
+        #[allow(clippy::string_slice)] // The indexes come from char-aligned functions.
         let number = &file_name[put + 3..dot];
         number.parse::<TestcaseId>().ok()
     };
@@ -174,6 +175,7 @@ pub fn patch_dag(eval: &mut EvaluationData, batch_size: usize, batch: &Batch) ->
     let get_testcase_id = |description: &str| -> Option<TestcaseId> {
         let start = description.rfind("testcase ")? + "testcase ".len();
         let end = description.rfind(", ")?;
+        #[allow(clippy::string_slice)] // The indexes come from char-aligned functions.
         description[start..end].parse::<TestcaseId>().ok()
     };
 

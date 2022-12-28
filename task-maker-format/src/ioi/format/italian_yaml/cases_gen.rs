@@ -461,9 +461,12 @@ where
                     ));
                 }
                 parser::Rule::variable => {
-                    constraint
-                        .operands
-                        .push(ConstraintOperand::Variable(item.as_str()[1..].to_string()));
+                    constraint.operands.push(ConstraintOperand::Variable(
+                        item.as_str()
+                            .strip_prefix('$')
+                            .expect("Invalid parser")
+                            .into(),
+                    ));
                 }
                 parser::Rule::comp_operator => {
                     let operator = ConstraintOperator::from_str(item.as_str())
@@ -586,7 +589,7 @@ where
                         let arg = if let Some(rest) = arg.strip_prefix('$') {
                             rest
                         } else {
-                            &arg[..]
+                            arg.as_str()
                         };
                         if let Some(value) = variables.get(arg) {
                             args.push(value.clone());

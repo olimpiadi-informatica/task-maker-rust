@@ -396,20 +396,23 @@ fn draw_workers_chunk(
         .iter()
         .map(|worker| {
             let worker_name = format!("- {:<max_len$} ", worker.name, max_len = max_len);
-            let worker_name_len = worker_name.len();
+            let worker_name_len = worker_name.chars().count();
             let mut spans = vec![Span::raw(worker_name)];
 
             if let Some(job) = &worker.current_job {
-                let duration =
-                    (job.duration.elapsed().map(|d| d.as_millis()).unwrap_or(0) as f64) / 1000.0;
+                let duration = job.duration.elapsed().unwrap_or_default().as_secs_f32();
                 let mut line = format!("{} {} ({:.2}s)", loading, job.job, duration);
-                if worker_name_len + line.len() > rect.width as usize {
-                    let extra_len = worker_name_len + line.len() - rect.width as usize;
-                    // there is not enough space for the job name, even with the ellipsis
+                let line_len = line.chars().count();
+                // Line is too long.
+                if worker_name_len + line_len > rect.width as usize {
+                    // We need to remove "extra_len" characters.
+                    let extra_len = worker_name_len + line_len - rect.width as usize;
+                    // There is not enough space for the job name, even with the ellipsis.
                     if extra_len + 3 > job.job.len() {
-                        line = (&line[0..rect.width as usize]).into();
+                        line = line.chars().take(rect.width as usize).collect();
                     } else {
-                        let job_name = &job.job[0..job.job.len() - extra_len - 3];
+                        let job_name: String =
+                            line.chars().take(job.job.len() - extra_len - 3).collect();
                         line = format!("{} {}... ({:.2}s)", loading, job_name, duration);
                     }
                 }
