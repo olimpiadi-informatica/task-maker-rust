@@ -1,6 +1,6 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::io::{Read, Write};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::PathBuf;
 
 use anyhow::{Context, Error};
@@ -40,11 +40,13 @@ impl CacheFile {
                 dirty: false,
             });
         }
-        let mut file = std::fs::File::open(&path)
+
+        let file = std::fs::File::open(&path)
             .with_context(|| format!("Cannot open cache file at {}", path.display()))?;
+        let mut reader = BufReader::new(file);
         let mut magic = [0u8; MAGIC.len()];
 
-        if file
+        if reader
             .read_exact(&mut magic)
             .map_or(false, |_| magic != MAGIC)
         {
@@ -59,7 +61,7 @@ impl CacheFile {
             });
         }
 
-        let entries = bincode::deserialize_from::<_, HashMap<CacheKey, Vec<CacheEntry>>>(file)
+        let entries = bincode::deserialize_from::<_, HashMap<CacheKey, Vec<CacheEntry>>>(reader)
             .context("Failed to deserialize cache content")?;
 
         Ok(Self {
@@ -80,12 +82,14 @@ impl CacheFile {
         std::fs::create_dir_all(path.parent().context("Invalid cache file")?)
             .with_context(|| format!("Failed to create cache directory for {}", path.display()))?;
         let tmp = path.with_extension("tmp");
-        let mut file = std::fs::File::create(&tmp).context("Failed to create cache file")?;
+        let file = std::fs::File::create(&tmp).context("Failed to create cache file")?;
+        let mut writer = BufWriter::new(file);
 
-        file.write_all(MAGIC)
+        writer
+            .write_all(MAGIC)
             .context("Failed to write cache magic number")?;
 
-        bincode::serialize_into(file, &self.entries.iter().collect_vec())
+        bincode::serialize_into(writer, &self.entries.iter().collect_vec())
             .context("Failed to write cache content")?;
         std::fs::rename(&tmp, &self.path).with_context(|| {
             format!(

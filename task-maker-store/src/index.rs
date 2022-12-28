@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::hash_map::Entry;
 use std::collections::{BinaryHeap, HashMap};
 use std::fs::{create_dir_all, remove_dir, File};
-use std::io::{Read, Write};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -62,11 +62,12 @@ impl FileStoreIndex {
         }
 
         debug!("Loading index from {:?}", path);
-        let mut file = File::open(path)
+        let file = File::open(path)
             .with_context(|| format!("Failed to open index file from {}", path.display()))?;
+        let mut reader = BufReader::new(file);
         let mut magic = [0u8; MAGIC.len()];
 
-        if file
+        if reader
             .read_exact(&mut magic)
             .map_or(false, |_| magic != MAGIC)
         {
@@ -80,7 +81,7 @@ impl FileStoreIndex {
             });
         }
 
-        bincode::deserialize_from(file).context("Failed to deserialize index file")
+        bincode::deserialize_from(reader).context("Failed to deserialize index file")
     }
 
     /// Store a dump of this index to the path provided.
@@ -92,13 +93,15 @@ impl FileStoreIndex {
             .context("Failed to create store directory")?;
         let tmp = path.with_extension("tmp");
 
-        let mut file = File::create(&tmp)
+        let file = File::create(&tmp)
             .with_context(|| format!("Failed to create index file at {}", tmp.display()))?;
+        let mut writer = BufWriter::new(file);
 
-        file.write_all(MAGIC)
+        writer
+            .write_all(MAGIC)
             .context("Failed to write cache magic number")?;
 
-        bincode::serialize_into(file, &self).context("Failed to write index")?;
+        bincode::serialize_into(writer, &self).context("Failed to write index")?;
         std::fs::rename(&tmp, path)
             .with_context(|| format!("Failed to move {} -> {}", tmp.display(), path.display()))?;
         Ok(())
