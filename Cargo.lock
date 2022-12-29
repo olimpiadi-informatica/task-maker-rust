@@ -450,9 +450,9 @@ dependencies = [
 
 [[package]]
 name = "ductile"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d862a567f6e690447c32b40bf40237989b9ea084402658c5049ac233f2b7883"
+checksum = "12cde25956886749c891a27249630ae99471f1ba05c4a924aad1a6ffe6932812"
 dependencies = [
  "anyhow",
  "bincode",

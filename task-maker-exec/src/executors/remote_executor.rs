@@ -1,4 +1,3 @@
-use std::net::SocketAddr;
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
 
@@ -95,27 +94,40 @@ impl RemoteExecutor {
         bind_client_addr: String,
         client_executor_tx: Sender<ExecutorInMessage>,
     ) -> Result<(), Error> {
-        let server = match client_password {
-            Some(password) => {
-                let key = derive_key_from_password(password);
-                ChannelServer::bind_with_enc(&bind_client_addr, key)
-                    .context("Failed to bind client address")?
-            }
-            None => {
-                ChannelServer::bind(&bind_client_addr).context("Failed to bind client address")?
+        let server = if let Some(path) = bind_client_addr.strip_prefix("unix://") {
+            ChannelServer::bind_unix(path)
+                .with_context(|| format!("Failed to bind client unix socket at {}", path))?
+        } else {
+            match client_password {
+                Some(password) => {
+                    let key = derive_key_from_password(password);
+                    ChannelServer::bind_with_enc(&bind_client_addr, key)
+                        .context("Failed to bind client address")?
+                }
+                None => ChannelServer::bind(&bind_client_addr)
+                    .context("Failed to bind client address")?,
             }
         };
+
+        let local_addr = server
+            .local_addr()
+            .context("Failed to get client address")?;
         info!(
-            "Accepting client connections at tcp://{}",
-            server
-                .local_addr()
-                .context("Failed to get client address")?
+            "Accepting client connections at {}",
+            if let Some(addr) = local_addr {
+                format!("tcp://{}", addr)
+            } else {
+                bind_client_addr
+            }
         );
         for (sender, receiver, addr) in server {
+            let addr = addr
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "(local)".into());
             info!("Client connected from {}", addr);
             let uuid = Uuid::new_v4();
             let name = if let Ok(RemoteEntityMessage::Welcome { name, version }) = receiver.recv() {
-                if !validate_welcome(addr, &name, version, &sender, "Client") {
+                if !validate_welcome(&addr, &name, version, &sender, "Client") {
                     continue;
                 }
                 name
@@ -143,27 +155,39 @@ impl RemoteExecutor {
         bind_worker_addr: String,
         executor_tx: Sender<ExecutorInMessage>,
     ) -> Result<(), Error> {
-        let server = match worker_password {
-            Some(password) => {
-                let key = derive_key_from_password(password);
-                ChannelServer::bind_with_enc(&bind_worker_addr, key)
-                    .context("Failed to bind worker address")?
-            }
-            None => {
-                ChannelServer::bind(&bind_worker_addr).context("Failed to bind worker address")?
+        let server = if let Some(path) = bind_worker_addr.strip_prefix("unix://") {
+            ChannelServer::bind_unix(path)
+                .with_context(|| format!("Failed to bind worker unix socket at {}", path))?
+        } else {
+            match worker_password {
+                Some(password) => {
+                    let key = derive_key_from_password(password);
+                    ChannelServer::bind_with_enc(&bind_worker_addr, key)
+                        .context("Failed to bind worker address")?
+                }
+                None => ChannelServer::bind(&bind_worker_addr)
+                    .context("Failed to bind worker address")?,
             }
         };
+        let local_addr = server
+            .local_addr()
+            .context("Failed to get worker address")?;
         info!(
-            "Accepting worker connections at tcp://{}",
-            server
-                .local_addr()
-                .context("Failed to get worker remote address")?
+            "Accepting worker connections at {}",
+            if let Some(addr) = local_addr {
+                format!("tcp://{}", addr)
+            } else {
+                bind_worker_addr
+            }
         );
         for (sender, receiver, addr) in server {
+            let addr = addr
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "(local)".into());
             info!("Worker connected from {}", addr);
             let uuid = Uuid::new_v4();
             let name = if let Ok(RemoteEntityMessage::Welcome { name, version }) = receiver.recv() {
-                if !validate_welcome(addr, &name, version, &sender, "Worker") {
+                if !validate_welcome(&addr, &name, version, &sender, "Worker") {
                     continue;
                 }
                 name
@@ -189,7 +213,7 @@ impl RemoteExecutor {
 }
 
 fn validate_welcome(
-    addr: SocketAddr,
+    addr: &str,
     name: &str,
     version: String,
     sender: &ChannelSender<RemoteEntityMessageResponse>,
