@@ -9,19 +9,20 @@ use regex::Regex;
 use task_maker_diagnostics::{CodeSpan, Diagnostic};
 
 use crate::ioi::{IOITask, SubtaskId};
-use crate::sanity_checks::SanityCheck;
+use crate::sanity_checks::{make_sanity_check, SanityCheck};
 use crate::EvaluationData;
 
 /// Check that the subtasks in the statement are consistent with the ones of the task.
 #[derive(Debug, Default)]
 pub struct StatementSubtasks;
+make_sanity_check!(StatementSubtasks);
 
 impl SanityCheck<IOITask> for StatementSubtasks {
     fn name(&self) -> &'static str {
         "StatementSubtasks"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         let expected_subtasks = task
             .subtasks
             .iter()
@@ -103,13 +104,14 @@ impl SanityCheck<IOITask> for StatementSubtasks {
 /// Check that the statement file is valid.
 #[derive(Debug, Default)]
 pub struct StatementValid;
+make_sanity_check!(StatementValid);
 
 impl SanityCheck<IOITask> for StatementValid {
     fn name(&self) -> &'static str {
         "StatementValid"
     }
 
-    fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn post_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         match find_statement_pdf(task) {
             None => {
                 let mut diagnostic = Diagnostic::error(
@@ -163,13 +165,14 @@ impl SanityCheck<IOITask> for StatementValid {
 /// Check that the statement file comes out of the compilation of one of the booklets.
 #[derive(Debug, Default)]
 pub struct StatementCompiled;
+make_sanity_check!(StatementCompiled);
 
 impl SanityCheck<IOITask> for StatementCompiled {
     fn name(&self) -> &'static str {
         "StatementCompiled"
     }
 
-    fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn post_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         // If there are no booklets it may mean that the statement is compiled with an external tool
         // or that the statement compilation is not done. Either way this sanity check should be
         // ignored.
@@ -225,13 +228,14 @@ impl SanityCheck<IOITask> for StatementCompiled {
 /// Check that the statement file is known to git.
 #[derive(Debug, Default)]
 pub struct StatementGit;
+make_sanity_check!(StatementGit);
 
 impl SanityCheck<IOITask> for StatementGit {
     fn name(&self) -> &'static str {
         "StatementGit"
     }
 
-    fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn post_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         let path = match find_statement_pdf(task) {
             None => return Ok(()),
             Some(path) => path,

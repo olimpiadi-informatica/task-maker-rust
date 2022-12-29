@@ -2,19 +2,20 @@ use anyhow::Error;
 use itertools::Itertools;
 use task_maker_diagnostics::Diagnostic;
 
-use crate::sanity_checks::SanityCheck;
+use crate::sanity_checks::{make_sanity_check, SanityCheck};
 use crate::{EvaluationData, IOITask};
 
 /// Check that all the subtasks have a name.
 #[derive(Debug, Default)]
 pub struct MissingSubtaskNames;
+make_sanity_check!(MissingSubtaskNames);
 
 impl SanityCheck<IOITask> for MissingSubtaskNames {
     fn name(&self) -> &'static str {
         "MissingSubtaskNames"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         let mut missing_name = vec![];
         for subtask_id in task.subtasks.keys().sorted() {
             let subtask = &task.subtasks[subtask_id];
@@ -49,13 +50,14 @@ impl SanityCheck<IOITask> for MissingSubtaskNames {
 /// Check that all the solutions (that are not symlinks) contain at least one check.
 #[derive(Debug, Default)]
 pub struct SolutionsWithNoChecks;
+make_sanity_check!(SolutionsWithNoChecks);
 
 impl SanityCheck<IOITask> for SolutionsWithNoChecks {
     fn name(&self) -> &'static str {
         "SolutionsWithNoChecks"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         for subtask in task.subtasks.values() {
             if subtask.name.is_none() {
                 // If not all the subtasks have a name, do not bother with the solutions, it's much
@@ -96,13 +98,14 @@ impl SanityCheck<IOITask> for SolutionsWithNoChecks {
 /// Check that all the checks target at least one subtask.
 #[derive(Debug, Default)]
 pub struct InvalidSubtaskName;
+make_sanity_check!(InvalidSubtaskName);
 
 impl SanityCheck<IOITask> for InvalidSubtaskName {
     fn name(&self) -> &'static str {
         "InvalidSubtaskName"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         let subtask_names = task
             .subtasks
             .keys()

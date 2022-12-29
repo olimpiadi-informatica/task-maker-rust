@@ -2,7 +2,7 @@ use anyhow::{Context, Error};
 use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::IOITask;
-use crate::sanity_checks::SanityCheck;
+use crate::sanity_checks::{make_sanity_check, SanityCheck};
 use crate::UISender;
 use task_maker_dag::File;
 
@@ -10,6 +10,7 @@ use task_maker_dag::File;
 /// score 0 points.
 #[derive(Debug, Default)]
 pub struct FuzzCheckerWithJunkOutput;
+make_sanity_check!(FuzzCheckerWithJunkOutput);
 
 lazy_static! {
     static ref JUNK_OUTPUTS: [(&'static str, Vec<u8>); 4] = [
@@ -25,7 +26,7 @@ impl SanityCheck<IOITask> for FuzzCheckerWithJunkOutput {
         "FuzzCheckerWithJunkOutput"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut crate::EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut crate::EvaluationData) -> Result<(), Error> {
         // Only tasks with a custom checker are supported.
         let checker = match &task.task_type {
             crate::ioi::TaskType::Batch(batch) => match &batch.checker {

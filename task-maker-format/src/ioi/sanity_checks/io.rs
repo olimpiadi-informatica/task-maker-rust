@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use crate::ioi::IOITask;
-use crate::sanity_checks::SanityCheck;
+use crate::sanity_checks::{make_sanity_check, SanityCheck};
 use crate::ui::UIMessageSender;
 use crate::{EvaluationData, UISender};
 use anyhow::Error;
@@ -12,6 +12,7 @@ use task_maker_diagnostics::Diagnostic;
 /// Check that the input and output files end with `\n`.
 #[derive(Debug, Default)]
 pub struct IOEndWithNewLine;
+make_sanity_check!(IOEndWithNewLine);
 
 /// Check that a file ends with `\n` and emit a warning if it doesn't. An empty file is considered
 /// valid.
@@ -63,7 +64,7 @@ impl SanityCheck<IOITask> for IOEndWithNewLine {
         "IOEndWithNewLine"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         for subtask in task.subtasks.values() {
             for (&testcase_id, testcase) in &subtask.testcases {
                 if let Some(input_file) = testcase.input_file {

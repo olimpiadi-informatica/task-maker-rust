@@ -13,7 +13,7 @@ use task_maker_lang::GraderMap;
 
 use crate::ioi::sanity_checks::check_missing_graders;
 use crate::ioi::{IOITask, InputGenerator, TaskType, TestcaseId};
-use crate::sanity_checks::SanityCheck;
+use crate::sanity_checks::{make_sanity_check, SanityCheck};
 use crate::{list_files, EvaluationData, SolutionCheck, SourceFile, UISender};
 
 use super::io::CheckEndWithNewLine;
@@ -21,13 +21,14 @@ use super::io::CheckEndWithNewLine;
 /// Check that all the graders are present inside att.
 #[derive(Debug, Default)]
 pub struct AttGraders;
+make_sanity_check!(AttGraders);
 
 impl SanityCheck<IOITask> for AttGraders {
     fn name(&self) -> &'static str {
         "AttGraders"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         check_missing_graders(task, eval, "att")
     }
 }
@@ -35,13 +36,14 @@ impl SanityCheck<IOITask> for AttGraders {
 /// Check that all the templates are present inside att.
 #[derive(Debug, Default)]
 pub struct AttTemplates;
+make_sanity_check!(AttTemplates);
 
 impl SanityCheck<IOITask> for AttTemplates {
     fn name(&self) -> &'static str {
         "AttTemplates"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         for grader in task.grader_map.all_paths() {
             let ext = grader
                 .extension()
@@ -64,6 +66,7 @@ impl SanityCheck<IOITask> for AttTemplates {
 /// Check that the sample cases inside att are valid symlinks.
 #[derive(Debug, Default)]
 pub struct AttSampleFiles;
+make_sanity_check!(AttSampleFiles);
 
 impl AttSampleFiles {
     /// Extract the list of sample input files from the task.
@@ -95,7 +98,7 @@ impl SanityCheck<IOITask> for AttSampleFiles {
         "AttSampleFiles"
     }
 
-    fn post_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn post_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         let mut no_sample = true;
         let samples_from_task = Self::extract_sample_files_from_task(task);
         let mut samples_from_att = vec![];
@@ -163,13 +166,14 @@ impl SanityCheck<IOITask> for AttSampleFiles {
 /// and the sample output files score full score.
 #[derive(Debug, Default)]
 pub struct AttSampleFilesValid;
+make_sanity_check!(AttSampleFilesValid);
 
 impl SanityCheck<IOITask> for AttSampleFilesValid {
     fn name(&self) -> &'static str {
         "AttSampleFilesValid"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         let validator = &task.input_validator_generator;
         let task_type = if let TaskType::Batch(data) = &task.task_type {
             data
@@ -381,13 +385,14 @@ fn get_sample_files(
 /// Check that the source files in att don't contain @check rules.
 #[derive(Debug, Default)]
 pub struct AttWithNoCheck;
+make_sanity_check!(AttWithNoCheck);
 
 impl SanityCheck<IOITask> for AttWithNoCheck {
     fn name(&self) -> &'static str {
         "AttWithNoCheck"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         for att in list_files(&task.path, vec!["att/*"]) {
             let path = task.path_of(&att);
             if let Ok(checks) = SolutionCheck::extract_check_list(&att, eval) {
@@ -414,7 +419,7 @@ impl SanityCheck<IOITask> for AttEndWithNewLine {
         "AttEndWithNewLine"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         for att in list_files(&task.path, vec!["att/*"]) {
             let path = task.path_of(&att);
 
@@ -447,13 +452,14 @@ impl SanityCheck<IOITask> for AttEndWithNewLine {
 
 #[derive(Debug, Default)]
 pub struct AttNoDirectory;
+make_sanity_check!(AttNoDirectory);
 
 impl SanityCheck<IOITask> for AttNoDirectory {
     fn name(&self) -> &'static str {
         "AttNoDirectory"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         let dir =
             std::fs::read_dir(task.path.join("att")).context("Failed to open att/ directory")?;
         for entry in dir {
@@ -476,13 +482,14 @@ impl SanityCheck<IOITask> for AttNoDirectory {
 /// Check that the template and grader in att compile together
 #[derive(Debug, Default)]
 pub struct AttTemplatesShouldCompile;
+make_sanity_check!(AttTemplatesShouldCompile);
 
 impl SanityCheck<IOITask> for AttTemplatesShouldCompile {
     fn name(&self) -> &'static str {
         "AttTemplatesShouldCompile"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         for grader in task.grader_map.all_paths() {
             let ext = grader
                 .extension()

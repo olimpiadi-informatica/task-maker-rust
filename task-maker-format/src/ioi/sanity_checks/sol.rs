@@ -3,19 +3,20 @@ use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::sanity_checks::check_missing_graders;
 use crate::ioi::IOITask;
-use crate::sanity_checks::SanityCheck;
+use crate::sanity_checks::{make_sanity_check, SanityCheck};
 use crate::{list_files, EvaluationData};
 
 /// Check that all the graders inside sol are present.
 #[derive(Debug, Default)]
 pub struct SolGraders;
+make_sanity_check!(SolGraders);
 
 impl SanityCheck<IOITask> for SolGraders {
     fn name(&self) -> &'static str {
         "SolGraders"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         check_missing_graders(task, eval, "sol")
     }
 }
@@ -29,7 +30,7 @@ impl SanityCheck<IOITask> for SolSymlink {
         "SolSymlink"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         for solution in list_files(&task.path, vec!["sol/solution.*", "sol/soluzione.*"]) {
             if solution.read_link().is_err() {
                 eval.add_diagnostic(Diagnostic::warning(format!(
@@ -51,7 +52,7 @@ impl SanityCheck<IOITask> for SolTemplateSymlink {
         "SolTemplateSymlink"
     }
 
-    fn pre_hook(&mut self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         for template in list_files(&task.path, vec!["sol/template.*"]) {
             let ext = template
                 .extension()

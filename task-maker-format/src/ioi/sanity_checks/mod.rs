@@ -20,39 +20,17 @@ mod statement;
 mod subtasks;
 mod task;
 
+inventory::collect!(&'static dyn SanityCheck<IOITask>);
+
 /// Make a new `SanityChecks` for a IOI task skipping the checks with the provided names.
 pub fn get_sanity_checks(skip: &[String]) -> SanityChecks<IOITask> {
     SanityChecks::new(get_sanity_check_list(skip))
 }
 
 /// Return the list of sanity checks excluding the ones with their name in the provided list.
-fn get_sanity_check_list(skip: &[String]) -> Vec<Box<dyn SanityCheck<IOITask>>> {
-    let all: Vec<Box<dyn SanityCheck<_>>> = vec![
-        Box::<task::TaskMaxScore>::default(),
-        Box::<task::BrokenSymlinks>::default(),
-        Box::<task::NoBitsStdCpp>::default(),
-        Box::<att::AttGraders>::default(),
-        Box::<att::AttTemplates>::default(),
-        Box::<att::AttSampleFiles>::default(),
-        Box::<att::AttSampleFilesValid>::default(),
-        Box::<att::AttWithNoCheck>::default(),
-        Box::<att::AttEndWithNewLine>::default(),
-        Box::<att::AttNoDirectory>::default(),
-        Box::<att::AttTemplatesShouldCompile>::default(),
-        Box::<sol::SolGraders>::default(),
-        Box::<sol::SolSymlink>::default(),
-        Box::<sol::SolTemplateSymlink>::default(),
-        Box::<statement::StatementSubtasks>::default(),
-        Box::<statement::StatementValid>::default(),
-        Box::<statement::StatementCompiled>::default(),
-        Box::<statement::StatementGit>::default(),
-        Box::<subtasks::MissingSubtaskNames>::default(),
-        Box::<subtasks::SolutionsWithNoChecks>::default(),
-        Box::<subtasks::InvalidSubtaskName>::default(),
-        Box::<io::IOEndWithNewLine>::default(),
-        Box::<checker::FuzzCheckerWithJunkOutput>::default(),
-    ];
-    all.into_iter()
+fn get_sanity_check_list(skip: &[String]) -> Vec<&'static dyn SanityCheck<IOITask>> {
+    inventory::iter::<&dyn SanityCheck<IOITask>>()
+        .cloned()
         .filter(|s| !skip.contains(&s.name().into()))
         .collect()
 }

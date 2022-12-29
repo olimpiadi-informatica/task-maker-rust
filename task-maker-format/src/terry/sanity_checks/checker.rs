@@ -2,7 +2,7 @@ use anyhow::{bail, Context, Error};
 
 use task_maker_dag::File;
 
-use crate::sanity_checks::SanityCheck;
+use crate::sanity_checks::{make_sanity_check, SanityCheck};
 use crate::terry::TerryTask;
 use crate::{list_files, EvaluationData, UISender, DATA_DIR};
 use std::path::Path;
@@ -13,13 +13,14 @@ use task_maker_diagnostics::Diagnostic;
 /// The bad output files can be found inside `bad_outputs` in the data directory.
 #[derive(Debug, Default)]
 pub struct FuzzChecker;
+make_sanity_check!(FuzzChecker);
 
 impl SanityCheck<TerryTask> for FuzzChecker {
     fn name(&self) -> &'static str {
         "FuzzChecker"
     }
 
-    fn pre_hook(&mut self, task: &TerryTask, eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, task: &TerryTask, eval: &mut EvaluationData) -> Result<(), Error> {
         let outputs_dir = DATA_DIR.join("bad_outputs");
         if !outputs_dir.exists() {
             bail!("DATA_DIR/bad_outputs does not exists");

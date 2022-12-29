@@ -15,33 +15,52 @@ pub trait SanityCheck<Task>: Send + Sync + std::fmt::Debug {
 
     /// This function will be called before the actual execution of the DAG. It can add new
     /// executions to the DAG.
-    fn pre_hook(&mut self, _task: &Task, _eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, _task: &Task, _eval: &mut EvaluationData) -> Result<(), Error> {
         Ok(())
     }
 
     /// This function will be called after the execution of the DAG completes.
-    fn post_hook(&mut self, _task: &Task, _eval: &mut EvaluationData) -> Result<(), Error> {
+    fn post_hook(&self, _task: &Task, _eval: &mut EvaluationData) -> Result<(), Error> {
         Ok(())
     }
 }
 
+/// Register this struct as a sanity check.
+///
+/// ## Usage
+///
+/// ```no_run
+/// struct SanityCheckName;
+/// make_sanity_check!(SanityCheckName);
+/// ```
+macro_rules! make_sanity_check {
+    ($name:tt) => {
+        paste::paste! {
+            #[allow(non_upper_case_globals)]
+            static [<__ $name _SANITY_CHECK>]: $name = $name;
+            ::inventory::submit!(&[<__ $name _SANITY_CHECK>] as &dyn SanityCheck<_>);
+        }
+    };
+}
+pub(crate) use make_sanity_check;
+
 /// Internal state of the sanity checks.
 #[derive(Debug, Default)]
-struct SanityChecksState<Task> {
+struct SanityChecksState<Task: 'static> {
     /// The list of enabled sanity checks.
-    sanity_checks: Vec<Box<dyn SanityCheck<Task>>>,
+    sanity_checks: Vec<&'static dyn SanityCheck<Task>>,
 }
 
 /// Sanity checks for a IOI task.
 #[derive(Debug)]
-pub struct SanityChecks<Task> {
+pub struct SanityChecks<Task: 'static> {
     /// The internal state of the sanity checks. Mutex to allow interior mutability and Send+Sync
     /// support.
     state: Mutex<SanityChecksState<Task>>,
 }
 
 impl<Task> SanityChecks<Task> {
-    pub fn new(checks: Vec<Box<dyn SanityCheck<Task>>>) -> SanityChecks<Task> {
+    pub fn new(checks: Vec<&'static dyn SanityCheck<Task>>) -> SanityChecks<Task> {
         SanityChecks {
             state: Mutex::new(SanityChecksState {
                 sanity_checks: checks,
