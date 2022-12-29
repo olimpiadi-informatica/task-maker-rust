@@ -507,7 +507,13 @@ pub fn parse_task<P: AsRef<Path>>(
         booklets: Vec::new(),
         difficulty: yaml.difficulty,
         syllabus_level: yaml.syllabuslevel,
-        sanity_checks: Arc::new(get_sanity_checks(&eval_config.disabled_sanity_checks)),
+        sanity_checks: Arc::new(get_sanity_checks(
+            &eval_config
+                .disabled_sanity_checks
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+        )),
         input_validator_generator: InputValidatorGenerator::new(
             detect_validator(task_dir.to_path_buf()).context("Failed to detect validator")?,
         ),

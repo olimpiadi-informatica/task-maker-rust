@@ -31,7 +31,7 @@ use typescript_definitions::TypeScriptify;
 
 pub use detect_format::find_task;
 pub use sanity_checks::get_sanity_check_list;
-pub use sanity_checks::get_sanity_check_names;
+pub use sanity_checks::SanityCheckCategory;
 pub use source_file::SourceFile;
 pub use tag::{Tag, VALID_TAGS};
 pub use task_format::*;

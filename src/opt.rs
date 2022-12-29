@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::{Context, Error};
@@ -6,7 +7,7 @@ use itertools::Itertools;
 
 use task_maker_dag::DagPriority;
 use task_maker_format::terry::Seed;
-use task_maker_format::{find_task, get_sanity_check_names, TaskFormat};
+use task_maker_format::{find_task, get_sanity_check_list, TaskFormat};
 use task_maker_format::{EvaluationConfig, VALID_TAGS};
 
 #[derive(Parser, Debug)]
@@ -40,7 +41,7 @@ pub struct Opt {
     #[clap(flatten, next_help_heading = Some("BOOKLET"))]
     pub booklet: BookletOpt,
 
-    /// List of sanity checks to skip.
+    /// List of sanity checks to skip (--help for the list).
     #[clap(short = 'W', long = "skip-checks", long_help = skip_sanity_checks_long_help())]
     pub skip_sanity_checks: Vec<String>,
 
@@ -185,10 +186,23 @@ pub struct BookletOpt {
 /// Returns the long-help for the "skip sanity checks" option.
 fn skip_sanity_checks_long_help() -> &'static str {
     lazy_static! {
-        pub static ref DOC: String = format!(
-            "List of sanity checks to skip.\n\nThe available checks are: {}.",
-            get_sanity_check_names()
-        );
+        pub static ref DOC: String = {
+            let mut message = "List of sanity checks to skip.\n\n".to_string();
+            message += "The available checks are:\n";
+
+            let mut by_category: HashMap<_, Vec<_>> = Default::default();
+            for (name, category) in get_sanity_check_list() {
+                by_category.entry(category).or_default().push(name);
+            }
+
+            for (category, mut checks) in by_category.into_iter().sorted() {
+                checks.sort();
+                message += &format!("{} ({})\n", category.as_str(), category.purpose());
+                message += &format!("- {}\n\n", checks.join(", "));
+            }
+
+            message.trim().into()
+        };
     }
     &DOC
 }

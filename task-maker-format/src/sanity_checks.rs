@@ -3,13 +3,12 @@
 use std::sync::Mutex;
 
 use anyhow::Error;
-use itertools::Itertools;
 use task_maker_diagnostics::Diagnostic;
 
 use crate::EvaluationData;
 
 /// Category of a sanity check.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SanityCheckCategory {
     /// The sanity check verifies the attachments.
     Attachments,
@@ -23,6 +22,32 @@ pub enum SanityCheckCategory {
     Statement,
     /// The sanity check verifies general properties of the task.
     Task,
+}
+
+impl SanityCheckCategory {
+    /// What this category is about.
+    pub fn purpose(&self) -> &'static str {
+        match self {
+            SanityCheckCategory::Attachments => "verifies the attachments",
+            SanityCheckCategory::Checker => "verifies the checker",
+            SanityCheckCategory::Io => "verifies the input/output files",
+            SanityCheckCategory::Solutions => "verifies the solutions",
+            SanityCheckCategory::Statement => "verifies the statement files",
+            SanityCheckCategory::Task => "verifies general properties of the task",
+        }
+    }
+
+    /// String version of this category.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SanityCheckCategory::Attachments => "Attachments",
+            SanityCheckCategory::Checker => "Checker",
+            SanityCheckCategory::Io => "Io",
+            SanityCheckCategory::Solutions => "Solutions",
+            SanityCheckCategory::Statement => "Statement",
+            SanityCheckCategory::Task => "Task",
+        }
+    }
 }
 
 /// Trait that describes the behavior of a sanity check.
@@ -134,16 +159,13 @@ impl<Task> Default for SanityChecks<Task> {
     }
 }
 
-/// Return a list of all the sanity check names.
-pub fn get_sanity_check_list() -> Vec<String> {
-    crate::ioi::sanity_checks::get_sanity_check_names()
-        .iter()
-        .chain(crate::terry::sanity_checks::get_sanity_check_names().iter())
-        .map(ToString::to_string)
-        .collect()
-}
-
-/// Return a comma separated list of the names of all the sanity checks.
-pub fn get_sanity_check_names() -> String {
-    get_sanity_check_list().into_iter().join(", ")
+/// Return a list of all the sanity check.
+pub fn get_sanity_check_list() -> Vec<(&'static str, SanityCheckCategory)> {
+    let ioi = crate::ioi::sanity_checks::get_sanity_check_list(&[])
+        .into_iter()
+        .map(|check| (check.name(), check.category()));
+    let terry = crate::terry::sanity_checks::get_sanity_check_list(&[])
+        .into_iter()
+        .map(|check| (check.name(), check.category()));
+    ioi.chain(terry).collect()
 }

@@ -23,23 +23,15 @@ mod task;
 inventory::collect!(&'static dyn SanityCheck<IOITask>);
 
 /// Make a new `SanityChecks` for a IOI task skipping the checks with the provided names.
-pub fn get_sanity_checks(skip: &[String]) -> SanityChecks<IOITask> {
+pub fn get_sanity_checks(skip: &[&str]) -> SanityChecks<IOITask> {
     SanityChecks::new(get_sanity_check_list(skip))
 }
 
 /// Return the list of sanity checks excluding the ones with their name in the provided list.
-fn get_sanity_check_list(skip: &[String]) -> Vec<&'static dyn SanityCheck<IOITask>> {
+pub fn get_sanity_check_list(skip: &[&str]) -> Vec<&'static dyn SanityCheck<IOITask>> {
     inventory::iter::<&dyn SanityCheck<IOITask>>()
         .cloned()
-        .filter(|s| !skip.contains(&s.name().into()))
-        .collect()
-}
-
-/// Return a comma separated list of the names of all the sanity checks.
-pub fn get_sanity_check_names() -> Vec<&'static str> {
-    get_sanity_check_list(&[])
-        .iter()
-        .map(|s| s.name())
+        .filter(|s| !skip.contains(&s.name()) && !skip.contains(&s.category().as_str()))
         .collect()
 }
 

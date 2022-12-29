@@ -53,7 +53,13 @@ pub fn parse_task<P: AsRef<Path>>(
         validator,
         checker,
         official_solution,
-        sanity_checks: Arc::new(get_sanity_checks(&eval_config.disabled_sanity_checks)),
+        sanity_checks: Arc::new(get_sanity_checks(
+            &eval_config
+                .disabled_sanity_checks
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+        )),
     })
 }
 

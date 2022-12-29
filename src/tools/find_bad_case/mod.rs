@@ -57,7 +57,10 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
         booklet_solutions: false,
         no_statement: true,
         solution_paths: vec![opt.solution.clone()],
-        disabled_sanity_checks: get_sanity_check_list(),
+        disabled_sanity_checks: get_sanity_check_list()
+            .into_iter()
+            .map(|check| check.0.into())
+            .collect(),
         seed: None,
         dry_run: false,
     };
