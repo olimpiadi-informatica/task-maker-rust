@@ -20,6 +20,8 @@ jobs:
         with:
           components: clippy
 
+      - uses: taiki-e/install-action@nextest
+
       - uses: actions/cache@v3
         with:
           path: |
@@ -30,10 +32,10 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-test-${{ steps.install-rust.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: cargo test
+      - name: cargo nextest run (tests)
         env:
           RUST_BACKTRACE: 1
-        run: cargo test --color=always --all --no-fail-fast
+        run: cargo nextest run
 
       - name: cargo clippy
         run: tools/clippy.sh
