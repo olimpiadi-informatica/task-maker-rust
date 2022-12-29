@@ -93,7 +93,6 @@ typescript-definitions = { git = "https://github.com/onelson/typescript-definiti
 
 [dev-dependencies]
 approx = "0.5"
-port_scanner = "0.1"
 # Resolve executable names in $PATH
 which = "4.2"
 
