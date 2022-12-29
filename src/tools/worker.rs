@@ -73,7 +73,8 @@ pub fn main_worker(opt: WorkerOpt) -> Result<(), Error> {
         sandbox_path,
         executor_tx.change_type(),
         executor_rx.change_type(),
-        ToolsSandboxRunner::default(),
-    );
+        Arc::new(ToolsSandboxRunner::default()),
+    )
+    .context("Failed to start worker")?;
     worker.work()
 }

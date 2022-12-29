@@ -37,7 +37,7 @@ impl ExecutorClient {
     /// ```
     /// use task_maker_dag::ExecutionDAG;
     /// use task_maker_store::FileStore;
-    /// use task_maker_exec::{executors::LocalExecutor, ExecutorClient, ErrorSandboxRunner};
+    /// use task_maker_exec::{executors::LocalExecutor, ExecutorClient, SuccessSandboxRunner};
     /// use std::sync::mpsc::channel;
     /// use std::sync::{Arc, Mutex};
     /// use std::thread;
@@ -53,14 +53,14 @@ impl ExecutorClient {
     /// let (tx_remote, rx) = new_local_channel();
     /// # let tmpdir = TempDir::new().unwrap();
     /// # let path = tmpdir.path().to_owned();
-    /// # let sandbox_runner = ErrorSandboxRunner::default();
+    /// # let sandbox_runner = SuccessSandboxRunner::default();
     /// let file_store = Arc::new(FileStore::new(&path, 1000, 1000).expect("Cannot create the file store"));
     /// let server_file_store = file_store.clone();
     /// // make a new local executor in a second thread
     /// let server = thread::spawn(move || {
     ///     let cache = Cache::new(&path).expect("Cannot create the cache");
-    ///     let mut executor = LocalExecutor::new(server_file_store, 4, path);
-    ///     executor.evaluate(tx_remote, rx_remote, cache, sandbox_runner).unwrap();
+    ///     let mut executor = LocalExecutor::new(server_file_store, cache, 4, path, sandbox_runner).expect("Failed to create local executor");
+    ///     executor.evaluate(tx_remote, rx_remote).unwrap();
     /// });
     ///
     /// ExecutorClient::evaluate(dag, tx, &rx, file_store, |_| Ok(())).unwrap(); // this will block!

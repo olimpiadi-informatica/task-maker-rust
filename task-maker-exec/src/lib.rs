@@ -137,10 +137,16 @@ pub fn eval_dag_locally<P: Into<PathBuf>, P2: Into<PathBuf>, R>(
         .name("Local executor".into())
         .spawn(move || {
             let cache = Cache::new(store_dir).expect("Cannot create the cache");
-            let executor =
-                executors::LocalExecutor::new(server_file_store, num_cores, sandbox_path);
+            let executor = executors::LocalExecutor::new(
+                server_file_store,
+                cache,
+                num_cores,
+                sandbox_path,
+                sandbox_runner,
+            )
+            .expect("Failed to create local executor");
             executor
-                .evaluate(tx_remote, rx_remote, cache, sandbox_runner)
+                .evaluate(tx_remote, rx_remote)
                 .expect("Executor failed");
         })
         .expect("Failed to spawn local executor thread");

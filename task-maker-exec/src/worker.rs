@@ -97,49 +97,49 @@ impl Worker {
         name: S,
         file_store: Arc<FileStore>,
         sandbox_path: P,
-        runner: R,
-    ) -> (Worker, WorkerConn)
+        sandbox_runner: R,
+    ) -> Result<(Worker, WorkerConn), Error>
     where
         R: SandboxRunner + 'static,
     {
+        let sandbox_path = sandbox_path.into();
+        let sandbox_runner = Arc::new(sandbox_runner);
         let (tx, rx_worker) = new_local_channel();
         let (tx_worker, rx) = new_local_channel();
         let uuid = Uuid::new_v4();
         let name = name.into();
-        (
+        Ok((
             Worker::new_with_channel(
                 name.clone(),
                 file_store,
-                sandbox_path.into(),
+                sandbox_path,
                 tx_worker,
                 rx_worker,
-                runner,
-            ),
+                sandbox_runner,
+            )?,
             WorkerConn {
                 uuid,
                 name,
                 sender: tx,
                 receiver: rx,
             },
-        )
+        ))
     }
 
     /// Make a new worker with an already connected channel.
-    pub fn new_with_channel<S: Into<String>, P: Into<PathBuf>, R>(
+    pub fn new_with_channel<S: Into<String>, P: Into<PathBuf>>(
         name: S,
         file_store: Arc<FileStore>,
         sandbox_path: P,
         sender: ChannelSender<WorkerClientMessage>,
         receiver: ChannelReceiver<WorkerServerMessage>,
-        runner: R,
-    ) -> Worker
-    where
-        R: SandboxRunner + 'static,
-    {
+        sandbox_runner: Arc<dyn SandboxRunner>,
+    ) -> Result<Worker, Error> {
+        let sandbox_path = sandbox_path.into();
+        check_sandbox_is_supported(&sandbox_path, sandbox_runner.clone())?;
         let uuid = Uuid::new_v4();
         let name = name.into();
-        let sandbox_path = sandbox_path.into();
-        Worker {
+        Ok(Worker {
             uuid,
             name,
             sender,
@@ -147,9 +147,9 @@ impl Worker {
             file_store,
             current_job: Arc::new(Mutex::new(WorkerCurrentJob::new())),
             sandbox_path,
-            sandbox_runner: Arc::new(runner),
+            sandbox_runner,
             current_sandbox_thread: None,
-        }
+        })
     }
 
     /// Start the sandbox thread for the current job.
@@ -677,4 +677,32 @@ impl std::fmt::Display for Worker {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "'{}' ({})", self.name, self.uuid)
     }
+}
+
+fn check_sandbox_is_supported(
+    sandbox_path: &Path,
+    runner: Arc<dyn SandboxRunner>,
+) -> Result<(), Error> {
+    let execution = Execution::new(
+        "Execution to check if sandbox is supported",
+        ExecutionCommand::system("true"),
+    );
+    let sandbox = Sandbox::new(sandbox_path, &execution, &Default::default(), None)?;
+    let result = sandbox.run(runner.as_ref())?;
+    match result {
+        SandboxResult::Failed { error } => bail!("Sandbox failed: {}", error),
+        SandboxResult::Success {
+            exit_status,
+            signal,
+            ..
+        } => {
+            if exit_status != 0 {
+                bail!("Sandbox failed: exited with {}", exit_status);
+            }
+            if let Some((signal, name)) = signal {
+                bail!("Sandbox failed: exited with signal {} ({})", signal, name);
+            }
+        }
+    }
+    Ok(())
 }

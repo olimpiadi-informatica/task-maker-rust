@@ -171,11 +171,16 @@ impl RuntimeContext {
             // setup the local executor
             let num_cores = opt.num_cores.unwrap_or_else(num_cpus::get);
             let sandbox_path = storage_opt.store_dir().join("sandboxes");
-            let executor = LocalExecutor::new(file_store.clone(), num_cores, sandbox_path);
-            let sandbox_runner = self.sandbox_runner;
+            let executor = LocalExecutor::new(
+                file_store.clone(),
+                cache,
+                num_cores,
+                sandbox_path,
+                self.sandbox_runner,
+            )?;
             let local_executor = std::thread::Builder::new()
                 .name("Executor thread".into())
-                .spawn(move || executor.evaluate(tx_remote, rx_remote, cache, sandbox_runner))
+                .spawn(move || executor.evaluate(tx_remote, rx_remote))
                 .context("Failed to spawn the executor thread")?;
             (tx, rx, Some(local_executor))
         };
