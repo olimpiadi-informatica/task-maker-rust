@@ -41,7 +41,7 @@ pub struct Opt {
     pub booklet: BookletOpt,
 
     /// List of sanity checks to skip.
-    #[clap(short = 'W', long_help = skip_sanity_checks_long_help())]
+    #[clap(short = 'W', long = "skip-checks", long_help = skip_sanity_checks_long_help())]
     pub skip_sanity_checks: Vec<String>,
 
     #[clap(flatten, next_help_heading = Some("STORAGE"))]
