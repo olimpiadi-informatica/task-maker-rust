@@ -1,7 +1,7 @@
 use anyhow::Error;
 use task_maker_diagnostics::Diagnostic;
 
-use crate::sanity_checks::{make_sanity_check, SanityCheck};
+use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::terry::TerryTask;
 use crate::EvaluationData;
 
@@ -13,6 +13,10 @@ make_sanity_check!(StatementPresent);
 impl SanityCheck<TerryTask> for StatementPresent {
     fn name(&self) -> &'static str {
         "StatementPresent"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Statement
     }
 
     fn pre_hook(&self, task: &TerryTask, eval: &mut EvaluationData) -> Result<(), Error> {

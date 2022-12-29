@@ -9,7 +9,7 @@ use regex::Regex;
 use task_maker_diagnostics::{CodeSpan, Diagnostic};
 
 use crate::ioi::{IOITask, SubtaskId};
-use crate::sanity_checks::{make_sanity_check, SanityCheck};
+use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::EvaluationData;
 
 /// Check that the subtasks in the statement are consistent with the ones of the task.
@@ -20,6 +20,10 @@ make_sanity_check!(StatementSubtasks);
 impl SanityCheck<IOITask> for StatementSubtasks {
     fn name(&self) -> &'static str {
         "StatementSubtasks"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Statement
     }
 
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
@@ -111,6 +115,10 @@ impl SanityCheck<IOITask> for StatementValid {
         "StatementValid"
     }
 
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Statement
+    }
+
     fn post_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         match find_statement_pdf(task) {
             None => {
@@ -170,6 +178,10 @@ make_sanity_check!(StatementCompiled);
 impl SanityCheck<IOITask> for StatementCompiled {
     fn name(&self) -> &'static str {
         "StatementCompiled"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Statement
     }
 
     fn post_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
@@ -233,6 +245,10 @@ make_sanity_check!(StatementGit);
 impl SanityCheck<IOITask> for StatementGit {
     fn name(&self) -> &'static str {
         "StatementGit"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Statement
     }
 
     fn post_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {

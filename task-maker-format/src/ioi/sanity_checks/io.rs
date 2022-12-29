@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use crate::ioi::IOITask;
-use crate::sanity_checks::{make_sanity_check, SanityCheck};
+use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::ui::UIMessageSender;
 use crate::{EvaluationData, UISender};
 use anyhow::Error;
@@ -62,6 +62,10 @@ impl CheckEndWithNewLine {
 impl SanityCheck<IOITask> for IOEndWithNewLine {
     fn name(&self) -> &'static str {
         "IOEndWithNewLine"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Io
     }
 
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {

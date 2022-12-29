@@ -2,7 +2,7 @@ use anyhow::{bail, Context, Error};
 
 use task_maker_dag::File;
 
-use crate::sanity_checks::{make_sanity_check, SanityCheck};
+use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::terry::TerryTask;
 use crate::{list_files, EvaluationData, UISender, DATA_DIR};
 use std::path::Path;
@@ -18,6 +18,10 @@ make_sanity_check!(FuzzChecker);
 impl SanityCheck<TerryTask> for FuzzChecker {
     fn name(&self) -> &'static str {
         "FuzzChecker"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Checker
     }
 
     fn pre_hook(&self, task: &TerryTask, eval: &mut EvaluationData) -> Result<(), Error> {

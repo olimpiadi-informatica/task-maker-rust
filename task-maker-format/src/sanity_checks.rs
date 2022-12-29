@@ -8,10 +8,30 @@ use task_maker_diagnostics::Diagnostic;
 
 use crate::EvaluationData;
 
+/// Category of a sanity check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SanityCheckCategory {
+    /// The sanity check verifies the attachments.
+    Attachments,
+    /// The sanity check verifies the checker.
+    Checker,
+    /// The sanity check verifies the input/output files.
+    Io,
+    /// The sanity check verifies the solutions.
+    Solutions,
+    /// The sanity check verifies the statement files.
+    Statement,
+    /// The sanity check verifies general properties of the task.
+    Task,
+}
+
 /// Trait that describes the behavior of a sanity check.
 pub trait SanityCheck<Task>: Send + Sync + std::fmt::Debug {
     /// The name of the sanity check.
     fn name(&self) -> &'static str;
+
+    /// The category of the sanity check.
+    fn category(&self) -> SanityCheckCategory;
 
     /// This function will be called before the actual execution of the DAG. It can add new
     /// executions to the DAG.

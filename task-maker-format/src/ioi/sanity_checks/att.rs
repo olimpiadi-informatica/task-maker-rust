@@ -13,7 +13,7 @@ use task_maker_lang::GraderMap;
 
 use crate::ioi::sanity_checks::check_missing_graders;
 use crate::ioi::{IOITask, InputGenerator, TaskType, TestcaseId};
-use crate::sanity_checks::{make_sanity_check, SanityCheck};
+use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::{list_files, EvaluationData, SolutionCheck, SourceFile, UISender};
 
 use super::io::CheckEndWithNewLine;
@@ -26,6 +26,10 @@ make_sanity_check!(AttGraders);
 impl SanityCheck<IOITask> for AttGraders {
     fn name(&self) -> &'static str {
         "AttGraders"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Attachments
     }
 
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
@@ -41,6 +45,10 @@ make_sanity_check!(AttTemplates);
 impl SanityCheck<IOITask> for AttTemplates {
     fn name(&self) -> &'static str {
         "AttTemplates"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Attachments
     }
 
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
@@ -96,6 +104,10 @@ impl AttSampleFiles {
 impl SanityCheck<IOITask> for AttSampleFiles {
     fn name(&self) -> &'static str {
         "AttSampleFiles"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Attachments
     }
 
     fn post_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
@@ -171,6 +183,10 @@ make_sanity_check!(AttSampleFilesValid);
 impl SanityCheck<IOITask> for AttSampleFilesValid {
     fn name(&self) -> &'static str {
         "AttSampleFilesValid"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Attachments
     }
 
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
@@ -392,6 +408,10 @@ impl SanityCheck<IOITask> for AttWithNoCheck {
         "AttWithNoCheck"
     }
 
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Attachments
+    }
+
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         for att in list_files(&task.path, vec!["att/*"]) {
             let path = task.path_of(&att);
@@ -417,6 +437,10 @@ pub struct AttEndWithNewLine;
 impl SanityCheck<IOITask> for AttEndWithNewLine {
     fn name(&self) -> &'static str {
         "AttEndWithNewLine"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Attachments
     }
 
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
@@ -459,6 +483,10 @@ impl SanityCheck<IOITask> for AttNoDirectory {
         "AttNoDirectory"
     }
 
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Attachments
+    }
+
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         let dir =
             std::fs::read_dir(task.path.join("att")).context("Failed to open att/ directory")?;
@@ -487,6 +515,10 @@ make_sanity_check!(AttTemplatesShouldCompile);
 impl SanityCheck<IOITask> for AttTemplatesShouldCompile {
     fn name(&self) -> &'static str {
         "AttTemplatesShouldCompile"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Attachments
     }
 
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {

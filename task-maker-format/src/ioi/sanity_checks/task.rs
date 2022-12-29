@@ -5,7 +5,7 @@ use regex::Regex;
 use task_maker_diagnostics::{CodeSpan, Diagnostic};
 
 use crate::ioi::IOITask;
-use crate::sanity_checks::{make_sanity_check, SanityCheck};
+use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::{list_files, EvaluationData};
 
 /// The default maximum score of a task.
@@ -19,6 +19,10 @@ make_sanity_check!(TaskMaxScore);
 impl SanityCheck<IOITask> for TaskMaxScore {
     fn name(&self) -> &'static str {
         "TaskMaxScore"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Task
     }
 
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
@@ -41,6 +45,10 @@ make_sanity_check!(BrokenSymlinks);
 impl SanityCheck<IOITask> for BrokenSymlinks {
     fn name(&self) -> &'static str {
         "BrokenSymlinks"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Task
     }
 
     fn post_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
@@ -71,6 +79,10 @@ make_sanity_check!(NoBitsStdCpp);
 impl SanityCheck<IOITask> for NoBitsStdCpp {
     fn name(&self) -> &'static str {
         "NoBitsStdCpp"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Task
     }
 
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {

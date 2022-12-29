@@ -2,7 +2,7 @@ use anyhow::{Context, Error};
 use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::IOITask;
-use crate::sanity_checks::{make_sanity_check, SanityCheck};
+use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::UISender;
 use task_maker_dag::File;
 
@@ -24,6 +24,10 @@ lazy_static! {
 impl SanityCheck<IOITask> for FuzzCheckerWithJunkOutput {
     fn name(&self) -> &'static str {
         "FuzzCheckerWithJunkOutput"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Checker
     }
 
     fn pre_hook(&self, task: &IOITask, eval: &mut crate::EvaluationData) -> Result<(), Error> {
