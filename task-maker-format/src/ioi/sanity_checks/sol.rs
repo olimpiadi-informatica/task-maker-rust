@@ -28,6 +28,7 @@ impl SanityCheck<IOITask> for SolGraders {
 /// Check that the official solution is a symlink.
 #[derive(Debug, Default)]
 pub struct SolSymlink;
+make_sanity_check!(SolSymlink);
 
 impl SanityCheck<IOITask> for SolSymlink {
     fn name(&self) -> &'static str {
@@ -54,6 +55,7 @@ impl SanityCheck<IOITask> for SolSymlink {
 /// Check that the template is a symlink.
 #[derive(Debug, Default)]
 pub struct SolTemplateSymlink;
+make_sanity_check!(SolTemplateSymlink);
 
 impl SanityCheck<IOITask> for SolTemplateSymlink {
     fn name(&self) -> &'static str {

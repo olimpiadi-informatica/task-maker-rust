@@ -74,7 +74,7 @@ pub trait SanityCheck<Task>: Send + Sync + std::fmt::Debug {
 ///
 /// ## Usage
 ///
-/// ```no_run
+/// ```ignore
 /// struct SanityCheckName;
 /// make_sanity_check!(SanityCheckName);
 /// ```
