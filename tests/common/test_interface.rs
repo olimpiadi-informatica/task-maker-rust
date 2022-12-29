@@ -57,23 +57,25 @@ impl TestInterface {
             .format_timestamp_nanos()
             .is_test(true)
             .try_init();
-        if !port_scanner::scan_port(27182) {
-            eprintln!("Server not spawned, spawning");
-            TestInterface::spawn_server();
-            TestInterface::wait_port(27182);
-        }
+        let tempdir = TempDir::new().expect("Cannot crete tempdir");
+        let client_path = tempdir.path().join("client.sock");
+        let worker_path = tempdir.path().join("worker.sock");
+        TestInterface::spawn_server(&client_path, &worker_path);
+        TestInterface::wait_file(&client_path);
 
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
             .join("tasks")
             .join(path.into());
-        let tempdir = TempDir::new().expect("Cannot crete tempdir");
         TestInterface {
             state: TestInterface::run_task_maker(
                 path,
                 false,
                 tempdir.path(),
-                &["--evaluate-on", "tcp://127.0.0.1:27182"],
+                &[
+                    "--evaluate-on",
+                    &format!("unix://{}", client_path.display()),
+                ],
             ),
             _tempdir: tempdir,
         }
@@ -163,47 +165,52 @@ impl TestInterface {
         }
     }
 
-    /// Block until the specified port becomes open, trying many times sleeping for a while in
-    /// between.
-    fn wait_port(port: u16) {
+    /// Block until the specified file exists, meaning that the server is ready to accept
+    /// connections.
+    fn wait_file(path: &Path) {
         for _ in 0..10 {
             eprintln!("Waiting for the server...");
             std::thread::sleep(Duration::from_millis(500));
-            if port_scanner::scan_port(port) {
+            if path.exists() {
                 break;
             }
         }
     }
 
     /// Spawn the server and the worker in different threads by calling their entry points.
-    fn spawn_server() {
+    fn spawn_server(client_path: &Path, worker_path: &Path) {
         std::thread::Builder::new()
             .name("Test server".to_string())
-            .spawn(|| {
-                let tmpdir = tempfile::TempDir::new().unwrap();
-                let store = tmpdir.path().to_string_lossy().to_string();
-                let opt = ServerOpt::parse_from([
-                    "server",
-                    "--store-dir",
-                    &store,
-                    "0.0.0.0:27182",
-                    "0.0.0.0:27183",
-                ]);
-                eprintln!("Server opts {:?}", opt);
-                main_server(opt).unwrap();
+            .spawn({
+                let client_path = client_path.to_path_buf();
+                let worker_path = worker_path.to_path_buf();
+                move || {
+                    let tmpdir = tempfile::TempDir::new().unwrap();
+                    let store = tmpdir.path().to_string_lossy().to_string();
+                    let opt = ServerOpt::parse_from([
+                        "server",
+                        "--store-dir",
+                        &store,
+                        &format!("unix://{}", client_path.display()),
+                        &format!("unix://{}", worker_path.display()),
+                    ]);
+                    eprintln!("Server opts {:?}", opt);
+                    main_server(opt).unwrap();
+                }
             })
             .unwrap();
+        let worker_path = worker_path.to_path_buf();
         std::thread::Builder::new()
             .name("Test worker".to_string())
-            .spawn(|| {
-                TestInterface::wait_port(27183);
+            .spawn(move || {
+                TestInterface::wait_file(&worker_path);
                 let tmpdir = tempfile::TempDir::new().unwrap();
                 let store = tmpdir.path().to_string_lossy().to_string();
                 let opt = WorkerOpt::parse_from([
                     "worker",
                     "--store-dir",
                     &store,
-                    "tcp://127.0.0.1:27183",
+                    &format!("unix://{}", worker_path.display()),
                 ]);
                 eprintln!("Worker opts {:?}", opt);
                 std::env::set_var(
