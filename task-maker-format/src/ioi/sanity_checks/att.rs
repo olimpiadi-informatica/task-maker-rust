@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Context, Error};
 use itertools::Itertools;
@@ -443,6 +443,7 @@ impl SanityCheck for AttWithNoCheck {
 
 #[derive(Debug, Default)]
 pub struct AttEndWithNewLine;
+make_sanity_check!(AttEndWithNewLine);
 
 impl SanityCheck for AttEndWithNewLine {
     type Task = IOITask;
@@ -456,6 +457,7 @@ impl SanityCheck for AttEndWithNewLine {
     }
 
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        let list = Arc::new(Mutex::new(Vec::new()));
         for att in list_files(&task.path, vec!["att/*"]) {
             let path = task.path_of(&att);
 
@@ -478,10 +480,12 @@ impl SanityCheck for AttEndWithNewLine {
                 &buf[..]
             };
 
-            let mut checker = CheckEndWithNewLine::new(eval, "Attached", path.display());
+            let mut checker =
+                CheckEndWithNewLine::new(path.to_string_lossy().to_string(), list.clone());
             checker.add_chunk(chunk)?;
             checker.add_chunk(&[])?;
         }
+        CheckEndWithNewLine::emit_warning(eval, &list.lock().unwrap(), "attached")?;
         Ok(())
     }
 }
