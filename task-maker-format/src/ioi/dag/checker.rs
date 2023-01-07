@@ -50,6 +50,8 @@ impl Checker {
             Checker::WhiteDiff => {
                 let mut exec = Execution::new(description, ExecutionCommand::system("diff"));
                 exec.args(vec![
+                    "--brief",
+                    "--speed-large-files",
                     "--ignore-blank-lines",
                     "--ignore-space-change",
                     "correct",
