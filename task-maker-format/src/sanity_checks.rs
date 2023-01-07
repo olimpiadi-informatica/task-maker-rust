@@ -70,6 +70,27 @@ pub trait SanityCheck<Task>: Send + Sync + std::fmt::Debug {
     }
 }
 
+/// Struct for building new instances of `SanityCheck`.
+///
+/// We need to register the sanity checks in the inventory, but to do so we need to have `Box`es,
+/// which are not available in a static context. So we instead register the builders which contain
+/// a function pointer that can create boxes at runtime.
+pub(crate) struct SanityCheckBuilder<Task> {
+    builder: fn() -> Box<dyn SanityCheck<Task>>,
+}
+
+impl<Task> SanityCheckBuilder<Task> {
+    /// A const function for initializing a new builder.
+    pub(crate) const fn new(builder: fn() -> Box<dyn SanityCheck<Task>>) -> Self {
+        Self { builder }
+    }
+
+    /// Make an instance of this sanity check.
+    pub(crate) fn build(&self) -> Box<dyn SanityCheck<Task>> {
+        (self.builder)()
+    }
+}
+
 /// Register this struct as a sanity check.
 ///
 /// ## Usage
@@ -79,11 +100,12 @@ pub trait SanityCheck<Task>: Send + Sync + std::fmt::Debug {
 /// make_sanity_check!(SanityCheckName);
 /// ```
 macro_rules! make_sanity_check {
-    ($name:tt) => {
+    ($name:tt, $task:tt) => {
         paste::paste! {
             #[allow(non_upper_case_globals)]
-            static [<__ $name _SANITY_CHECK>]: $name = $name;
-            ::inventory::submit!(&[<__ $name _SANITY_CHECK>] as &dyn SanityCheck<_>);
+            static [<__ $name _SANITY_CHECK>]: crate::sanity_checks::SanityCheckBuilder<$task> =
+                crate::sanity_checks::SanityCheckBuilder::new(|| Box::<$name>::default());
+            ::inventory::submit!(&[<__ $name _SANITY_CHECK>]);
         }
     };
 }
@@ -93,7 +115,7 @@ pub(crate) use make_sanity_check;
 #[derive(Debug, Default)]
 struct SanityChecksState<Task: 'static> {
     /// The list of enabled sanity checks.
-    sanity_checks: Vec<&'static dyn SanityCheck<Task>>,
+    sanity_checks: Vec<Box<dyn SanityCheck<Task>>>,
 }
 
 /// Sanity checks for a IOI task.
@@ -105,7 +127,7 @@ pub struct SanityChecks<Task: 'static> {
 }
 
 impl<Task> SanityChecks<Task> {
-    pub fn new(checks: Vec<&'static dyn SanityCheck<Task>>) -> SanityChecks<Task> {
+    pub fn new(checks: Vec<Box<dyn SanityCheck<Task>>>) -> SanityChecks<Task> {
         SanityChecks {
             state: Mutex::new(SanityChecksState {
                 sanity_checks: checks,

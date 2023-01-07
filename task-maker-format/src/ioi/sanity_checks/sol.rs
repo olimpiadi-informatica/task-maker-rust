@@ -9,7 +9,7 @@ use crate::{list_files, EvaluationData};
 /// Check that all the graders inside sol are present.
 #[derive(Debug, Default)]
 pub struct SolGraders;
-make_sanity_check!(SolGraders);
+make_sanity_check!(SolGraders, IOITask);
 
 impl SanityCheck<IOITask> for SolGraders {
     fn name(&self) -> &'static str {
@@ -28,7 +28,7 @@ impl SanityCheck<IOITask> for SolGraders {
 /// Check that the official solution is a symlink.
 #[derive(Debug, Default)]
 pub struct SolSymlink;
-make_sanity_check!(SolSymlink);
+make_sanity_check!(SolSymlink, IOITask);
 
 impl SanityCheck<IOITask> for SolSymlink {
     fn name(&self) -> &'static str {
@@ -55,7 +55,7 @@ impl SanityCheck<IOITask> for SolSymlink {
 /// Check that the template is a symlink.
 #[derive(Debug, Default)]
 pub struct SolTemplateSymlink;
-make_sanity_check!(SolTemplateSymlink);
+make_sanity_check!(SolTemplateSymlink, IOITask);
 
 impl SanityCheck<IOITask> for SolTemplateSymlink {
     fn name(&self) -> &'static str {
@@ -90,7 +90,7 @@ impl SanityCheck<IOITask> for SolTemplateSymlink {
 /// Check that all the solutions (that are not symlinks) contain at least one check.
 #[derive(Debug, Default)]
 pub struct SolutionsWithNoChecks;
-make_sanity_check!(SolutionsWithNoChecks);
+make_sanity_check!(SolutionsWithNoChecks, IOITask);
 
 impl SanityCheck<IOITask> for SolutionsWithNoChecks {
     fn name(&self) -> &'static str {

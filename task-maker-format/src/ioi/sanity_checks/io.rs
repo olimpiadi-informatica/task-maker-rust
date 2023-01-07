@@ -12,7 +12,7 @@ use task_maker_diagnostics::Diagnostic;
 /// Check that the input and output files end with `\n`.
 #[derive(Debug, Default)]
 pub struct IOEndWithNewLine;
-make_sanity_check!(IOEndWithNewLine);
+make_sanity_check!(IOEndWithNewLine, IOITask);
 
 /// Check that a file ends with `\n` and emit a warning if it doesn't. An empty file is considered
 /// valid.

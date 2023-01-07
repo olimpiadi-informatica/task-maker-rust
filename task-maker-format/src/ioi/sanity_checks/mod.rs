@@ -7,7 +7,7 @@ use anyhow::Error;
 use task_maker_lang::LanguageManager;
 
 use crate::ioi::IOITask;
-use crate::sanity_checks::{SanityCheck, SanityChecks};
+use crate::sanity_checks::{SanityCheck, SanityCheckBuilder, SanityChecks};
 use crate::{list_files, EvaluationData};
 use std::collections::HashMap;
 use task_maker_diagnostics::Diagnostic;
@@ -20,7 +20,7 @@ mod statement;
 mod subtasks;
 mod task;
 
-inventory::collect!(&'static dyn SanityCheck<IOITask>);
+inventory::collect!(&'static SanityCheckBuilder<IOITask>);
 
 /// Make a new `SanityChecks` for a IOI task skipping the checks with the provided names.
 pub fn get_sanity_checks(skip: &[&str]) -> SanityChecks<IOITask> {
@@ -28,9 +28,10 @@ pub fn get_sanity_checks(skip: &[&str]) -> SanityChecks<IOITask> {
 }
 
 /// Return the list of sanity checks excluding the ones with their name in the provided list.
-pub fn get_sanity_check_list(skip: &[&str]) -> Vec<&'static dyn SanityCheck<IOITask>> {
-    inventory::iter::<&dyn SanityCheck<IOITask>>()
+pub fn get_sanity_check_list(skip: &[&str]) -> Vec<Box<dyn SanityCheck<IOITask>>> {
+    inventory::iter::<&SanityCheckBuilder<IOITask>>()
         .cloned()
+        .map(|b| b.build())
         .filter(|s| !skip.contains(&s.name()) && !skip.contains(&s.category().as_str()))
         .collect()
 }

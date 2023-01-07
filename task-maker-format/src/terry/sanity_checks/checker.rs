@@ -13,7 +13,7 @@ use task_maker_diagnostics::Diagnostic;
 /// The bad output files can be found inside `bad_outputs` in the data directory.
 #[derive(Debug, Default)]
 pub struct FuzzChecker;
-make_sanity_check!(FuzzChecker);
+make_sanity_check!(FuzzChecker, TerryTask);
 
 impl SanityCheck<TerryTask> for FuzzChecker {
     fn name(&self) -> &'static str {

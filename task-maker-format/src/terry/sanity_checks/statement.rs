@@ -8,7 +8,7 @@ use crate::EvaluationData;
 /// Check that the statement file is present.
 #[derive(Debug, Default)]
 pub struct StatementPresent;
-make_sanity_check!(StatementPresent);
+make_sanity_check!(StatementPresent, TerryTask);
 
 impl SanityCheck<TerryTask> for StatementPresent {
     fn name(&self) -> &'static str {
