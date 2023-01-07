@@ -10,7 +10,7 @@ use task_maker_dag::File;
 /// score 0 points.
 #[derive(Debug, Default)]
 pub struct FuzzCheckerWithJunkOutput;
-make_sanity_check!(FuzzCheckerWithJunkOutput, IOITask);
+make_sanity_check!(FuzzCheckerWithJunkOutput);
 
 lazy_static! {
     static ref JUNK_OUTPUTS: [(&'static str, Vec<u8>); 4] = [
@@ -21,7 +21,9 @@ lazy_static! {
     ];
 }
 
-impl SanityCheck<IOITask> for FuzzCheckerWithJunkOutput {
+impl SanityCheck for FuzzCheckerWithJunkOutput {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "FuzzCheckerWithJunkOutput"
     }

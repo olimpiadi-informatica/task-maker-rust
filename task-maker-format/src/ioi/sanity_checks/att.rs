@@ -21,9 +21,11 @@ use super::io::CheckEndWithNewLine;
 /// Check that all the graders are present inside att.
 #[derive(Debug, Default)]
 pub struct AttGraders;
-make_sanity_check!(AttGraders, IOITask);
+make_sanity_check!(AttGraders);
 
-impl SanityCheck<IOITask> for AttGraders {
+impl SanityCheck for AttGraders {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "AttGraders"
     }
@@ -40,9 +42,11 @@ impl SanityCheck<IOITask> for AttGraders {
 /// Check that all the templates are present inside att.
 #[derive(Debug, Default)]
 pub struct AttTemplates;
-make_sanity_check!(AttTemplates, IOITask);
+make_sanity_check!(AttTemplates);
 
-impl SanityCheck<IOITask> for AttTemplates {
+impl SanityCheck for AttTemplates {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "AttTemplates"
     }
@@ -74,7 +78,7 @@ impl SanityCheck<IOITask> for AttTemplates {
 /// Check that the sample cases inside att are valid symlinks.
 #[derive(Debug, Default)]
 pub struct AttSampleFiles;
-make_sanity_check!(AttSampleFiles, IOITask);
+make_sanity_check!(AttSampleFiles);
 
 impl AttSampleFiles {
     /// Extract the list of sample input files from the task.
@@ -101,7 +105,9 @@ impl AttSampleFiles {
     }
 }
 
-impl SanityCheck<IOITask> for AttSampleFiles {
+impl SanityCheck for AttSampleFiles {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "AttSampleFiles"
     }
@@ -178,9 +184,11 @@ impl SanityCheck<IOITask> for AttSampleFiles {
 /// and the sample output files score full score.
 #[derive(Debug, Default)]
 pub struct AttSampleFilesValid;
-make_sanity_check!(AttSampleFilesValid, IOITask);
+make_sanity_check!(AttSampleFilesValid);
 
-impl SanityCheck<IOITask> for AttSampleFilesValid {
+impl SanityCheck for AttSampleFilesValid {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "AttSampleFilesValid"
     }
@@ -401,9 +409,11 @@ fn get_sample_files(
 /// Check that the source files in att don't contain @check rules.
 #[derive(Debug, Default)]
 pub struct AttWithNoCheck;
-make_sanity_check!(AttWithNoCheck, IOITask);
+make_sanity_check!(AttWithNoCheck);
 
-impl SanityCheck<IOITask> for AttWithNoCheck {
+impl SanityCheck for AttWithNoCheck {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "AttWithNoCheck"
     }
@@ -434,7 +444,9 @@ impl SanityCheck<IOITask> for AttWithNoCheck {
 #[derive(Debug, Default)]
 pub struct AttEndWithNewLine;
 
-impl SanityCheck<IOITask> for AttEndWithNewLine {
+impl SanityCheck for AttEndWithNewLine {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "AttEndWithNewLine"
     }
@@ -476,9 +488,11 @@ impl SanityCheck<IOITask> for AttEndWithNewLine {
 
 #[derive(Debug, Default)]
 pub struct AttNoDirectory;
-make_sanity_check!(AttNoDirectory, IOITask);
+make_sanity_check!(AttNoDirectory);
 
-impl SanityCheck<IOITask> for AttNoDirectory {
+impl SanityCheck for AttNoDirectory {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "AttNoDirectory"
     }
@@ -510,9 +524,11 @@ impl SanityCheck<IOITask> for AttNoDirectory {
 /// Check that the template and grader in att compile together
 #[derive(Debug, Default)]
 pub struct AttTemplatesShouldCompile;
-make_sanity_check!(AttTemplatesShouldCompile, IOITask);
+make_sanity_check!(AttTemplatesShouldCompile);
 
-impl SanityCheck<IOITask> for AttTemplatesShouldCompile {
+impl SanityCheck for AttTemplatesShouldCompile {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "AttTemplatesShouldCompile"
     }

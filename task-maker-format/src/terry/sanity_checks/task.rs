@@ -8,9 +8,11 @@ use crate::EvaluationData;
 /// Check that the validator is present.
 #[derive(Debug, Default)]
 pub struct ValidatorPresent;
-make_sanity_check!(ValidatorPresent, TerryTask);
+make_sanity_check!(ValidatorPresent);
 
-impl SanityCheck<TerryTask> for ValidatorPresent {
+impl SanityCheck for ValidatorPresent {
+    type Task = TerryTask;
+
     fn name(&self) -> &'static str {
         "ValidatorPresent"
     }

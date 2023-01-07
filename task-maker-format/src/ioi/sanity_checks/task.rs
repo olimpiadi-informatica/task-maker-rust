@@ -14,9 +14,11 @@ const DEFAULT_TASK_MAX_SCORE: f64 = 100.0;
 /// Check that the task has the usual maximum score.
 #[derive(Debug, Default)]
 pub struct TaskMaxScore;
-make_sanity_check!(TaskMaxScore, IOITask);
+make_sanity_check!(TaskMaxScore);
 
-impl SanityCheck<IOITask> for TaskMaxScore {
+impl SanityCheck for TaskMaxScore {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "TaskMaxScore"
     }
@@ -40,9 +42,11 @@ impl SanityCheck<IOITask> for TaskMaxScore {
 /// Check that there are no broken links.
 #[derive(Debug, Default)]
 pub struct BrokenSymlinks;
-make_sanity_check!(BrokenSymlinks, IOITask);
+make_sanity_check!(BrokenSymlinks);
 
-impl SanityCheck<IOITask> for BrokenSymlinks {
+impl SanityCheck for BrokenSymlinks {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "BrokenSymlinks"
     }
@@ -74,9 +78,11 @@ impl SanityCheck<IOITask> for BrokenSymlinks {
 /// Check that cpp source files don't contain #include <bits/stdc++.h> (or whitespace variants of it)
 #[derive(Debug, Default)]
 pub struct NoBitsStdCpp;
-make_sanity_check!(NoBitsStdCpp, IOITask);
+make_sanity_check!(NoBitsStdCpp);
 
-impl SanityCheck<IOITask> for NoBitsStdCpp {
+impl SanityCheck for NoBitsStdCpp {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "NoBitsStdCpp"
     }

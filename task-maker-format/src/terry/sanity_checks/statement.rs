@@ -8,9 +8,11 @@ use crate::EvaluationData;
 /// Check that the statement file is present.
 #[derive(Debug, Default)]
 pub struct StatementPresent;
-make_sanity_check!(StatementPresent, TerryTask);
+make_sanity_check!(StatementPresent);
 
-impl SanityCheck<TerryTask> for StatementPresent {
+impl SanityCheck for StatementPresent {
+    type Task = TerryTask;
+
     fn name(&self) -> &'static str {
         "StatementPresent"
     }

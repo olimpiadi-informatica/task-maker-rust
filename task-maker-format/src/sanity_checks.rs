@@ -51,7 +51,10 @@ impl SanityCheckCategory {
 }
 
 /// Trait that describes the behavior of a sanity check.
-pub trait SanityCheck<Task>: Send + Sync + std::fmt::Debug {
+pub trait SanityCheck: Send + Sync + std::fmt::Debug {
+    /// The type of the task this sanity check is for.
+    type Task;
+
     /// The name of the sanity check.
     fn name(&self) -> &'static str;
 
@@ -60,12 +63,12 @@ pub trait SanityCheck<Task>: Send + Sync + std::fmt::Debug {
 
     /// This function will be called before the actual execution of the DAG. It can add new
     /// executions to the DAG.
-    fn pre_hook(&self, _task: &Task, _eval: &mut EvaluationData) -> Result<(), Error> {
+    fn pre_hook(&self, _task: &Self::Task, _eval: &mut EvaluationData) -> Result<(), Error> {
         Ok(())
     }
 
     /// This function will be called after the execution of the DAG completes.
-    fn post_hook(&self, _task: &Task, _eval: &mut EvaluationData) -> Result<(), Error> {
+    fn post_hook(&self, _task: &Self::Task, _eval: &mut EvaluationData) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -76,17 +79,17 @@ pub trait SanityCheck<Task>: Send + Sync + std::fmt::Debug {
 /// which are not available in a static context. So we instead register the builders which contain
 /// a function pointer that can create boxes at runtime.
 pub(crate) struct SanityCheckBuilder<Task> {
-    builder: fn() -> Box<dyn SanityCheck<Task>>,
+    builder: fn() -> Box<dyn SanityCheck<Task = Task>>,
 }
 
 impl<Task> SanityCheckBuilder<Task> {
     /// A const function for initializing a new builder.
-    pub(crate) const fn new(builder: fn() -> Box<dyn SanityCheck<Task>>) -> Self {
+    pub(crate) const fn new(builder: fn() -> Box<dyn SanityCheck<Task = Task>>) -> Self {
         Self { builder }
     }
 
     /// Make an instance of this sanity check.
-    pub(crate) fn build(&self) -> Box<dyn SanityCheck<Task>> {
+    pub(crate) fn build(&self) -> Box<dyn SanityCheck<Task = Task>> {
         (self.builder)()
     }
 }
@@ -100,10 +103,10 @@ impl<Task> SanityCheckBuilder<Task> {
 /// make_sanity_check!(SanityCheckName);
 /// ```
 macro_rules! make_sanity_check {
-    ($name:tt, $task:tt) => {
+    ($name:tt) => {
         paste::paste! {
             #[allow(non_upper_case_globals)]
-            static [<__ $name _SANITY_CHECK>]: crate::sanity_checks::SanityCheckBuilder<$task> =
+            static [<__ $name _SANITY_CHECK>]: crate::sanity_checks::SanityCheckBuilder<<$name as SanityCheck>::Task> =
                 crate::sanity_checks::SanityCheckBuilder::new(|| Box::<$name>::default());
             ::inventory::submit!(&[<__ $name _SANITY_CHECK>]);
         }
@@ -115,7 +118,7 @@ pub(crate) use make_sanity_check;
 #[derive(Debug, Default)]
 struct SanityChecksState<Task: 'static> {
     /// The list of enabled sanity checks.
-    sanity_checks: Vec<Box<dyn SanityCheck<Task>>>,
+    sanity_checks: Vec<Box<dyn SanityCheck<Task = Task>>>,
 }
 
 /// Sanity checks for a IOI task.
@@ -127,7 +130,7 @@ pub struct SanityChecks<Task: 'static> {
 }
 
 impl<Task> SanityChecks<Task> {
-    pub fn new(checks: Vec<Box<dyn SanityCheck<Task>>>) -> SanityChecks<Task> {
+    pub fn new(checks: Vec<Box<dyn SanityCheck<Task = Task>>>) -> SanityChecks<Task> {
         SanityChecks {
             state: Mutex::new(SanityChecksState {
                 sanity_checks: checks,

@@ -8,9 +8,11 @@ use crate::{EvaluationData, IOITask};
 /// Check that all the subtasks have a name.
 #[derive(Debug, Default)]
 pub struct MissingSubtaskNames;
-make_sanity_check!(MissingSubtaskNames, IOITask);
+make_sanity_check!(MissingSubtaskNames);
 
-impl SanityCheck<IOITask> for MissingSubtaskNames {
+impl SanityCheck for MissingSubtaskNames {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "MissingSubtaskNames"
     }
@@ -54,9 +56,11 @@ impl SanityCheck<IOITask> for MissingSubtaskNames {
 /// Check that all the checks target at least one subtask.
 #[derive(Debug, Default)]
 pub struct InvalidSubtaskName;
-make_sanity_check!(InvalidSubtaskName, IOITask);
+make_sanity_check!(InvalidSubtaskName);
 
-impl SanityCheck<IOITask> for InvalidSubtaskName {
+impl SanityCheck for InvalidSubtaskName {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "InvalidSubtaskName"
     }

@@ -28,7 +28,7 @@ pub fn get_sanity_checks(skip: &[&str]) -> SanityChecks<IOITask> {
 }
 
 /// Return the list of sanity checks excluding the ones with their name in the provided list.
-pub fn get_sanity_check_list(skip: &[&str]) -> Vec<Box<dyn SanityCheck<IOITask>>> {
+pub fn get_sanity_check_list(skip: &[&str]) -> Vec<Box<dyn SanityCheck<Task = IOITask>>> {
     inventory::iter::<&SanityCheckBuilder<IOITask>>()
         .cloned()
         .map(|b| b.build())

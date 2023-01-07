@@ -13,7 +13,7 @@ pub fn get_sanity_checks(skip: &[&str]) -> SanityChecks<TerryTask> {
 }
 
 /// Return the list of sanity checks excluding the ones with their name in the provided list.
-pub fn get_sanity_check_list(skip: &[&str]) -> Vec<Box<dyn SanityCheck<TerryTask>>> {
+pub fn get_sanity_check_list(skip: &[&str]) -> Vec<Box<dyn SanityCheck<Task = TerryTask>>> {
     inventory::iter::<&SanityCheckBuilder<TerryTask>>()
         .cloned()
         .map(|b| b.build())

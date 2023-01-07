@@ -15,9 +15,11 @@ use crate::EvaluationData;
 /// Check that the subtasks in the statement are consistent with the ones of the task.
 #[derive(Debug, Default)]
 pub struct StatementSubtasks;
-make_sanity_check!(StatementSubtasks, IOITask);
+make_sanity_check!(StatementSubtasks);
 
-impl SanityCheck<IOITask> for StatementSubtasks {
+impl SanityCheck for StatementSubtasks {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "StatementSubtasks"
     }
@@ -108,9 +110,11 @@ impl SanityCheck<IOITask> for StatementSubtasks {
 /// Check that the statement file is valid.
 #[derive(Debug, Default)]
 pub struct StatementValid;
-make_sanity_check!(StatementValid, IOITask);
+make_sanity_check!(StatementValid);
 
-impl SanityCheck<IOITask> for StatementValid {
+impl SanityCheck for StatementValid {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "StatementValid"
     }
@@ -173,9 +177,11 @@ impl SanityCheck<IOITask> for StatementValid {
 /// Check that the statement file comes out of the compilation of one of the booklets.
 #[derive(Debug, Default)]
 pub struct StatementCompiled;
-make_sanity_check!(StatementCompiled, IOITask);
+make_sanity_check!(StatementCompiled);
 
-impl SanityCheck<IOITask> for StatementCompiled {
+impl SanityCheck for StatementCompiled {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "StatementCompiled"
     }
@@ -240,9 +246,11 @@ impl SanityCheck<IOITask> for StatementCompiled {
 /// Check that the statement file is known to git.
 #[derive(Debug, Default)]
 pub struct StatementGit;
-make_sanity_check!(StatementGit, IOITask);
+make_sanity_check!(StatementGit);
 
-impl SanityCheck<IOITask> for StatementGit {
+impl SanityCheck for StatementGit {
+    type Task = IOITask;
+
     fn name(&self) -> &'static str {
         "StatementGit"
     }
