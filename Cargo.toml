@@ -82,7 +82,7 @@ tempfile = "3.3"
 # Regex
 regex = "1"
 # setrlimit for setting unlimited stack for the checker in the fuzzer
-rlimit = "0.8"
+rlimit = "0.9"
 # Geenrating random numbers (the seed in find-bad-case tool)
 fastrand = "1.8"
 # Curses UI
