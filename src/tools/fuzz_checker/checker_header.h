@@ -5,4 +5,4 @@
 #define _exit EXIT
 #define exit EXIT
 
-void EXIT(int status);
+[[noreturn]] void EXIT(int status);

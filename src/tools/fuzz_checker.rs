@@ -229,11 +229,7 @@ fn write_checker_source(fuzz_dir: &Path, data: &FuzzData) -> Result<Vec<PathBuf>
         .with_context(|| anyhow!("Failed to create sources dir at {}", sources_dir.display()))?;
     let path = sources_dir.join("checker-patched.cpp");
     info!("Writing patched checker source at {}", path.display());
-    let mut checker_file = std::fs::OpenOptions::new()
-        .write(true)
-        .truncate(true)
-        .create(true)
-        .open(&path)
+    let mut checker_file = std::fs::File::create(&path)
         .with_context(|| anyhow!("Failed to create {}", path.display()))?;
 
     checker_file
@@ -262,11 +258,7 @@ fn write_checker_source(fuzz_dir: &Path, data: &FuzzData) -> Result<Vec<PathBuf>
 
     let fuzzer = sources_dir.join("fuzzer.cpp");
     info!("Writing fuzzer source at {}", fuzzer.display());
-    std::fs::OpenOptions::new()
-        .write(true)
-        .truncate(true)
-        .create(true)
-        .open(&fuzzer)
+    std::fs::File::create(&fuzzer)
         .with_context(|| anyhow!("Failed to create {}", fuzzer.display()))?
         .write_all(FUZZER)
         .with_context(|| {
@@ -378,6 +370,9 @@ fn compile_fuzzer(fuzz_dir: &Path, data: &FuzzData, sources: &[PathBuf]) -> Resu
         sanitizers += &data.opt.sanitizers;
     }
     command.arg(sanitizers);
+
+    let std_version = std::env::var("TM_CXX_STD_VERSION").unwrap_or_else(|_| "c++17".into());
+    command.arg(format!("-std={}", std_version));
 
     if data.opt.extra_args.is_empty() {
         debug!("Adding -O2 and -g since no extra argument has been specified");
