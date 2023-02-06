@@ -12,8 +12,12 @@
 #include <vector>
 int MAIN(int argc, char **argv);
 
-void EXIT(int status) {
-    throw status;
+struct Exit {
+    int status;
+};
+
+[[noreturn]] void EXIT(int status) {
+    throw Exit{status};
 }
 
 #ifndef NUM_INPUTS
@@ -80,8 +84,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     int ret;
     try {
         ret = MAIN(4, argv);
-    } catch (int r) {
-        ret = r;
+    } catch (Exit r) {
+        ret = r.status;
     }
     assert(dup2(old_stderr, STDERR_FILENO) != -1);
     assert(ret == 0);
