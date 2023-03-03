@@ -223,7 +223,7 @@ impl ExecutionDAG {
             .get_content
             .replace((limit, Box::new(callback)));
         if old.is_some() {
-            panic!("Overwriting get_file_content callback for {}", file);
+            panic!("Overwriting get_file_content callback for {file}");
         }
     }
 
