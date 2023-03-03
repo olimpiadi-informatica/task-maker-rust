@@ -215,7 +215,8 @@ impl FinishUI {
             .to_string_lossy();
         cwrite!(self, BOLD, "{}", name);
         print!(": ");
-        self.print_score_frac(score, max_score);
+        let score_precision = state.task.score_precision;
+        self.print_score_frac(score, max_score, score_precision);
         println!();
 
         let results = eval
@@ -236,7 +237,7 @@ impl FinishUI {
             print!(": ");
             let max_score = state.task.subtasks[st_num].max_score;
             let score = subtask.score.unwrap_or(0.0);
-            self.print_score_frac(score, max_score);
+            self.print_score_frac(score, max_score, score_precision);
             println!();
             for (tc_num, testcase) in subtask.testcases.iter().sorted_by_key(|(n, _)| *n) {
                 self.print_testcase_outcome(&name, *tc_num, testcase, max_time, max_memory, state);
@@ -320,10 +321,19 @@ impl FinishUI {
     }
 
     fn print_summary(&mut self, state: &UIState) {
+        let score_precision = state.task.score_precision.unwrap_or(0) as usize;
+        let column_width = score_precision + 4;
         cwriteln!(self, BLUE, "Summary");
         let max_len = FinishUIUtils::get_max_len(&state.evaluations);
         print!("{:width$} ", "", width = max_len);
-        cwrite!(self, BOLD, "{:^5}| ", state.max_score);
+        cwrite!(
+            self,
+            BOLD,
+            "{:>width$.prec$} | ",
+            state.max_score,
+            width = column_width,
+            prec = score_precision
+        );
         for st_num in state.task.subtasks.keys().sorted() {
             let subtask = &state.task.subtasks[st_num];
             cwrite!(self, BOLD, " {:^3.0} ", subtask.max_score);
@@ -338,7 +348,12 @@ impl FinishUI {
                     .to_string_lossy(),
                 width = max_len
             );
-            print!("{:^5.0}| ", eval.score.unwrap_or(0.0));
+            print!(
+                "{:>width$.prec$} | ",
+                eval.score.unwrap_or(0.0),
+                width = column_width,
+                prec = score_precision
+            );
             for st_num in eval.subtasks.keys().sorted() {
                 let subtask = &eval.subtasks[st_num];
                 let score = subtask.score.unwrap_or(0.0);
@@ -389,12 +404,25 @@ impl FinishUI {
     }
 
     /// Print the score fraction of a solution using colors.
-    fn print_score_frac(&mut self, score: f64, max_score: f64) {
+    fn print_score_frac(&mut self, score: f64, max_score: f64, score_precision: Option<u8>) {
+        let score_precision = score_precision.unwrap_or(2) as usize;
         if max_score == 0.0 {
-            print!("{:.2} / {:.2}", score, max_score);
+            print!(
+                "{:.prec$} / {:.prec$}",
+                score,
+                max_score,
+                prec = score_precision
+            );
         } else {
             let color = self.score_color(score / max_score);
-            cwrite!(self, color, "{:.2} / {:.2}", score, max_score);
+            cwrite!(
+                self,
+                color,
+                "{:.prec$} / {:.prec$}",
+                score,
+                max_score,
+                prec = score_precision
+            );
         }
     }
 
