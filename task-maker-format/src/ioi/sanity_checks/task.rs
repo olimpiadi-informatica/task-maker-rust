@@ -1,4 +1,7 @@
-use std::fs;
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+};
 
 use anyhow::Error;
 use regex::Regex;
@@ -6,7 +9,7 @@ use task_maker_diagnostics::{CodeSpan, Diagnostic};
 
 use crate::ioi::IOITask;
 use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
-use crate::{list_files, EvaluationData};
+use crate::{list_files, EvaluationData, SolutionCheckResult};
 
 /// The default maximum score of a task.
 const DEFAULT_TASK_MAX_SCORE: f64 = 100.0;
@@ -118,6 +121,143 @@ impl SanityCheck for NoBitsStdCpp {
                 }
             }
         }
+        Ok(())
+    }
+}
+
+/// Check that "implied" subtasks dependecies do not form cycles.
+#[derive(Debug, Default)]
+pub struct SubtaskDependencies;
+make_sanity_check!(SubtaskDependencies);
+
+impl SanityCheck for SubtaskDependencies {
+    type Task = IOITask;
+
+    fn name(&self) -> &'static str {
+        "SubtaskDependencies"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Task
+    }
+
+    fn pre_hook(&self, task: &Self::Task, eval: &mut EvaluationData) -> Result<(), Error> {
+        let non_zero_sts = task
+            .subtasks
+            .keys()
+            .copied()
+            .filter(|st| task.subtasks[st].max_score > 0.0)
+            .collect::<Vec<_>>();
+
+        let mut st_dependencies = HashSet::new();
+        for &st1 in &non_zero_sts {
+            for &st2 in &non_zero_sts {
+                if st1 != st2 {
+                    st_dependencies.insert((st1, st2));
+                }
+            }
+        }
+
+        let mut any_st_check = false;
+        for sol in &eval.solutions {
+            let mut score_range = HashMap::new();
+            for check in &sol.checks {
+                any_st_check = true;
+
+                let val = match check.result {
+                    SolutionCheckResult::Accepted => (1.0, 1.0),
+                    SolutionCheckResult::PartialScore => (0.0, 1.0),
+                    _ => (0.0, 0.0),
+                };
+
+                for subtask in task.find_subtasks_by_pattern_name(&check.subtask_name_pattern) {
+                    score_range.insert(subtask.id, val);
+                }
+            }
+
+            for &st1 in &non_zero_sts {
+                for &st2 in &non_zero_sts {
+                    if let (Some(v1), Some(v2)) = (score_range.get(&st1), score_range.get(&st2)) {
+                        if v1.1 > v2.0 {
+                            st_dependencies.remove(&(st1, st2));
+                        }
+                    }
+                }
+            }
+        }
+
+        if !any_st_check {
+            return Ok(());
+        }
+
+        'outer: for &st1 in &non_zero_sts {
+            let mut sts = vec![st1];
+            for &st2 in &non_zero_sts {
+                if st_dependencies.contains(&(st1, st2)) && st_dependencies.contains(&(st2, st1)) {
+                    if st1 < st2 {
+                        sts.push(st2);
+                    } else {
+                        continue 'outer;
+                    }
+                }
+            }
+            if sts.len() > 1 {
+                sts.sort();
+                let st_names: Vec<_> = sts
+                    .iter()
+                    .map(|st| {
+                        task.subtasks[st]
+                            .name
+                            .as_ref()
+                            .map(|s| s as &dyn std::fmt::Debug)
+                            .unwrap_or(st)
+                    })
+                    .collect();
+                eval.add_diagnostic(
+                    Diagnostic::warning(format!(
+                        "Subtasks {st_names:?} are solved by the same set of solutions",
+                    ))
+                    .with_note("Add a solution that solves only one of them"),
+                )?;
+            }
+        }
+
+        let mut to_swap = Vec::new();
+        for &st1 in &non_zero_sts {
+            for &st2 in &non_zero_sts {
+                if st1 < st2
+                    && st_dependencies.contains(&(st1, st2))
+                    && !st_dependencies.contains(&(st2, st1))
+                {
+                    to_swap.push((st1, st2));
+                }
+            }
+        }
+
+        if !to_swap.is_empty() {
+            let to_swap_names = to_swap
+                .iter()
+                .map(|(st1, st2)| {
+                    let st1_name = task.subtasks[st1]
+                        .name
+                        .as_ref()
+                        .map(|s| s as &dyn std::fmt::Debug)
+                        .unwrap_or(st1);
+                    let st2_name = task.subtasks[st2]
+                        .name
+                        .as_ref()
+                        .map(|s| s as &dyn std::fmt::Debug)
+                        .unwrap_or(st2);
+                    (st1_name, st2_name)
+                })
+                .collect::<Vec<_>>();
+            eval.add_diagnostic(
+                Diagnostic::warning("Subtasks are not in order of difficulty").with_note(format!(
+                    "Based on the current solutions the following pairs of subtasks seems to be ordered incorrectly {to_swap_names:?}"
+                )),
+            )?;
+        }
+
         Ok(())
     }
 }
