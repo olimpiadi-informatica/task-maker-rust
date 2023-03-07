@@ -7,7 +7,9 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 use task_maker_dag::ExecutionStatus;
 
 use crate::ioi::ui_state::{SolutionEvaluationState, TestcaseEvaluationStatus, UIState};
-use crate::ioi::{SolutionCheckOutcome, SolutionTestcaseEvaluationState, SubtaskId, TestcaseId};
+use crate::ioi::{
+    IOITask, SolutionCheckOutcome, SolutionTestcaseEvaluationState, SubtaskId, TestcaseId,
+};
 use crate::ui::{
     FinishUI as FinishUITrait, FinishUIUtils, UIExecutionStatus, BLUE, BOLD, GREEN, ORANGE, RED,
     YELLOW,
@@ -215,8 +217,7 @@ impl FinishUI {
             .to_string_lossy();
         cwrite!(self, BOLD, "{}", name);
         print!(": ");
-        let score_precision = state.task.score_precision;
-        self.print_score_frac(score, max_score, score_precision);
+        self.print_score_frac(score, max_score, &state.task);
         println!();
 
         let results = eval
@@ -237,7 +238,7 @@ impl FinishUI {
             print!(": ");
             let max_score = state.task.subtasks[st_num].max_score;
             let score = subtask.score.unwrap_or(0.0);
-            self.print_score_frac(score, max_score, score_precision);
+            self.print_score_frac(score, max_score, &state.task);
             println!();
             for (tc_num, testcase) in subtask.testcases.iter().sorted_by_key(|(n, _)| *n) {
                 self.print_testcase_outcome(&name, *tc_num, testcase, max_time, max_memory, state);
@@ -257,12 +258,13 @@ impl FinishUI {
     ) {
         print!("{:3}) ", tc_num);
         let score = testcase.score.unwrap_or(0.0);
+        let score_precision = Self::score_precision(&state.task);
         if abs_diff_eq!(score, 1.0) {
-            cwrite!(self, GREEN, "[{:.2}]", score);
+            cwrite!(self, GREEN, "[{:.prec$}]", score, prec = score_precision);
         } else if abs_diff_eq!(score, 0.0) {
-            cwrite!(self, RED, "[{:.2}]", score);
+            cwrite!(self, RED, "[{:.prec$}]", score, prec = score_precision);
         } else {
-            cwrite!(self, YELLOW, "[{:.2}]", score);
+            cwrite!(self, YELLOW, "[{:.prec$}]", score, prec = score_precision);
         }
         // print the time and memory info
         for result in &testcase.results {
@@ -318,6 +320,17 @@ impl FinishUI {
             self.print_right(format!("[{}]", name));
         }
         println!();
+    }
+
+    /// The number of significant digits to use for printing a score.
+    fn score_precision(task: &IOITask) -> usize {
+        let task_max_score_digits = task
+            .subtasks
+            .values()
+            .map(|st| st.max_score)
+            .sum::<f64>()
+            .log10() as usize;
+        task.score_precision.unwrap_or(0) as usize + task_max_score_digits
     }
 
     fn print_summary(&mut self, state: &UIState) {
@@ -404,8 +417,8 @@ impl FinishUI {
     }
 
     /// Print the score fraction of a solution using colors.
-    fn print_score_frac(&mut self, score: f64, max_score: f64, score_precision: Option<u8>) {
-        let score_precision = score_precision.unwrap_or(2) as usize;
+    fn print_score_frac(&mut self, score: f64, max_score: f64, task: &IOITask) {
+        let score_precision = task.score_precision.unwrap_or(0) as usize;
         if max_score == 0.0 {
             print!(
                 "{:.prec$} / {:.prec$}",
