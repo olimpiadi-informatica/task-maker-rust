@@ -44,6 +44,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::Formatter;
 use std::io::Write;
+use std::os::unix::prelude::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -329,7 +330,7 @@ impl FileStore {
         let mut perms = std::fs::metadata(path)
             .with_context(|| format!("Failed to get file metadata of {}", path.display()))?
             .permissions();
-        perms.set_readonly(false);
+        perms.set_mode(0o600);
         std::fs::set_permissions(path, perms)
             .with_context(|| format!("Failed to set permission of {}", path.display()))?;
         std::fs::remove_file(path)
@@ -588,7 +589,7 @@ mod tests {
         {
             let file = File::open(path).unwrap();
             let mut perm = file.metadata().unwrap().permissions();
-            perm.set_readonly(false);
+            perm.set_mode(0o600);
             file.set_permissions(perm).unwrap();
         }
         std::thread::sleep(std::time::Duration::from_millis(1000));

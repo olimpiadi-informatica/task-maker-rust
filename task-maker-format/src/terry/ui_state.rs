@@ -48,9 +48,10 @@ pub struct SolutionState {
 }
 
 /// The status of the evaluation of a solution.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum SolutionStatus {
     /// The solution has not started yet.
+    #[default]
     Pending,
     /// The generator is preparing the input file.
     Generating,
@@ -72,12 +73,6 @@ pub enum SolutionStatus {
     Failed(String),
     /// The evaluation has been skipped.
     Skipped,
-}
-
-impl Default for SolutionStatus {
-    fn default() -> Self {
-        SolutionStatus::Pending
-    }
 }
 
 impl SolutionState {
