@@ -33,6 +33,7 @@ pub fn new_task_with_context(path: &Path) -> IOITask {
         subtasks: HashMap::new(),
         input_validator_generator: Default::default(),
         testcase_score_aggregator: TestcaseScoreAggregator::Min,
+        score_precision: 0,
         grader_map: Arc::new(GraderMap::new(Vec::<PathBuf>::new())),
         booklets: vec![],
         difficulty: None,

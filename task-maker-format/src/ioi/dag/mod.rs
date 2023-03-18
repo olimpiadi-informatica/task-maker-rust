@@ -116,6 +116,7 @@ mod tests {
             subtasks: Default::default(),
             input_validator_generator: Default::default(),
             testcase_score_aggregator: TestcaseScoreAggregator::Min,
+            score_precision: 0,
             grader_map: Arc::new(GraderMap::new(Vec::<PathBuf>::new())),
             booklets: vec![],
             difficulty: None,

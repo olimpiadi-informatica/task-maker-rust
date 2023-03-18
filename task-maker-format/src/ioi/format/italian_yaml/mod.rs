@@ -326,6 +326,9 @@ struct TaskYAML {
     pub title: String,
     /// The score type to use for this task.
     pub score_type: Option<String>,
+    /// The number of decimal digits when displaying the scores.
+    #[serde(default)]
+    pub score_precision: usize,
 
     /// The time limit for the execution of the solutions, if not set it's unlimited.
     #[serde(alias = "timeout")]
@@ -502,6 +505,7 @@ pub fn parse_task<P: AsRef<Path>>(
                     Ok(TestcaseScoreAggregator::Min)
                 }
             })?,
+        score_precision: yaml.score_precision,
         subtasks,
         grader_map,
         booklets: Vec::new(),
