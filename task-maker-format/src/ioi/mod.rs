@@ -129,7 +129,8 @@ pub struct IOITask {
     /// testcases.
     pub testcase_score_aggregator: TestcaseScoreAggregator,
     /// The number of decimal digits when displaying the scores.
-    pub score_precision: Option<u8>,
+    #[serde(default)]
+    pub score_precision: usize,
     /// The graders registered for this task.
     pub grader_map: Arc<GraderMap>,
     /// The booklets to compile for this task.
@@ -209,7 +210,7 @@ impl IOITask {
             subtasks: Default::default(),
             input_validator_generator: Default::default(),
             testcase_score_aggregator: TestcaseScoreAggregator::Min,
-            score_precision: None,
+            score_precision: 0,
             grader_map: Arc::new(GraderMap::new::<&Path>(vec![])),
             booklets: vec![],
             difficulty: None,

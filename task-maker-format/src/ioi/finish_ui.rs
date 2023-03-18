@@ -330,11 +330,11 @@ impl FinishUI {
             .map(|st| st.max_score)
             .sum::<f64>()
             .log10() as usize;
-        task.score_precision.unwrap_or(0) as usize + task_max_score_digits
+        task.score_precision + task_max_score_digits
     }
 
     fn print_summary(&mut self, state: &UIState) {
-        let score_precision = state.task.score_precision.unwrap_or(0) as usize;
+        let score_precision = state.task.score_precision;
         let column_width = score_precision + 4;
         cwriteln!(self, BLUE, "Summary");
         let max_len = FinishUIUtils::get_max_len(&state.evaluations);
@@ -418,13 +418,12 @@ impl FinishUI {
 
     /// Print the score fraction of a solution using colors.
     fn print_score_frac(&mut self, score: f64, max_score: f64, task: &IOITask) {
-        let score_precision = task.score_precision.unwrap_or(0) as usize;
         if max_score == 0.0 {
             print!(
                 "{:.prec$} / {:.prec$}",
                 score,
                 max_score,
-                prec = score_precision
+                prec = task.score_precision
             );
         } else {
             let color = self.score_color(score / max_score);
@@ -434,7 +433,7 @@ impl FinishUI {
                 "{:.prec$} / {:.prec$}",
                 score,
                 max_score,
-                prec = score_precision
+                prec = task.score_precision
             );
         }
     }

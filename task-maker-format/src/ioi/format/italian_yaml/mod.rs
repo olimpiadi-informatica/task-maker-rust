@@ -327,7 +327,8 @@ struct TaskYAML {
     /// The score type to use for this task.
     pub score_type: Option<String>,
     /// The number of decimal digits when displaying the scores.
-    pub score_precision: Option<u8>,
+    #[serde(default)]
+    pub score_precision: usize,
 
     /// The time limit for the execution of the solutions, if not set it's unlimited.
     #[serde(alias = "timeout")]
