@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -101,7 +102,60 @@ impl SolutionCheck {
     }
 }
 
+/// Result of the evaluation of a solution on a testcase.
+/// We define a partial order used to determine the correctness of solution checks.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub enum TestcaseEvaluationResult {
+    /// The solution scored 100% of the testcase.
+    Accepted,
+    /// The solution is partially correct.
+    Partial,
+    /// The output is wrong.
+    WrongAnswer,
+    /// The solution timed out.
+    TimeLimitExceeded,
+    /// The solution exceeded the wall time limit.
+    WallTimeLimitExceeded,
+    /// The solution exceeded the memory limit.
+    MemoryLimitExceeded,
+    /// The solution crashed.
+    RuntimeError,
+}
+
+impl TestcaseEvaluationResult {
+    fn proj(&self) -> i32 {
+        match self {
+            Self::Accepted => 2,
+            Self::Partial => 1,
+            Self::WrongAnswer => 0,
+            Self::TimeLimitExceeded => 0,
+            Self::WallTimeLimitExceeded => 0,
+            Self::MemoryLimitExceeded => 0,
+            Self::RuntimeError => 0,
+        }
+    }
+}
+
+impl PartialOrd for TestcaseEvaluationResult {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self.proj(), other.proj()) {
+            (a, b) if a > b => Some(Ordering::Greater),
+            (a, b) if a < b => Some(Ordering::Less),
+            (a, b) if a == b && self == other => Some(Ordering::Equal),
+            _ => None,
+        }
+    }
+}
+
 /// The expected result of a solution in a set of subtasks.
+///
+/// Each `SolutionCheckResult` is described by:
+/// * a long name ([`SolutionCheckResult::as_str`])
+/// * a short name ([`SolutionCheckResult::as_compact_str`])
+/// * a set of `TestcaseEvaluationResult` ([`SolutionCheckResult::minimals`])
+///
+/// We say that `outcomes: [TestcaseEvaluationResult]` satisfies a `sol_check: SolutionCheckResult` iff there
+/// exists a minimal element `min` of `outcomes` such that `min` is contained in `sol_check.minimals()`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum SolutionCheckResult {
     /// The solution should get "Accepted" on all the testcases of the subtask.
@@ -112,12 +166,14 @@ pub enum SolutionCheckResult {
     WrongAnswer,
     /// The solution should get "Time Limit Exceeded" on at least one testcase of the subtask.
     TimeLimitExceeded,
+    /// The solution should get "Wallclock Time Limit Exceeded" on at least one testcase of the subtask.
+    WallTimeLimitExceeded,
     /// The solution should get "Memory Limit Exceeded" on at least one testcase of the subtask.
     MemoryLimitExceeded,
     /// The solution should get "Runtime Error" on at least one testcase of the subtask.
     RuntimeError,
-    /// The solution should get "WrongAnswer", "TimeLimitExceeded", "MemoryLimitExceeded" or
-    /// "RuntimeError" on at least one testcase of the subtask.
+    /// The solution should get "WrongAnswer", "TimeLimitExceeded", "WallTimeLimitExceeded",
+    /// "MemoryLimitExceeded" or "RuntimeError" on at least one testcase of the subtask.
     Zero,
 }
 
@@ -130,6 +186,7 @@ impl FromStr for SolutionCheckResult {
             "partial-score" => Ok(Self::PartialScore),
             "wrong-answer" => Ok(Self::WrongAnswer),
             "time-limit-exceeded" => Ok(Self::TimeLimitExceeded),
+            "wall-time-limit-exceeded" => Ok(Self::WallTimeLimitExceeded),
             "memory-limit-exceeded" => Ok(Self::MemoryLimitExceeded),
             "runtime-error" => Ok(Self::RuntimeError),
             "zero" => Ok(Self::Zero),
@@ -139,6 +196,20 @@ impl FromStr for SolutionCheckResult {
 }
 
 impl SolutionCheckResult {
+    /// List all SolutionCheckResult sorted by self.minimals().len()
+    pub fn sorted_all() -> &'static [Self] {
+        &[
+            Self::Accepted,
+            Self::PartialScore,
+            Self::WrongAnswer,
+            Self::TimeLimitExceeded,
+            Self::WallTimeLimitExceeded,
+            Self::MemoryLimitExceeded,
+            Self::RuntimeError,
+            Self::Zero,
+        ]
+    }
+
     /// Get the string representation of this [`SolutionCheckResult`], as used in @check rules.
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -146,6 +217,7 @@ impl SolutionCheckResult {
             SolutionCheckResult::PartialScore => "partial-score",
             SolutionCheckResult::WrongAnswer => "wrong-answer",
             SolutionCheckResult::TimeLimitExceeded => "time-limit-exceeded",
+            SolutionCheckResult::WallTimeLimitExceeded => "wall-time-limit-exceeded",
             SolutionCheckResult::MemoryLimitExceeded => "memory-limit-exceeded",
             SolutionCheckResult::RuntimeError => "runtime-error",
             SolutionCheckResult::Zero => "zero",
@@ -161,6 +233,7 @@ impl SolutionCheckResult {
             SolutionCheckResult::PartialScore => "PS",
             SolutionCheckResult::WrongAnswer => "WA",
             SolutionCheckResult::TimeLimitExceeded => "TLE",
+            SolutionCheckResult::WallTimeLimitExceeded => "WTLE",
             SolutionCheckResult::MemoryLimitExceeded => "MLE",
             SolutionCheckResult::RuntimeError => "RE",
             SolutionCheckResult::Zero => "ZR",
@@ -168,25 +241,38 @@ impl SolutionCheckResult {
     }
 
     /// Check if this result is valid with respect to the actual outcomes.
-    pub fn check(&self, outcomes: &[SolutionCheckResult]) -> bool {
-        match self {
-            SolutionCheckResult::Accepted => outcomes.iter().all(|o| o == self),
-            SolutionCheckResult::PartialScore => {
-                outcomes.iter().any(|o| o == self)
-                    && outcomes
-                        .iter()
-                        .all(|o| o == self || o == &SolutionCheckResult::Accepted)
+    pub fn check(&self, outcomes: &[TestcaseEvaluationResult]) -> bool {
+        for outcome in outcomes {
+            if outcomes.iter().any(|o| o < outcome) {
+                continue;
             }
-            SolutionCheckResult::Zero => outcomes.iter().any(|o| {
-                matches!(
-                    o,
-                    SolutionCheckResult::WrongAnswer
-                        | SolutionCheckResult::TimeLimitExceeded
-                        | SolutionCheckResult::MemoryLimitExceeded
-                        | SolutionCheckResult::RuntimeError
-                )
-            }),
-            _ => outcomes.iter().any(|o| o == self),
+
+            if self.minimals().contains(outcome) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Return the set of matching minimal results.
+    pub fn minimals(&self) -> &'static [TestcaseEvaluationResult] {
+        use TestcaseEvaluationResult as TER;
+        match self {
+            Self::Accepted => &[TER::Accepted],
+            Self::PartialScore => &[TER::Partial],
+            Self::WrongAnswer => &[TER::WrongAnswer],
+            Self::TimeLimitExceeded => &[TER::TimeLimitExceeded],
+            Self::WallTimeLimitExceeded => &[TER::WallTimeLimitExceeded],
+            Self::MemoryLimitExceeded => &[TER::MemoryLimitExceeded],
+            Self::RuntimeError => &[TER::RuntimeError],
+            Self::Zero => &[
+                TER::WrongAnswer,
+                TER::TimeLimitExceeded,
+                TER::WallTimeLimitExceeded,
+                TER::MemoryLimitExceeded,
+                TER::RuntimeError,
+            ],
         }
     }
 }
