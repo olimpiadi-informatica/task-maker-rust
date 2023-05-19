@@ -103,6 +103,7 @@ impl SolutionCheck {
 }
 
 /// Result of the evaluation of a solution on a testcase.
+///
 /// We define a partial order used to determine the correctness of solution checks.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum TestcaseEvaluationResult {
@@ -196,7 +197,7 @@ impl FromStr for SolutionCheckResult {
 }
 
 impl SolutionCheckResult {
-    /// List all SolutionCheckResult sorted by self.minimals().len()
+    /// List all [`SolutionCheckResult`] sorted by self.minimals().len().
     pub fn sorted_all() -> &'static [Self] {
         &[
             Self::Accepted,

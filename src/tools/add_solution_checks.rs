@@ -173,49 +173,24 @@ fn process_solution(
         let st_info = &solution_results.subtasks[st_num];
         let subtask = &state.task.subtasks[st_num];
 
-        let testcase_results: Vec<Option<TestcaseEvaluationResult>> = st_info
+        let testcase_results: Option<Vec<TestcaseEvaluationResult>> = st_info
             .testcases
             .values()
             .map(|testcase| (&testcase.status).into())
-            .collect_vec();
-        // Not all the testcase results are valid.
-        if testcase_results.iter().any(Option::is_none) {
+            .collect();
+        let Some(testcase_results) = testcase_results else {
             println!(
                 "Solution '{}' not evaluated on all the testcases, skipping.",
                 solution.name
             );
             return false;
-        }
-        let mut testcase_results: Vec<_> =
-            testcase_results.into_iter().map(Option::unwrap).collect();
-        testcase_results.sort_by_key(|&res| res as u32);
-        testcase_results.dedup();
+        };
 
-        // We find the smallest `check: SolutionCheckResult` such that all
-        // minimal elements of `testcase_results` are contained in `check.minimals()`.
-
-        let minimal_results = testcase_results
-            .iter()
-            .copied()
-            .filter(|res| {
-                testcase_results
-                    .iter()
-                    .all(|res2| res2.partial_cmp(res) != Some(Ordering::Less))
-            })
-            .collect_vec();
-
-        for check in SolutionCheckResult::sorted_all() {
-            if minimal_results
-                .iter()
-                .all(|&res| check.minimals().contains(&res))
-            {
-                checks
-                    .entry(check)
-                    .or_default()
-                    .push(subtask.name.as_deref().unwrap());
-                break;
-            }
-        }
+        let check = choose_check_for_subtask(testcase_results);
+        checks
+            .entry(check)
+            .or_default()
+            .push(subtask.name.as_deref().unwrap());
     }
 
     let comments = checks
@@ -249,6 +224,39 @@ fn process_solution(
     println!("{}\n{}", written, comments.iter().join("\n"));
 
     !comments.is_empty()
+}
+
+/// Find the check that is most appropriate for the results of a given subtask.
+fn choose_check_for_subtask(
+    mut testcase_results: Vec<TestcaseEvaluationResult>,
+) -> SolutionCheckResult {
+    // Deduplicate the testcase results.
+    testcase_results.sort_by_key(|&res| res as u32);
+    testcase_results.dedup();
+
+    // Find the testcases for which there aren't "greater" testcases.
+    // E.g. [MLE AC TLE] --> [MLE TLE] (note: AC > MLE, AC > TLE).
+    let minimal_results = testcase_results
+        .iter()
+        .copied()
+        .filter(|res| {
+            testcase_results
+                .iter()
+                .all(|res2| res2.partial_cmp(res) != Some(Ordering::Less))
+        })
+        .collect_vec();
+
+    // Find the smallest check that includes every minimal testcase.
+    for check in SolutionCheckResult::sorted_all() {
+        if minimal_results
+            .iter()
+            .all(|&res| check.minimals().contains(&res))
+        {
+            return *check;
+        }
+    }
+
+    unreachable!("failed to find check for subtask")
 }
 
 fn write_comments_to_file(
