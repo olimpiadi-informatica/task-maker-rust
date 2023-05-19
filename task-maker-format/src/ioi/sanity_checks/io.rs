@@ -25,6 +25,8 @@ make_sanity_check!(IOEndWithNewLine);
 pub struct CheckEndWithNewLine {
     /// Whether the last chunk ends with a new line.
     last_chunk_ends_with_new_line: bool,
+    /// Whether the file is binary, if so, do not emit the warning.
+    is_binary: bool,
     /// The path of the file that is being checked.
     path: String,
     /// Where to insert the warning.
@@ -35,6 +37,7 @@ impl CheckEndWithNewLine {
     pub fn new(path: String, list: Arc<Mutex<Vec<String>>>) -> Self {
         Self {
             last_chunk_ends_with_new_line: true,
+            is_binary: false,
             path,
             list,
         }
@@ -52,8 +55,9 @@ impl CheckEndWithNewLine {
     }
 
     pub fn add_chunk(&mut self, chunk: &[u8]) -> Result<(), Error> {
+        self.is_binary |= chunk.contains(&0); // UTF-8 never contains NULL bytes.
         if chunk.is_empty() {
-            if !self.last_chunk_ends_with_new_line {
+            if !self.last_chunk_ends_with_new_line && !self.is_binary {
                 self.list.lock().unwrap().push(self.path.clone());
             }
         } else {
