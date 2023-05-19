@@ -193,17 +193,6 @@ fn test_sanity_checks_sol_graders() {
 }
 
 #[test]
-fn test_sanity_checks_sol_symlink() {
-    let tmpdir = tempfile::TempDir::new().unwrap();
-    let task = utils::new_task_with_context(tmpdir.path());
-    std::fs::create_dir(tmpdir.path().join("sol")).unwrap();
-    std::fs::write(tmpdir.path().join("sol/solution.cpp"), "x").unwrap();
-
-    let warnings = get_warnings(&task);
-    has_warning(&warnings, "Solution sol/solution.cpp is not a symlink");
-}
-
-#[test]
 fn test_sanity_checks_statement_subtasks_oii_wrong() {
     let tmpdir = tempfile::TempDir::new().unwrap();
     let mut task = utils::new_task_with_context(tmpdir.path());
