@@ -18,7 +18,7 @@ jobs:
         run: |
           docker run --rm -v $(pwd):/source ghcr.io/edomora97/task-maker-rust-release-linux
       - name: Upload the artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: Ubuntu deb
           path: "target/debian/*.deb"
