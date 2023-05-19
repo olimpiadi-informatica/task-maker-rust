@@ -57,7 +57,7 @@ better-panic = "0.3"
 # Worker and client name
 whoami = "1.4"
 # Cross-platform cache directory
-directories = "4.0"
+directories = "5.0"
 # Generic error utilities
 anyhow = { version = "1.0", features = ["backtrace"] }
 # Message serialization for UI/sandbox/...
