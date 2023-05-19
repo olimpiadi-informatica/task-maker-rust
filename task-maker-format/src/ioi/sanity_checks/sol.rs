@@ -27,35 +27,6 @@ impl SanityCheck for SolGraders {
     }
 }
 
-/// Check that the official solution is a symlink.
-#[derive(Debug, Default)]
-pub struct SolSymlink;
-make_sanity_check!(SolSymlink);
-
-impl SanityCheck for SolSymlink {
-    type Task = IOITask;
-
-    fn name(&self) -> &'static str {
-        "SolSymlink"
-    }
-
-    fn category(&self) -> SanityCheckCategory {
-        SanityCheckCategory::Solutions
-    }
-
-    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
-        for solution in list_files(&task.path, vec!["sol/solution.*", "sol/soluzione.*"]) {
-            if solution.read_link().is_err() {
-                eval.add_diagnostic(Diagnostic::warning(format!(
-                    "Solution {} is not a symlink",
-                    task.path_of(&solution).display()
-                )))?;
-            }
-        }
-        Ok(())
-    }
-}
-
 /// Check that the template is a symlink.
 #[derive(Debug, Default)]
 pub struct SolTemplateSymlink;
