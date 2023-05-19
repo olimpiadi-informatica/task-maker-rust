@@ -6,7 +6,7 @@ use task_maker_dag::*;
 use task_maker_diagnostics::DiagnosticContext;
 use task_maker_exec::ExecutorStatus;
 
-use crate::solution::{SolutionCheck, SolutionCheckResult, SolutionInfo};
+use crate::solution::{SolutionCheck, SolutionInfo, TestcaseEvaluationResult};
 use crate::ui::{CompilationStatus, UIExecutionStatus, UIMessage, UIStateT};
 use crate::{ioi::*, ScoreStatus};
 
@@ -64,22 +64,18 @@ pub enum TestcaseEvaluationStatus {
     Skipped,
 }
 
-impl From<&TestcaseEvaluationStatus> for Option<SolutionCheckResult> {
+impl From<&TestcaseEvaluationStatus> for Option<TestcaseEvaluationResult> {
     fn from(status: &TestcaseEvaluationStatus) -> Self {
+        use TestcaseEvaluationResult as TER;
+        use TestcaseEvaluationStatus as TES;
         match status {
-            TestcaseEvaluationStatus::Accepted(_) => Some(SolutionCheckResult::Accepted),
-            TestcaseEvaluationStatus::Partial(_) => Some(SolutionCheckResult::PartialScore),
-            TestcaseEvaluationStatus::WrongAnswer(_) => Some(SolutionCheckResult::WrongAnswer),
-            TestcaseEvaluationStatus::TimeLimitExceeded => {
-                Some(SolutionCheckResult::TimeLimitExceeded)
-            }
-            TestcaseEvaluationStatus::WallTimeLimitExceeded => {
-                Some(SolutionCheckResult::TimeLimitExceeded)
-            }
-            TestcaseEvaluationStatus::MemoryLimitExceeded => {
-                Some(SolutionCheckResult::MemoryLimitExceeded)
-            }
-            TestcaseEvaluationStatus::RuntimeError => Some(SolutionCheckResult::RuntimeError),
+            TES::Accepted(_) => Some(TER::Accepted),
+            TES::Partial(_) => Some(TER::Partial),
+            TES::WrongAnswer(_) => Some(TER::WrongAnswer),
+            TES::TimeLimitExceeded => Some(TER::TimeLimitExceeded),
+            TES::WallTimeLimitExceeded => Some(TER::WallTimeLimitExceeded),
+            TES::MemoryLimitExceeded => Some(TER::MemoryLimitExceeded),
+            TES::RuntimeError => Some(TER::RuntimeError),
             _ => None,
         }
     }
@@ -392,7 +388,7 @@ impl UIState {
                     }
                     let solution_result = solution_result.unwrap();
                     let subtask_result = &solution_result.subtasks[&subtask.id];
-                    let testcase_results: Vec<Option<SolutionCheckResult>> = subtask_result
+                    let testcase_results: Vec<Option<TestcaseEvaluationResult>> = subtask_result
                         .testcases
                         .values()
                         .map(|testcase| (&testcase.status).into())
