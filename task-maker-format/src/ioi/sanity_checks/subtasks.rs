@@ -207,9 +207,9 @@ impl SanityCheck for AllOutputsEqual {
             if all_equal {
                 let name = subtask
                     .name
-                    .clone()
+                    .as_ref()
                     .map(|name| format!(" ({})", name))
-                    .unwrap_or("".to_owned());
+                    .unwrap_or_default();
                 let message = format!("All outputs for subtask {id}{name} are identical");
 
                 let mut diag = Diagnostic::warning(message);
