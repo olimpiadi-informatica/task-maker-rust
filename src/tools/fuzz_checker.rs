@@ -171,8 +171,8 @@ pub fn main_fuzz_checker(opt: FuzzCheckerOpt) -> Result<(), Error> {
     }
 
     write_initial_corpus(&fuzz_dir, &fuzz_data)?;
-    let checker_source = write_checker_source(&fuzz_dir, &fuzz_data)?;
-    let fuzz_binary = compile_fuzzer(&fuzz_dir, &fuzz_data, &checker_source)?;
+    let (checker_source, fuzzer_source) = write_checker_source(&fuzz_dir, &fuzz_data)?;
+    let fuzz_binary = compile_fuzzer(&fuzz_dir, &fuzz_data, &checker_source, &fuzzer_source)?;
     let artifacts = run_fuzzer(&fuzz_dir, &fuzz_data, &fuzz_binary)?;
     organize_failures(&fuzz_dir, &fuzz_data, &artifacts, &checker_bin_path)?;
 
@@ -223,7 +223,7 @@ fn write_initial_corpus(fuzz_dir: &Path, data: &FuzzData) -> Result<(), Error> {
     Ok(())
 }
 
-fn write_checker_source(fuzz_dir: &Path, data: &FuzzData) -> Result<Vec<PathBuf>, Error> {
+fn write_checker_source(fuzz_dir: &Path, data: &FuzzData) -> Result<(PathBuf, PathBuf), Error> {
     let sources_dir = fuzz_dir.join("sources");
     std::fs::create_dir_all(&sources_dir)
         .with_context(|| anyhow!("Failed to create sources dir at {}", sources_dir.display()))?;
@@ -269,7 +269,7 @@ fn write_checker_source(fuzz_dir: &Path, data: &FuzzData) -> Result<Vec<PathBuf>
             )
         })?;
 
-    Ok(vec![path, fuzzer])
+    Ok((path, fuzzer))
 }
 
 fn checker_sanity_check(data: &FuzzData, checker_content: &str) -> Result<(), Error> {
@@ -350,17 +350,61 @@ fn patch_checker(source: &mut String) -> Result<(), Error> {
     Ok(())
 }
 
-fn compile_fuzzer(fuzz_dir: &Path, data: &FuzzData, sources: &[PathBuf]) -> Result<PathBuf, Error> {
+fn compile_fuzzer(
+    fuzz_dir: &Path,
+    data: &FuzzData,
+    checker_source_path: &Path,
+    fuzzer_source_path: &Path,
+) -> Result<PathBuf, Error> {
     let fuzzer_dir = fuzz_dir.join("fuzzer");
     std::fs::create_dir_all(&fuzzer_dir)
         .with_context(|| anyhow!("Failed to create fuzzer dir at {}", fuzzer_dir.display()))?;
-    let target = fuzzer_dir.join("fuzzer");
-    info!("Compiling {} with clang++", target.display());
+    let checker_shared_object_path = fuzzer_dir.join("checker.so");
+    info!(
+        "Compiling {} with clang++",
+        checker_shared_object_path.display()
+    );
 
     let mut command = std::process::Command::new("clang++");
-    for source in sources {
-        command.arg(source);
+    command.arg(checker_source_path);
+    command.arg("-shared");
+    command.arg("-fPIC");
+    command.arg("-o");
+    command.arg(&checker_shared_object_path);
+
+    let mut sanitizers = "-fsanitize=fuzzer".to_string();
+    if !data.opt.sanitizers.is_empty() {
+        sanitizers += ",";
+        sanitizers += &data.opt.sanitizers;
     }
+    command.arg(sanitizers);
+
+    let std_version = std::env::var("TM_CXX_STD_VERSION").unwrap_or_else(|_| "c++17".into());
+    command.arg(format!("-std={}", std_version));
+
+    if data.opt.extra_args.is_empty() {
+        debug!("Adding -O2 and -g since no extra argument has been specified");
+        command.arg("-O2");
+        command.arg("-g");
+    } else {
+        for arg in &data.opt.extra_args {
+            command.arg(arg);
+        }
+    }
+
+    info!("Compiling with: {:?}", command);
+    let status = command
+        .status()
+        .with_context(|| anyhow!("Failed to start the checker compilation with {:?}", command))?;
+    if !status.success() {
+        bail!("Checker compilation failed (exit code {:?})", status.code());
+    }
+
+    let target = fuzzer_dir.join("fuzzer");
+    info!("Compiling {} with clang++", target.display());
+    let mut command = std::process::Command::new("clang++");
+    command.arg(fuzzer_source_path);
+    command.arg("-std=c++17");
     command.arg("-o");
     command.arg(&target);
 
@@ -374,9 +418,6 @@ fn compile_fuzzer(fuzz_dir: &Path, data: &FuzzData, sources: &[PathBuf]) -> Resu
         sanitizers += &data.opt.sanitizers;
     }
     command.arg(sanitizers);
-
-    let std_version = std::env::var("TM_CXX_STD_VERSION").unwrap_or_else(|_| "c++17".into());
-    command.arg(format!("-std={}", std_version));
 
     if data.opt.extra_args.is_empty() {
         debug!("Adding -O2 and -g since no extra argument has been specified");
