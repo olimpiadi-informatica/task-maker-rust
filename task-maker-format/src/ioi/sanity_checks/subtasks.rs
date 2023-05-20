@@ -196,14 +196,18 @@ impl SanityCheck for AllOutputsEqual {
         let outputs = self.outputs.lock().unwrap();
 
         for (id, out) in outputs.iter() {
+            let Some(subtask) = task.subtasks.get(id) else { continue; };
+            if out.len() != subtask.testcases.len() {
+                continue;
+            }
+
             let first = &out[0];
             let all_equal = out.iter().all(|x| x.hash == first.hash);
 
             if all_equal {
-                let subtask = task.subtasks.get(id);
-
                 let name = subtask
-                    .and_then(|x| x.name.clone())
+                    .name
+                    .clone()
                     .map(|name| format!(" ({})", name))
                     .unwrap_or("".to_owned());
                 let message = format!("All outputs for subtask {id}{name} are identical");
