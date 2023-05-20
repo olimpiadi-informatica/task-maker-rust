@@ -332,9 +332,13 @@ fn checker_sanity_check(data: &FuzzData, checker_content: &str) -> Result<(), Er
         )
     }
 
-    let re = Regex::new(r"\b(static\s[^=;]*)").expect("bad regex");
+    let re = Regex::new(r".*\bstatic\s[^=;]*=.*").expect("bad regex");
     for cap in re.captures_iter(checker_content) {
-        error!("Static variable found! '{}' looks like a static variable and it will probably interfere with the fuzzing process", &cap[1]);
+        let definition = cap[0].trim();
+        if definition.contains("const") {
+            continue;
+        }
+        error!("Static variable found! '{}' looks like a static variable and it will probably interfere with the fuzzing process", definition);
     }
 
     Ok(())
