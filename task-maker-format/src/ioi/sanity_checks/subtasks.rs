@@ -1,7 +1,13 @@
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
 use anyhow::Error;
+use blake3::{Hash, Hasher};
 use itertools::Itertools;
+use task_maker_dag::FileUuid;
 use task_maker_diagnostics::Diagnostic;
 
+use crate::ioi::SubtaskId;
 use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::{EvaluationData, IOITask};
 
@@ -91,6 +97,130 @@ impl SanityCheck for InvalidSubtaskName {
                 }
             }
         }
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct TestcaseOutput {
+    pub first_chunk: Option<Vec<u8>>,
+    pub hash: Hash,
+}
+
+#[derive(Debug, Default)]
+struct OutputHasher {
+    subtask: SubtaskId,
+    first_chunk: Option<Vec<u8>>,
+    hasher: Hasher,
+    output: Arc<Mutex<HashMap<SubtaskId, Vec<TestcaseOutput>>>>,
+}
+
+impl OutputHasher {
+    pub fn new(
+        subtask: SubtaskId,
+        output: Arc<Mutex<HashMap<SubtaskId, Vec<TestcaseOutput>>>>,
+    ) -> Self {
+        Self {
+            subtask,
+            first_chunk: None,
+            hasher: Hasher::new(),
+            output,
+        }
+    }
+
+    pub fn bind(
+        eval: &mut EvaluationData,
+        file: FileUuid,
+        subtask: SubtaskId,
+        output: Arc<Mutex<HashMap<SubtaskId, Vec<TestcaseOutput>>>>,
+    ) {
+        let mut hasher = Self::new(subtask, output);
+        eval.dag
+            .get_file_content_chunked(file, move |chunk| hasher.add_chunk(chunk));
+    }
+
+    pub fn add_chunk(&mut self, chunk: &[u8]) -> Result<(), Error> {
+        if chunk.is_empty() {
+            let hash = self.hasher.finalize();
+            let mut output = self.output.lock().unwrap();
+            if let Some(out) = output.get_mut(&self.subtask) {
+                out.push(TestcaseOutput {
+                    first_chunk: self.first_chunk.clone(),
+                    hash,
+                });
+            };
+        } else {
+            if self.first_chunk.is_none() {
+                self.first_chunk = Some(chunk.to_owned());
+            }
+            self.hasher.update(chunk);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct AllOutputsEqual {
+    outputs: Arc<Mutex<HashMap<SubtaskId, Vec<TestcaseOutput>>>>,
+}
+make_sanity_check!(AllOutputsEqual);
+
+impl SanityCheck for AllOutputsEqual {
+    type Task = IOITask;
+
+    fn name(&self) -> &'static str {
+        "AllOutputsEqual"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Io
+    }
+
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        let mut outputs = self.outputs.lock().unwrap();
+        for subtask in task.subtasks.values() {
+            if subtask.testcases.len() >= 2 {
+                outputs.insert(subtask.id, Vec::new());
+
+                for testcase in subtask.testcases.values() {
+                    if let Some(output_file) = testcase.official_output_file {
+                        OutputHasher::bind(eval, output_file, subtask.id, self.outputs.clone());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn post_hook(&self, task: &Self::Task, eval: &mut EvaluationData) -> Result<(), Error> {
+        let outputs = self.outputs.lock().unwrap();
+
+        for (id, out) in outputs.iter() {
+            let Some(subtask) = task.subtasks.get(id) else { continue; };
+            if out.len() != subtask.testcases.len() {
+                continue;
+            }
+
+            let first = &out[0];
+            let all_equal = out.iter().all(|x| x.hash == first.hash);
+
+            if all_equal {
+                let name = subtask
+                    .name
+                    .as_ref()
+                    .map(|name| format!(" ({})", name))
+                    .unwrap_or_default();
+                let message = format!("All outputs for subtask {id}{name} are identical");
+
+                let mut diag = Diagnostic::warning(message);
+                if let Ok(contents) = std::str::from_utf8(first.first_chunk.as_ref().unwrap()) {
+                    let contents = contents.chars().take(20).join("");
+                    diag = diag.with_note(format!("They all start with: {contents}"));
+                }
+                eval.add_diagnostic(diag)?;
+            }
+        }
+
         Ok(())
     }
 }

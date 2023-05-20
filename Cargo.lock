@@ -1604,6 +1604,7 @@ dependencies = [
  "approx",
  "askama",
  "askama_derive",
+ "blake3",
  "derivative",
  "fastrand",
  "glob",
