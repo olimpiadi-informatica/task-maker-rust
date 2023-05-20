@@ -41,6 +41,10 @@ pub struct SandboxOpt {
     #[clap(long)]
     pub mount_tmpfs: bool,
 
+    /// Mount /proc inside the sandbox
+    #[clap(long)]
+    pub mount_proc: bool,
+
     /// User id.
     #[clap(long, default_value = "1000")]
     pub uid: usize,
@@ -104,6 +108,9 @@ pub fn main_sandbox(opt: SandboxOpt) -> Result<(), Error> {
 
         if opt.mount_tmpfs {
             config.mount_tmpfs(true);
+        }
+        if opt.mount_proc {
+            config.mount_proc(true);
         }
 
         tempdir
