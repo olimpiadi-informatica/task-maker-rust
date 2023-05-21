@@ -541,6 +541,7 @@ where
                 span.end() - span.start(),
             )
             .ok(),
+            is_default: false,
         }));
         self.subtask_id += 1;
         Ok(())

@@ -98,6 +98,7 @@ pub fn patch_task_for_batch(
                 max_score: 100.0,
                 testcases,
                 span: None,
+                is_default: false,
             };
             task.subtasks.insert(0, subtask);
         }

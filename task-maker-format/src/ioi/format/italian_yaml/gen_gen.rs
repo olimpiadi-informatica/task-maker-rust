@@ -56,6 +56,7 @@ where
         max_score: 100.0,
         testcases: HashMap::new(),
         span: None,
+        is_default: true,
     });
 
     let mut generators = find_source_file(
@@ -110,6 +111,7 @@ where
                                 span.end() - span.start(),
                             )
                             .ok(),
+                            is_default: false,
                         }));
                         subtask_id += 1;
                     }

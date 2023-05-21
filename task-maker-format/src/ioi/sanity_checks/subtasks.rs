@@ -28,6 +28,11 @@ impl SanityCheck for MissingSubtaskNames {
     }
 
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        // Ignore the default subtask if it's missing the name.
+        if task.subtasks.values().all(|st| st.is_default) {
+            return Ok(());
+        }
+
         let mut missing_name = vec![];
         for subtask_id in task.subtasks.keys().sorted() {
             let subtask = &task.subtasks[subtask_id];

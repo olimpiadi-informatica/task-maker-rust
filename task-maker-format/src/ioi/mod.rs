@@ -164,6 +164,8 @@ pub struct SubtaskInfo {
     pub testcases: HashMap<TestcaseId, TestcaseInfo>,
     /// The span of the definition of this subtask.
     pub span: Option<CodeSpan>,
+    /// Whether this subtask was created automatically since no subtask was present in gen/GEN.
+    pub is_default: bool,
 }
 
 /// A testcase of a IOI task.

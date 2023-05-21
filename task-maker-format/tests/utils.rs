@@ -47,6 +47,7 @@ pub fn new_task_with_context(path: &Path) -> IOITask {
         max_score: 10.0,
         testcases: HashMap::default(),
         span: None,
+        is_default: false,
     });
     st0.testcases.entry(0).or_insert_with(|| {
         TestcaseInfo::new(
@@ -63,6 +64,7 @@ pub fn new_task_with_context(path: &Path) -> IOITask {
         max_score: 90.0,
         testcases: HashMap::default(),
         span: None,
+        is_default: false,
     });
     st1.testcases.entry(1).or_insert_with(|| {
         TestcaseInfo::new(

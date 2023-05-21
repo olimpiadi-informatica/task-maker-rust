@@ -43,6 +43,7 @@ where
                 max_score: 100.0,
                 testcases: HashMap::new(),
                 span: None,
+                is_default: true,
             }));
         }
         let id = self.index - 1; // offset caused by the first iteration
