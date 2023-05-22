@@ -87,9 +87,9 @@
 %                        Import language file                        *
 %*********************************************************************
 
-\if@italian  \input{locale/italian}\fi
+\if@italian \input{locale/italian}\fi
 \if@spanish \input{locale/spanish}\fi
-\if@english  \input{locale/english}\fi
+\if@english \input{locale/english}\fi
 
 %*********************************************************************
 %                          Sizes and margins                         *
