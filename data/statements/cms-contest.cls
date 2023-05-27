@@ -65,6 +65,7 @@
 \newif\if@showlogo\@showlogofalse
 \newif\if@english\@englishtrue
 \newif\if@dutch
+\newif\if@french
 \newif\if@german
 \newif\if@italian
 \newif\if@spanish
@@ -81,6 +82,7 @@
 \gdef\@languagecode{EN}
 \DeclareOption{dutch}{\@englishfalse\@dutchtrue\gdef\@languagecode{NL}}
 \DeclareOption{english}{}
+\DeclareOption{french}{\@englishfalse\@frenchtrue\gdef\@languagecode{FR}}
 \DeclareOption{german}{\@englishfalse\@germantrue\gdef\@languagecode{DE}}
 \DeclareOption{italian}{\@englishfalse\@italiantrue\gdef\@languagecode{IT}}
 \DeclareOption{spanish}{\@englishfalse\@spanishtrue\gdef\@languagecode{ES}}
@@ -93,6 +95,7 @@
 
 \if@dutch   \input{locale/dutch}\fi
 \if@english \input{locale/english}\fi
+\if@french  \input{locale/french}\fi
 \if@german  \input{locale/german}\fi
 \if@italian \input{locale/italian}\fi
 \if@spanish \input{locale/spanish}\fi
