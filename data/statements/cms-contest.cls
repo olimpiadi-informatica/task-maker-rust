@@ -64,6 +64,7 @@
 
 \newif\if@showlogo\@showlogofalse
 \newif\if@english\@englishtrue
+\newif\if@dutch
 \newif\if@italian
 \newif\if@spanish
 \newif\if@showsolutions\@showsolutionsfalse
@@ -77,6 +78,7 @@
 
 % Language support
 \gdef\@languagecode{EN}
+\DeclareOption{dutch}{\@englishfalse\@dutchtrue\gdef\@languagecode{NL}}
 \DeclareOption{english}{}
 \DeclareOption{italian}{\@englishfalse\@italiantrue\gdef\@languagecode{IT}}
 \DeclareOption{spanish}{\@englishfalse\@spanishtrue\gdef\@languagecode{ES}}
@@ -87,6 +89,7 @@
 %                        Import language file                        *
 %*********************************************************************
 
+\if@dutch   \input{locale/dutch}\fi
 \if@english \input{locale/english}\fi
 \if@italian \input{locale/italian}\fi
 \if@spanish \input{locale/spanish}\fi
