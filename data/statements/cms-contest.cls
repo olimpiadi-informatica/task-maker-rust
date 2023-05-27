@@ -458,7 +458,7 @@
 
 \newcommand{\subtask}{%
 \addtocounter{@subtaskcounter}{1}%
-\textbf{\makebox[2cm][l]{\kw@Subtask~\the@subtaskcounter}~[\stscore{\the@subtaskcounter} \kw@points]}:
+\textbf{\makebox[\widthof{\kw@Subtask 99}][l]{\kw@Subtask~\the@subtaskcounter}~[\stscore{\the@subtaskcounter} \kw@points]}:
 }
 
 
