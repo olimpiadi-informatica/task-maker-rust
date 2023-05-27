@@ -327,6 +327,7 @@
 \createsection{\SubtaskSix}{\kw@SubtaskSix}
 \createsectionwithdescr{\Subtask}{\kw@Subtask}
 \createsection{\Solution}{\kw@Solution}
+\createsection{\SampleGrader}{\kw@SampleGrader}
 
 % SubtaskWithScore
 %
