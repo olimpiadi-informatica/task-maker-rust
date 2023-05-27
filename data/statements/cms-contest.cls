@@ -64,6 +64,9 @@
 
 \newif\if@showlogo\@showlogofalse
 \newif\if@english\@englishtrue
+\newif\if@dutch
+\newif\if@french
+\newif\if@german
 \newif\if@italian
 \newif\if@spanish
 \newif\if@showsolutions\@showsolutionsfalse
@@ -77,7 +80,10 @@
 
 % Language support
 \gdef\@languagecode{EN}
+\DeclareOption{dutch}{\@englishfalse\@dutchtrue\gdef\@languagecode{NL}}
 \DeclareOption{english}{}
+\DeclareOption{french}{\@englishfalse\@frenchtrue\gdef\@languagecode{FR}}
+\DeclareOption{german}{\@englishfalse\@germantrue\gdef\@languagecode{DE}}
 \DeclareOption{italian}{\@englishfalse\@italiantrue\gdef\@languagecode{IT}}
 \DeclareOption{spanish}{\@englishfalse\@spanishtrue\gdef\@languagecode{ES}}
 
@@ -87,9 +93,12 @@
 %                        Import language file                        *
 %*********************************************************************
 
+\if@dutch   \input{locale/dutch}\fi
+\if@english \input{locale/english}\fi
+\if@french  \input{locale/french}\fi
+\if@german  \input{locale/german}\fi
 \if@italian \input{locale/italian}\fi
 \if@spanish \input{locale/spanish}\fi
-\if@english \input{locale/english}\fi
 
 %*********************************************************************
 %                          Sizes and margins                         *
@@ -449,7 +458,7 @@
 
 \newcommand{\subtask}{%
 \addtocounter{@subtaskcounter}{1}%
-\textbf{\makebox[2cm][l]{\kw@Subtask~\the@subtaskcounter}~[\stscore{\the@subtaskcounter} \kw@points]}:
+\textbf{\makebox[\widthof{\kw@Subtask 99}][l]{\kw@Subtask~\the@subtaskcounter}~[\stscore{\the@subtaskcounter} \kw@points]}:
 }
 
 
