@@ -65,6 +65,7 @@
 \newif\if@showlogo\@showlogofalse
 \newif\if@english\@englishtrue
 \newif\if@italian
+\newif\if@spanish
 \newif\if@showsolutions\@showsolutionsfalse
 \newif\if@showsummary\@showsummaryfalse
 
@@ -78,6 +79,7 @@
 \gdef\@languagecode{EN}
 \DeclareOption{english}{}
 \DeclareOption{italian}{\@englishfalse\@italiantrue\gdef\@languagecode{IT}}
+\DeclareOption{spanish}{\@englishfalse\@spanishtrue\gdef\@languagecode{ES}}
 
 \ProcessOptions\relax
 
@@ -85,8 +87,9 @@
 %                        Import language file                        *
 %*********************************************************************
 
-\if@italian  \input{locale/italian}\fi
-\if@english  \input{locale/english}\fi
+\if@italian \input{locale/italian}\fi
+\if@spanish \input{locale/spanish}\fi
+\if@english \input{locale/english}\fi
 
 %*********************************************************************
 %                          Sizes and margins                         *
