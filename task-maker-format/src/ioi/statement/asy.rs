@@ -181,9 +181,6 @@ impl AsyFile {
             .filter_map(|p| p.ok())
             .filter(|p| p != source_path)
             .filter(|p| !p.is_dir())
-            .inspect(|p| {
-                eprintln!("{}", p.display());
-            })
             .map(|p| AsyDependency {
                 sandbox_path: p.strip_prefix(source_dir).unwrap_or(&p).into(),
                 local_path: p,
