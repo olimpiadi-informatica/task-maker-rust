@@ -68,6 +68,7 @@
 \newif\if@french
 \newif\if@german
 \newif\if@italian
+\newif\if@portuguese
 \newif\if@spanish
 \newif\if@showsolutions\@showsolutionsfalse
 \newif\if@showsummary\@showsummaryfalse
@@ -85,6 +86,7 @@
 \DeclareOption{french}{\@englishfalse\@frenchtrue\gdef\@languagecode{FR}}
 \DeclareOption{german}{\@englishfalse\@germantrue\gdef\@languagecode{DE}}
 \DeclareOption{italian}{\@englishfalse\@italiantrue\gdef\@languagecode{IT}}
+\DeclareOption{portuguese}{\@englishfalse\@portuguesetrue\gdef\@languagecode{PT}}
 \DeclareOption{spanish}{\@englishfalse\@spanishtrue\gdef\@languagecode{ES}}
 
 \ProcessOptions\relax
@@ -93,12 +95,13 @@
 %                        Import language file                        *
 %*********************************************************************
 
-\if@dutch   \input{locale/dutch}\fi
-\if@english \input{locale/english}\fi
-\if@french  \input{locale/french}\fi
-\if@german  \input{locale/german}\fi
-\if@italian \input{locale/italian}\fi
-\if@spanish \input{locale/spanish}\fi
+\if@dutch      \input{locale/dutch}\fi
+\if@english    \input{locale/english}\fi
+\if@french     \input{locale/french}\fi
+\if@german     \input{locale/german}\fi
+\if@italian    \input{locale/italian}\fi
+\if@portuguese \input{locale/portuguese}\fi
+\if@spanish    \input{locale/spanish}\fi
 
 %*********************************************************************
 %                          Sizes and margins                         *
