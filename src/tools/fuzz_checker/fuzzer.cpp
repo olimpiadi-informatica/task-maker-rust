@@ -20,8 +20,6 @@ struct Exit {
   int status;
 };
 
-[[noreturn]] void EXIT(int status) { throw Exit{status}; }
-
 #ifndef NUM_INPUTS
 #error Missing NUM_INPUTS
 #endif
