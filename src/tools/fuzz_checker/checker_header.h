@@ -5,4 +5,8 @@
 #define _exit EXIT
 #define exit EXIT
 
-[[noreturn]] void EXIT(int status);
+struct Exit {
+  int status;
+};
+
+[[noreturn]] inline void EXIT(int status) { throw Exit{status}; }
