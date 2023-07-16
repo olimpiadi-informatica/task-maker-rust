@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Error};
 use clap::Parser;
 
-use task_maker_format::ioi::{make_context_booklets, Booklet, BookletConfig, IOITask};
+use task_maker_format::ioi::{make_contest_booklets, Booklet, BookletConfig, IOITask};
 use task_maker_format::{find_task, EvaluationConfig};
 
 use crate::context::RuntimeContext;
@@ -119,7 +119,7 @@ fn get_booklets_from_task_dirs(
         tasks.push(task);
     }
     let booklets =
-        make_context_booklets(&tasks, eval_config).context("Failed to get booklet data")?;
+        make_contest_booklets(&tasks, eval_config).context("Failed to get booklet data")?;
     let mut task = IOITask::fake();
     task.title = "Booklet compilation".into();
     task.name = "booklet".into();

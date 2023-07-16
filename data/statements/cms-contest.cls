@@ -587,7 +587,8 @@
 
 \NewEnviron{solution}{
 \if@showsolutions
-    \definecolor{backcolor}{gray}{0.95}
+    \newpage
+    \definecolor{backcolor}{gray}{0.9}
     \pagecolor{backcolor}
 
     \Solution
