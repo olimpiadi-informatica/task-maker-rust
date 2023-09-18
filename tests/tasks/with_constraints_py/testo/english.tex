@@ -1,0 +1,39 @@
+\usepackage{xcolor}
+\usepackage{afterpage}
+\usepackage{pifont,mdframed}
+\usepackage[bottom]{footmisc}
+\usepackage{caption}
+\usepackage{minted}
+
+\newcommand{\inputfile}{\texttt{stdin}}
+\newcommand{\outputfile}{\texttt{stdout}}
+\makeatletter
+\renewcommand{\this@inputfilename}{\texttt{stdin}}
+\renewcommand{\this@outputfilename}{\texttt{stdout}}
+\makeatother
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+Test statement.
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\Constraints
+
+\begin{itemize}[nolistsep, itemsep=2mm]
+    \item $1 \le N \le \constraints{MAXN}$.
+    \item The graph is disconnected.
+\end{itemize}
+
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+
+\Scoring
+
+\begin{itemize}[nolistsep, itemsep=2mm]
+    \item \subtask Sample cases.
+    \item \subtask $N \le \stconstraints{MAXN}$.
+    \item \subtask No additional constraints.
+\end{itemize}

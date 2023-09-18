@@ -448,6 +448,13 @@
 \pynum[limiti]{subtask[#1]["#2"]}%
 }
 
+\newcommand{\constraints}[1]{%
+\pynum[constraints]{#1}%
+}
+\newcommand{\stconstraints}[2][\st]{
+\pynum[constraints]{subtasks[#1]["#2"]}%
+}
+
 \newcommand{\stscore}[1]{%
 \immediate\write18{cd \currfiledir; grep '^\#ST:' GEN | head -n #1 | tail -n 1 | cut -f 2 -d : | cut -f 1 -d \# | xargs echo -n > ../stscore.tex}%
 \ifnum0\pdffilesize{stscore.tex}>0

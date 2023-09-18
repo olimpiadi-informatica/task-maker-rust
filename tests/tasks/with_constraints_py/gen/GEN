@@ -1,0 +1,23 @@
+# This is a comment, this line should be ignored
+
+# The task is to echo the first parameter
+# If you exit fast enough and don't use much memory you will score 100 :P
+
+# Copy some file from some random folder
+#ST: 5
+#STNAME: samples
+#COPY: testo/input.txt
+#COPY: gen/hard.txt
+
+# Small N
+#ST: 45
+#STNAME: small
+5
+10
+
+# Big N
+#ST: 50
+#STNAME: big
+1300
+2000
+5000
