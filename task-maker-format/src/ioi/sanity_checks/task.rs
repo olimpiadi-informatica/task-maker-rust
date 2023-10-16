@@ -97,7 +97,7 @@ impl SanityCheck for NoBitsStdCpp {
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         lazy_static! {
             static ref RE: Regex =
-                Regex::new(r###"(?m)^#\s*include\s*(?:<|")bits/stdc\+\+\.h(?:>|").*$"###)
+                Regex::new(r#"(?m)^#\s*include\s*(?:<|")bits/stdc\+\+\.h(?:>|").*$"#)
                     .expect("Invalid regex");
         }
 

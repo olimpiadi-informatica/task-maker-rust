@@ -201,7 +201,9 @@ impl SanityCheck for AllOutputsEqual {
         let outputs = self.outputs.lock().unwrap();
 
         for (id, out) in outputs.iter() {
-            let Some(subtask) = task.subtasks.get(id) else { continue; };
+            let Some(subtask) = task.subtasks.get(id) else {
+                continue;
+            };
             if out.len() != subtask.testcases.len() {
                 continue;
             }

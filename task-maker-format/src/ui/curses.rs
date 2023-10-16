@@ -141,7 +141,7 @@ where
         Ok(std::thread::Builder::new()
             .name("CursesUI thread".to_owned())
             .spawn(move || {
-                let loading = vec!['◐', '◓', '◑', '◒'];
+                let loading = ['◐', '◓', '◑', '◒'];
                 let mut loading_index = 0;
                 let stdin = termion::async_stdin();
                 let mut events = stdin.events();

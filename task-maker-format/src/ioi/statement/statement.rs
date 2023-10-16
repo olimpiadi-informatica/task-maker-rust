@@ -314,8 +314,8 @@ mod tests {
         let logo2 = Some(logo);
 
         let mut eval = EvaluationData::new(tmpdir.path()).0;
-        let in_files = vec!["logo.pdf", "test.png", "asset.pdf"];
-        let not_in_files = vec!["asy_image.pdf", "tex_file.pdf"];
+        let in_files = ["logo.pdf", "test.png", "asset.pdf"];
+        let not_in_files = ["asy_image.pdf", "tex_file.pdf"];
         std::fs::write(tmpdir.path().join("asy_image.asy"), "").unwrap();
         std::fs::write(tmpdir.path().join("tex_file.tex"), "").unwrap();
 

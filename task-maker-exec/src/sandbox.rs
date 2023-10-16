@@ -618,7 +618,7 @@ mod tests {
         exec.limits_mut().read_only(true);
         let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new(), None).unwrap();
         let outfile = sandbox.output_path(Path::new("fooo"));
-        if let Err(e) = sandbox.run(&ErrorSandboxRunner::default()) {
+        if let Err(e) = sandbox.run(&ErrorSandboxRunner) {
             assert!(e.to_string().contains("Nope"));
         } else {
             panic!("Sandbox not called");
