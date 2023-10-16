@@ -452,7 +452,7 @@ impl std::fmt::Debug for FileStoreKey {
 
 impl PartialOrd for FileStoreKey {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        PartialOrd::partial_cmp(self.hash.as_bytes(), other.hash.as_bytes())
+        Some(self.cmp(other))
     }
 }
 
