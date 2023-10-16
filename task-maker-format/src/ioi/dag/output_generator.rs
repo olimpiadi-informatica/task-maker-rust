@@ -42,7 +42,12 @@ impl OutputGenerator {
         validation_handle: Option<FileUuid>,
     ) -> Result<(Option<FileUuid>, Option<Execution>), Error> {
         match self {
-            OutputGenerator::NotAvailable => Ok((None, None)),
+            OutputGenerator::NotAvailable => {
+                let file = File::new("Empty file");
+                let uuid = file.uuid;
+                eval.dag.provide_content(file, vec![]);
+                Ok((Some(uuid), None))
+            }
             OutputGenerator::StaticFile(path) => {
                 if !path.exists() {
                     bail!("Static output file not found: {:?}", path);
