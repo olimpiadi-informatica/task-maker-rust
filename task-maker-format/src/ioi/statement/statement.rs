@@ -136,22 +136,22 @@ impl Statement {
                 .config
                 .time_limit
                 .map(|x| x.to_string())
-                .unwrap_or_else(String::new),
+                .unwrap_or_default(),
             memory_limit: self
                 .config
                 .memory_limit
                 .map(|x| x.to_string())
-                .unwrap_or_else(String::new),
+                .unwrap_or_default(),
             difficulty: self
                 .config
                 .difficulty
                 .map(|x| x.to_string())
-                .unwrap_or_else(String::new),
+                .unwrap_or_default(),
             syllabus_level: self
                 .config
                 .syllabus_level
                 .map(|x| x.to_string())
-                .unwrap_or_else(String::new),
+                .unwrap_or_default(),
             content: USE_PACKAGE_REGEX
                 .replace_all(&self.content, r"% $0")
                 .to_string(),
@@ -182,7 +182,7 @@ impl Statement {
         let ext = path
             .extension()
             .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(String::new);
+            .unwrap_or_default();
         if ext.as_str() == "asy" {
             let dest = suffix.with_extension("pdf");
             if self.content.contains(dest.to_string_lossy().as_ref()) {
@@ -249,12 +249,12 @@ impl StatementConfig {
                 .infile
                 .as_ref()
                 .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(String::new),
+                .unwrap_or_default(),
             outfile: task
                 .outfile
                 .as_ref()
                 .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(String::new),
+                .unwrap_or_default(),
             time_limit: task.time_limit,
             memory_limit: task.memory_limit,
             difficulty: task.difficulty,
@@ -314,8 +314,8 @@ mod tests {
         let logo2 = Some(logo);
 
         let mut eval = EvaluationData::new(tmpdir.path()).0;
-        let in_files = vec!["logo.pdf", "test.png", "asset.pdf"];
-        let not_in_files = vec!["asy_image.pdf", "tex_file.pdf"];
+        let in_files = ["logo.pdf", "test.png", "asset.pdf"];
+        let not_in_files = ["asy_image.pdf", "tex_file.pdf"];
         std::fs::write(tmpdir.path().join("asy_image.asy"), "").unwrap();
         std::fs::write(tmpdir.path().join("tex_file.tex"), "").unwrap();
 

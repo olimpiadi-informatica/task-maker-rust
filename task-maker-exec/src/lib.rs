@@ -238,7 +238,7 @@ mod tests {
             cwd.path(),
             1000,
             1000,
-            UnsafeSandboxRunner::default(),
+            UnsafeSandboxRunner,
         );
 
         assert!(exec_done2.load(Ordering::Relaxed));

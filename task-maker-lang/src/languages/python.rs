@@ -168,7 +168,7 @@ mod tests {
         )
         .unwrap();
         let imports = extract_imports(&path);
-        for (i, import) in vec!["foo", "bar", "baz", "biz"].iter().enumerate() {
+        for (i, import) in ["foo", "bar", "baz", "biz"].iter().enumerate() {
             let import = PathBuf::from(format!("{}.py", import));
             assert_that(&imports[i]).is_equal_to((import.clone(), import));
         }

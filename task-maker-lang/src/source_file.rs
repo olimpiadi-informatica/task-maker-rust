@@ -379,7 +379,7 @@ mod tests {
             cwd.path(),
             1000,
             1000,
-            SuccessSandboxRunner::default(),
+            SuccessSandboxRunner,
         );
 
         assert!(exec_start.load(Ordering::Relaxed));

@@ -233,7 +233,7 @@ mod tests {
         )
         .unwrap();
         let imports = extract_includes(&path);
-        for (i, import) in vec!["iostream", "test.hpp"].iter().enumerate() {
+        for (i, import) in ["iostream", "test.hpp"].iter().enumerate() {
             let import = PathBuf::from(import);
             assert_that(&imports[i].0).is_equal_to(tmpdir.path().join(&import));
             assert_that(&imports[i].1).is_equal_to(&import);

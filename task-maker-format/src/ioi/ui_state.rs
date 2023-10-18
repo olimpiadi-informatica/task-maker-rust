@@ -541,7 +541,7 @@ impl UIStateT for UIState {
                     .entry(solution)
                     .or_insert_with(|| SolutionEvaluationState::new(task));
                 let subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
-                let mut testcase = subtask
+                let testcase = subtask
                     .testcases
                     .get_mut(&testcase)
                     .expect("Missing testcase");
@@ -599,7 +599,7 @@ impl UIStateT for UIState {
                     .entry(solution)
                     .or_insert_with(|| SolutionEvaluationState::new(task));
                 let subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
-                let mut testcase = subtask
+                let testcase = subtask
                     .testcases
                     .get_mut(&testcase)
                     .expect("Missing testcase");
@@ -626,7 +626,7 @@ impl UIStateT for UIState {
                     .entry(solution)
                     .or_insert_with(|| SolutionEvaluationState::new(task));
                 let subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
-                let mut testcase = subtask
+                let testcase = subtask
                     .testcases
                     .get_mut(&testcase)
                     .expect("Missing testcase");
@@ -650,7 +650,7 @@ impl UIStateT for UIState {
                     .evaluations
                     .entry(solution)
                     .or_insert_with(|| SolutionEvaluationState::new(task));
-                let mut subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
+                let subtask = eval.subtasks.get_mut(&subtask).expect("Missing subtask");
                 subtask.score = Some(score);
                 subtask.normalized_score = Some(normalized_score);
             }

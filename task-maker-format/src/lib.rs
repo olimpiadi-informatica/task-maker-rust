@@ -41,7 +41,6 @@ use task_maker_lang::{GraderMap, LanguageManager};
 
 use crate::ioi::task_info::IOITaskInfo;
 use crate::ioi::IOITask;
-use crate::solution::Solution;
 pub use crate::solution::*;
 use crate::terry::{Seed, TerryTask};
 use crate::ui::UI;

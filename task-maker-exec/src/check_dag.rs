@@ -75,10 +75,7 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
     let mut ready_files: VecDeque<FileUuid> = VecDeque::new();
 
     let mut add_dependency = |file: FileUuid, group: ExecutionGroupUuid| {
-        dependencies
-            .entry(file)
-            .or_insert_with(Vec::new)
-            .push(group);
+        dependencies.entry(file).or_default().push(group);
     };
 
     // add the executions and check for duplicated UUIDs
