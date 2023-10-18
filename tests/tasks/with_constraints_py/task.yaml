@@ -1,0 +1,15 @@
+# General info
+name: with-constraints-py
+title: Testing constraints.py
+
+# Technical info
+memory_limit: 64
+time_limit: 1
+infile: ""
+outfile: ""
+
+# Other stuff
+score_mode: max_subtask
+token_mode: disabled
+public_testcases: all
+feedback_level: full
