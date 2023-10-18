@@ -43,7 +43,7 @@ pub fn make_task_booklets(
 }
 
 /// Find all the `Booklet` it makes sense to build for all the provided tasks.
-pub fn make_context_booklets(
+pub fn make_contest_booklets(
     tasks: &[IOITask],
     eval_config: &EvaluationConfig,
 ) -> Result<Vec<Booklet>, Error> {

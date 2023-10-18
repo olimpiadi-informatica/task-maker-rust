@@ -37,6 +37,8 @@ pub struct BookletConfig {
     pub date: Option<String>,
     /// The logo of the contest.
     pub logo: Option<String>,
+    /// The path to the intro page.
+    pub intro_page: Option<PathBuf>,
 }
 
 /// Template to use to render the `booklet.tex` file.
@@ -54,6 +56,7 @@ pub struct BookletTemplate {
     logo: String,
     packages: String,
     tasks: String,
+    intro_page: String,
 }
 
 /// A `Booklet` is a pdf file containing the statements of some tasks. It is compiled from a series
@@ -81,6 +84,8 @@ pub struct ContestYAML {
     pub logo: Option<String>,
     /// `Some("True")` if the time and memory limits should be put in the booklet.
     pub show_summary: Option<String>,
+    /// Some(relative_path) for a front page for the booklet.
+    pub booklet_intro_path: Option<PathBuf>,
     /// The list of the tasks in the contest (in the correct order).
     pub tasks: Vec<String>,
 }
@@ -224,6 +229,13 @@ impl Booklet {
             logo: self.config.logo.clone().unwrap_or_default(),
             packages: packages.iter().sorted().join("\n"),
             tasks: tasks.join("\n"),
+            intro_page: self
+                .config
+                .intro_page
+                .clone()
+                .map(std::fs::read_to_string)
+                .unwrap_or_else(|| Ok(String::new()))
+                .unwrap_or_default(),
         }
         .to_string()
     }
@@ -295,6 +307,7 @@ impl BookletConfig {
                 location: contest_yaml.location,
                 date: contest_yaml.date,
                 logo: contest_yaml.logo,
+                intro_page: contest_yaml.booklet_intro_path,
             })
         } else {
             Ok(BookletConfig {
@@ -307,6 +320,7 @@ impl BookletConfig {
                 location: None,
                 date: None,
                 logo: None,
+                intro_page: None,
             })
         }
     }
