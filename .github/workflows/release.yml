@@ -9,7 +9,7 @@ jobs:
     name: Debian/Ubuntu (deb)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build deb file
         run: |
           docker run --rm -v $(pwd):/source ghcr.io/edomora97/task-maker-rust-release-linux
@@ -36,7 +36,7 @@ jobs:
     name: AUR
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Build PKGBUILD
         working-directory: tools/aur/task-maker-rust
         run: ./gen.sh > ../../../PKGBUILD
@@ -53,7 +53,7 @@ jobs:
     name: Publish PPA
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Trigger PPA build
         env:
           GH_TOKEN: ${{ secrets.PAT_PPA_ACTION_TRIGGER }}
