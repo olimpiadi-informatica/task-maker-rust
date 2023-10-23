@@ -72,7 +72,7 @@ lazy_static = "1.4"
 # General iterator utilities
 itertools = "0.10"
 # Iterate recursively the files in a directory (used for `task-maker-tools reset`)
-walkdir = "2.3"
+walkdir = "2.4"
 # defer! macro
 scopeguard = "1.0"
 # URL parsing for connecting to a remote server
