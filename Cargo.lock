@@ -1707,7 +1707,7 @@ dependencies = [
  "ctrlc",
  "directories",
  "env_logger",
- "fastrand 1.9.0",
+ "fastrand 2.0.1",
  "itertools",
  "lazy_static",
  "log",

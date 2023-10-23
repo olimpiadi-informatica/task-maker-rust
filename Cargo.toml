@@ -84,7 +84,7 @@ regex = "1"
 # setrlimit for setting unlimited stack for the checker in the fuzzer
 rlimit = "0.10"
 # Geenrating random numbers (the seed in find-bad-case tool)
-fastrand = "1.8"
+fastrand = "2.0"
 # Curses UI
 tui = { version = "0.19", default-features = false, features = ["termion"] }
 
