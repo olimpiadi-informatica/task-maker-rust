@@ -818,6 +818,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1577,7 +1586,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "const_format",
- "itertools",
+ "itertools 0.10.5",
  "log",
  "serde",
  "task-maker-dag",
@@ -1617,7 +1626,7 @@ dependencies = [
  "crossbeam-channel",
  "ductile",
  "env_logger",
- "itertools",
+ "itertools 0.10.5",
  "log",
  "nix 0.26.2",
  "pretty_assertions",
@@ -1648,7 +1657,7 @@ dependencies = [
  "fastrand 1.9.0",
  "glob",
  "inventory",
- "itertools",
+ "itertools 0.10.5",
  "lazy_static",
  "log",
  "mime_guess",
@@ -1708,7 +1717,7 @@ dependencies = [
  "directories",
  "env_logger",
  "fastrand 2.0.1",
- "itertools",
+ "itertools 0.11.0",
  "lazy_static",
  "log",
  "num_cpus",
