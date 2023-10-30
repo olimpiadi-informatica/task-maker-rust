@@ -74,7 +74,7 @@ itertools = "0.11"
 # Iterate recursively the files in a directory (used for `task-maker-tools reset`)
 walkdir = "2.4"
 # defer! macro
-scopeguard = "1.0"
+scopeguard = "1.2"
 # URL parsing for connecting to a remote server
 url = "2.4"
 # Temporary directory for sandboxes
