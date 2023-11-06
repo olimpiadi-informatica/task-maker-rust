@@ -94,7 +94,7 @@ typescript-definitions = { git = "https://github.com/onelson/typescript-definiti
 [dev-dependencies]
 approx = "0.5"
 # Resolve executable names in $PATH
-which = "4.2"
+which = "5.0"
 
 [[bin]]
 name = "task-maker"
