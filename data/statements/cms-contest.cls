@@ -180,7 +180,8 @@
             \if@showproblemnumber\kw@Problem~\arabic{@problemcounter}.\ \fi%
             ~\texttt{\this@problemshorttitle\ifthenelse{\equal{\this@problemrevnumber}{}}{}{\enskip\textemdash\enskip\kw@revision \this@problemrevnumber}}%
             {\hfill}%
-            \kw@Page\ \thepage\ \kw@of\ \pageref{LastPage}\hfill%
+            %\kw@Page\ \thepage\ \kw@of\ \pageref{LastPage}\hfill%
+            \kw@PageXofY{\thepage}{\pageref{LastPage}}\hfill%
         }%
     }%
     {%
@@ -191,7 +192,8 @@
             {\hfill}%
             {\kw@ProblemAuthor~\last@problemauthor}%
             {\hfill}%
-            {\kw@Page\ \thepage\ \kw@of\ \pageref{LastPage}}%
+            %{\kw@Page\ \thepage\ \kw@of\ \pageref{LastPage}}%
+            {\kw@PageXofY{\thepage}{\pageref{LastPage}}}%
             \quad~%
         }%
     }%
