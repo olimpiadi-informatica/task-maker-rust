@@ -176,23 +176,21 @@
     \ifthenelse{\equal{\last@problemauthor}{}}%
     {%
         \gdef\footercontent{%
-            \if@showproblemletter\kw@Problem~\Alph{@problemcounter}.\ \fi%
-            \if@showproblemnumber\kw@Problem~\arabic{@problemcounter}.\ \fi%
+            \if@showproblemletter\kw@ProblemX{\Alph{@problemcounter}}.\ \fi%
+            \if@showproblemnumber\kw@ProblemX{\arabic{@problemcounter}}.\ \fi%
             ~\texttt{\this@problemshorttitle\ifthenelse{\equal{\this@problemrevnumber}{}}{}{\enskip\textemdash\enskip\kw@revision \this@problemrevnumber}}%
             {\hfill}%
-            %\kw@Page\ \thepage\ \kw@of\ \pageref{LastPage}\hfill%
             \kw@PageXofY{\thepage}{\pageref{LastPage}}\hfill%
         }%
     }%
     {%
         \gdef\footercontent{%
-            \if@showproblemletter\kw@Problem~\Alph{@problemcounter}.\ \fi%
-            \if@showproblemnumber\kw@Problem~\arabic{@problemcounter}.\ \fi%
+            \if@showproblemletter\kw@ProblemX{\Alph{@problemcounter}}.\ \fi%
+            \if@showproblemnumber\kw@ProblemX{\arabic{@problemcounter}}.\ \fi%
             ~\texttt{\this@problemshorttitle\ifthenelse{\equal{\this@problemrevnumber}{}}{}{\enskip$\bullet$\enskip\kw@revision \this@problemrevnumber}}%
             {\hfill}%
             {\kw@ProblemAuthor~\last@problemauthor}%
             {\hfill}%
-            %{\kw@Page\ \thepage\ \kw@of\ \pageref{LastPage}}%
             {\kw@PageXofY{\thepage}{\pageref{LastPage}}}%
             \quad~%
         }%
@@ -359,7 +357,7 @@
         \beforeproblemsectioncaption
 
         \noindent\problemsectionfont\textsf{\textbf{%
-            \kw@Subtask~\arabic{@subtaskcounter}%
+            \kw@SubtaskX{\arabic{@subtaskcounter}}%
         }}%
         \textsf{~(\kw@points:~#1)}
 
@@ -398,7 +396,7 @@
     \addtocounter{@oisubtaskcounter}{1}
 
     \begin{minipage}[t]{0.3\textwidth}
-  	\textendash{}~\textbf{\kw@Subtask~\arabic{@oisubtaskcounter}}~(#1~\kw@points)\\
+  	\textendash{}~\textbf{\kw@SubtaskX{\arabic{@oisubtaskcounter}}}~(#1~\kw@points)\\
   	\phantom{\textendash{}}~\Level{#2}
     \end{minipage}
     \begin{minipage}[t]{0.7\textwidth}
@@ -473,7 +471,7 @@
 
 \newcommand{\subtask}{%
 \addtocounter{@subtaskcounter}{1}%
-\textbf{\makebox[\widthof{\kw@Subtask 99}][l]{\kw@Subtask~\the@subtaskcounter}~[\stscore{\the@subtaskcounter} \kw@points]}:
+\textbf{\makebox[\widthof{\kw@SubtaskX{99}}][l]{\kw@SubtaskX{\the@subtaskcounter}}~[\stscore{\the@subtaskcounter} \kw@points]}:
 }
 
 
@@ -542,7 +540,7 @@
                 \this@contestname%
                 \hfill%
                 \ifthenelse{\equal{\this@contestday}{}}%
-                {}{\makebox[0pt][r]{\kw@Day~\this@contestday}}%
+                {}{\makebox[0pt][r]{\kw@DayX{\this@contestday}}}%
                 \ifthenelse{\equal{\this@syllabuslevel}{}}%
                 {}{\makebox[0pt][r]{\Level{\this@syllabuslevel}}}%
             }
@@ -560,8 +558,8 @@
     \noindent
     \refstepcounter{@problemcounter}
     \textbf{\problemheadfont\textsf{%
-        \if@showproblemletter\kw@Problem~\Alph{@problemcounter}.\ \fi%
-        \if@showproblemnumber\kw@Problem~\arabic{@problemcounter}.\ \fi%
+        \if@showproblemletter\kw@ProblemX{\Alph{@problemcounter}}.\ \fi%
+        \if@showproblemnumber\kw@ProblemX{\arabic{@problemcounter}}.\ \fi%
         #1 (\texttt{#2})%
     }}%
     % Add a line to the toc now, so that it is in the right page
