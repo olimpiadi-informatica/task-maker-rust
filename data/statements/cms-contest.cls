@@ -67,6 +67,7 @@
 \newif\if@dutch
 \newif\if@french
 \newif\if@german
+\newif\if@hungarian
 \newif\if@italian
 \newif\if@portuguese
 \newif\if@spanish
@@ -85,6 +86,7 @@
 \DeclareOption{english}{}
 \DeclareOption{french}{\@englishfalse\@frenchtrue\gdef\@languagecode{FR}}
 \DeclareOption{german}{\@englishfalse\@germantrue\gdef\@languagecode{DE}}
+\DeclareOption{hungarian}{\@englishfalse\@hungariantrue\gdef\@languagecode{HU}}
 \DeclareOption{italian}{\@englishfalse\@italiantrue\gdef\@languagecode{IT}}
 \DeclareOption{portuguese}{\@englishfalse\@portuguesetrue\gdef\@languagecode{PT}}
 \DeclareOption{spanish}{\@englishfalse\@spanishtrue\gdef\@languagecode{ES}}
@@ -99,6 +101,7 @@
 \if@english    \input{locale/english}\fi
 \if@french     \input{locale/french}\fi
 \if@german     \input{locale/german}\fi
+\if@hungarian  \input{locale/hungarian}\fi
 \if@italian    \input{locale/italian}\fi
 \if@portuguese \input{locale/portuguese}\fi
 \if@spanish    \input{locale/spanish}\fi
