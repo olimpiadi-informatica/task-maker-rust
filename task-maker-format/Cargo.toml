@@ -21,7 +21,7 @@ itertools = "0.10"
 # Utilities for writing to the terminal with colors
 termcolor = "1"
 # Checks if the terminal supports the colors
-supports-color = "1"
+supports-color = "2"
 # Logging
 log = "0.4"
 # Globbing files
