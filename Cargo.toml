@@ -76,7 +76,7 @@ walkdir = "2.4"
 # defer! macro
 scopeguard = "1.2"
 # URL parsing for connecting to a remote server
-url = "2.4"
+url = "2.5"
 # Temporary directory for sandboxes
 tempfile = "3.8"
 # Regex
