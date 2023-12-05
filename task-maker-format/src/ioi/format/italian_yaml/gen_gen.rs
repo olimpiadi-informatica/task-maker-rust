@@ -52,7 +52,6 @@ where
     let mut default_subtask = Some(SubtaskInfo {
         id: 0,
         name: None,
-        description: None,
         max_score: 100.0,
         testcases: HashMap::new(),
         span: None,
@@ -101,7 +100,6 @@ where
                         entries.push(TaskInputEntry::Subtask(SubtaskInfo {
                             id: subtask_id,
                             name: None,
-                            description: None,
                             max_score: score.parse::<f64>().context("Invalid subtask score")?,
                             testcases: HashMap::new(),
                             span: CodeSpan::from_str(

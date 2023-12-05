@@ -94,7 +94,6 @@ pub fn patch_task_for_batch(
             let subtask = SubtaskInfo {
                 id: 0,
                 name: Some(format!("batch-{}", batch_index)),
-                description: None,
                 max_score: 100.0,
                 testcases,
                 span: None,

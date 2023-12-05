@@ -156,8 +156,6 @@ pub struct SubtaskInfo {
     ///
     /// This is what is used for running the solutions' checks.
     pub name: Option<String>,
-    /// Textual description of the subtask.
-    pub description: Option<String>,
     /// The maximum score of the subtask, must be >= 0.
     pub max_score: f64,
     /// The testcases inside this subtask.
