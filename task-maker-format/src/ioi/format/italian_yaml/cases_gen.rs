@@ -227,12 +227,11 @@ where
         for entry in &self.result {
             match entry {
                 TaskInputEntry::Subtask(subtask) => {
-                    if let Some(name) = &subtask.name {
-                        let _ = writeln!(gen, "\n# Subtask {}: {}", subtask.id, name);
-                    } else {
-                        let _ = writeln!(gen, "\n# Subtask {}", subtask.id);
-                    }
+                    let _ = writeln!(gen, "\n# Subtask {}", subtask.id);
                     let _ = writeln!(gen, "#ST: {}", subtask.max_score);
+                    if let Some(name) = &subtask.name {
+                        let _ = writeln!(gen, "#STNAME: {}", name);
+                    }
                     if let Some(constraints) = self.subtask_constraints.get(subtask.id as usize) {
                         for constr in constraints {
                             let _ = writeln!(gen, "# {:?}", constr);
@@ -529,7 +528,6 @@ where
             None
         };
         self.subtask_name = name.clone();
-        // FIXME: the cases.gen format does not yet support giving the subtasks a name.
         self.result.push(TaskInputEntry::Subtask(SubtaskInfo {
             id: self.subtask_id,
             name,
@@ -834,11 +832,12 @@ mod tests {
             .split('\n')
             .filter(|s| !s.is_empty() && !s.starts_with("# ") && !s.starts_with("#COPY"))
             .collect();
-        assert_eq!(res.len(), 4);
+        assert_eq!(res.len(), 5);
         assert_eq!(res[0], "#ST: 42");
-        assert!(res[1].contains("12 34"));
-        assert_eq!(res[2], "#ST: 24");
-        assert!(res[3].contains("21 21"));
+        assert_eq!(res[1], "#STNAME: lol");
+        assert!(res[2].contains("12 34"));
+        assert_eq!(res[3], "#ST: 24");
+        assert!(res[4].contains("21 21"));
     }
 
     #[test]
