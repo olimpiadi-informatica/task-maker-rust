@@ -521,8 +521,9 @@ impl FromStr for TestcaseScoreAggregator {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "min" => Ok(TestcaseScoreAggregator::Min),
-            "sum" => Ok(TestcaseScoreAggregator::Sum),
+            "min" | "GroupMin" => Ok(TestcaseScoreAggregator::Min),
+            "sum" | "Sum" => Ok(TestcaseScoreAggregator::Sum),
+            "GroupMul" | "GroupThreshold" => bail!("{s} is not supported yet"),
             _ => bail!("Invalid testcase score aggregator: {}", s),
         }
     }
