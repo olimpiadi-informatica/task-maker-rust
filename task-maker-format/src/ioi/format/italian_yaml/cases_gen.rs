@@ -520,28 +520,34 @@ where
                 self.subtask_id, score
             )
         })?;
-        let name = if line.len() >= 2 {
-            // Remove whitespaces for retrocompatibility with descriptions
-            let s = line[1].as_str();
-            Some(s.chars().filter(|&c| c != ' ' && c != '\t').collect())
+        let description = if line.len() >= 2 {
+            Some(line[1].as_str().to_string())
         } else {
             None
         };
+        // Remove whitespaces for retrocompatibility with descriptions
+        let name = description
+            .as_deref()
+            .map(|s| s.chars().filter(|&c| c != ' ' && c != '\t').collect());
         self.subtask_name = name.clone();
-        self.result.push(TaskInputEntry::Subtask(SubtaskInfo {
-            id: self.subtask_id,
-            name,
-            max_score: score,
-            testcases: HashMap::new(),
-            span: CodeSpan::from_str(
-                &self.file_path,
-                &self.file_content,
-                span.start(),
-                span.end() - span.start(),
-            )
-            .ok(),
-            is_default: false,
-        }));
+        self.result.push(TaskInputEntry::Subtask(
+            #[allow(deprecated)]
+            SubtaskInfo {
+                id: self.subtask_id,
+                name,
+                description,
+                max_score: score,
+                span: CodeSpan::from_str(
+                    &self.file_path,
+                    &self.file_content,
+                    span.start(),
+                    span.end() - span.start(),
+                )
+                .ok(),
+                is_default: false,
+                ..Default::default()
+            },
+        ));
         self.subtask_id += 1;
         Ok(())
     }

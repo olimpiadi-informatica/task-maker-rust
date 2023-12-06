@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -51,11 +50,9 @@ where
 
     let mut default_subtask = Some(SubtaskInfo {
         id: 0,
-        name: None,
         max_score: 100.0,
-        testcases: HashMap::new(),
-        span: None,
         is_default: true,
+        ..Default::default()
     });
 
     let mut generators = find_source_file(
@@ -99,9 +96,7 @@ where
                         let path = path.strip_prefix(task_dir).unwrap_or(path);
                         entries.push(TaskInputEntry::Subtask(SubtaskInfo {
                             id: subtask_id,
-                            name: None,
                             max_score: score.parse::<f64>().context("Invalid subtask score")?,
-                            testcases: HashMap::new(),
                             span: CodeSpan::from_str(
                                 path,
                                 &content,
@@ -110,6 +105,7 @@ where
                             )
                             .ok(),
                             is_default: false,
+                            ..Default::default()
                         }));
                         subtask_id += 1;
                     }

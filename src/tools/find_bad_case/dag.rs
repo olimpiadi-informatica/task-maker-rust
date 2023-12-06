@@ -96,8 +96,8 @@ pub fn patch_task_for_batch(
                 name: Some(format!("batch-{}", batch_index)),
                 max_score: 100.0,
                 testcases,
-                span: None,
                 is_default: false,
+                ..Default::default()
             };
             task.subtasks.insert(0, subtask);
         }

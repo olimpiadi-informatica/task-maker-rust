@@ -148,7 +148,7 @@ pub struct IOITask {
 }
 
 /// A subtask of a IOI task.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify, Default)]
 pub struct SubtaskInfo {
     /// The id of the subtask.
     pub id: SubtaskId,
@@ -156,6 +156,9 @@ pub struct SubtaskInfo {
     ///
     /// This is what is used for running the solutions' checks.
     pub name: Option<String>,
+    /// Textual description of the subtask. (deprecated)
+    #[deprecated(note = "Use the `name` field instead")]
+    pub description: Option<String>,
     /// The maximum score of the subtask, must be >= 0.
     pub max_score: f64,
     /// The testcases inside this subtask.
