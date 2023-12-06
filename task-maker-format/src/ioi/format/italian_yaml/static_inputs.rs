@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::ioi::format::italian_yaml::TaskInputEntry;
@@ -38,12 +37,10 @@ where
             self.index = 1;
             return Some(TaskInputEntry::Subtask(SubtaskInfo {
                 id: 0,
-                name: None,
-                description: Some("Static testcases".into()),
+                name: Some("static-testcases".into()),
                 max_score: 100.0,
-                testcases: HashMap::new(),
-                span: None,
                 is_default: true,
+                ..Default::default()
             }));
         }
         let id = self.index - 1; // offset caused by the first iteration

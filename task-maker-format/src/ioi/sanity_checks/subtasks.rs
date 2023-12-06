@@ -231,3 +231,42 @@ impl SanityCheck for AllOutputsEqual {
         Ok(())
     }
 }
+
+/// Check if any subtask uses the deprecated `description` field.
+#[derive(Debug, Default)]
+pub struct DeprecatedDescriptionInSubtask;
+make_sanity_check!(DeprecatedDescriptionInSubtask);
+
+impl SanityCheck for DeprecatedDescriptionInSubtask {
+    type Task = IOITask;
+
+    fn name(&self) -> &'static str {
+        "DeprecatedDescriptionInSubtask"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Task
+    }
+
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        for subtask in task.subtasks.values() {
+            #[allow(deprecated)]
+            let description = subtask.description.as_deref();
+            match (subtask.name.as_deref(), description) {
+                (Some(a), Some(b)) if a != b => {
+                    let mut diagnostic = Diagnostic::warning(format!(
+                        "Subtask {} uses spaces and/or tabs in its name, which are now deprecated",
+                        subtask.id
+                    ));
+                    if let Some(span) = subtask.span.clone() {
+                        diagnostic = diagnostic.with_code_span(span);
+                    }
+                    eval.add_diagnostic(diagnostic)?;
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
+    }
+}

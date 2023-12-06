@@ -124,8 +124,8 @@ where
     current_validator: Option<String>,
     /// The identifier of the next subtask to process.
     subtask_id: SubtaskId,
-    /// The description of the last subtask added, if any.
-    subtask_description: Option<String>,
+    /// The name of the last subtask added, if any.
+    subtask_name: Option<String>,
     /// The identifier of the next testcase to process.
     testcase_id: TestcaseId,
 }
@@ -166,7 +166,7 @@ where
             current_generator: None,
             current_validator: None,
             subtask_id: 0,
-            subtask_description: None,
+            subtask_name: None,
             testcase_id: 0,
         };
 
@@ -227,12 +227,11 @@ where
         for entry in &self.result {
             match entry {
                 TaskInputEntry::Subtask(subtask) => {
-                    if let Some(descr) = &subtask.description {
-                        let _ = writeln!(gen, "\n# Subtask {}: {}", subtask.id, descr);
-                    } else {
-                        let _ = writeln!(gen, "\n# Subtask {}", subtask.id);
-                    }
+                    let _ = writeln!(gen, "\n# Subtask {}", subtask.id);
                     let _ = writeln!(gen, "#ST: {}", subtask.max_score);
+                    if let Some(name) = &subtask.name {
+                        let _ = writeln!(gen, "#STNAME: {}", name);
+                    }
                     if let Some(constraints) = self.subtask_constraints.get(subtask.id as usize) {
                         for constr in constraints {
                             let _ = writeln!(gen, "# {:?}", constr);
@@ -526,23 +525,29 @@ where
         } else {
             None
         };
-        self.subtask_description = description.clone();
-        // FIXME: the cases.gen format does not yet support giving the subtasks a name.
-        self.result.push(TaskInputEntry::Subtask(SubtaskInfo {
-            id: self.subtask_id,
-            name: None,
-            description,
-            max_score: score,
-            testcases: HashMap::new(),
-            span: CodeSpan::from_str(
-                &self.file_path,
-                &self.file_content,
-                span.start(),
-                span.end() - span.start(),
-            )
-            .ok(),
-            is_default: false,
-        }));
+        // Remove whitespaces for retrocompatibility with descriptions
+        let name = description
+            .as_deref()
+            .map(|s| s.chars().filter(|&c| c != ' ' && c != '\t').collect());
+        self.subtask_name = name.clone();
+        self.result.push(TaskInputEntry::Subtask(
+            #[allow(deprecated)]
+            SubtaskInfo {
+                id: self.subtask_id,
+                name,
+                description,
+                max_score: score,
+                span: CodeSpan::from_str(
+                    &self.file_path,
+                    &self.file_content,
+                    span.start(),
+                    span.end() - span.start(),
+                )
+                .ok(),
+                is_default: false,
+                ..Default::default()
+            },
+        ));
         self.subtask_id += 1;
         Ok(())
     }
@@ -637,8 +642,8 @@ where
         vars.insert("INPUT".to_string(), TM_VALIDATION_FILE_NAME.to_string());
         vars.insert("ST_NUM".to_string(), (self.subtask_id - 1).to_string());
         vars.insert("TC_NUM".to_string(), self.testcase_id.to_string());
-        if let Some(descr) = &self.subtask_description {
-            vars.insert("ST_DESCRIPTION".to_string(), descr.clone());
+        if let Some(name) = &self.subtask_name {
+            vars.insert("ST_NAME".to_string(), name.clone());
         }
         vars
     }
@@ -833,11 +838,12 @@ mod tests {
             .split('\n')
             .filter(|s| !s.is_empty() && !s.starts_with("# ") && !s.starts_with("#COPY"))
             .collect();
-        assert_eq!(res.len(), 4);
+        assert_eq!(res.len(), 5);
         assert_eq!(res[0], "#ST: 42");
-        assert!(res[1].contains("12 34"));
-        assert_eq!(res[2], "#ST: 24");
-        assert!(res[3].contains("21 21"));
+        assert_eq!(res[1], "#STNAME: lol");
+        assert!(res[2].contains("12 34"));
+        assert_eq!(res[3], "#ST: 24");
+        assert!(res[4].contains("21 21"));
     }
 
     #[test]
@@ -850,11 +856,11 @@ mod tests {
         assert_eq!(vars["INPUT"], TM_VALIDATION_FILE_NAME);
         assert_eq!(vars["ST_NUM"], "0");
         assert_eq!(vars["TC_NUM"], "1");
-        assert_eq!(vars["ST_DESCRIPTION"], "lol");
+        assert_eq!(vars["ST_NAME"], "lol");
     }
 
     #[test]
-    fn test_auto_variables_no_descr() {
+    fn test_auto_variables_no_name() {
         let gen = TestHelper::new()
             .add_file("gen/generator.py")
             .cases_gen(":GEN gen gen/generator.py\n:SUBTASK 42 lol\n12 34\n: SUBTASK 43")
@@ -863,7 +869,7 @@ mod tests {
         assert_eq!(vars["INPUT"], TM_VALIDATION_FILE_NAME);
         assert_eq!(vars["ST_NUM"], "1");
         assert_eq!(vars["TC_NUM"], "1");
-        assert!(!vars.contains_key("ST_DESCRIPTION"));
+        assert!(!vars.contains_key("ST_NAME"));
     }
 
     #[test]
@@ -1223,7 +1229,7 @@ mod tests {
         let subtask = &gen.result[0];
         if let TaskInputEntry::Subtask(subtask) = subtask {
             assert_eq!(subtask.id, 0);
-            assert_eq!(subtask.description, None);
+            assert_eq!(subtask.name, None);
             assert_abs_diff_eq!(subtask.max_score, 42.0);
         } else {
             panic!("Expecting a subtask, got: {:?}", subtask);
@@ -1231,17 +1237,32 @@ mod tests {
     }
 
     #[test]
-    fn test_add_subtask_description() {
+    fn test_add_subtask_name() {
+        let gen = TestHelper::new().cases_gen(":SUBTASK 42 the-name").unwrap();
+        assert_eq!(gen.subtask_id, 1);
+        assert_eq!(gen.result.len(), 1);
+        let subtask = &gen.result[0];
+        if let TaskInputEntry::Subtask(subtask) = subtask {
+            assert_eq!(subtask.id, 0);
+            assert_eq!(subtask.name, Some("the-name".into()));
+            assert_abs_diff_eq!(subtask.max_score, 42.0);
+        } else {
+            panic!("Expecting a subtask, got: {:?}", subtask);
+        }
+    }
+
+    #[test]
+    fn test_add_subtask_space_in_name() {
         let gen = TestHelper::new()
-            .cases_gen(":SUBTASK 42 the description")
+            .cases_gen(":SUBTASK 42.42 the name")
             .unwrap();
         assert_eq!(gen.subtask_id, 1);
         assert_eq!(gen.result.len(), 1);
         let subtask = &gen.result[0];
         if let TaskInputEntry::Subtask(subtask) = subtask {
             assert_eq!(subtask.id, 0);
-            assert_eq!(subtask.description, Some("the description".into()));
-            assert_abs_diff_eq!(subtask.max_score, 42.0);
+            assert_eq!(subtask.name, Some("thename".into()));
+            assert_abs_diff_eq!(subtask.max_score, 42.42);
         } else {
             panic!("Expecting a subtask, got: {:?}", subtask);
         }
@@ -1250,14 +1271,14 @@ mod tests {
     #[test]
     fn test_add_subtask_float_score() {
         let gen = TestHelper::new()
-            .cases_gen(":SUBTASK 42.42 the description")
+            .cases_gen(":SUBTASK 42.42 the-name")
             .unwrap();
         assert_eq!(gen.subtask_id, 1);
         assert_eq!(gen.result.len(), 1);
         let subtask = &gen.result[0];
         if let TaskInputEntry::Subtask(subtask) = subtask {
             assert_eq!(subtask.id, 0);
-            assert_eq!(subtask.description, Some("the description".into()));
+            assert_eq!(subtask.name, Some("the-name".into()));
             assert_abs_diff_eq!(subtask.max_score, 42.42);
         } else {
             panic!("Expecting a subtask, got: {:?}", subtask);
