@@ -16,4 +16,4 @@ IFS=$'\n' find "${ROOT}" -name Cargo.toml | while read -r f; do
 done
 
 # Update Cargo.lock
-cargo update -w --locked
+cargo update -w
