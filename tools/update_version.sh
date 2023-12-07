@@ -14,3 +14,6 @@ IFS=$'\n' find "${ROOT}" -name Cargo.toml | while read -r f; do
   echo "Update $f"
   sed -i "s/^version =.*/version = \"${version}\"/" "$f"
 done
+
+# Update Cargo.lock
+cargo update -w --locked
