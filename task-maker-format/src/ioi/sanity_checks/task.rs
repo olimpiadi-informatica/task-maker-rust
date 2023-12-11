@@ -101,26 +101,33 @@ impl SanityCheck for NoBitsStdCpp {
                     .expect("Invalid regex");
         }
 
+        let mut diagnostic = None;
+
         for att in list_files(&task.path, vec!["**/*.cpp", "**/*.cc"]) {
             let path = task.path_of(&att);
             if let Ok(content) = fs::read_to_string(path) {
                 if let Some(span) = RE.find(&content) {
-                    eval.add_diagnostic(
-                        Diagnostic::warning(format!(
-                            "bits/stdc++.h included from {}",
-                            path.display()
-                        ))
-                        .with_note("This won't compile under Clang")
-                        .with_code_span(CodeSpan::from_str(
-                            path,
-                            &content,
-                            span.start(),
-                            span.end() - span.start(),
-                        )?),
-                    )?;
+                    diagnostic = Some(
+                        diagnostic
+                            .unwrap_or_else(|| {
+                                Diagnostic::warning(r#"Usage of "bits/stdc++.h" is discouraged"#)
+                                    .with_note("This won't compile under Clang")
+                            })
+                            .with_code_span(CodeSpan::from_str(
+                                path,
+                                &content,
+                                span.start(),
+                                span.end() - span.start(),
+                            )?),
+                    );
                 }
             }
         }
+
+        if let Some(diagnostic) = diagnostic {
+            eval.add_diagnostic(diagnostic)?;
+        }
+
         Ok(())
     }
 }
