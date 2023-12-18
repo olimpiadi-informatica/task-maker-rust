@@ -342,7 +342,7 @@ impl IOITask {
                     .context("Failed to bind output generator")?;
                 // Store the generated input and output files for setting them into the task
                 // outside the loop.
-                generated_io.insert(testcase_id, (input, output));
+                generated_io.insert(testcase.id, (input, output));
 
                 for (solution, score_manager) in solutions.iter() {
                     trace!(
