@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 
 pub use checker::Checker;
 pub use input_generator::InputGenerator;
@@ -25,15 +24,18 @@ pub const BOOKLET_PRIORITY: Priority = 10_000;
 pub const STDERR_CONTENT_LENGTH: usize = 10 * 1024;
 
 /// The aggregator of testcase scores for computing the subtask score.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TestcaseScoreAggregator {
     /// Take the minimum of all the testcases, formally:
     ///
     /// `st_score = st_max_score * min(*testcase_scores)`
+    #[serde(alias = "GroupMin")]
     Min,
     /// Sum the score of all the testcases, formally:
     ///
     /// `st_score = st_max_score * sum(*testcase_scores) / len(*testcase_scores)`
+    #[serde(alias = "Sum")]
     Sum,
 }
 

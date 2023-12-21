@@ -12,7 +12,7 @@ use task_maker_exec::{ClientInfo, ExecutorStatus, ExecutorWorkerStatus, WorkerCu
 use task_maker_format::ioi::{
     BatchTypeData, Booklet, BookletConfig, Checker, CommunicationTypeData, IOITask, InputGenerator,
     InputValidator, OutputGenerator, Statement, StatementConfig, SubtaskInfo, TaskInfoScoring,
-    TaskInfoStatement, TaskType, TestcaseInfo, TestcaseScoreAggregator,
+    TaskInfoStatement, TaskType, TestcaseInfo,
 };
 use task_maker_format::ioi::{IOITaskInfo, TaskInfoAttachment, TaskInfoLimits, TaskInfoSubtask};
 use task_maker_format::terry::TerryTaskInfo;
@@ -64,7 +64,6 @@ pub fn main_typescriptify() -> Result<(), Error> {
     export_ts!(TaskType);
     export_ts!(SubtaskInfo);
     export_ts!(TestcaseInfo);
-    export_ts!(TestcaseScoreAggregator);
     export_ts!(GraderMap);
     export_ts!(Dependency);
     export_ts!(File);

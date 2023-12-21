@@ -560,7 +560,7 @@ impl ScoreManager {
                 .iter()
                 .map(|(st_num, st)| (*st_num, st.testcases.clone()))
                 .collect(),
-            aggregator: task.testcase_score_aggregator.clone(),
+            aggregator: task.testcase_score_aggregator,
         };
 
         for (st_num, st) in &task.subtasks {
