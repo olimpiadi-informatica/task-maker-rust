@@ -259,7 +259,6 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Error};
@@ -326,7 +325,10 @@ struct TaskYAML {
     #[serde(alias = "nome")]
     pub title: String,
     /// The score type to use for this task.
-    pub score_type: Option<String>,
+    pub score_type: Option<TestcaseScoreAggregator>,
+    /// The parameters of the score type.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub score_type_parameters: Option<Vec<(f64, String)>>,
     /// The number of decimal digits when displaying the scores.
     #[serde(default)]
     pub score_precision: usize,
@@ -383,7 +385,7 @@ struct TaskYAMLOrig {
     /// The title of the task (the long one).
     pub title: String,
     /// The score type to use for this task.
-    pub score_type: Option<String>,
+    pub score_type: Option<TestcaseScoreAggregator>,
     /// The number of decimal digits when displaying the scores.
     #[serde(default)]
     pub score_precision: usize,
@@ -424,6 +426,7 @@ impl TaskYAMLOrig {
             name: task_dir.file_name().unwrap().to_string_lossy().to_string(),
             title: self.title,
             score_type: self.score_type,
+            score_type_parameters: None,
             score_precision: self.score_precision,
             time_limit: Some(self.time_limit),
             memory_limit: Some(self.memory_limit),
@@ -479,7 +482,7 @@ pub fn parse_task<P: AsRef<Path>>(
     let task_dir = task_dir.as_ref();
 
     let task_yaml_overwrite: bool;
-    let yaml: TaskYAML;
+    let mut yaml: TaskYAML;
     if task_dir.join("task.yaml.orig").exists() {
         task_yaml_overwrite = true;
         let path = task_dir.join(task_dir.join("task.yaml.orig"));
@@ -600,12 +603,36 @@ pub fn parse_task<P: AsRef<Path>>(
         }
     }
 
+    let testcase_score_aggregator = yaml.score_type.unwrap_or(if subtasks.len() == 1 {
+        TestcaseScoreAggregator::Sum
+    } else {
+        TestcaseScoreAggregator::Min
+    });
+    yaml.score_type = Some(testcase_score_aggregator);
+
     if task_yaml_overwrite {
+        yaml.score_type_parameters = Some(
+            subtasks
+                .iter()
+                .sorted_by_key(|(id, _)| *id)
+                .map(|(_, st)| {
+                    let testcases = st
+                        .testcases
+                        .iter()
+                        .map(|tc_num| format!("{tc_num:03}"))
+                        .join("|");
+                    (st.max_score, testcases)
+                })
+                .collect(),
+        );
+
         let path = task_dir.join("task.yaml");
         let file = File::create(&path)
             .with_context(|| format!("Cannot open task.yaml from {}", path.display()))?;
         serde_yaml::to_writer(BufWriter::new(file), &yaml)
             .context("Failed to serialize task.yaml")?;
+    } else if subtasks.values().any(|st| !st.dependencies.is_empty()) {
+        bail!("Use task.yaml.orig to use subtask dependencies");
     }
 
     let mut task = IOITask {
@@ -617,17 +644,7 @@ pub fn parse_task<P: AsRef<Path>>(
         memory_limit: yaml.memory_limit,
         infile,
         outfile,
-        testcase_score_aggregator: yaml
-            .score_type
-            .as_ref()
-            .map(|s| TestcaseScoreAggregator::from_str(s))
-            .unwrap_or_else(|| {
-                if subtasks.len() == 1 {
-                    Ok(TestcaseScoreAggregator::Sum)
-                } else {
-                    Ok(TestcaseScoreAggregator::Min)
-                }
-            })?,
+        testcase_score_aggregator,
         score_precision: yaml.score_precision,
         subtasks,
         testcases,
