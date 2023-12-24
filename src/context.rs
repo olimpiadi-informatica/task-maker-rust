@@ -169,7 +169,7 @@ impl RuntimeContext {
             let cache = Cache::new(cache_path).context("Cannot create the cache")?;
 
             // setup the local executor
-            let num_cores = opt.num_cores.unwrap_or_else(num_cpus::get);
+            let num_cores = opt.num_cores.unwrap_or_else(num_cpus::get_physical);
             let sandbox_path = storage_opt.store_dir().join("sandboxes");
             let executor = LocalExecutor::new(
                 file_store.clone(),
