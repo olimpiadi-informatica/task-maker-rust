@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+#[allow(unused_imports)]
 pub use test_interface::*;
 
 mod test_interface;

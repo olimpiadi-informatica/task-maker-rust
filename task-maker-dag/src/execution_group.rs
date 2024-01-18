@@ -89,7 +89,7 @@ impl ExecutionGroup {
     /// A reference to the configuration of the underlying DAG.
     pub fn config(&self) -> &ExecutionDAGConfig {
         self.executions
-            .get(0)
+            .first()
             .expect("Invalid group with zero executions")
             .config()
     }
@@ -97,7 +97,7 @@ impl ExecutionGroup {
     /// The tag of one of the executions in this group.
     pub fn tag(&self) -> Option<ExecutionTag> {
         self.executions
-            .get(0)
+            .first()
             .expect("Invalid group with zero executions")
             .tag
             .clone()

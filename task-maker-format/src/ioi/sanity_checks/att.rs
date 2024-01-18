@@ -426,7 +426,7 @@ impl SanityCheck for AttWithNoCheck {
         for att in list_files(&task.path, vec!["att/*"]) {
             let path = task.path_of(&att);
             if let Ok(checks) = SolutionCheck::extract_check_list(&att, eval) {
-                if let Some(check) = checks.get(0) {
+                if let Some(check) = checks.first() {
                     eval.add_diagnostic(
                         Diagnostic::error(format!(
                             "@check rule found in an attachment: {}",
