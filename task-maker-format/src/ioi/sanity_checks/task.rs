@@ -287,7 +287,7 @@ impl SanityCheck for EmptyTitle {
 
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
         if task.title.is_empty() {
-            eval.add_diagnostic(Diagnostic::error("Missing task's title"))?;
+            eval.add_diagnostic(Diagnostic::error("Missing task title"))?;
         }
         Ok(())
     }
