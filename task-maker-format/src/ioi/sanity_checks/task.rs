@@ -268,3 +268,27 @@ impl SanityCheck for SubtaskDependencies {
         Ok(())
     }
 }
+
+/// Check that the task title is not emtpy.
+#[derive(Debug, Default)]
+pub struct EmptyTitle;
+make_sanity_check!(EmptyTitle);
+
+impl SanityCheck for EmptyTitle {
+    type Task = IOITask;
+
+    fn name(&self) -> &'static str {
+        "EmptyTitle"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Task
+    }
+
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        if task.title.is_empty() {
+            eval.add_diagnostic(Diagnostic::error("Missing task title"))?;
+        }
+        Ok(())
+    }
+}
