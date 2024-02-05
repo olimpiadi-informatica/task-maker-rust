@@ -13,6 +13,7 @@ use task_maker_dag::{Execution, ExecutionCommand, File};
 use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::statement::statement::Statement;
+use crate::ioi::BOOKLET_PRIORITY;
 use crate::ui::UIMessageSender;
 use crate::{bind_exec_callbacks, ui::UIMessage, EvaluationData, Tag, UISender, DATA_DIR};
 
@@ -130,6 +131,7 @@ impl Booklet {
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true);
         exec.tag(Tag::Booklet.into());
+        exec.priority(BOOKLET_PRIORITY);
         let output = exec.output("booklet.pdf");
 
         let source = File::new("Source of the booklet");
