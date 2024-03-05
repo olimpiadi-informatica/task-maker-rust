@@ -253,6 +253,14 @@ impl SolutionCheckResult {
             }
         }
 
+        if outcomes.is_empty()
+            && self
+                .minimals()
+                .contains(&TestcaseEvaluationResult::Accepted)
+        {
+            return true;
+        }
+
         false
     }
 
