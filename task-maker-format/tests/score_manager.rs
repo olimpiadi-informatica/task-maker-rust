@@ -12,12 +12,12 @@ mod utils;
 #[allow(clippy::cognitive_complexity)]
 fn test_score_manager() {
     let task = utils::new_task();
-    let mut manager = ScoreManager::new(&task);
     let (sender, receiver) = UIMessageSender::new();
     let sender = Arc::new(Mutex::new(sender));
+    let mut manager = ScoreManager::new(&task, "sol".into(), sender.clone()).unwrap();
 
     manager
-        .score(0, 0, 1.0, "foo".into(), sender.clone(), "sol".into())
+        .score(0, 0, 1.0, "foo".into(), sender.clone())
         .unwrap();
     if let Ok(mex) = receiver.try_recv() {
         match mex {
@@ -60,7 +60,7 @@ fn test_score_manager() {
     assert!(receiver.try_recv().is_err());
 
     manager
-        .score(1, 1, 1.0, "foo".into(), sender.clone(), "sol".into())
+        .score(1, 1, 1.0, "foo".into(), sender.clone())
         .unwrap();
     if let Ok(mex) = receiver.try_recv() {
         match mex {
@@ -84,9 +84,7 @@ fn test_score_manager() {
     }
     assert!(receiver.try_recv().is_err());
 
-    manager
-        .score(1, 2, 0.0, "foo".into(), sender, "sol".into())
-        .unwrap();
+    manager.score(1, 2, 0.0, "foo".into(), sender).unwrap();
     if let Ok(mex) = receiver.try_recv() {
         match mex {
             UIMessage::IOITestcaseScore {
@@ -148,13 +146,29 @@ fn test_score_manager_empty_subtask() {
     // Make the second subtask empty.
     task.subtasks.get_mut(&1).unwrap().testcases.clear();
 
-    let mut manager = ScoreManager::new(&task);
     let (sender, receiver) = UIMessageSender::new();
     let sender = Arc::new(Mutex::new(sender));
+    let mut manager = ScoreManager::new(&task, "sol".into(), sender.clone()).unwrap();
+    if let Ok(mex) = receiver.try_recv() {
+        match mex {
+            UIMessage::IOISubtaskScore {
+                subtask,
+                solution,
+                score,
+                normalized_score,
+            } => {
+                assert_eq!(subtask, 1);
+                assert_eq!(solution, PathBuf::from("sol"));
+                assert_abs_diff_eq!(score, 90.0);
+                assert_abs_diff_eq!(normalized_score, 1.0);
+            }
+            _ => panic!("Expecting UIMessage::IOISubtaskScore but was {:?}", mex),
+        }
+    } else {
+        panic!("Expecting UIMessage::IOISubtaskScore but was nothing");
+    }
 
-    manager
-        .score(0, 0, 1.0, "foo".into(), sender, "sol".into())
-        .unwrap();
+    manager.score(0, 0, 1.0, "foo".into(), sender).unwrap();
     if let Ok(mex) = receiver.try_recv() {
         match mex {
             UIMessage::IOITestcaseScore {
@@ -197,7 +211,7 @@ fn test_score_manager_empty_subtask() {
         match mex {
             UIMessage::IOITaskScore { solution, score } => {
                 assert_eq!(solution, PathBuf::from("sol"));
-                assert_abs_diff_eq!(score, 10.0);
+                assert_abs_diff_eq!(score, 100.0);
             }
             _ => panic!("Expecting UIMessage::IOITaskScore but was {:?}", mex),
         }
