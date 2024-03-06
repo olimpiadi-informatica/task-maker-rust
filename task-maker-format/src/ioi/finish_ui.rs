@@ -191,13 +191,7 @@ impl FinishUI {
         cwriteln!(self, BLUE, "Evaluations");
         for path in state.evaluations.keys().sorted() {
             let eval = &state.evaluations[path];
-            self.print_evaluation(
-                path,
-                eval.score.unwrap_or(0.0),
-                state.max_score,
-                eval,
-                state,
-            );
+            self.print_evaluation(path, state.max_score, eval, state);
             println!();
         }
     }
@@ -206,7 +200,6 @@ impl FinishUI {
     fn print_evaluation(
         &mut self,
         path: &Path,
-        score: f64,
         max_score: f64,
         eval: &SolutionEvaluationState,
         state: &UIState,
@@ -217,7 +210,10 @@ impl FinishUI {
             .to_string_lossy();
         cwrite!(self, BOLD, "{}", name);
         print!(": ");
-        self.print_score_frac(score, max_score, &state.task);
+
+        let score = eval.score;
+        let normalized_score = score.map(|s| s / max_score);
+        self.print_score_frac(normalized_score, score, max_score, &state.task);
         println!();
 
         let results = eval
@@ -237,9 +233,11 @@ impl FinishUI {
             }
             print!(": ");
             let max_score = state.task.subtasks[st_num].max_score;
-            let score = subtask.score.unwrap_or(0.0);
-            self.print_score_frac(score, max_score, &state.task);
+            let score = subtask.score;
+            let normalized_score = subtask.normalized_score;
+            self.print_score_frac(normalized_score, score, max_score, &state.task);
             println!();
+
             for (tc_num, testcase) in subtask.testcases.iter().sorted_by_key(|(n, _)| *n) {
                 self.print_testcase_outcome(&name, *tc_num, testcase, max_time, max_memory, state);
             }
@@ -257,14 +255,17 @@ impl FinishUI {
         state: &UIState,
     ) {
         print!("{:3}) ", tc_num);
-        let score = testcase.score.unwrap_or(0.0);
         let score_precision = Self::score_precision(&state.task);
-        if abs_diff_eq!(score, 1.0) {
-            cwrite!(self, GREEN, "[{:.prec$}]", score, prec = score_precision);
-        } else if abs_diff_eq!(score, 0.0) {
-            cwrite!(self, RED, "[{:.prec$}]", score, prec = score_precision);
+        if let Some(score) = testcase.score {
+            if abs_diff_eq!(score, 1.0) {
+                cwrite!(self, GREEN, "[{:.prec$}]", score, prec = score_precision);
+            } else if abs_diff_eq!(score, 0.0) {
+                cwrite!(self, RED, "[{:.prec$}]", score, prec = score_precision);
+            } else {
+                cwrite!(self, YELLOW, "[{:.prec$}]", score, prec = score_precision);
+            }
         } else {
-            cwrite!(self, YELLOW, "[{:.prec$}]", score, prec = score_precision);
+            print!("[X.{:X<prec$}]", "", prec = score_precision);
         }
         // print the time and memory info
         for result in &testcase.results {
@@ -361,18 +362,34 @@ impl FinishUI {
                     .to_string_lossy(),
                 width = max_len
             );
-            print!(
-                "{:>width$.prec$} | ",
-                eval.score.unwrap_or(0.0),
-                width = column_width,
-                prec = score_precision
-            );
+            if let Some(score) = eval.score {
+                print!(
+                    "{:>width$.prec$} | ",
+                    score,
+                    width = column_width,
+                    prec = score_precision
+                );
+            } else if score_precision == 0 {
+                print!("{:>width$} | ", "X", width = column_width);
+            } else {
+                print!(
+                    "{:>width$}{:X>prec$} | ",
+                    "X.",
+                    "",
+                    width = column_width - score_precision,
+                    prec = score_precision
+                );
+            }
             for st_num in eval.subtasks.keys().sorted() {
                 let subtask = &eval.subtasks[st_num];
-                let score = subtask.score.unwrap_or(0.0);
-                let normalized_score = subtask.normalized_score.unwrap_or(0.0);
-                let color = self.score_color(normalized_score);
-                cwrite!(self, color, " {:^3.0} ", score);
+                let score = subtask.score;
+                let normalized_score = subtask.normalized_score;
+                if let (Some(score), Some(normalized_score)) = (score, normalized_score) {
+                    let color = self.score_color(normalized_score);
+                    cwrite!(self, color, " {:^3.0} ", score);
+                } else {
+                    print!(" {:^3} ", "X");
+                }
             }
             print!("  ");
             for st_num in eval.subtasks.keys().sorted() {
@@ -417,21 +434,29 @@ impl FinishUI {
     }
 
     /// Print the score fraction of a solution using colors.
-    fn print_score_frac(&mut self, score: f64, max_score: f64, task: &IOITask) {
-        if max_score == 0.0 {
-            print!(
-                "{:.prec$} / {:.prec$}",
-                score,
-                max_score,
-                prec = task.score_precision
-            );
-        } else {
-            let color = self.score_color(score / max_score);
+    fn print_score_frac(
+        &mut self,
+        normalized_score: Option<f64>,
+        score: Option<f64>,
+        max_score: f64,
+        task: &IOITask,
+    ) {
+        if let (Some(normalized_score), Some(score)) = (normalized_score, score) {
+            let color = self.score_color(normalized_score);
             cwrite!(
                 self,
                 color,
                 "{:.prec$} / {:.prec$}",
                 score,
+                max_score,
+                prec = task.score_precision
+            );
+        } else if task.score_precision == 0 {
+            print!("X / {:.0}", max_score,);
+        } else {
+            print!(
+                "X.{:X<prec$} / {:.prec$}",
+                "",
                 max_score,
                 prec = task.score_precision
             );
