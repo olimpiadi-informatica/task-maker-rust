@@ -5,8 +5,8 @@ title: Testing constraints.py
 # Technical info
 memory_limit: 64
 time_limit: 1
-infile: ""
-outfile: ""
+infile: input.txt
+outfile: output.txt
 
 # Other stuff
 score_mode: max_subtask

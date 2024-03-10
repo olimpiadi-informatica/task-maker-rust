@@ -111,7 +111,11 @@ impl Statement {
                     )
                 })?;
         }
-        for path in &[Path::new("../gen/limiti.py"), Path::new("../gen/GEN")] {
+        for path in &[
+            Path::new("../gen/limiti.py"),
+            Path::new("../gen/constraints.py"),
+            Path::new("../gen/GEN"),
+        ] {
             let full_path = base_dir.join(path);
             if !full_path.is_file() {
                 continue;

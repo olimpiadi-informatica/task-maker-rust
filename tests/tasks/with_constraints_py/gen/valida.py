@@ -9,7 +9,7 @@ from constraints import *
 def run(file: list[str], st: int):
     assert len(file) == 1
     N = int(file[0].strip())
-    assert 1 <= N <= subtasks['MAXN']
+    assert 1 <= N <= subtasks[st]['MAXN']
 
 assert len(sys.argv) >= 2
 file = open(sys.argv[1]).read().splitlines()
