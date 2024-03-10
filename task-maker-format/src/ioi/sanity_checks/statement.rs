@@ -47,7 +47,7 @@ impl SanityCheck for StatementSubtasks {
             let statement = &booklet.statements[0];
             let statement_path = task.path_of(&statement.path);
             let source = statement.tex();
-            let subtasks = match extract_subtasks(statement_path, source) {
+            let subtasks = match extract_subtasks(statement_path, &source) {
                 None => continue,
                 Some(subtasks) => subtasks,
             };
@@ -372,24 +372,23 @@ fn check_subtasks_oii_new(path: &Path, text: &str) -> Option<Vec<ExtractedSubtas
 fn check_subtasks_ois(path: &Path, text: &str) -> Option<Vec<ExtractedSubtask>> {
     lazy_static! {
         static ref FIND_SUBTASKS: Regex =
-            Regex::new(r".*\\OISubtask\{(\d+)\}\{\d+\}\{.+\}.*").expect("Invalid regex");
+            Regex::new(r".*\\(?:OISubtask|IIOTsubtask)\{(\d+)\}\{\d+\}\{.+\}.*")
+                .expect("Invalid regex");
     }
     let mut result = Vec::new();
     for (index, subtask) in FIND_SUBTASKS.captures_iter(text).enumerate() {
         let span = subtask.get(1).and_then(|span| {
             CodeSpan::from_str(path, text, span.start(), span.end() - span.start()).ok()
         });
-        let score = subtask[1].parse::<f64>();
-        if let Ok(score) = score {
-            result.push(ExtractedSubtask {
-                id: index as SubtaskId,
-                score: Some(score),
-                subtask_id_span: None,
-                subtask_score_span: span,
-            });
-        } else {
+        let Ok(score) = subtask[1].parse::<f64>() else {
             return None;
-        }
+        };
+        result.push(ExtractedSubtask {
+            id: index as SubtaskId,
+            score: Some(score),
+            subtask_id_span: None,
+            subtask_score_span: span,
+        });
     }
     if result.is_empty() {
         None
@@ -400,15 +399,10 @@ fn check_subtasks_ois(path: &Path, text: &str) -> Option<Vec<ExtractedSubtask>> 
 
 /// Try to extract from the tex file the list of statements. If the list is empty, `None` is
 /// returned.
-fn extract_subtasks(path: &Path, tex: String) -> Option<Vec<ExtractedSubtask>> {
-    let subtasks = if let Some(subtasks) = check_subtasks_oii(path, &tex) {
-        subtasks
-    } else if let Some(subtasks) = check_subtasks_oii_new(path, &tex) {
-        subtasks
-    } else {
-        check_subtasks_ois(path, &tex)?
-    };
-    Some(subtasks)
+fn extract_subtasks(path: &Path, tex: &str) -> Option<Vec<ExtractedSubtask>> {
+    check_subtasks_oii(path, tex)
+        .or_else(|| check_subtasks_oii_new(path, tex))
+        .or_else(|| check_subtasks_ois(path, tex))
 }
 
 /// Search for the statement file, returning its path or None if it doesn't exists.
