@@ -228,11 +228,6 @@
 % knows the number of the current subtask (relative to the current problem)
 \newcounter{@subtaskcounter}[@problemcounter]
 
-% @oisubtaskcounter -- counter for OIS style subtasks
-%
-% knows the number of the current subtask (relative to the current problem)
-\newcounter{@oisubtaskcounter}[@problemcounter]
-
 
 %*********************************************************************
 %                         Internal commands                          *
@@ -393,10 +388,10 @@
 
 \newcommand{\OISubtask}[4]{
   {
-    \addtocounter{@oisubtaskcounter}{1}
+    \addtocounter{@subtaskcounter}{1}
 
     \begin{minipage}[t]{0.3\textwidth}
-  	\textendash{}~\textbf{\kw@SubtaskX{\arabic{@oisubtaskcounter}}}~(#1~\kw@points)\\
+  	\textendash{}~\textbf{\kw@SubtaskX{\arabic{@subtaskcounter}}}~(#1~\kw@points)\\
   	\phantom{\textendash{}}~\Level{#2}
     \end{minipage}
     \begin{minipage}[t]{0.7\textwidth}
