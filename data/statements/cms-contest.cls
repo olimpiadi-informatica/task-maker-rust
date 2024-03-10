@@ -404,6 +404,7 @@
     \end{minipage}
   }
 }
+\newcommand{\IIOTsubtask}[3]{\OISubtask{#1}{#2}{#3}}
 
 \newcommand{\setContestDay}[1]{
 	\gdef\this@contestday{#1}
