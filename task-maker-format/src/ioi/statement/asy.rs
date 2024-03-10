@@ -39,10 +39,8 @@ impl AsyFile {
         comp.args(vec![
             "-f",
             "pdf",
-            "-o",
-            "output.pdf",
             "-localhistory", // This prevents "failed to create directory /.asy."
-            "source.asy",
+            "tm-compilation.asy",
         ]);
         comp.limits_mut()
             .read_only(false)
@@ -53,7 +51,7 @@ impl AsyFile {
             .mount_tmpfs(true)
             .mount_proc(true);
         comp.tag(Tag::Booklet.into());
-        comp.input(&source_file, "source.asy", false);
+        comp.input(&source_file, "tm-compilation.asy", false);
         eval.dag
             .provide_file(source_file, &source_path)
             .context("Failed to provide any source file")?;
@@ -87,7 +85,7 @@ impl AsyFile {
                 .provide_file(file, &dep.local_path)
                 .context("Failed to provide asy dependency")?;
         }
-        let compiled = comp.output("output.pdf");
+        let compiled = comp.output("tm-compilation.pdf");
         if eval.dag.data.config.copy_logs {
             let log_dir = eval.task_root.join("bin/logs/asy");
             let stderr_dest = log_dir.join(format!("{}.stderr.log", name));
