@@ -116,6 +116,7 @@ mod tests {
             infile: None,
             outfile: None,
             subtasks: Default::default(),
+            testcases: Default::default(),
             input_validator_generator: Default::default(),
             testcase_score_aggregator: TestcaseScoreAggregator::Min,
             score_precision: 0,

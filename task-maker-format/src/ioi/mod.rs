@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use anyhow::{anyhow, bail, Context, Error};
+use anyhow::{bail, Context, Error};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
@@ -70,7 +70,9 @@ pub struct ScoreManager {
     /// The maximum score of each subtask.
     max_subtask_scores: HashMap<SubtaskId, f64>,
     /// The scores of each testcase.
-    testcase_scores: HashMap<SubtaskId, HashMap<TestcaseId, Option<f64>>>,
+    testcase_scores: HashMap<TestcaseId, Option<f64>>,
+    /// The list of testcases of each subtask.
+    subtask_testcases: HashMap<SubtaskId, Vec<TestcaseId>>,
     /// The aggregator to use for computing the subtask scores.
     aggregator: TestcaseScoreAggregator,
 }
@@ -124,6 +126,8 @@ pub struct IOITask {
     pub outfile: Option<PathBuf>,
     /// The list of the subtasks.
     pub subtasks: HashMap<SubtaskId, SubtaskInfo>,
+    /// The list of the testcases.
+    pub testcases: HashMap<TestcaseId, TestcaseInfo>,
     /// The generator of validators for the various subtasks.
     #[serde(skip_serializing, skip_deserializing)]
     pub input_validator_generator: InputValidatorGenerator,
@@ -164,13 +168,17 @@ pub struct SubtaskInfo {
     /// The maximum score of the subtask, must be >= 0.
     pub max_score: f64,
     /// The testcases inside this subtask.
-    pub testcases: HashMap<TestcaseId, TestcaseInfo>,
+    pub testcases: Vec<TestcaseId>,
+    /// The original testcases inside this subtask.
+    pub testcases_owned: Vec<TestcaseId>,
     /// The validator for the input files of this subtask.
     pub input_validator: InputValidator,
     /// The span of the definition of this subtask.
     pub span: Option<CodeSpan>,
     /// Whether this subtask was created automatically since no subtask was present in gen/GEN.
     pub is_default: bool,
+    /// The list of the dependencies of this subtask.
+    pub dependencies: Vec<SubtaskId>,
 }
 
 /// A testcase of a IOI task.
@@ -213,6 +221,7 @@ impl IOITask {
             infile: None,
             outfile: None,
             subtasks: Default::default(),
+            testcases: Default::default(),
             input_validator_generator: Default::default(),
             testcase_score_aggregator: TestcaseScoreAggregator::Min,
             score_precision: 0,
@@ -297,18 +306,22 @@ impl IOITask {
             .prepare_dag(eval)
             .context("Failed to prepare DAG")?;
 
-        let mut generated_io: HashMap<_, HashMap<_, _>> = HashMap::new();
+        let mut generated_io: HashMap<_, _> = HashMap::new();
 
         for subtask in self.subtasks.values() {
             trace!("Executing the generation of subtask {}", subtask.id);
 
-            for testcase in subtask.testcases.values() {
+            for &testcase_id in subtask.testcases_owned.iter() {
                 trace!(
                     "Executing the generation of testcase {} of subtask {}",
-                    testcase.id,
+                    testcase_id,
                     subtask.id
                 );
 
+                let testcase = self
+                    .testcases
+                    .get(&testcase_id)
+                    .expect("Testcase not found in the task");
                 let input = testcase
                     .input_generator
                     .generate_and_bind(eval, subtask.id, testcase.id)
@@ -329,10 +342,7 @@ impl IOITask {
                     .context("Failed to bind output generator")?;
                 // Store the generated input and output files for setting them into the task
                 // outside the loop.
-                generated_io
-                    .entry(subtask.id)
-                    .or_default()
-                    .insert(testcase.id, (input, output));
+                generated_io.insert(testcase_id, (input, output));
 
                 for (solution, score_manager) in solutions.iter() {
                     trace!(
@@ -358,20 +368,13 @@ impl IOITask {
                 }
             }
         }
+
         // Store inside the task the FileUuid of the input and official output files. This cannot
         // be done while generating because task cannot be borrowed mutably in the loop.
-        for (subtask_id, subtask) in generated_io {
-            for (testcase_id, (input, output)) in subtask {
-                let testcase = self
-                    .subtasks
-                    .get_mut(&subtask_id)
-                    .unwrap()
-                    .testcases
-                    .get_mut(&testcase_id)
-                    .unwrap();
-                testcase.input_file = Some(input);
-                testcase.official_output_file = output;
-            }
+        for (testcase_id, (input, output)) in generated_io {
+            let testcase = self.testcases.get_mut(&testcase_id).unwrap();
+            testcase.input_file = Some(input);
+            testcase.official_output_file = output;
         }
         for booklet in self.booklets.iter() {
             booklet
@@ -408,16 +411,13 @@ impl IOITask {
                     }
                 };
                 // check if the file is used by a static generator
-                if self
-                    .subtasks
-                    .values()
-                    .flat_map(|st| st.testcases.values())
-                    .any(|tc| match (&tc.input_generator, &tc.output_generator) {
+                if self.testcases.values().any(|tc| {
+                    match (&tc.input_generator, &tc.output_generator) {
                         (InputGenerator::StaticFile(path), _)
                         | (_, OutputGenerator::StaticFile(path)) => path == &file,
                         _ => false,
-                    })
-                {
+                    }
+                }) {
                     continue;
                 }
                 info!("Removing {}", file.display());
@@ -554,10 +554,11 @@ impl ScoreManager {
                 .values()
                 .map(|st| (st.id, st.max_score))
                 .collect(),
-            testcase_scores: task
+            testcase_scores: task.testcases.keys().map(|tc| (*tc, None)).collect(),
+            subtask_testcases: task
                 .subtasks
-                .values()
-                .map(|st| (st.id, st.testcases.keys().map(|tc| (*tc, None)).collect()))
+                .iter()
+                .map(|(st_num, st)| (*st_num, st.testcases.clone()))
                 .collect(),
             aggregator: task.testcase_score_aggregator.clone(),
         };
@@ -580,10 +581,7 @@ impl ScoreManager {
         message: String,
         sender: Arc<Mutex<UIMessageSender>>,
     ) -> Result<(), Error> {
-        self.testcase_scores
-            .get_mut(&subtask_id)
-            .ok_or_else(|| anyhow!("Unknown subtask {}", subtask_id))?
-            .insert(testcase_id, Some(score));
+        self.testcase_scores.insert(testcase_id, Some(score));
         sender.send(UIMessage::IOITestcaseScore {
             subtask: subtask_id,
             testcase: testcase_id,
@@ -592,7 +590,16 @@ impl ScoreManager {
             message,
         })?;
 
-        self.score_subtask(subtask_id, sender)?;
+        for (subtask_id, subtask) in self
+            .subtask_scores
+            .iter()
+            .map(|(&a, &b)| (a, b))
+            .collect_vec()
+        {
+            if subtask.is_none() {
+                self.score_subtask(subtask_id, sender.clone())?;
+            }
+        }
         Ok(())
     }
 
@@ -601,14 +608,14 @@ impl ScoreManager {
         subtask_id: SubtaskId,
         sender: Arc<Mutex<UIMessageSender>>,
     ) -> Result<(), Error> {
-        if self.testcase_scores[&subtask_id]
-            .values()
-            .all(Option::is_some)
+        if self.subtask_testcases[&subtask_id]
+            .iter()
+            .all(|tc| self.testcase_scores[tc].is_some())
         {
             let normalized_score = self.aggregator.aggregate(
-                self.testcase_scores[&subtask_id]
-                    .values()
-                    .map(|score| score.unwrap()),
+                self.subtask_testcases[&subtask_id]
+                    .iter()
+                    .map(|tc| self.testcase_scores[tc].unwrap()),
             );
             let subtask_score = self.max_subtask_scores[&subtask_id] * normalized_score;
             self.subtask_scores.insert(subtask_id, Some(subtask_score));

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -47,6 +48,7 @@ where
     let mut testcase_count = 0;
     let mut subtask_id: SubtaskId = 0;
     let mut entries = vec![];
+    let mut st_name_to_id = HashMap::new();
 
     let mut default_subtask = Some(SubtaskInfo {
         id: 0,
@@ -128,8 +130,23 @@ where
                                 cleanup_subtask_name(name)
                                     .with_context(|| format!("Invalid subtask name: {}", name))?,
                             );
+                            st_name_to_id.insert(subtask.name.clone().unwrap(), subtask.id);
                         } else {
                             bail!("#STNAME: must immediately follow a #ST: in gen/GEN");
+                        }
+                    }
+                    parser::Rule::subtask_dep => {
+                        let last_entry = entries.last_mut().ok_or_else(|| {
+                            anyhow!("A #STDEP: rule must immediately follow a #ST: in gen/GEN")
+                        })?;
+                        let TaskInputEntry::Subtask(subtask) = last_entry else {
+                            bail!("#STNAME: must immediately follow a #ST: in gen/GEN");
+                        };
+                        for dependency in line.into_inner() {
+                            let dep_id = *st_name_to_id
+                                .get(dependency.as_str())
+                                .ok_or_else(|| anyhow!("Unknown subtask name: {}", dependency))?;
+                            subtask.dependencies.push(dep_id);
                         }
                     }
                     parser::Rule::copy => {

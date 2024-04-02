@@ -187,7 +187,8 @@ impl SanityCheck for AllOutputsEqual {
             if subtask.testcases.len() >= 2 {
                 outputs.insert(subtask.id, Vec::new());
 
-                for testcase in subtask.testcases.values() {
+                for testcase_id in subtask.testcases.iter() {
+                    let testcase = task.testcases.get(testcase_id).unwrap();
                     if let Some(output_file) = testcase.official_output_file {
                         OutputHasher::bind(eval, output_file, subtask.id, self.outputs.clone());
                     }
