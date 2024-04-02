@@ -51,13 +51,7 @@ fn test_ioi_task_execute_val() {
     let source =
         SourceFile::new(tmpdir.path().join("val.py"), "", "", None, None::<PathBuf>).unwrap();
     let val = InputValidator::Custom(Arc::new(source), vec![]);
-    task.subtasks
-        .get_mut(&0)
-        .unwrap()
-        .testcases
-        .get_mut(&0)
-        .unwrap()
-        .input_validator = val;
+    task.subtasks.get_mut(&0).unwrap().input_validator = val;
 
     let (mut eval, _receiver) = EvaluationData::new(tmpdir.path());
     task.build_dag(&mut eval, &EvaluationConfig::default())

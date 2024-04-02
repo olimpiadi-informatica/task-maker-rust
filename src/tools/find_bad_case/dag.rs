@@ -75,7 +75,6 @@ pub fn patch_task_for_batch(
                 let testcase = TestcaseInfo::new(
                     testcase_id,
                     input_generator,
-                    task.input_validator_generator.generate(Some(0)),
                     testcase_template.output_generator.clone(),
                 );
 
@@ -97,6 +96,7 @@ pub fn patch_task_for_batch(
                 max_score: 100.0,
                 testcases,
                 is_default: false,
+                input_validator: task.input_validator_generator.generate(Some(0)),
                 ..Default::default()
             };
             task.subtasks.insert(0, subtask);

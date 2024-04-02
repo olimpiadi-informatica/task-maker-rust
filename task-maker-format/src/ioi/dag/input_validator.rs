@@ -18,9 +18,10 @@ pub const TM_VALIDATION_FILE_NAME: &str = "tm_validation_file";
 
 /// An input file validator is responsible for checking that the input file follows the format and
 /// constraints defined by the task.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify, Default)]
 pub enum InputValidator {
     /// Skip the validation and assume the input file is valid.
+    #[default]
     AssumeValid,
     /// Use a custom command to check if the input file is valid. The command should exit with
     /// non-zero return code if and only if the input is invalid.

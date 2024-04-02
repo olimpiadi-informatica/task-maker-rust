@@ -52,6 +52,7 @@ where
         id: 0,
         max_score: 100.0,
         is_default: true,
+        input_validator: get_validator(Some(0)),
         ..Default::default()
     });
 
@@ -105,6 +106,7 @@ where
                             )
                             .ok(),
                             is_default: false,
+                            input_validator: get_validator(Some(subtask_id)),
                             ..Default::default()
                         }));
                         subtask_id += 1;
@@ -143,7 +145,6 @@ where
                         entries.push(TaskInputEntry::Testcase(TestcaseInfo::new(
                             testcase_count,
                             InputGenerator::StaticFile(task_dir.join(what)),
-                            get_validator(Some(subtask_id - 1)),
                             get_output_gen(testcase_count),
                         )));
                         testcase_count += 1;
@@ -162,7 +163,6 @@ where
                         entries.push(TaskInputEntry::Testcase(TestcaseInfo::new(
                             testcase_count,
                             InputGenerator::Custom(generator.clone(), cmd),
-                            get_validator(Some(subtask_id - 1)),
                             output_generator,
                         )));
                         testcase_count += 1;

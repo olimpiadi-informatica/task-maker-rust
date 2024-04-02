@@ -201,7 +201,6 @@
 //! variables will be available:
 //! - `$ST_NUM`: the 0-based index of the subtask
 //! - `$ST_NAME`: the name of the subtask
-//! - `$TC_NUM`: the 0-based index of the testcase
 //! - `$INPUT` _(only for validators)_: the name of the file to validate
 //!
 //! ## Full example of `cases.gen`

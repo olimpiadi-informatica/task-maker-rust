@@ -50,7 +50,6 @@ pub fn new_task_with_context(path: &Path) -> IOITask {
         TestcaseInfo::new(
             0,
             InputGenerator::StaticFile(p.clone()),
-            InputValidator::AssumeValid,
             OutputGenerator::StaticFile(p.clone()),
         )
     });
@@ -64,7 +63,6 @@ pub fn new_task_with_context(path: &Path) -> IOITask {
         TestcaseInfo::new(
             1,
             InputGenerator::StaticFile(p.clone()),
-            InputValidator::AssumeValid,
             OutputGenerator::StaticFile(p.clone()),
         )
     });
@@ -72,7 +70,6 @@ pub fn new_task_with_context(path: &Path) -> IOITask {
         TestcaseInfo::new(
             2,
             InputGenerator::StaticFile(p.clone()),
-            InputValidator::AssumeValid,
             OutputGenerator::StaticFile(p),
         )
     });
