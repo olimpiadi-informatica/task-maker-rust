@@ -86,12 +86,11 @@ impl AttSampleFiles {
     /// These files are the `#COPY` from the first subtask, if the first subtask only contains `#COPY`.
     fn extract_sample_files_from_task(task: &IOITask) -> Vec<PathBuf> {
         let mut testcases = vec![];
-        let subtask = if let Some(subtask) = task.subtasks.get(&0) {
-            subtask
-        } else {
+        let Some(subtask) = task.subtasks.get(&0) else {
             return testcases;
         };
-        for (_, testcase) in subtask.testcases.iter() {
+        for testcase_id in subtask.testcases.iter() {
+            let testcase = task.testcases.get(testcase_id).unwrap();
             match &testcase.input_generator {
                 InputGenerator::StaticFile(path) => {
                     let path = path.canonicalize().unwrap_or_else(|_| path.clone());

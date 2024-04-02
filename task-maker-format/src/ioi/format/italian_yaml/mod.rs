@@ -263,6 +263,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Error};
+use itertools::Itertools;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use unic::normal::StrNormalForm;
 use unic::ucd::category::GeneralCategory;
@@ -554,6 +555,7 @@ pub fn parse_task<P: AsRef<Path>>(
     };
 
     let mut subtasks = HashMap::new();
+    let mut testcases = HashMap::new();
     let mut last_subtask: Option<SubtaskInfo> = None;
     for input in inputs {
         match input {
@@ -564,17 +566,38 @@ pub fn parse_task<P: AsRef<Path>>(
                 last_subtask = Some(subtask);
             }
             TaskInputEntry::Testcase(testcase) => {
-                last_subtask
-                    .as_mut()
-                    .context("Testcase before Subtask")?
-                    .testcases
-                    .insert(testcase.id, testcase);
+                let st = last_subtask.as_mut().context("Testcase before Subtask")?;
+                st.testcases.push(testcase.id);
+                st.testcases_owned.push(testcase.id);
+                testcases.insert(testcase.id, testcase);
             }
         }
     }
     // insert the last subtask to the map
     if let Some(subtask) = last_subtask.take() {
         subtasks.insert(subtask.id, subtask);
+    }
+
+    loop {
+        let mut updated = false;
+        for st1_id in subtasks.keys().copied().collect_vec() {
+            let deps = subtasks.get(&st1_id).unwrap().dependencies.clone();
+            for st2_id in deps {
+                let ext = subtasks.get(&st2_id).unwrap().testcases.clone();
+                let into = subtasks.get_mut(&st1_id).unwrap();
+                let before = into.testcases.len();
+                into.testcases.extend(ext);
+                into.testcases.sort();
+                into.testcases.dedup();
+                let after = into.testcases.len();
+                if before != after {
+                    updated = true;
+                }
+            }
+        }
+        if !updated {
+            break;
+        }
     }
 
     if task_yaml_overwrite {
@@ -607,6 +630,7 @@ pub fn parse_task<P: AsRef<Path>>(
             })?,
         score_precision: yaml.score_precision,
         subtasks,
+        testcases,
         grader_map,
         booklets: Vec::new(),
         difficulty: yaml.difficulty,

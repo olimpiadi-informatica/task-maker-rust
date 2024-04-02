@@ -190,11 +190,11 @@ impl SolutionEvaluationState {
                             score: None,
                             normalized_score: None,
                             testcases: subtask
-                                .testcases
-                                .values()
-                                .map(|testcase| {
+                                .testcases_owned
+                                .iter()
+                                .map(|&testcase_id| {
                                     (
-                                        testcase.id,
+                                        testcase_id,
                                         SolutionTestcaseEvaluationState {
                                             score: None,
                                             status: TestcaseEvaluationStatus::Pending,
@@ -338,11 +338,11 @@ impl UIState {
                     *st_num,
                     SubtaskGenerationState {
                         testcases: subtask
-                            .testcases
-                            .keys()
-                            .map(|tc_num| {
+                            .testcases_owned
+                            .iter()
+                            .map(|&tc_num| {
                                 (
-                                    *tc_num,
+                                    tc_num,
                                     TestcaseGenerationState {
                                         status: TestcaseGenerationStatus::Pending,
                                         generation: None,
