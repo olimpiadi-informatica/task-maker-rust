@@ -40,6 +40,7 @@ where
                 name: Some("static-testcases".into()),
                 max_score: 100.0,
                 is_default: true,
+                input_validator: (self.get_validator)(Some(0)),
                 ..Default::default()
             }));
         }
@@ -50,7 +51,6 @@ where
             Some(TaskInputEntry::Testcase(TestcaseInfo::new(
                 id,
                 InputGenerator::StaticFile(path),
-                (self.get_validator)(Some(0)),
                 (self.get_output_gen)(id),
             )))
         } else {

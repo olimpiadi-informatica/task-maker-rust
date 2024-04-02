@@ -165,6 +165,8 @@ pub struct SubtaskInfo {
     pub max_score: f64,
     /// The testcases inside this subtask.
     pub testcases: HashMap<TestcaseId, TestcaseInfo>,
+    /// The validator for the input files of this subtask.
+    pub input_validator: InputValidator,
     /// The span of the definition of this subtask.
     pub span: Option<CodeSpan>,
     /// Whether this subtask was created automatically since no subtask was present in gen/GEN.
@@ -181,8 +183,6 @@ pub struct TestcaseInfo {
     pub id: TestcaseId,
     /// The generator of the input file for this testcase.
     pub input_generator: InputGenerator,
-    /// The validator of the input file for this testcase.
-    pub input_validator: InputValidator,
     /// The generator of the output file for this testcase.
     pub output_generator: OutputGenerator,
     /// The generated input file UUID. This is set only after the DAG is built.
@@ -313,7 +313,7 @@ impl IOITask {
                     .input_generator
                     .generate_and_bind(eval, subtask.id, testcase.id)
                     .context("Failed to bind input generator")?;
-                let val_handle = testcase
+                let val_handle = subtask
                     .input_validator
                     .validate_and_bind(
                         eval,
@@ -514,13 +514,11 @@ impl TestcaseInfo {
     pub fn new(
         id: TestcaseId,
         input_generator: InputGenerator,
-        input_validator: InputValidator,
         output_generator: OutputGenerator,
     ) -> Self {
         Self {
             id,
             input_generator,
-            input_validator,
             output_generator,
             input_file: None,
             official_output_file: None,

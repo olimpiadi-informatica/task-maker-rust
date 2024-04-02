@@ -120,8 +120,6 @@ where
     default_validator: Option<String>,
     /// The current generator for this subtask, it's the task's default, unless specified.
     current_generator: Option<String>,
-    /// The current validator for this subtask, it's the task's default, unless specified.
-    current_validator: Option<String>,
     /// The identifier of the next subtask to process.
     subtask_id: SubtaskId,
     /// The name of the last subtask added, if any.
@@ -164,7 +162,6 @@ where
             default_generator: None,
             default_validator: None,
             current_generator: None,
-            current_validator: None,
             subtask_id: 0,
             subtask_name: None,
             testcase_id: 0,
@@ -332,80 +329,53 @@ where
         self.result.push(TaskInputEntry::Testcase(TestcaseInfo::new(
             self.testcase_id,
             generator,
-            self.get_validator(&variables)
-                .context("Cannot get testcase validator")?,
             (self.get_output_gen)(self.testcase_id),
         )));
         self.testcase_id += 1;
         Ok(())
     }
 
-    /// Parse a `GEN` or a `VAL`, since they have the same internal format their parsing function is
-    /// abstracted in this.
-    fn process_gen_val(
+    /// Add a new generator/validator to the list
+    /// Since they have the same internal format their parsing function is abstracted in this.
+    fn define_gen_val(
         line: Vec<Pair>,
         task_dir: &Path,
-        subtask_id: SubtaskId,
         default: &mut Option<String>,
-        current: &mut Option<String>,
         managers: &mut HashMap<String, Manager>,
         kind: &str,
     ) -> Result<(), Error> {
         let name = line[0].as_str();
-        // Case 1: GEN|VAL name
-        // Set the current generator/validator to the specified one
-        if line.len() == 1 {
-            if subtask_id == 0 {
-                bail!(
-                    "Cannot set the current {} to {} outside a subtask",
-                    kind,
-                    name
-                );
-            }
-            if !managers.contains_key(name) {
-                bail!(
-                    "Cannot set the current {} to '{}': unknown {}",
-                    kind,
-                    name,
-                    kind
-                );
-            }
-            *current = Some(name.to_string());
-        // Case 2: GEN|VAL name path [args...]
-        // Add a new generator/validator to the list
-        } else {
-            let path = line[1].as_str();
-            let path = task_dir.join(path);
-            if !path.exists() {
-                bail!(
-                    "Cannot add {} '{}': '{}' does not exists",
-                    kind,
-                    name,
-                    path.display()
-                );
-            }
-            let source = SourceFile::new(
-                &path,
-                task_dir,
-                format!("The {} named {}", kind, name),
-                None,
-                Some(
-                    task_dir
-                        .join("bin")
-                        .join(path.file_name().context("invalid file name")?),
-                ),
-            )
-            .map(Arc::new)
-            .ok_or_else(|| anyhow!("Cannot use {} '{}': unknown language", kind, path.display()))?;
-            let args = shell_words::split(line[2].as_str())
-                .with_context(|| format!("Invalid arguments of '{}'", name))?;
-            if managers.contains_key(name) {
-                bail!("Duplicate {} with name {}", kind, name);
-            }
-            managers.insert(name.to_string(), Manager { source, args });
-            if default.is_none() || name == "default" {
-                *default = Some(name.to_string());
-            }
+        let path = line[1].as_str();
+        let path = task_dir.join(path);
+        if !path.exists() {
+            bail!(
+                "Cannot add {} '{}': '{}' does not exists",
+                kind,
+                name,
+                path.display()
+            );
+        }
+        let source = SourceFile::new(
+            &path,
+            task_dir,
+            format!("The {} named {}", kind, name),
+            None,
+            Some(
+                task_dir
+                    .join("bin")
+                    .join(path.file_name().context("invalid file name")?),
+            ),
+        )
+        .map(Arc::new)
+        .ok_or_else(|| anyhow!("Cannot use {} '{}': unknown language", kind, path.display()))?;
+        let args = shell_words::split(line[2].as_str())
+            .with_context(|| format!("Invalid arguments of '{}'", name))?;
+        if managers.contains_key(name) {
+            bail!("Duplicate {} with name {}", kind, name);
+        }
+        managers.insert(name.to_string(), Manager { source, args });
+        if default.is_none() || name == "default" {
+            *default = Some(name.to_string());
         }
         Ok(())
     }
@@ -413,30 +383,51 @@ where
     /// Parse a `:GEN` command.
     fn parse_gen(&mut self, line: Pair) -> Result<(), Error> {
         let line: Vec<_> = line.into_inner().collect();
-        CasesGen::<OutGen>::process_gen_val(
-            line,
-            &self.task_dir,
-            self.subtask_id,
-            &mut self.default_generator,
-            &mut self.current_generator,
-            &mut self.generators,
-            "generator",
-        )?;
+        if line.len() == 1 {
+            let name = line[0].as_str();
+            if self.subtask_id == 0 {
+                bail!("Cannot set the current generator to '{name}': outside a subtask",);
+            }
+            if !self.generators.contains_key(name) {
+                bail!("Cannot set the current generator to '{name}': unknown generator",);
+            }
+            self.current_generator = Some(name.to_string());
+        } else {
+            CasesGen::<OutGen>::define_gen_val(
+                line,
+                &self.task_dir,
+                &mut self.default_generator,
+                &mut self.generators,
+                "generator",
+            )?;
+        }
         Ok(())
     }
 
     /// Parse a `:VAL` command.
     fn parse_val(&mut self, line: Pair) -> Result<(), Error> {
         let line: Vec<_> = line.into_inner().collect();
-        CasesGen::<OutGen>::process_gen_val(
-            line,
-            &self.task_dir,
-            self.subtask_id,
-            &mut self.default_validator,
-            &mut self.current_validator,
-            &mut self.validators,
-            "validator",
-        )?;
+        if line.len() == 1 {
+            if self.subtask_id == 0 {
+                bail!("Cannot set the default validator outside a subtask");
+            }
+            let val = self
+                .get_validator(Some(line[0].as_str()), &self.get_auto_variables())
+                .context("Failed to get validator")?;
+            let Some(TaskInputEntry::Subtask(subtask)) = self.result.last_mut() else {
+                bail!("The validator must be set directly after a subtask");
+            };
+            subtask.input_validator = val;
+        } else {
+            CasesGen::<OutGen>::define_gen_val(
+                line,
+                &self.task_dir,
+                &mut self.default_validator,
+                &mut self.validators,
+                "validator",
+            )?;
+        }
+
         Ok(())
     }
 
@@ -511,7 +502,6 @@ where
         let span = line.as_span();
         let line: Vec<_> = line.into_inner().collect();
         self.current_generator = self.default_generator.clone();
-        self.current_validator = self.default_validator.clone();
         self.subtask_constraints.push(vec![]);
         let score = line[0].as_str();
         let score = f64::from_str(score).with_context(|| {
@@ -530,10 +520,11 @@ where
             .as_deref()
             .map(|s| s.chars().filter(|&c| c != ' ' && c != '\t').collect());
         self.subtask_name = name.clone();
+        self.subtask_id += 1;
         self.result.push(TaskInputEntry::Subtask(
             #[allow(deprecated)]
             SubtaskInfo {
-                id: self.subtask_id,
+                id: self.subtask_id - 1,
                 name,
                 description,
                 max_score: score,
@@ -545,10 +536,13 @@ where
                 )
                 .ok(),
                 is_default: false,
+                input_validator: self.get_validator(
+                    self.default_validator.as_deref(),
+                    &self.get_auto_variables(),
+                )?,
                 ..Default::default()
             },
         ));
-        self.subtask_id += 1;
         Ok(())
     }
 
@@ -572,8 +566,6 @@ where
         self.result.push(TaskInputEntry::Testcase(TestcaseInfo::new(
             self.testcase_id,
             InputGenerator::StaticFile(path),
-            self.get_validator(&self.get_auto_variables())
-                .context("Cannot get testcase validator")?,
             (self.get_output_gen)(self.testcase_id),
         )));
         self.testcase_id += 1;
@@ -581,10 +573,16 @@ where
     }
 
     /// Get the current validator for the next testcase.
-    fn get_validator(&self, variables: &HashMap<String, String>) -> Result<InputValidator, Error> {
-        match &self.current_validator {
+    fn get_validator(
+        &self,
+        validator: Option<&str>,
+        variables: &HashMap<String, String>,
+    ) -> Result<InputValidator, Error> {
+        match validator {
             Some(val) => {
-                let validator = &self.validators[val];
+                let Some(validator) = self.validators.get(val) else {
+                    bail!("unknown validator '{}'", val);
+                };
                 let args = if validator.args.is_empty() {
                     vec![variables["INPUT"].clone(), variables["ST_NUM"].clone()]
                 } else {
@@ -592,16 +590,11 @@ where
                     for arg in &validator.args {
                         // variables may (and should!) start with `$`, remove it before accessing
                         // the `variables` map.
-                        let arg = if let Some(rest) = arg.strip_prefix('$') {
-                            rest
-                        } else {
-                            arg.as_str()
-                        };
-                        if let Some(value) = variables.get(arg) {
-                            args.push(value.clone());
-                        } else {
+                        let arg = arg.strip_prefix('$').unwrap_or(arg);
+                        let Some(value) = variables.get(arg) else {
                             bail!("Unknown variable in validator arguments: ${}", arg);
-                        }
+                        };
+                        args.push(value.clone());
                     }
                     args
                 };
@@ -641,7 +634,6 @@ where
         let mut vars = HashMap::new();
         vars.insert("INPUT".to_string(), TM_VALIDATION_FILE_NAME.to_string());
         vars.insert("ST_NUM".to_string(), (self.subtask_id - 1).to_string());
-        vars.insert("TC_NUM".to_string(), self.testcase_id.to_string());
         if let Some(name) = &self.subtask_name {
             vars.insert("ST_NAME".to_string(), name.clone());
         }
@@ -855,7 +847,6 @@ mod tests {
         let vars = gen.get_auto_variables();
         assert_eq!(vars["INPUT"], TM_VALIDATION_FILE_NAME);
         assert_eq!(vars["ST_NUM"], "0");
-        assert_eq!(vars["TC_NUM"], "1");
         assert_eq!(vars["ST_NAME"], "lol");
     }
 
@@ -868,7 +859,6 @@ mod tests {
         let vars = gen.get_auto_variables();
         assert_eq!(vars["INPUT"], TM_VALIDATION_FILE_NAME);
         assert_eq!(vars["ST_NUM"], "1");
-        assert_eq!(vars["TC_NUM"], "1");
         assert!(!vars.contains_key("ST_NAME"));
     }
 
@@ -882,7 +872,6 @@ mod tests {
         let vars = gen.get_variables(&gen.generators["gen"].args, &args);
         assert_eq!(vars["INPUT"], TM_VALIDATION_FILE_NAME);
         assert_eq!(vars["ST_NUM"], "0");
-        assert_eq!(vars["TC_NUM"], "1");
         assert_eq!(vars["N"], "1");
         assert_eq!(vars["M"], "2");
         assert_eq!(vars["seed"], "1337");
@@ -898,7 +887,6 @@ mod tests {
         let vars = gen.get_variables(&gen.generators["gen"].args, &args);
         assert_eq!(vars["INPUT"], TM_VALIDATION_FILE_NAME);
         assert_eq!(vars["ST_NUM"], "0");
-        assert_eq!(vars["TC_NUM"], "1");
         assert_eq!(vars["N"], "1");
         assert_eq!(vars["M"], "2");
         assert_eq!(vars["seed"], "1337");
@@ -914,7 +902,6 @@ mod tests {
         let vars = gen.get_variables(&gen.generators["gen"].args, &args);
         assert_eq!(vars["INPUT"], TM_VALIDATION_FILE_NAME);
         assert_eq!(vars["ST_NUM"], "0");
-        assert_eq!(vars["TC_NUM"], "1");
         assert_eq!(vars["N"], "1");
         assert!(!vars.contains_key("M"));
         assert!(!vars.contains_key("seed"));
@@ -1063,18 +1050,6 @@ mod tests {
             .cases_gen(":VAL val gen/validator.py\n:VAL default gen/default.py")
             .unwrap();
         assert_eq!(gen.default_validator, Some("default".into()));
-    }
-
-    #[test]
-    fn test_set_current_validator() {
-        let gen = TestHelper::new()
-            .add_file("gen/validator.py")
-            .cases_gen(
-                ":VAL val gen/validator.py\n:VAL val2 gen/validator.py\n:SUBTASK 42\n:VAL val2",
-            )
-            .unwrap();
-        assert_eq!(gen.default_validator, Some("val".into()));
-        assert_eq!(gen.current_validator, Some("val2".into()));
     }
 
     #[test]
@@ -1285,6 +1260,60 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_add_subtask_with_default_val() {
+        let gen = TestHelper::new()
+            .add_file("gen/generator.py")
+            .add_file("gen/val.py")
+            .cases_gen(
+                ":GEN gen gen/generator.py\n:VAL default gen/val.py\n:SUBTASK 42\n:RUN gen 4 5 6",
+            )
+            .unwrap();
+        assert_eq!(gen.subtask_id, 1);
+        assert_eq!(gen.testcase_id, 1);
+        assert_eq!(gen.result.len(), 2);
+        let subtask = &gen.result[0];
+        let TaskInputEntry::Subtask(subtask) = subtask else {
+            panic!("Expecting a subtask, got: {:?}", subtask);
+        };
+        assert_eq!(subtask.id, 0);
+        if let InputValidator::Custom(_, args) = &subtask.input_validator {
+            assert_eq!(args.len(), 2);
+            assert_eq!(args[1], "0");
+        } else {
+            panic!(
+                "Expecting an AssumeValid but got: {:?}",
+                subtask.input_validator
+            );
+        }
+    }
+
+    #[test]
+    fn test_subtask_validator_args_custom() {
+        let gen = TestHelper::new()
+            .add_file("gen/generator.py")
+            .add_file("gen/val.py")
+            .cases_gen(":GEN default gen/generator.py N M seed\n:VAL default gen/val.py $INPUT $ST_NUM\n:SUBTASK 42\n1 2 3")
+            .unwrap();
+        assert_eq!(gen.subtask_id, 1);
+        assert_eq!(gen.testcase_id, 1);
+        assert_eq!(gen.result.len(), 2);
+        let subtask = &gen.result[0];
+        let TaskInputEntry::Subtask(subtask) = subtask else {
+            panic!("Expecting a subtask, got: {:?}", subtask);
+        };
+        assert_eq!(subtask.id, 0);
+        if let InputValidator::Custom(source, args) = &subtask.input_validator {
+            assert_eq!(source.name(), "val.py");
+            assert_eq!(args, &vec![TM_VALIDATION_FILE_NAME, "0"]);
+        } else {
+            panic!(
+                "Expecting a custom validator, got: {:?}",
+                subtask.input_validator
+            );
+        }
+    }
+
     /**********************
      * : COPY
      *********************/
@@ -1306,13 +1335,6 @@ mod tests {
                 panic!(
                     "Expecting a static file, got: {:?}",
                     testcase.input_generator
-                );
-            }
-            if let InputValidator::AssumeValid = testcase.input_validator {
-            } else {
-                panic!(
-                    "Expecting an AssumeValid but got: {:?}",
-                    testcase.input_validator
                 );
             }
         } else {
@@ -1356,50 +1378,6 @@ mod tests {
                 panic!(
                     "Expecting a custom generator, got: {:?}",
                     testcase.input_generator
-                );
-            }
-            if let InputValidator::AssumeValid = testcase.input_validator {
-            } else {
-                panic!(
-                    "Expecting an AssumeValid but got: {:?}",
-                    testcase.input_validator
-                );
-            }
-        } else {
-            panic!("Expecting a testcase, got: {:?}", testcase);
-        }
-    }
-
-    #[test]
-    fn test_add_run_with_val() {
-        let gen = TestHelper::new()
-            .add_file("gen/generator.py")
-            .add_file("gen/val.py")
-            .cases_gen(
-                ":GEN gen gen/generator.py\n:VAL default gen/val.py\n:SUBTASK 42\n:RUN gen 4 5 6",
-            )
-            .unwrap();
-        assert_eq!(gen.subtask_id, 1);
-        assert_eq!(gen.testcase_id, 1);
-        assert_eq!(gen.result.len(), 2);
-        let testcase = &gen.result[1];
-        if let TaskInputEntry::Testcase(testcase) = testcase {
-            assert_eq!(testcase.id, 0);
-            if let InputGenerator::Custom(_, args) = &testcase.input_generator {
-                assert_eq!(args, &vec!["4", "5", "6"]);
-            } else {
-                panic!(
-                    "Expecting a custom generator, got: {:?}",
-                    testcase.input_generator
-                );
-            }
-            if let InputValidator::Custom(_, args) = &testcase.input_validator {
-                assert_eq!(args.len(), 2);
-                assert_eq!(args[1], "0");
-            } else {
-                panic!(
-                    "Expecting an AssumeValid but got: {:?}",
-                    testcase.input_validator
                 );
             }
         } else {
@@ -1559,63 +1537,6 @@ mod tests {
                 panic!(
                     "Expecting a custom generator, got: {:?}",
                     testcase.input_generator
-                );
-            }
-        } else {
-            panic!("Expecting a testcase, got: {:?}", testcase);
-        }
-    }
-
-    #[test]
-    fn test_testcase_validator_args_default() {
-        let gen = TestHelper::new()
-            .add_file("gen/generator.py")
-            .add_file("gen/val.py")
-            .cases_gen(":GEN default gen/generator.py\n:VAL default gen/val.py\n:SUBTASK 42\n1 2 3")
-            .unwrap();
-        assert_eq!(gen.subtask_id, 1);
-        assert_eq!(gen.testcase_id, 1);
-        assert_eq!(gen.result.len(), 2);
-        let testcase = &gen.result[1];
-        if let TaskInputEntry::Testcase(testcase) = testcase {
-            assert_eq!(testcase.id, 0);
-            if let InputValidator::Custom(source, args) = &testcase.input_validator {
-                assert_eq!(source.name(), "val.py");
-                assert_eq!(args, &vec![TM_VALIDATION_FILE_NAME, "0"]);
-            } else {
-                panic!(
-                    "Expecting a custom validator, got: {:?}",
-                    testcase.input_validator
-                );
-            }
-        } else {
-            panic!("Expecting a testcase, got: {:?}", testcase);
-        }
-    }
-
-    #[test]
-    fn test_testcase_validator_args_custom() {
-        let gen = TestHelper::new()
-            .add_file("gen/generator.py")
-            .add_file("gen/val.py")
-            .cases_gen(":GEN default gen/generator.py N M seed\n:VAL default gen/val.py $N $M $seed $INPUT $TC_NUM $ST_NUM\n:SUBTASK 42\n1 2 3")
-            .unwrap();
-        assert_eq!(gen.subtask_id, 1);
-        assert_eq!(gen.testcase_id, 1);
-        assert_eq!(gen.result.len(), 2);
-        let testcase = &gen.result[1];
-        if let TaskInputEntry::Testcase(testcase) = testcase {
-            assert_eq!(testcase.id, 0);
-            if let InputValidator::Custom(source, args) = &testcase.input_validator {
-                assert_eq!(source.name(), "val.py");
-                assert_eq!(
-                    args,
-                    &vec!["1", "2", "3", TM_VALIDATION_FILE_NAME, "0", "0"]
-                );
-            } else {
-                panic!(
-                    "Expecting a custom validator, got: {:?}",
-                    testcase.input_validator
                 );
             }
         } else {
