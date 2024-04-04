@@ -465,13 +465,16 @@ impl UIStateT for UIState {
                 testcase,
                 status,
             } => {
-                let gen = self
+                let Some(gen) = self
                     .generations
                     .get_mut(&subtask)
                     .expect("Subtask is gone")
                     .testcases
                     .get_mut(&testcase)
-                    .expect("Testcase is gone");
+                else {
+                    return;
+                };
+
                 match status {
                     UIExecutionStatus::Pending => gen.status = TestcaseGenerationStatus::Pending,
                     UIExecutionStatus::Started { .. } => {
