@@ -368,13 +368,34 @@ impl IOITask {
                 }
             }
         }
-
         // Store inside the task the FileUuid of the input and official output files. This cannot
         // be done while generating because task cannot be borrowed mutably in the loop.
         for (testcase_id, (input, output)) in generated_io {
             let testcase = self.testcases.get_mut(&testcase_id).unwrap();
             testcase.input_file = Some(input);
             testcase.official_output_file = output;
+        }
+
+        for subtask in self.subtasks.values() {
+            for &testcase_id in subtask.testcases.iter() {
+                if !subtask.testcases_owned.contains(&testcase_id) {
+                    let testcase = self
+                        .testcases
+                        .get(&testcase_id)
+                        .expect("Testcase not found in the task");
+
+                    let _val_handle = subtask
+                        .input_validator
+                        .validate_and_bind(
+                            eval,
+                            subtask.id,
+                            subtask.name.as_deref(),
+                            testcase.id,
+                            testcase.input_file.unwrap(),
+                        )
+                        .context("Failed to bind validator")?;
+                }
+            }
         }
         for booklet in self.booklets.iter() {
             booklet
