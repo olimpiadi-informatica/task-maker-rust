@@ -256,7 +256,8 @@
 //! The subtask also does not have a name, the default one (`subtask2`) will be used.
 
 use std::collections::HashMap;
-use std::fs;
+use std::fs::File;
+use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -361,6 +362,83 @@ struct TaskYAML {
     /// Can be either "std_io" for using stdin/stdout, or "fifo_io" for using pipes given in argv.
     /// Defaults to "fifo_io".
     pub user_io: Option<String>,
+
+    /// Compatibility with cms, unused.
+    pub score_mode: Option<String>,
+    /// Compatibility with cms, unused.
+    pub token_mode: Option<String>,
+    /// Compatibility with cms, unused.
+    pub public_testcases: Option<String>,
+    /// Compatibility with cms, unused.
+    pub feedback_level: Option<String>,
+}
+
+/// Deserialized data from the task.yaml of a IOI format task.
+#[derive(Debug, Serialize, Deserialize)]
+struct TaskYAMLOrig {
+    /// The name of the task (the short one).
+    #[serde(default)]
+    pub name: String,
+    /// The title of the task (the long one).
+    pub title: String,
+    /// The score type to use for this task.
+    pub score_type: Option<String>,
+    /// The number of decimal digits when displaying the scores.
+    #[serde(default)]
+    pub score_precision: usize,
+
+    /// The time limit for the execution of the solutions.
+    pub time_limit: f64,
+    /// The memory limit in MiB of the execution of the solution.
+    pub memory_limit: u64,
+
+    /// Whether this is an output only task. Defaults to false.
+    #[serde(default)]
+    pub output_only: bool,
+    /// The input file for the solutions, usually 'input.txt' or '' (stdin). Defaults to `''`.
+    #[serde(default)]
+    pub infile: String,
+    /// The output file for the solutions, usually 'output.txt' or '' (stdout). Defaults to `''`.
+    #[serde(default)]
+    pub outfile: String,
+
+    /// An integer that defines the difficulty of the task. Used only in booklet compilations.
+    pub difficulty: Option<u8>,
+    /// An integer that defines the level inside a _syllabus_ (for example for the Olympiads in
+    /// Teams). Used only in booklet compilations.
+    pub syllabuslevel: Option<u8>,
+
+    /// Number of solution processes to spawn in parallel in a communication task.
+    pub num_processes: Option<u8>,
+    /// The type of communication for the solution in a communication task.
+    ///
+    /// Can be either "std_io" for using stdin/stdout, or "fifo_io" for using pipes given in argv.
+    /// Defaults to "fifo_io".
+    pub user_io: Option<String>,
+}
+
+impl TaskYAMLOrig {
+    fn into_task_yaml(self, task_dir: &Path) -> TaskYAML {
+        TaskYAML {
+            name: task_dir.file_name().unwrap().to_string_lossy().to_string(),
+            title: self.title,
+            score_type: self.score_type,
+            score_precision: self.score_precision,
+            time_limit: Some(self.time_limit),
+            memory_limit: Some(self.memory_limit),
+            output_only: self.output_only,
+            infile: self.infile,
+            outfile: self.outfile,
+            difficulty: self.difficulty,
+            syllabuslevel: self.syllabuslevel,
+            num_processes: self.num_processes,
+            user_io: self.user_io,
+            score_mode: Some("max_subtask".into()),
+            token_mode: Some("disabled".into()),
+            public_testcases: Some("all".into()),
+            feedback_level: Some("full".into()),
+        }
+    }
 }
 
 /// The iterator item type when following the task input testcases.
@@ -377,7 +455,7 @@ pub(crate) enum TaskInputEntry {
 /// `italian_yaml`.
 ///
 /// `italian_yaml` format is structured as follow:
-/// * `task.yaml` - file with the task information
+/// * `task.yaml.orig` or `task.yaml` - file with the task information
 /// * `gen/` - folder with the generator and validator
 ///     * `generator.xxx` (also `generatore`)
 ///     * `validator.xxx` (also `valida`)
@@ -398,11 +476,26 @@ pub fn parse_task<P: AsRef<Path>>(
     eval_config: &EvaluationConfig,
 ) -> Result<IOITask, Error> {
     let task_dir = task_dir.as_ref();
-    let path = task_dir.join("task.yaml");
-    let file = fs::File::open(&path)
-        .with_context(|| format!("Cannot open task.yaml from {}", path.display()))?;
-    let yaml: TaskYAML =
-        serde_yaml::from_reader(file).context("Failed to deserialize task.yaml")?;
+
+    let task_yaml_overwrite: bool;
+    let yaml: TaskYAML;
+    if task_dir.join("task.yaml.orig").exists() {
+        task_yaml_overwrite = true;
+        let path = task_dir.join(task_dir.join("task.yaml.orig"));
+        let file = File::open(&path)
+            .with_context(|| format!("Cannot open task.yaml.orig from {}", path.display()))?;
+        let yaml_orig: TaskYAMLOrig =
+            serde_yaml::from_reader(file).context("Failed to deserialize task.yaml.orig")?;
+        yaml = yaml_orig.into_task_yaml(task_dir);
+    } else if task_dir.join("task.yaml").exists() {
+        task_yaml_overwrite = false;
+        let path = task_dir.join(task_dir.join("task.yaml"));
+        let file = File::open(&path)
+            .with_context(|| format!("Cannot open task.yaml from {}", path.display()))?;
+        yaml = serde_yaml::from_reader(file).context("Failed to deserialize task.yaml")?;
+    } else {
+        bail!("No task.yaml found in {}", task_dir.display());
+    }
     debug!("The yaml is {:#?}", yaml);
 
     let map_file = |file: String| -> Option<PathBuf> {
@@ -482,6 +575,14 @@ pub fn parse_task<P: AsRef<Path>>(
     // insert the last subtask to the map
     if let Some(subtask) = last_subtask.take() {
         subtasks.insert(subtask.id, subtask);
+    }
+
+    if task_yaml_overwrite {
+        let path = task_dir.join("task.yaml");
+        let file = File::create(&path)
+            .with_context(|| format!("Cannot open task.yaml from {}", path.display()))?;
+        serde_yaml::to_writer(BufWriter::new(file), &yaml)
+            .context("Failed to serialize task.yaml")?;
     }
 
     let mut task = IOITask {
