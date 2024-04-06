@@ -18,10 +18,9 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use anyhow::{bail, Context, Error};
+use anyhow::{Context, Error};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
@@ -543,19 +542,6 @@ impl TestcaseInfo {
             output_generator,
             input_file: None,
             official_output_file: None,
-        }
-    }
-}
-
-impl FromStr for TestcaseScoreAggregator {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "min" | "GroupMin" => Ok(TestcaseScoreAggregator::Min),
-            "sum" | "Sum" => Ok(TestcaseScoreAggregator::Sum),
-            "GroupMul" | "GroupThreshold" => bail!("{s} is not supported yet"),
-            _ => bail!("Invalid testcase score aggregator: {}", s),
         }
     }
 }

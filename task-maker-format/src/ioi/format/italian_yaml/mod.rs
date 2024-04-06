@@ -263,7 +263,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Error};
 use itertools::Itertools;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 use unic::normal::StrNormalForm;
 use unic::ucd::category::GeneralCategory;
 
@@ -315,6 +315,21 @@ pub const VALID_SUBTASK_NAME_CHARACTER_CATEGORIES: &[GeneralCategory] = &[
     GeneralCategory::OtherSymbol,
 ];
 
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn cms_serialize_score_type<S>(
+    val: &Option<TestcaseScoreAggregator>,
+    ser: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match val {
+        Some(TestcaseScoreAggregator::Sum) => ser.serialize_str("Sum"),
+        Some(TestcaseScoreAggregator::Min) => ser.serialize_str("GroupMin"),
+        None => ser.serialize_none(),
+    }
+}
+
 /// Deserialized data from the task.yaml of a IOI format task.
 #[derive(Debug, Serialize, Deserialize)]
 struct TaskYAML {
@@ -325,6 +340,7 @@ struct TaskYAML {
     #[serde(alias = "nome")]
     pub title: String,
     /// The score type to use for this task.
+    #[serde(serialize_with = "cms_serialize_score_type")]
     pub score_type: Option<TestcaseScoreAggregator>,
     /// The parameters of the score type.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -341,9 +357,7 @@ struct TaskYAML {
     pub memory_limit: Option<u64>,
 
     /// Whether this is an output only task. Defaults to false.
-    #[serde(default = "bool::default")]
-    #[serde(serialize_with = "python_bool_serializer")]
-    #[serde(deserialize_with = "python_bool_deserializer")]
+    #[serde(default)]
     pub output_only: bool,
     /// The input file for the solutions, usually 'input.txt' or '' (stdin). Defaults to `''`.
     #[serde(default = "default_infile")]
@@ -831,40 +845,6 @@ fn parse_communication_task_data(
         num_processes: yaml.num_processes.unwrap_or(1),
         user_io,
     })))
-}
-
-/// Serializer of a boolean using the python syntax:
-/// - `true` -> `True`
-/// - `false` -> `False`
-#[allow(clippy::trivially_copy_pass_by_ref)]
-fn python_bool_serializer<S>(val: &bool, ser: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    if *val {
-        ser.serialize_str("True")
-    } else {
-        ser.serialize_str("False")
-    }
-}
-
-/// Deserializer of a boolean using the python syntax:
-/// - `True` -> `true`
-/// - `False` -> `false`
-/// - other -> error
-fn python_bool_deserializer<'de, D>(deser: D) -> Result<bool, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    use serde::de::Error;
-    let val = String::deserialize(deser)?;
-    if val == "True" {
-        Ok(true)
-    } else if val == "False" {
-        Ok(false)
-    } else {
-        Err(Error::custom("invalid bool, either True or False"))
-    }
 }
 
 /// The default value for the `infile` field of task.yaml.
