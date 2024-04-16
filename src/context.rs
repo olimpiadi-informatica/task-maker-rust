@@ -144,10 +144,13 @@ impl RuntimeContext {
         let (tx, rx, local_executor) = if let Some(evaluate_on) = &opt.evaluate_on {
             let (tx, rx) = connect_to_remote_server(evaluate_on, 27182)
                 .context("Cannot connect to the remote server")?;
-            let name = opt
-                .name
-                .clone()
-                .unwrap_or_else(|| format!("{}@{}", whoami::username(), whoami::hostname()));
+            let name = opt.name.clone().unwrap_or_else(|| {
+                format!(
+                    "{}@{}",
+                    whoami::username(),
+                    whoami::fallible::hostname().unwrap()
+                )
+            });
             tx.send(RemoteEntityMessage::Welcome {
                 name,
                 version: VERSION.into(),
