@@ -43,9 +43,13 @@ pub fn main_worker(opt: WorkerOpt) -> Result<(), Error> {
     );
     let sandbox_path = store_path.join("sandboxes");
 
-    let name = opt
-        .name
-        .unwrap_or_else(|| format!("{}@{}", whoami::username(), whoami::hostname()));
+    let name = opt.name.unwrap_or_else(|| {
+        format!(
+            "{}@{}",
+            whoami::username(),
+            whoami::fallible::hostname().unwrap()
+        )
+    });
     let (executor_tx, executor_rx) = connect_to_remote_server(&opt.server_addr, 27183)
         .context("Failed to connect to the server")?;
     executor_tx
