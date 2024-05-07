@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Context, Error};
+use anyhow::{anyhow, bail, ensure, Context, Error};
 use pest::Parser;
 
 use task_maker_diagnostics::CodeSpan;
@@ -125,6 +125,8 @@ where
     subtask_id: SubtaskId,
     /// The name of the last subtask added, if any.
     subtask_name: Option<String>,
+    /// The mapping from subtask name to subtask id.
+    st_name_to_id: HashMap<String, SubtaskId>,
     /// The identifier of the next testcase to process.
     testcase_id: TestcaseId,
 }
@@ -165,6 +167,7 @@ where
             current_generator: None,
             subtask_id: 0,
             subtask_name: None,
+            st_name_to_id: HashMap::new(),
             testcase_id: 0,
         };
 
@@ -275,6 +278,10 @@ where
             parser::Rule::SUBTASK => {
                 self.parse_subtask(line)
                     .context("Failed to parse SUBTASK command")?;
+            }
+            parser::Rule::STDEP => {
+                self.parse_st_dep(line)
+                    .context("Failed to parse STDEP command")?;
             }
             parser::Rule::COPY => {
                 self.parse_copy(line)
@@ -521,6 +528,10 @@ where
             .as_deref()
             .map(|s| s.chars().filter(|&c| c != ' ' && c != '\t').collect());
         self.subtask_name.clone_from(&name);
+        if let Some(name) = &name {
+            let old_id = self.st_name_to_id.insert(name.clone(), self.subtask_id);
+            ensure!(old_id.is_none(), "Duplicate subtask name '{}'", name);
+        }
         self.subtask_id += 1;
         self.result.push(TaskInputEntry::Subtask(
             #[allow(deprecated)]
@@ -544,6 +555,21 @@ where
                 ..Default::default()
             },
         ));
+        Ok(())
+    }
+
+    /// Parse a `:STDEP` command.
+    fn parse_st_dep(&mut self, line: Pair) -> Result<(), Error> {
+        for dep in line.into_inner() {
+            let id = *self
+                .st_name_to_id
+                .get(dep.as_str())
+                .context("Unknown subtask")?;
+            let Some(TaskInputEntry::Subtask(subtask)) = self.result.last_mut() else {
+                bail!(":STDEP must immediately follow a #ST: in gen/GEN");
+            };
+            subtask.dependencies.push(id);
+        }
         Ok(())
     }
 

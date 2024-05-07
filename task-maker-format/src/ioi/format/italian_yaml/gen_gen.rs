@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Context, Error};
+use anyhow::{anyhow, bail, ensure, Context, Error};
 use pest::Parser;
 
 use task_maker_diagnostics::CodeSpan;
@@ -130,7 +130,9 @@ where
                                 cleanup_subtask_name(name)
                                     .with_context(|| format!("Invalid subtask name: {}", name))?,
                             );
-                            st_name_to_id.insert(subtask.name.clone().unwrap(), subtask.id);
+                            let old_id =
+                                st_name_to_id.insert(subtask.name.clone().unwrap(), subtask.id);
+                            ensure!(old_id.is_none(), "Duplicate subtask name: {}", name);
                         } else {
                             bail!("#STNAME: must immediately follow a #ST: in gen/GEN");
                         }
@@ -140,7 +142,7 @@ where
                             anyhow!("A #STDEP: rule must immediately follow a #ST: in gen/GEN")
                         })?;
                         let TaskInputEntry::Subtask(subtask) = last_entry else {
-                            bail!("#STNAME: must immediately follow a #ST: in gen/GEN");
+                            bail!("#STDEP: must immediately follow a #ST: in gen/GEN");
                         };
                         for dependency in line.into_inner() {
                             let dep_id = *st_name_to_id

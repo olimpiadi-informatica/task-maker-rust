@@ -14,6 +14,7 @@ syntax keyword GenGeneratorK contained GEN VAL nextgroup=GenNameGV skipwhite
 syntax keyword GenRunK contained RUN nextgroup=GenRunV skipwhite
 syntax keyword GenCopyK contained COPY nextgroup=GenExe skipwhite
 syntax keyword GenSubtaskK contained SUBTASK nextgroup=GenScore skipwhite
+syntax keyword GenSubtaskK contained STDEP skipwhite
 syntax keyword GenConstraintK contained CONSTRAINT nextgroup=GenNumber
 syntax match GenCommand   /^:.*/ contains=GenGeneratorK,GenSubtaskK,GenRunK,GenCopyK
 syntax match GenConstraintCommand   /^:\s*CONSTRAINT.*/ contains=GenConstraintK,GenNumber,GenVariable
