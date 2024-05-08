@@ -67,7 +67,7 @@ pub fn patch_task_for_batch(
                         unreachable!("The generator cannot be StaticFile")
                     }
                     InputGenerator::Custom(_, args) => {
-                        *args = generator_args.clone();
+                        args.clone_from(&generator_args);
                     }
                 }
 
@@ -162,9 +162,9 @@ pub fn patch_dag(eval: &mut EvaluationData, batch_size: usize, batch: &Batch) ->
                     )
                 })?;
                 if dest.starts_with("input") {
-                    write_to.dest = testcase.input_path.clone();
+                    write_to.dest.clone_from(&testcase.input_path);
                 } else if dest.starts_with("output") {
-                    write_to.dest = testcase.correct_output_path.clone();
+                    write_to.dest.clone_from(&testcase.correct_output_path);
                 }
                 // Always write the file.
                 write_to.allow_failure = true;

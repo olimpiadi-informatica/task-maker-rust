@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Write;
 use std::io::Read;
@@ -501,7 +502,7 @@ where
     fn parse_subtask(&mut self, line: Pair) -> Result<(), Error> {
         let span = line.as_span();
         let line: Vec<_> = line.into_inner().collect();
-        self.current_generator = self.default_generator.clone();
+        self.current_generator.clone_from(&self.default_generator);
         self.subtask_constraints.push(vec![]);
         let score = line[0].as_str();
         let score = f64::from_str(score).with_context(|| {
@@ -519,7 +520,7 @@ where
         let name = description
             .as_deref()
             .map(|s| s.chars().filter(|&c| c != ' ' && c != '\t').collect());
-        self.subtask_name = name.clone();
+        self.subtask_name.clone_from(&name);
         self.subtask_id += 1;
         self.result.push(TaskInputEntry::Subtask(
             #[allow(deprecated)]
@@ -687,16 +688,15 @@ impl FromStr for ConstraintOperator {
     }
 }
 
-impl ToString for ConstraintOperator {
-    fn to_string(&self) -> String {
+impl Display for ConstraintOperator {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ConstraintOperator::Less => "<",
-            ConstraintOperator::LessEqual => "<=",
-            ConstraintOperator::Greater => ">",
-            ConstraintOperator::GreaterEqual => ">=",
-            ConstraintOperator::Equal => "=",
+            ConstraintOperator::Less => write!(f, "<"),
+            ConstraintOperator::LessEqual => write!(f, "<="),
+            ConstraintOperator::Greater => write!(f, ">"),
+            ConstraintOperator::GreaterEqual => write!(f, ">="),
+            ConstraintOperator::Equal => write!(f, "="),
         }
-        .to_string()
     }
 }
 
@@ -722,11 +722,11 @@ impl ConstraintOperand {
     }
 }
 
-impl ToString for ConstraintOperand {
-    fn to_string(&self) -> String {
+impl Display for ConstraintOperand {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ConstraintOperand::Constant(k) => k.to_string(),
-            ConstraintOperand::Variable(v) => format!("${}", v),
+            ConstraintOperand::Constant(k) => write!(f, "{}", k),
+            ConstraintOperand::Variable(v) => write!(f, "${}", v),
         }
     }
 }
@@ -752,7 +752,7 @@ impl Debug for Constraint {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         let mut constraint = self.operands[0].to_string();
         for (op, var) in self.operators.iter().zip(self.operands[1..].iter()) {
-            let _ = write!(constraint, " {} {}", op.to_string(), var.to_string());
+            let _ = write!(constraint, " {} {}", op, var);
         }
         write!(f, "{}", constraint)
     }

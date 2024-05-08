@@ -231,7 +231,7 @@ impl<'l, 'c> CompiledLanguageBuilder for SimpleCompiledLanguageBuilder<'l, 'c> {
     fn finalize(&mut self, dag: &mut ExecutionDAG) -> Result<(Execution, File), Error> {
         let name = self.source_path.file_name().unwrap().to_string_lossy();
         let mut comp = Execution::new(format!("Compilation of {}", name), self.compiler.clone());
-        comp.args = self.args.clone();
+        comp.args.clone_from(&self.args);
 
         // compilation dependencies
         for dep in self.dependencies.drain(..) {
