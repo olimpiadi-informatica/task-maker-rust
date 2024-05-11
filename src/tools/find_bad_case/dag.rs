@@ -99,6 +99,7 @@ pub fn patch_task_for_batch(
                 input_validator: task.input_validator_generator.generate(Some(0)),
                 ..Default::default()
             };
+            task.testcases = testcases;
             task.subtasks.insert(0, subtask);
         }
         TaskFormat::Terry(_) => {
