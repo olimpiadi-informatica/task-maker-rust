@@ -6,7 +6,6 @@ use task_maker_dag::{ExecutionResult, ExecutionStatus};
 use task_maker_diagnostics::DiagnosticContext;
 use task_maker_exec::ExecutorStatus;
 
-use crate::solution::SolutionInfo;
 use crate::terry::finish_ui;
 use crate::terry::{Seed, SolutionOutcome, TerryTask};
 use crate::ui::{CompilationStatus, FinishUI, UIExecutionStatus, UIMessage, UIStateT};
@@ -29,8 +28,6 @@ pub struct UIState {
 /// The state of the evaluation of a solution.
 #[derive(Debug, Clone)]
 pub struct SolutionState {
-    /// The information about this solution.
-    pub info: SolutionInfo,
     /// The status of the evaluation.
     pub status: SolutionStatus,
     /// The checker's outcome or its error.
@@ -76,9 +73,8 @@ pub enum SolutionStatus {
 }
 
 impl SolutionState {
-    fn new(info: SolutionInfo) -> Self {
+    fn new() -> Self {
         Self {
-            info,
             status: Default::default(),
             outcome: Default::default(),
             seed: Default::default(),
@@ -140,7 +136,7 @@ impl UIStateT for UIState {
             UIMessage::Solutions { solutions } => {
                 self.solutions = solutions
                     .into_iter()
-                    .map(|info| (info.path.clone(), SolutionState::new(info)))
+                    .map(|info| (info.path, SolutionState::new()))
                     .collect();
             }
             UIMessage::Compilation { file, status } => self
