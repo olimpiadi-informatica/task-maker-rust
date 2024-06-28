@@ -348,6 +348,8 @@ struct TaskYAML {
     /// The number of decimal digits when displaying the scores.
     #[serde(default)]
     pub score_precision: usize,
+    /// The primary language used when importing the task.
+    pub primary_language: Option<String>,
 
     /// The time limit for the execution of the solutions, if not set it's unlimited.
     #[serde(alias = "timeout")]
@@ -403,6 +405,8 @@ struct TaskYAMLOrig {
     /// The number of decimal digits when displaying the scores.
     #[serde(default)]
     pub score_precision: usize,
+    /// The primary language used when importing the task.
+    pub primary_language: Option<String>,
 
     /// The time limit for the execution of the solutions.
     pub time_limit: f64,
@@ -442,6 +446,7 @@ impl TaskYAMLOrig {
             score_type: self.score_type,
             score_type_parameters: None,
             score_precision: self.score_precision,
+            primary_language: Some(self.primary_language.unwrap_or_else(|| "en".into())),
             time_limit: Some(self.time_limit),
             memory_limit: Some(self.memory_limit),
             output_only: self.output_only,
