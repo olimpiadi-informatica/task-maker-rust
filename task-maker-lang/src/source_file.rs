@@ -164,7 +164,7 @@ impl SourceFile {
         exec.args(self.language.runtime_args(&self.path, write_to, args));
         exec.input(
             self.executable.lock().unwrap().as_ref().unwrap(),
-            &self.language.executable_name(&self.path, write_to),
+            self.language.executable_name(&self.path, write_to),
             true,
         );
         for dep in self.language.runtime_dependencies(&self.path) {

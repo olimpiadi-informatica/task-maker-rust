@@ -148,15 +148,10 @@ where
                 while !stop.load(Ordering::Relaxed) {
                     // FIXME: handling the ^C this way inhibits the real ^C handler. Doing so the workers may
                     //        not be killed properly (locally and remotely).
-                    if let Some(Ok(event)) = events.next() {
-                        match event {
-                            Event::Key(Key::Ctrl('c')) | Event::Key(Key::Ctrl('\\')) => {
-                                drop(terminal);
-                                send_ctrl_c();
-                                return;
-                            }
-                            _ => {}
-                        }
+                    if let Some(Ok(Event::Key(Key::Ctrl('c') | Key::Ctrl('\\')))) = events.next() {
+                        drop(terminal);
+                        send_ctrl_c();
+                        return;
                     }
                     let loading = loading[loading_index % loading.len()];
                     terminal
