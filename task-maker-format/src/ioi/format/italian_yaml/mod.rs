@@ -630,26 +630,28 @@ pub fn parse_task<P: AsRef<Path>>(
     yaml.score_type = Some(testcase_score_aggregator);
 
     if task_yaml_overwrite {
-        yaml.score_type_parameters = Some(
-            subtasks
-                .iter()
-                .sorted_by_key(|(id, _)| *id)
-                .map(|(_, st)| {
-                    let testcases = st
-                        .testcases
-                        .iter()
-                        .map(|tc_num| format!("{tc_num:03}"))
-                        .join("|");
-                    (st.max_score, testcases)
-                })
-                .collect(),
-        );
+        if !eval_config.dry_run {
+            yaml.score_type_parameters = Some(
+                subtasks
+                    .iter()
+                    .sorted_by_key(|(id, _)| *id)
+                    .map(|(_, st)| {
+                        let testcases = st
+                            .testcases
+                            .iter()
+                            .map(|tc_num| format!("{tc_num:03}"))
+                            .join("|");
+                        (st.max_score, testcases)
+                    })
+                    .collect(),
+            );
 
-        let path = task_dir.join("task.yaml");
-        let file = File::create(&path)
-            .with_context(|| format!("Cannot open task.yaml from {}", path.display()))?;
-        serde_yaml::to_writer(BufWriter::new(file), &yaml)
-            .context("Failed to serialize task.yaml")?;
+            let path = task_dir.join("task.yaml");
+            let file = File::create(&path)
+                .with_context(|| format!("Cannot open task.yaml from {}", path.display()))?;
+            serde_yaml::to_writer(BufWriter::new(file), &yaml)
+                .context("Failed to serialize task.yaml")?;
+        }
     } else if subtasks.values().any(|st| !st.dependencies.is_empty()) {
         bail!("Use task.yaml.orig to use subtask dependencies");
     }
