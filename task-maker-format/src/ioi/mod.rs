@@ -38,7 +38,7 @@ use task_maker_lang::GraderMap;
 pub use ui_state::*;
 
 use crate::ioi::format::italian_yaml::TM_ALLOW_DELETE_COOKIE;
-use crate::ioi::italian_yaml::is_gen_gen_deletable;
+use crate::ioi::italian_yaml::is_tm_deletable;
 use crate::sanity_checks::SanityChecks;
 use crate::solution::SolutionInfo;
 use crate::ui::*;
@@ -481,7 +481,7 @@ impl IOITask {
         let gen_gen_path = self.path.join("gen/GEN");
         let cases_gen_path = self.path.join("gen/cases.gen");
         if cases_gen_path.exists() && gen_gen_path.exists() {
-            if is_gen_gen_deletable(&gen_gen_path)? {
+            if is_tm_deletable(&gen_gen_path)? {
                 info!("Removing {}", gen_gen_path.display());
                 std::fs::remove_file(&gen_gen_path).with_context(|| {
                     format!("Failed to remove gen/GEN at {}", gen_gen_path.display())
@@ -489,6 +489,22 @@ impl IOITask {
             } else {
                 warn!(
                     "Won't remove gen/GEN since it doesn't contain {}",
+                    TM_ALLOW_DELETE_COOKIE
+                );
+            }
+        }
+        // remove task.yaml if there is task.yaml.orig
+        let task_yaml_path = self.path.join("task.yaml");
+        let task_yaml_orig_path = self.path.join("task.yaml.orig");
+        if task_yaml_orig_path.exists() && task_yaml_path.exists() {
+            if is_tm_deletable(&task_yaml_path)? {
+                info!("Removing {}", task_yaml_path.display());
+                std::fs::remove_file(&task_yaml_path).with_context(|| {
+                    format!("Failed to remove task.yaml at {}", task_yaml_path.display())
+                })?;
+            } else {
+                warn!(
+                    "Won't remove task.yaml since it doesn't contain {}",
                     TM_ALLOW_DELETE_COOKIE
                 );
             }
