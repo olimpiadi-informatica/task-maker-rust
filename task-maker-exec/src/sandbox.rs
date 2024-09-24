@@ -669,7 +669,7 @@ mod tests {
         let rules: HashMap<_, _> = filter.rules.into_iter().collect();
         assert!(!rules.contains_key("fork"));
         assert!(!rules.contains_key("vfork"));
-        assert!(config.env.contains(&("foo".to_string(), "bar".to_string())));
+        assert!(config.env.contains(&("foo".into(), "bar".into())));
         assert_eq!(config.stdin, Some("/dev/null".into()));
         assert_eq!(config.stdout, Some("/dev/null".into()));
         assert_eq!(config.stderr, Some("/dev/null".into()));
