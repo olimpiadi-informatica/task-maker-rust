@@ -1,15 +1,16 @@
 use itertools::Itertools;
-use tui::layout::{Constraint, Direction, Layout, Rect};
-use tui::style::{Modifier, Style};
-use tui::text::{Span, Spans};
-use tui::widgets::{Block, Borders, Paragraph};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::Frame;
 
 use crate::terry::finish_ui::FinishUI;
 use crate::terry::ui_state::{SolutionState, SolutionStatus, UIState};
 use crate::terry::{CaseStatus, SolutionOutcome};
 use crate::ui::curses::{
     compilation_status_text, draw_compilations, inner_block, render_block, render_server_status,
-    CursesDrawer, CursesUI as GenericCursesUI, FrameType, GREEN, RED, YELLOW,
+    CursesDrawer, CursesUI as GenericCursesUI, GREEN, RED, YELLOW,
 };
 use crate::ui::FinishUIUtils;
 
@@ -20,14 +21,14 @@ pub(crate) type CursesUI = GenericCursesUI<UIState, Drawer, FinishUI>;
 pub(crate) struct Drawer;
 
 impl CursesDrawer<UIState> for Drawer {
-    fn draw(state: &UIState, frame: &mut FrameType, loading: char, frame_index: usize) {
+    fn draw(state: &UIState, frame: &mut Frame, loading: char, frame_index: usize) {
         draw_frame(state, frame, loading, frame_index);
     }
 }
 
 /// Draw a frame of interface to the provided `Frame`.
-fn draw_frame(state: &UIState, f: &mut FrameType, loading: char, frame_index: usize) {
-    let header: Spans = vec![
+fn draw_frame(state: &UIState, f: &mut Frame, loading: char, frame_index: usize) {
+    let header: Line = vec![
         Span::styled(
             state.task.description.clone(),
             Style::default().add_modifier(Modifier::BOLD),
@@ -55,7 +56,7 @@ fn draw_frame(state: &UIState, f: &mut FrameType, loading: char, frame_index: us
         .map(|s| s.connected_workers.len())
         .unwrap_or(0) as u16
         + 2;
-    let total_height = f.size().height;
+    let total_height = f.area().height;
     // fixed size section heights
     let top_height = header_len + compilations_len;
     // if the sections don't just fit, reduce the size of the workers until they fit but
@@ -77,7 +78,7 @@ fn draw_frame(state: &UIState, f: &mut FrameType, loading: char, frame_index: us
             ]
             .as_ref(),
         )
-        .split(f.size());
+        .split(f.area());
     let paragraph = Paragraph::new(header).block(Block::default().borders(Borders::NONE));
     f.render_widget(paragraph, chunks[0]);
     if compilations_len > 0 {
@@ -104,9 +105,9 @@ fn draw_frame(state: &UIState, f: &mut FrameType, loading: char, frame_index: us
 }
 
 /// Draw the evaluations of the solutions.
-fn draw_evaluations(frame: &mut FrameType, rect: Rect, state: &UIState, loading: char) {
+fn draw_evaluations(frame: &mut Frame, rect: Rect, state: &UIState, loading: char) {
     let max_len = FinishUIUtils::get_max_len(&state.solutions);
-    let text: Vec<Spans> = state
+    let text: Vec<Line> = state
         .solutions
         .keys()
         .sorted()
