@@ -1,25 +1,24 @@
 use itertools::Itertools;
-use tui::layout::{Constraint, Direction, Layout, Rect};
-use tui::text::{Span, Spans};
-use tui::widgets::{Paragraph, Wrap};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
 use task_maker_format::ui::curses::{BLUE, BOLD, GREEN, RED};
-use task_maker_format::ui::{
-    inner_block, render_block, render_server_status, CursesDrawer, FrameType,
-};
+use task_maker_format::ui::{inner_block, render_block, render_server_status, CursesDrawer};
 
 use crate::tools::find_bad_case::state::{SharedUIState, TestcaseStatus, UIState};
 
 pub struct CursesUI;
 
 impl CursesDrawer<UIState> for CursesUI {
-    fn draw(state: &UIState, frame: &mut FrameType, loading: char, frame_index: usize) {
+    fn draw(state: &UIState, frame: &mut Frame, loading: char, frame_index: usize) {
         CursesUI::draw_frame(state, frame, loading, frame_index);
     }
 }
 
 impl CursesUI {
-    fn draw_frame(state: &UIState, f: &mut FrameType, loading: char, frame_index: usize) {
+    fn draw_frame(state: &UIState, f: &mut Frame, loading: char, frame_index: usize) {
         let header_len = 10; // Number of lines of the header.
         let workers_len = state
             .executor_status
@@ -38,7 +37,7 @@ impl CursesUI {
                 ]
                 .as_ref(),
             )
-            .split(f.size());
+            .split(f.area());
 
         let shared = state.shared.read().unwrap();
         Self::render_header(state, &shared, f, chunks[0]);
@@ -52,7 +51,7 @@ impl CursesUI {
         );
     }
 
-    fn render_header(state: &UIState, shared: &SharedUIState, f: &mut FrameType, rect: Rect) {
+    fn render_header(state: &UIState, shared: &SharedUIState, f: &mut Frame, rect: Rect) {
         let errors = state
             .batches
             .iter()
@@ -61,32 +60,32 @@ impl CursesUI {
             .count();
 
         let text = vec![
-            Spans(vec![
+            Line::from(vec![
                 Span::styled("Solution:        ", *BOLD),
                 Span::raw(state.solution.to_string_lossy().to_string()),
             ]),
-            Spans(vec![
+            Line::from(vec![
                 Span::styled("Generator args:  ", *BOLD),
                 Span::raw(state.generator_args.iter().join(" ")),
             ]),
-            Spans(vec![
+            Line::from(vec![
                 Span::styled("Batch size:      ", *BOLD),
                 Span::raw(state.batch_size.to_string()),
             ]),
-            Spans(vec![
+            Line::from(vec![
                 Span::styled("Batch index:     ", *BOLD),
                 Span::raw(shared.batch_index.to_string()),
             ]),
-            Spans(vec![Span::styled("Progress:", *BLUE)]),
-            Spans(vec![
+            Line::from(vec![Span::styled("Progress:", *BLUE)]),
+            Line::from(vec![
                 Span::styled("    Generated:   ", *BOLD),
                 Span::raw(state.progress.inputs_generated.to_string()),
             ]),
-            Spans(vec![
+            Line::from(vec![
                 Span::styled("    Solved:      ", *BOLD),
                 Span::raw(state.progress.inputs_solved.to_string()),
             ]),
-            Spans(vec![
+            Line::from(vec![
                 Span::styled("    Average gen: ", *BOLD),
                 Span::raw(format!(
                     "{:.3}s\n",
@@ -94,14 +93,14 @@ impl CursesUI {
                         / (state.progress.inputs_generated.max(1) as f64)
                 )),
             ]),
-            Spans(vec![
+            Line::from(vec![
                 Span::styled("    Average sol: ", *BOLD),
                 Span::raw(format!(
                     "{:.3}s",
                     state.progress.solution_time_sum / (state.progress.inputs_solved.max(1) as f64)
                 )),
             ]),
-            Spans(vec![
+            Line::from(vec![
                 Span::styled("    Errors:      ", *BOLD),
                 Span::raw(errors.to_string()),
             ]),
@@ -111,7 +110,7 @@ impl CursesUI {
         f.render_widget(paragraph, rect);
     }
 
-    fn render_generation_status(state: &UIState, f: &mut FrameType, rect: Rect) {
+    fn render_generation_status(state: &UIState, f: &mut Frame, rect: Rect) {
         let mut text = vec![];
         for i in 0..state.batches.len().min(10) {
             let mut line = Vec::new();

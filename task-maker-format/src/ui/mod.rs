@@ -11,9 +11,7 @@ pub use termcolor::WriteColor;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 use typescript_definitions::TypeScriptify;
 
-pub use curses::{
-    inner_block, render_block, render_server_status, CursesDrawer, CursesUI, FrameType,
-};
+pub use curses::{inner_block, render_block, render_server_status, CursesDrawer, CursesUI};
 pub use json::JsonUI;
 pub use print::PrintUI;
 pub use raw::RawUI;

@@ -8,20 +8,20 @@ use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
 use std::time::SystemTime;
 
-use anyhow::Error;
+use anyhow::{Context, Error};
 use itertools::Itertools;
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
+use ratatui::backend::TermionBackend;
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::{Frame, Terminal};
 use termion::event::{Event, Key};
 use termion::input::{MouseTerminal, TermRead};
-use termion::raw::{IntoRawMode, RawTerminal};
-use termion::screen::AlternateScreen;
-use tui::backend::TermionBackend;
-use tui::layout::Rect;
-use tui::style::{Color, Modifier, Style};
-use tui::text::{Span, Spans};
-use tui::widgets::{Block, Borders, Paragraph};
-use tui::{Frame, Terminal};
+use termion::raw::IntoRawMode;
+use termion::screen::IntoAlternateScreen;
 
 use task_maker_exec::{ExecutorStatus, ExecutorWorkerStatus};
 
@@ -31,10 +31,6 @@ use crate::ui::{CompilationStatus, FinishUI, UIMessage, UIStateT, UI};
 pub(crate) const FPS: u64 = 30;
 /// After how many seconds rotate the list of workers if they don't fit on the screen.
 pub(crate) const ROTATION_DELAY: u64 = 1;
-
-/// The type of the terminal with its backend.
-pub type FrameType<'a> =
-    Frame<'a, TermionBackend<AlternateScreen<MouseTerminal<RawTerminal<io::Stdout>>>>>;
 
 macro_rules! define_color_inner {
     ($color:expr,) => {
@@ -101,7 +97,7 @@ where
 pub trait CursesDrawer<State> {
     /// Draw a frame of the UI using the provided state, onto the frame, using the loading
     /// character. Frame index is a counter of the number of frames encountered so far.
-    fn draw(state: &State, frame: &mut FrameType, loading: char, frame_index: usize);
+    fn draw(state: &State, frame: &mut Frame, loading: char, frame_index: usize);
 }
 
 impl<State, Drawer, Finish> CursesUI<State, Drawer, Finish>
@@ -133,8 +129,9 @@ where
         stop: Arc<AtomicBool>,
     ) -> Result<JoinHandle<()>, Error> {
         let stdout = io::stdout().into_raw_mode()?;
-        let stdout = MouseTerminal::from(stdout);
-        let stdout = AlternateScreen::from(stdout);
+        let stdout = MouseTerminal::from(stdout)
+            .into_alternate_screen()
+            .context("Failed to enter alternate screen mode, the terminal may not support it")?;
         let backend = TermionBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
         terminal.hide_cursor()?;
@@ -220,7 +217,7 @@ pub fn inner_block(rect: Rect) -> Rect {
 
 /// Draw the compilation block.
 pub(crate) fn draw_compilations<'a, I>(
-    frame: &mut FrameType,
+    frame: &mut Frame,
     rect: Rect,
     compilations: I,
     loading: char,
@@ -234,7 +231,7 @@ pub(crate) fn draw_compilations<'a, I>(
         .max()
         .unwrap_or(0)
         + 4;
-    let text: Vec<Spans> = compilations
+    let text: Vec<Line> = compilations
         .iter()
         .sorted_by_key(|(k, _)| *k)
         .map(|(file, status)| {
@@ -267,7 +264,7 @@ pub(crate) fn compilation_status_text(status: &CompilationStatus, loading: char)
 }
 
 /// Render a block with the specified title.
-pub fn render_block<S: AsRef<str>>(frame: &mut FrameType, rect: Rect, title: S) {
+pub fn render_block<S: AsRef<str>>(frame: &mut Frame, rect: Rect, title: S) {
     let block = Block::default()
         .title(Span::styled(title.as_ref(), *BLUE))
         .borders(Borders::ALL);
@@ -276,7 +273,7 @@ pub fn render_block<S: AsRef<str>>(frame: &mut FrameType, rect: Rect, title: S) 
 
 /// Draw the server status block.
 pub fn render_server_status(
-    frame: &mut FrameType,
+    frame: &mut Frame,
     rect: Rect,
     status: Option<&ExecutorStatus<SystemTime>>,
     loading: char,
@@ -305,7 +302,7 @@ pub fn render_server_status(
 
 /// Draw the summary of the server status on the border of the block.
 fn draw_server_status_summary(
-    frame: &mut FrameType,
+    frame: &mut Frame,
     rect: Rect,
     status: Option<&ExecutorStatus<SystemTime>>,
 ) {
@@ -314,7 +311,7 @@ fn draw_server_status_summary(
     } else {
         return;
     };
-    let paragraph = Paragraph::new(Spans(vec![
+    let paragraph = Paragraph::new(Line::from(vec![
         Span::styled(" Ready ", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw(format!("{} ─", status.ready_execs)),
         Span::styled(" Waiting ", Style::default().add_modifier(Modifier::BOLD)),
@@ -326,7 +323,7 @@ fn draw_server_status_summary(
 /// Draw the content of the server status box, splitting the workers in 2 groups if they don't fit,
 /// and rotating them if they still don't fit.
 fn draw_server_status(
-    frame: &mut FrameType,
+    frame: &mut Frame,
     rect: Rect,
     status: Option<&ExecutorStatus<SystemTime>>,
     loading: char,
@@ -377,7 +374,7 @@ fn draw_server_status(
 
 /// Draw a chunk of workers in the specified rectangle.
 fn draw_workers_chunk(
-    frame: &mut FrameType,
+    frame: &mut Frame,
     rect: Rect,
     workers: &[&ExecutorWorkerStatus<SystemTime>],
     loading: char,
@@ -387,7 +384,7 @@ fn draw_workers_chunk(
         .map(|worker| worker.name.len())
         .max()
         .unwrap_or(0);
-    let text: Vec<Spans> = workers
+    let text: Vec<Line> = workers
         .iter()
         .map(|worker| {
             let worker_name = format!("- {:<max_len$} ", worker.name, max_len = max_len);

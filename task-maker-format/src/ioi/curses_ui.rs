@@ -1,10 +1,11 @@
 use std::path::Path;
 
 use itertools::Itertools;
-use tui::layout::{Constraint, Direction, Layout, Rect};
-use tui::style::{Color, Modifier, Style};
-use tui::text::{Span, Spans};
-use tui::widgets::{Block, Borders, Paragraph};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::Frame;
 
 use task_maker_dag::ExecutionStatus;
 
@@ -15,7 +16,7 @@ use crate::ioi::{
 };
 use crate::ui::curses::{
     compilation_status_text, draw_compilations, inner_block, render_block, render_server_status,
-    CursesDrawer, CursesUI as GenericCursesUI, FrameType, GREEN, ORANGE, RED, YELLOW,
+    CursesDrawer, CursesUI as GenericCursesUI, GREEN, ORANGE, RED, YELLOW,
 };
 use crate::ui::UIExecutionStatus;
 use crate::ScoreStatus;
@@ -27,21 +28,21 @@ pub(crate) type CursesUI = GenericCursesUI<UIState, Drawer, FinishUI>;
 pub(crate) struct Drawer;
 
 impl CursesDrawer<UIState> for Drawer {
-    fn draw(state: &UIState, frame: &mut FrameType, loading: char, frame_index: usize) {
+    fn draw(state: &UIState, frame: &mut Frame, loading: char, frame_index: usize) {
         draw_frame(state, frame, loading, frame_index);
     }
 }
 
 /// Draw a frame of interface to the provided `Frame`.
-fn draw_frame(state: &UIState, f: &mut FrameType, loading: char, frame_index: usize) {
-    let size = f.size();
+fn draw_frame(state: &UIState, f: &mut Frame, loading: char, frame_index: usize) {
+    let size = f.area();
     if size.width < 16 || size.height < 16 {
         let error = Span::styled("Too small", Style::default().add_modifier(Modifier::BOLD));
         let paragraph = Paragraph::new(error);
         f.render_widget(paragraph, size);
         return;
     }
-    let header: Spans = vec![
+    let header: Line = vec![
         Span::styled(
             state.task.title.clone(),
             Style::default().add_modifier(Modifier::BOLD),
@@ -80,7 +81,7 @@ fn draw_frame(state: &UIState, f: &mut FrameType, loading: char, frame_index: us
         .map(|s| s.connected_workers.len())
         .unwrap_or(0) as u16
         + 2;
-    let total_height = f.size().height;
+    let total_height = f.area().height;
     // fixed size section heights
     let top_height = header_len + compilations_len + booklet_len + generations_len;
     // if the sections don't just fit, reduce the size of the workers until they fit but
@@ -104,7 +105,7 @@ fn draw_frame(state: &UIState, f: &mut FrameType, loading: char, frame_index: us
             ]
             .as_ref(),
         )
-        .split(f.size());
+        .split(f.area());
     let paragraph = Paragraph::new(header).block(Block::default().borders(Borders::NONE));
     f.render_widget(paragraph, chunks[0]);
     if compilations_len > 0 {
@@ -141,14 +142,14 @@ fn draw_frame(state: &UIState, f: &mut FrameType, loading: char, frame_index: us
 }
 
 /// Draw the content of the booklet box.
-fn draw_booklets(frame: &mut FrameType, rect: Rect, state: &UIState, loading: char) {
-    let text: Vec<Spans> = state
+fn draw_booklets(frame: &mut Frame, rect: Rect, state: &UIState, loading: char) {
+    let text: Vec<Line> = state
         .booklets
         .keys()
         .sorted()
         .flat_map(|name| {
             let booklet = &state.booklets[name];
-            let mut text: Vec<Spans> = vec![vec![
+            let mut text: Vec<Line> = vec![vec![
                 Span::raw(format!("{:<20} ", name)),
                 ui_execution_status_text(&booklet.status, loading),
             ]
@@ -185,7 +186,7 @@ fn ui_execution_status_text(status: &UIExecutionStatus, loading: char) -> Span {
 }
 
 /// Draw the content of the generation box.
-fn draw_generations(frame: &mut FrameType, rect: Rect, state: &UIState, loading: char) {
+fn draw_generations(frame: &mut Frame, rect: Rect, state: &UIState, loading: char) {
     let text: Vec<Span> = state
         .generations
         .iter()
@@ -203,7 +204,7 @@ fn draw_generations(frame: &mut FrameType, rect: Rect, state: &UIState, loading:
             res
         })
         .collect();
-    let paragraph = Paragraph::new(Spans(text));
+    let paragraph = Paragraph::new(Line::from(text));
     frame.render_widget(paragraph, rect);
 }
 
@@ -223,7 +224,7 @@ fn generation_status_text(status: &TestcaseGenerationStatus, loading: char) -> S
 }
 
 /// Draw the content of the evaluation box.
-fn draw_evaluations(frame: &mut FrameType, rect: Rect, state: &UIState, loading: char) {
+fn draw_evaluations(frame: &mut Frame, rect: Rect, state: &UIState, loading: char) {
     let max_len = state
         .evaluations
         .keys()
@@ -231,7 +232,7 @@ fn draw_evaluations(frame: &mut FrameType, rect: Rect, state: &UIState, loading:
         .max()
         .unwrap_or(0)
         + 4;
-    let text: Vec<Spans> = state
+    let text: Vec<Line> = state
         .evaluations
         .keys()
         .sorted()
