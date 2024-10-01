@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::fs::FileType;
 
 use anyhow::Error;
 use itertools::Itertools;
@@ -76,10 +75,6 @@ pub struct TaskInfoStatement {
     pub path: PathBuf,
 }
 
-fn is_file_or_symlink(file_type: FileType) -> bool {
-    file_type.is_file() || file_type.is_symlink()
-}
-
 impl IOITaskInfo {
     /// Generate the task information from the provided `Task`.
     pub fn new(task: &IOITask) -> Result<IOITaskInfo, Error> {
@@ -122,7 +117,7 @@ impl IOITaskInfo {
                 .join("att")
                 .read_dir()
                 .map(|dir| {
-                    dir.filter(|entry| is_file_or_symlink(entry.as_ref().unwrap().file_type().unwrap()))
+                    dir.filter(|entry| entry.as_ref().unwrap().path().is_file())
                         .map(|entry| {
                             let entry = entry.unwrap();
                             let path = entry.path();
