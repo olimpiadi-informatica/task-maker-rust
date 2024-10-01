@@ -1,4 +1,4 @@
-use std::fs::{create_dir, copy};
+use std::fs::{copy, create_dir};
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Error};
@@ -28,7 +28,10 @@ pub struct CopyCompetitionFilesOpt {
     pub storage: StorageOpt,
 }
 
-pub fn copy_competition_files_main(mut opt: CopyCompetitionFilesOpt, logger_opt: LoggerOpt) -> Result<(), Error> {
+pub fn copy_competition_files_main(
+    mut opt: CopyCompetitionFilesOpt,
+    logger_opt: LoggerOpt,
+) -> Result<(), Error> {
     opt.ui.disable_if_needed(&logger_opt);
     let eval_config = EvaluationConfig {
         solution_filter: vec![],
@@ -51,12 +54,13 @@ pub fn copy_competition_files_main(mut opt: CopyCompetitionFilesOpt, logger_opt:
         task.subtasks.clear();
 
         // setup the configuration and the evaluation metadata
-        let mut context = RuntimeContext::new(task.clone().into(), &opt.execution, |_task, eval| {
-            for booklet in booklets {
-                booklet.build(eval)?;
-            }
-            Ok(())
-        })?;
+        let mut context =
+            RuntimeContext::new(task.clone().into(), &opt.execution, |_task, eval| {
+                for booklet in booklets {
+                    booklet.build(eval)?;
+                }
+                Ok(())
+            })?;
         context.sandbox_runner(ToolsSandboxRunner::default());
 
         // start the execution
@@ -68,7 +72,11 @@ pub fn copy_competition_files_main(mut opt: CopyCompetitionFilesOpt, logger_opt:
             bail!("Competition folder creation is supported only for IOI tasks now");
         };
 
-        copy_files(task_info, &opt.contest_dir.join(&task.name), &competition_files_dir.join(&task.name))?;
+        copy_files(
+            task_info,
+            &opt.contest_dir.join(&task.name),
+            &competition_files_dir.join(&task.name),
+        )?;
     }
 
     Ok(())
@@ -77,22 +85,22 @@ pub fn copy_competition_files_main(mut opt: CopyCompetitionFilesOpt, logger_opt:
 fn copy_files(task_info: IOITaskInfo, task_path: &Path, files_path: &Path) -> Result<(), Error> {
     // create problem directory
     if !files_path.exists() {
-        create_dir(&files_path)?;
+        create_dir(files_path)?;
     }
-    
+
     // copy statements
     for statement in task_info.statements {
         let statement_path = task_path.join(&statement.path);
-        let target_path = files_path.join(&statement.path.file_name().unwrap());
-        
+        let target_path = files_path.join(statement.path.file_name().unwrap());
+
         copy(statement_path, target_path)?;
     }
 
     // copy attachments
     for attachment in task_info.attachments {
         let attachment_path = task_path.join(&attachment.path);
-        let target_path = files_path.join(&attachment.path.file_name().unwrap());
-        
+        let target_path = files_path.join(attachment.path.file_name().unwrap());
+
         copy(attachment_path, target_path)?;
     }
 
@@ -115,7 +123,10 @@ fn get_tasks_from_contest_dir(
         tasks.push(task_dir);
     }
 
-    tasks.iter().map(|task| get_task_from_task_dir(task, eval_config)).collect()
+    tasks
+        .iter()
+        .map(|task| get_task_from_task_dir(task, eval_config))
+        .collect()
 }
 
 fn get_task_from_task_dir(
