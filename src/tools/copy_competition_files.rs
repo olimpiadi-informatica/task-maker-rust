@@ -18,10 +18,6 @@ pub struct CopyCompetitionFilesOpt {
     #[clap(short = 'c', long = "contest-dir", default_value = ".")]
     pub contest_dir: PathBuf,
 
-    /// Look at most for this number of parents for searching the task
-    #[clap(long = "max-depth", default_value = "3")]
-    pub max_depth: u32,
-
     #[clap(flatten, next_help_heading = Some("UI"))]
     pub ui: UIOpt,
 
@@ -50,7 +46,7 @@ pub fn copy_competition_files_main(mut opt: CopyCompetitionFilesOpt, logger_opt:
         create_dir(&competition_files_dir)?;
     }
 
-    for (mut task, booklets) in get_tasks_from_contest_dir(&opt.contest_dir, &opt, &eval_config)? {
+    for (mut task, booklets) in get_tasks_from_contest_dir(&opt.contest_dir, &eval_config)? {
         // clean up the task a bit for a cleaner ui
         task.subtasks.clear();
 
@@ -105,7 +101,6 @@ fn copy_files(task_info: IOITaskInfo, task_path: &Path, files_path: &Path) -> Re
 
 fn get_tasks_from_contest_dir(
     contest_dir: &Path,
-    opt: &CopyCompetitionFilesOpt,
     eval_config: &EvaluationConfig,
 ) -> Result<Vec<(IOITask, Vec<Booklet>)>, Error> {
     let contest_yaml = if let Some(contest_yaml) = BookletConfig::contest_yaml(contest_dir) {
@@ -120,15 +115,14 @@ fn get_tasks_from_contest_dir(
         tasks.push(task_dir);
     }
 
-    tasks.iter().map(|task| get_task_from_task_dir(task, opt, eval_config)).collect()
+    tasks.iter().map(|task| get_task_from_task_dir(task, eval_config)).collect()
 }
 
 fn get_task_from_task_dir(
     path: &Path,
-    opt: &CopyCompetitionFilesOpt,
     eval_config: &EvaluationConfig,
 ) -> Result<(IOITask, Vec<Booklet>), Error> {
-    let task = find_task(Some(path.into()), opt.max_depth, eval_config)?;
+    let task = find_task(Some(path.into()), 1, eval_config)?;
     let path = task.path();
     let task = IOITask::new(path, eval_config).with_context(|| {
         format!(
