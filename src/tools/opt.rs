@@ -3,6 +3,7 @@ use clap::Parser;
 use crate::tools::add_solution_checks::AddSolutionChecksOpt;
 use crate::tools::booklet::BookletOpt;
 use crate::tools::clear::ClearOpt;
+use crate::tools::copy_competition_files::CopyCompetitionFilesOpt;
 use crate::tools::find_bad_case::FindBadCaseOpt;
 use crate::tools::fuzz_checker::FuzzCheckerOpt;
 use crate::tools::gen_autocompletion::GenAutocompletionOpt;
@@ -46,6 +47,8 @@ pub enum Tool {
     TaskInfo(TaskInfoOpt),
     /// Compile just the booklet for a task or a contest.
     Booklet(BookletOpt),
+    /// Copy statements and attachments of a contest in a separate directory
+    CopyCompetitionFiles(CopyCompetitionFilesOpt),
     /// Fuzz the checker of a task.
     FuzzChecker(FuzzCheckerOpt),
     /// Generate and search for an input file that make a solution fail.

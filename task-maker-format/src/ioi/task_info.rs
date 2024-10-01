@@ -13,66 +13,66 @@ pub struct IOITaskInfo {
     /// Version of this task-info structure.
     version: u64,
     /// Short name of the task.
-    name: String,
+    pub name: String,
     /// Title of the task.
-    title: String,
+    pub title: String,
     /// Scoring info.
-    scoring: TaskInfoScoring,
+    pub scoring: TaskInfoScoring,
     /// Limits of the task.
-    limits: TaskInfoLimits,
+    pub limits: TaskInfoLimits,
     /// Statements of the task.
-    statements: Vec<TaskInfoStatement>,
+    pub statements: Vec<TaskInfoStatement>,
     /// Attachments of the task.
-    attachments: Vec<TaskInfoAttachment>,
+    pub attachments: Vec<TaskInfoAttachment>,
 }
 
 /// Limits of the task.
 #[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct TaskInfoLimits {
     /// Time limit in seconds.
-    time: Option<f64>,
+    pub time: Option<f64>,
     /// Memory limit in megabytes.
-    memory: Option<u64>,
+    pub memory: Option<u64>,
 }
 
 /// Attachment of the task.
 #[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct TaskInfoAttachment {
     /// Name of this attachment.
-    name: String,
+    pub name: String,
     /// MIME type of this attachment.
-    content_type: String,
+    pub content_type: String,
     /// Path of this attachment relative to task directory.
-    path: PathBuf,
+    pub path: PathBuf,
 }
 
 /// Info of the subtasks.
 #[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct TaskInfoSubtask {
     /// Maximum score for this subtask.
-    max_score: f64,
+    pub max_score: f64,
     /// Number of testcases for this subtask.
-    testcases: u64,
+    pub testcases: u64,
 }
 
 /// Scoring for the task.
 #[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct TaskInfoScoring {
     /// Maximum score for the task.
-    max_score: f64,
+    pub max_score: f64,
     /// Subtasks of this task.
-    subtasks: Vec<TaskInfoSubtask>,
+    pub subtasks: Vec<TaskInfoSubtask>,
 }
 
 /// Statement of the task.
 #[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct TaskInfoStatement {
     /// Language of the statement.
-    language: String,
+    pub language: String,
     /// Content type of the statement, as MIME type.
-    content_type: String,
+    pub content_type: String,
     /// Path of the task, relative to the task directory.
-    path: PathBuf,
+    pub path: PathBuf,
 }
 
 impl IOITaskInfo {
@@ -117,7 +117,7 @@ impl IOITaskInfo {
                 .join("att")
                 .read_dir()
                 .map(|dir| {
-                    dir.filter(|entry| entry.as_ref().unwrap().file_type().unwrap().is_file())
+                    dir.filter(|entry| entry.as_ref().unwrap().path().is_file())
                         .map(|entry| {
                             let entry = entry.unwrap();
                             let path = entry.path();
