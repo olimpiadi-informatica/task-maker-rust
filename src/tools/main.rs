@@ -4,6 +4,7 @@ use task_maker_rust::error::NiceError;
 use task_maker_rust::tools::add_solution_checks::main_add_solution_checks;
 use task_maker_rust::tools::booklet::main_booklet;
 use task_maker_rust::tools::clear::main_clear;
+use task_maker_rust::tools::copy_competition_files::copy_competition_files_main;
 use task_maker_rust::tools::find_bad_case::main_find_bad_case;
 use task_maker_rust::tools::fuzz_checker::main_fuzz_checker;
 use task_maker_rust::tools::gen_autocompletion::main_get_autocompletion;
@@ -29,6 +30,7 @@ fn main() {
         Tool::Sandbox(opt) => main_sandbox(opt),
         Tool::TaskInfo(opt) => main_task_info(opt),
         Tool::Booklet(opt) => main_booklet(opt, base_opt.logger),
+        Tool::CopyCompetitionFiles(opt) => copy_competition_files_main(opt, base_opt.logger),
         Tool::FuzzChecker(opt) => main_fuzz_checker(opt),
         Tool::FindBadCase(opt) => main_find_bad_case(opt),
         Tool::AddSolutionChecks(opt) => main_add_solution_checks(opt, base_opt.logger),
