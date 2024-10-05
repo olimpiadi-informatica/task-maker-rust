@@ -9,8 +9,8 @@ description = "Tool for building tasks for informatics competitions, with suppor
 readme = "README.md"
 authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
 edition = "2021"
-documentation = "https://edomora97.github.io/task-maker-rust/"
-repository = "https://github.com/edomora97/task-maker-rust"
+documentation = "https://olimpiadi-informatica.github.io/task-maker-rust/"
+repository = "https://github.com/olimpiadi-informatica/task-maker-rust"
 license = "MPL-2.0"
 default-run = "task-maker"
 
@@ -35,7 +35,7 @@ assets = [
 ]
 
 [badges]
-github = { repository = "edomora97/task-maker-rust", workflow = "Rust" }
+github = { repository = "olimpiadi-informatica/task-maker-rust", workflow = "Rust" }
 
 [dependencies]
 task-maker-dag = { path = "./task-maker-dag" }

@@ -1,4 +1,4 @@
-[![Workflow Status](https://github.com/edomora97/task-maker-rust/workflows/Rust/badge.svg)](https://github.com/edomora97/task-maker-rust/actions?query=workflow%3A%22Rust%22)
+[![Workflow Status](https://github.com/olimpiadi-informatica/task-maker-rust/workflows/Rust/badge.svg)](https://github.com/olimpiadi-informatica/task-maker-rust/actions?query=workflow%3A%22Rust%22)
 
 # task-maker-rust
 
@@ -7,7 +7,7 @@ The new cmsMake!
 [![asciicast](https://asciinema.org/a/301849.svg)](https://asciinema.org/a/301849)
 
 ## Installation
-For **Ubuntu** and **Debian** users you can find the `.deb` file in the [Releases](https://github.com/edomora97/task-maker-rust/releases) page.
+For **Ubuntu** and **Debian** users you can find the `.deb` file in the [Releases](https://github.com/olimpiadi-informatica/task-maker-rust/releases) page.
 Install the package using `sudo dpkg -i the_file.deb` and it's dependencies (if you need to) with `sudo apt install -f`.
 There is a good chance that you have already all the dependencies already installed.
 
@@ -28,7 +28,7 @@ For the other operating systems the recommended way to use task-maker-rust is th
 
 - Install the latest stable rust version (and cargo). For example using [rustup](https://rustup.rs/)
 - Install the system dependencies: `libseccomp` or `libseccomp-dev` on Ubuntu
-- Clone this repo: `git clone https://github.com/edomora97/task-maker-rust`
+- Clone this repo: `git clone https://github.com/olimpiadi-informatica/task-maker-rust`
 - Build task-maker: `cargo build --release`
 
 The executable should be located at `target/release/task-maker`.

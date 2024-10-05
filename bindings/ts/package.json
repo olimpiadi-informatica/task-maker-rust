@@ -9,11 +9,11 @@
     "prepublish": "tsc"
   },
   "author": "Edoardo Morassutto <edoardo.morassutto@gmail.com>",
-  "homepage": "https://github.com/edomora97/task-maker-rust",
+  "homepage": "https://github.com/olimpiadi-informatica/task-maker-rust",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "ssh://git@github.com:edomora97/task-maker-rust.git",
+    "url": "ssh://git@github.com:olimpiadi-informatica/task-maker-rust.git",
     "directory": "bindings/ts"
   },
   "devDependencies": {

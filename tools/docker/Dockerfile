@@ -25,7 +25,7 @@ ARG TM_VERSION
 
 # install task-maker-rust
 RUN (test -n "$TM_VERSION" || (echo "Please use --build-arg TM_VERSION=0.3.X" >&2 && exit 1)) \
-  && wget https://github.com/edomora97/task-maker-rust/releases/download/v${TM_VERSION}/task-maker-rust_${TM_VERSION}_amd64.deb \
+  && wget https://github.com/olimpiadi-informatica/task-maker-rust/releases/download/v${TM_VERSION}/task-maker-rust_${TM_VERSION}_amd64.deb \
   && dpkg -i task-maker-rust_${TM_VERSION}_amd64.deb \
   && rm task-maker-rust_${TM_VERSION}_amd64.deb
 

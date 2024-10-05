@@ -1,7 +1,7 @@
 # Ubuntu 16.04 to keep the library versions backward-compatible
 FROM ubuntu:16.04
 
-LABEL org.opencontainers.image.source="https://github.com/edomora97/task-maker-rust"
+LABEL org.opencontainers.image.source="https://github.com/olimpiadi-informatica/task-maker-rust"
 LABEL maintainer="Edoardo Morassutto <edoardo.morassutto@gmail.com>"
 
 # we want to use bash, not sh
