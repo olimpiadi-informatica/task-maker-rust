@@ -326,7 +326,13 @@ fn print_file(
     let content = String::from_utf8_lossy(&file);
     const MAX_CONTENT_LEN: usize = 256;
     if content.len() > MAX_CONTENT_LEN {
-        println!("{}...\n", &content[..MAX_CONTENT_LEN].trim_end());
+        let prefix = (0..MAX_CONTENT_LEN)
+            .rev()
+            .filter_map(|idx| content.split_at_checked(idx))
+            .next()
+            .unwrap()
+            .0;
+        println!("{}...\n", prefix.trim_end());
     } else {
         println!("{}\n", content.trim_end());
     }
