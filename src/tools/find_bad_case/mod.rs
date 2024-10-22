@@ -328,10 +328,9 @@ fn print_file(
     if content.len() > MAX_CONTENT_LEN {
         let prefix = (0..MAX_CONTENT_LEN)
             .rev()
-            .filter_map(|idx| content.split_at_checked(idx))
+            .filter_map(|idx| content.get(..idx))
             .next()
-            .unwrap()
-            .0;
+            .unwrap();
         println!("{}...\n", prefix.trim_end());
     } else {
         println!("{}\n", content.trim_end());
