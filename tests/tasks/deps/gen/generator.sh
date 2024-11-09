@@ -1,1 +1,3 @@
-/usr/bin/echo
+#!/bin/sh
+
+echo "$@"
