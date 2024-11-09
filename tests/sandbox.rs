@@ -22,6 +22,7 @@ fn test_remove_output_file() {
     eval_dag(dag);
 }
 
+#[cfg(not(target_os = "macos"))]
 #[test]
 fn test_chmod_dir() {
     setup();
