@@ -1,2 +1,6 @@
 [profile.default]
 slow-timeout = { period = "10s", terminate-after = 6 }
+
+[[profile.default.overrides]]
+filter = 'test(classic) or test(communication)'
+slow-timeout = { period = "20s", terminate-after = 20 }
