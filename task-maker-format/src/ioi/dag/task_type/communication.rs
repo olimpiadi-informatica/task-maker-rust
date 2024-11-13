@@ -13,11 +13,26 @@ use crate::{EvaluationData, SourceFile, Tag};
 
 /// The type of communication for the solution in a communication task.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, TypeScriptify, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
 pub enum UserIo {
     /// Communication is achieved by using stdin/stdout.
     StdIo,
     /// Communication is achieved by using the pipes passed in argv.
     FifoIo,
+}
+
+impl UserIo {
+    /// Used for deserialization.
+    /// Returns UserIo::StdIo.
+    pub fn std_io() -> Self {
+        UserIo::StdIo
+    }
+
+    /// Used for deserialization.
+    /// Returns UserIo::FifoIo.
+    pub fn fifo_io() -> Self {
+        UserIo::FifoIo
+    }
 }
 
 /// The internal data of a task of type `Batch`.

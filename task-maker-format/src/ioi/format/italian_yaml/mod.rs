@@ -382,7 +382,8 @@ struct TaskYAML {
     ///
     /// Can be either "std_io" for using stdin/stdout, or "fifo_io" for using pipes given in argv.
     /// Defaults to "fifo_io".
-    pub user_io: Option<String>,
+    #[serde(default = "UserIo::fifo_io")]
+    pub user_io: UserIo,
 
     /// Compatibility with cms, unused.
     pub score_mode: Option<String>,
@@ -437,7 +438,8 @@ struct TaskYAMLOrig {
     ///
     /// Can be either "std_io" for using stdin/stdout, or "fifo_io" for using pipes given in argv.
     /// Defaults to "fifo_io".
-    pub user_io: Option<String>,
+    #[serde(default = "UserIo::std_io")]
+    pub user_io: UserIo,
 }
 
 impl TaskYAMLOrig {
@@ -864,17 +866,10 @@ fn parse_communication_task_data(
     // Link the manager statically. This makes sure that it will work also outside this machine.
     manager.link_static();
 
-    let user_io = match yaml.user_io.as_deref() {
-        None => UserIo::FifoIo,
-        Some("std_io") => UserIo::StdIo,
-        Some("fifo_io") => UserIo::FifoIo,
-        Some(other) => bail!("Unsupported value \"{}\" for user_io in task.yaml", other),
-    };
-
     Ok(Some(TaskType::Communication(CommunicationTypeData {
         manager: Arc::new(manager),
         num_processes: yaml.num_processes.unwrap_or(1),
-        user_io,
+        user_io: yaml.user_io,
     })))
 }
 
