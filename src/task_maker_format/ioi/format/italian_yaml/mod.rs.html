@@ -916,11 +916,6 @@
 <a href="#916" id="916">916</a>
 <a href="#917" id="917">917</a>
 <a href="#918" id="918">918</a>
-<a href="#919" id="919">919</a>
-<a href="#920" id="920">920</a>
-<a href="#921" id="921">921</a>
-<a href="#922" id="922">922</a>
-<a href="#923" id="923">923</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! The `italian_yaml` format is defined by [`cms`](https://cms.readthedocs.io/en/v1.4/External%20contest%20formats.html#italian-import-format)
 //! and it's the most used format in the Italian Olympiads.
 //!
@@ -1305,7 +1300,8 @@
     ///
     /// Can be either "std_io" for using stdin/stdout, or "fifo_io" for using pipes given in argv.
     /// Defaults to "fifo_io".
-    </span><span class="kw">pub </span>user_io: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    </span><span class="attr">#[serde(default = <span class="string">"UserIo::fifo_io"</span>)]
+    </span><span class="kw">pub </span>user_io: UserIo,
 
     <span class="doccomment">/// Compatibility with cms, unused.
     </span><span class="kw">pub </span>score_mode: <span class="prelude-ty">Option</span>&lt;String&gt;,
@@ -1360,7 +1356,8 @@
     ///
     /// Can be either "std_io" for using stdin/stdout, or "fifo_io" for using pipes given in argv.
     /// Defaults to "fifo_io".
-    </span><span class="kw">pub </span>user_io: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    </span><span class="attr">#[serde(default = <span class="string">"UserIo::std_io"</span>)]
+    </span><span class="kw">pub </span>user_io: UserIo,
 }
 
 <span class="kw">impl </span>TaskYAMLOrig {
@@ -1787,17 +1784,10 @@
     <span class="comment">// Link the manager statically. This makes sure that it will work also outside this machine.
     </span>manager.link_static();
 
-    <span class="kw">let </span>user_io = <span class="kw">match </span>yaml.user_io.as_deref() {
-        <span class="prelude-val">None </span>=&gt; UserIo::FifoIo,
-        <span class="prelude-val">Some</span>(<span class="string">"std_io"</span>) =&gt; UserIo::StdIo,
-        <span class="prelude-val">Some</span>(<span class="string">"fifo_io"</span>) =&gt; UserIo::FifoIo,
-        <span class="prelude-val">Some</span>(other) =&gt; <span class="macro">bail!</span>(<span class="string">"Unsupported value \"{}\" for user_io in task.yaml"</span>, other),
-    };
-
     <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(TaskType::Communication(CommunicationTypeData {
         manager: Arc::new(manager),
         num_processes: yaml.num_processes.unwrap_or(<span class="number">1</span>),
-        user_io,
+        user_io: yaml.user_io,
     })))
 }
 
