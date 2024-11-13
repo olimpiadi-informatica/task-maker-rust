@@ -680,6 +680,8 @@
 <a href="#680" id="680">680</a>
 <a href="#681" id="681">681</a>
 <a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This mod contains the sandbox-related code. It interfaces with tabox creating the sandbox setup
 //! (directories and configuration) for an execution.
 
@@ -1285,8 +1287,10 @@
     <span class="kw">use </span>std::collections::HashMap;
     <span class="kw">use </span>std::path::Path;
 
-    <span class="kw">use </span>tabox::configuration::{DirectoryMount, SandboxConfiguration};
-    <span class="kw">use </span>tabox::syscall_filter::SyscallFilterAction;
+    <span class="attr">#[cfg(not(target_os = <span class="string">"macos"</span>))]
+    </span><span class="kw">use </span>tabox::configuration::{DirectoryMount, SandboxConfiguration};
+    <span class="attr">#[cfg(not(target_os = <span class="string">"macos"</span>))]
+    </span><span class="kw">use </span>tabox::syscall_filter::SyscallFilterAction;
 
     <span class="kw">use </span>task_maker_dag::{Execution, ExecutionCommand};
 
