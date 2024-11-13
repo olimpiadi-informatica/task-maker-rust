@@ -122,6 +122,8 @@ impl TestInterface {
         let path = format!("--task-dir={}", path);
         args.push(&path);
         args.push("--ui=silent");
+        args.push("--num-cores=1");
+        args.push("--extra-time=60");
         if !cache {
             args.push("--no-cache");
         }

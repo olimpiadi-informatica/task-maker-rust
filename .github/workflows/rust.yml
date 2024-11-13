@@ -5,11 +5,15 @@ on: [push, pull_request]
 jobs:
   clippy:
     name: Test and Clippy
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Deps
+        if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt update
           sudo apt install -yy libseccomp-dev build-essential fpc
@@ -35,7 +39,7 @@ jobs:
       - name: cargo nextest run (tests)
         env:
           RUST_BACKTRACE: 1
-        run: cargo nextest run --all
+        run: cargo nextest run --workspace --no-fail-fast
 
       - name: cargo clippy
         run: tools/clippy.sh

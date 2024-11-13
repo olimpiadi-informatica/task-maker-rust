@@ -603,7 +603,9 @@ mod tests {
     use std::collections::HashMap;
     use std::path::Path;
 
+    #[cfg(not(target_os = "macos"))]
     use tabox::configuration::{DirectoryMount, SandboxConfiguration};
+    #[cfg(not(target_os = "macos"))]
     use tabox::syscall_filter::SyscallFilterAction;
 
     use task_maker_dag::{Execution, ExecutionCommand};

@@ -1,5 +1,4 @@
 #include <errno.h>
-#include <malloc.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,7 +13,7 @@
 
 char *buffer;
 
-int main(int argc, char *argv[]) {
+int main() {
     char *p;
     int pagesize;
 
@@ -23,8 +22,7 @@ int main(int argc, char *argv[]) {
 
     /* Allocate a buffer aligned on a page boundary;
         initial protection is PROT_READ | PROT_WRITE */
-    buffer = memalign(pagesize, 4 * pagesize);
-    if (buffer == NULL) handle_error("memalign");
+    if (posix_memalign((void**)&buffer, pagesize, 4 * pagesize)) handle_error("memalign");
     if (mprotect(buffer + pagesize * 2, pagesize, PROT_READ) == -1)
         handle_error("mprotect");
 
