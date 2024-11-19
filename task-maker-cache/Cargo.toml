@@ -9,7 +9,7 @@ task-maker-dag = { path = "../task-maker-dag" }
 task-maker-store = { path = "../task-maker-store" }
 
 # General iterator utilities
-itertools = "0.10"
+itertools = "0.13"
 # Serialization/Deserialization
 serde = { version = "1.0", features = ["derive"] }
 bincode = "1.2"
