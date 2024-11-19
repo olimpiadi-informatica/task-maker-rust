@@ -11,7 +11,7 @@ task-maker-cache = { path = "../task-maker-cache" }
 
 # Generic error utilities
 anyhow = { version = "1.0", features = ["backtrace"] }
-thiserror = "1.0"
+thiserror = "2.0"
 # Serialization/Deserialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
