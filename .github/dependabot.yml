@@ -10,9 +10,7 @@ updates:
     schedule:
       interval: "weekly"
   - package-ecosystem: "cargo"
-    directories:
-      - "/"
-      - "/task-maker-*"
+    directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
     ignore:
