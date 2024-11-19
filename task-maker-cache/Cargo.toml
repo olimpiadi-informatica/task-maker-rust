@@ -9,16 +9,16 @@ task-maker-dag = { path = "../task-maker-dag" }
 task-maker-store = { path = "../task-maker-store" }
 
 # General iterator utilities
-itertools = "0.10"
+itertools = { workspace = true }
 # Serialization/Deserialization
-serde = { version = "1.0", features = ["derive"] }
-bincode = "1.2"
+serde = { workspace = true, features = ["derive"] }
+bincode = { workspace = true }
 # Generic error utilities
-anyhow = { version = "1.0", features = ["backtrace"] }
+anyhow = { workspace = true, features = ["backtrace"] }
 # Logging
-log = "0.4"
+log = { workspace = true }
 # Compile time string format
-const_format = "0.2"
+const_format = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3.3"
+tempfile = { workspace = true }

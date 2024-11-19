@@ -5,8 +5,8 @@ edition = "2021"
 
 [dependencies]
 # Serialization/Deserialization
-serde = { version = "1.0", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 # Utilities for writing to the terminal with colors
-colored = "2"
+colored = { workspace = true }
 # Generic error utilities
-anyhow = "1"
+anyhow = { workspace = true }
