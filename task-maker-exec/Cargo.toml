@@ -23,7 +23,7 @@ uuid = { version = "1.1", features = ["v4", "fast-rng", "serde"] }
 # Temporary directory for sandboxes and FIFO directory
 tempfile = "3.3"
 # Resolve executable names in $PATH
-which = "4.2"
+which = "7.0"
 # General iterator utilities
 itertools = "0.10"
 # defer! macro
