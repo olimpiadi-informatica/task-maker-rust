@@ -86,7 +86,7 @@ rlimit = "0.10"
 # Geenrating random numbers (the seed in find-bad-case tool)
 fastrand = "2.0"
 # Curses UI
-ratatui = { version = "0.28", default-features = false, features = ["termion"] }
+ratatui = { version = "0.29", default-features = false, features = ["termion"] }
 
 # Typescript definition generation
 typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs"}
