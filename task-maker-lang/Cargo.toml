@@ -16,7 +16,7 @@ anyhow = { version = "1.0", features = ["backtrace"] }
 # Global constants
 lazy_static = "1.3"
 # Resolve executable names in $PATH
-which = "4.2"
+which = "7.0"
 # Split command line arguments
 shell-words = "1.1"
 # Typescript definition generation
