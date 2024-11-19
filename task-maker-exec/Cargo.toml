@@ -25,7 +25,7 @@ tempfile = "3.3"
 # Resolve executable names in $PATH
 which = "4.2"
 # General iterator utilities
-itertools = "0.10"
+itertools = "0.13"
 # defer! macro
 scopeguard = "1.0"
 # Sandbox
