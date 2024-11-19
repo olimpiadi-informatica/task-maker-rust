@@ -573,19 +573,6 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cd405aab171cb85d6735e5c8d9db038c17d3ca007a4d2c25f337935c3d90580"
-dependencies = [
- "humantime",
- "is-terminal",
- "log",
- "regex",
- "termcolor",
-]
-
-[[package]]
-name = "env_logger"
 version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13fa619b91fb2381732789fc5de83b45675e882f66623b7d8cb4f643017018d"
@@ -633,15 +620,6 @@ dependencies = [
  "quote 1.0.37",
  "syn 1.0.109",
  "synstructure 0.12.6",
-]
-
-[[package]]
-name = "fastrand"
-version = "1.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e51093e27b0797c359783294ca4f0a911c270184cb10f85783b118614a1501be"
-dependencies = [
- "instant",
 ]
 
 [[package]]
@@ -927,15 +905,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "instant"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
-dependencies = [
- "cfg-if 1.0.0",
-]
-
-[[package]]
 name = "inventory"
 version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -963,15 +932,6 @@ name = "is_terminal_polyfill"
 version = "1.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
-
-[[package]]
-name = "itertools"
-version = "0.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
 
 [[package]]
 name = "itertools"
@@ -1414,7 +1374,7 @@ dependencies = [
  "cassowary",
  "compact_str",
  "instability",
- "itertools 0.13.0",
+ "itertools",
  "lru",
  "paste",
  "strum",
@@ -1787,7 +1747,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "const_format",
- "itertools 0.10.5",
+ "itertools",
  "log",
  "serde",
  "task-maker-dag",
@@ -1826,8 +1786,8 @@ dependencies = [
  "blake3",
  "crossbeam-channel",
  "ductile",
- "env_logger 0.10.2",
- "itertools 0.10.5",
+ "env_logger",
+ "itertools",
  "log",
  "nix 0.26.4",
  "pretty_assertions",
@@ -1842,7 +1802,7 @@ dependencies = [
  "thiserror",
  "typescript-definitions",
  "uuid",
- "which 4.4.2",
+ "which",
 ]
 
 [[package]]
@@ -1855,10 +1815,10 @@ dependencies = [
  "askama_derive",
  "blake3",
  "derivative",
- "fastrand 1.9.0",
+ "fastrand",
  "glob",
  "inventory",
- "itertools 0.10.5",
+ "itertools",
  "lazy_static",
  "log",
  "mime_guess",
@@ -1902,7 +1862,7 @@ dependencies = [
  "task-maker-exec",
  "tempfile",
  "typescript-definitions",
- "which 4.4.2",
+ "which",
 ]
 
 [[package]]
@@ -1916,9 +1876,9 @@ dependencies = [
  "clap_complete",
  "ctrlc",
  "directories",
- "env_logger 0.11.5",
- "fastrand 2.2.0",
- "itertools 0.13.0",
+ "env_logger",
+ "fastrand",
+ "itertools",
  "lazy_static",
  "log",
  "num_cpus",
@@ -1939,7 +1899,7 @@ dependencies = [
  "typescript-definitions",
  "url",
  "walkdir",
- "which 7.0.0",
+ "which",
  "whoami",
 ]
 
@@ -1965,7 +1925,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28cce251fcbc87fac86a866eeb0d6c2d536fc16d06f184bb61aeae11aa4cee0c"
 dependencies = [
  "cfg-if 1.0.0",
- "fastrand 2.2.0",
+ "fastrand",
  "once_cell",
  "rustix",
  "windows-sys 0.59.0",
@@ -2389,7 +2349,7 @@ version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3644627a5af5fa321c95b9b235a72fd24cd29c648c2c379431e6628655627bf"
 dependencies = [
- "itertools 0.13.0",
+ "itertools",
  "unicode-segmentation",
  "unicode-width",
 ]
@@ -2549,18 +2509,6 @@ checksum = "f6488b90108c040df0fe62fa815cbdee25124641df01814dd7282749234c6112"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "which"
-version = "4.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87ba24419a2078cd2b0f2ede2691b6c66d8e47836da3b6db8265ebad47afbfc7"
-dependencies = [
- "either",
- "home",
- "once_cell",
- "rustix",
 ]
 
 [[package]]
