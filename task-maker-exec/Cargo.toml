@@ -31,7 +31,7 @@ scopeguard = "1.0"
 # Sandbox
 tabox = "1"
 # For killing processes and making FIFOs
-nix = "0.26"
+nix = "0.29"
 # In-memory and remote channels
 ductile = "0.3"
 # Key Derivation Function from a password
