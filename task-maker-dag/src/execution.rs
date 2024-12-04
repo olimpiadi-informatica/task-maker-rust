@@ -16,7 +16,6 @@ pub type ExecutionUuid = Uuid;
 /// The identifier of a worker, it's globally unique and identifies the worker during a single
 /// connection. It is used to associate the jobs to the workers which runs the executions. The
 /// underlying executor may provide more information about a worker using this id.
-
 pub type WorkerUuid = Uuid;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) starts.

@@ -146,7 +146,7 @@ where
     }
 }
 
-impl<'a, T> Iterator for ChannelFileIterator<'a, T>
+impl<T> Iterator for ChannelFileIterator<'_, T>
 where
     T: 'static + Send + Sync + DeserializeOwned,
 {

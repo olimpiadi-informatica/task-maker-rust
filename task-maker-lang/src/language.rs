@@ -221,7 +221,7 @@ impl<'l, 'c> SimpleCompiledLanguageBuilder<'l, 'c> {
     }
 }
 
-impl<'l, 'c> CompiledLanguageBuilder for SimpleCompiledLanguageBuilder<'l, 'c> {
+impl CompiledLanguageBuilder for SimpleCompiledLanguageBuilder<'_, '_> {
     fn use_grader(&mut self, grader_map: &GraderMap) {
         if let Some(grader) = grader_map.get_compilation_deps(self.language) {
             self.grader = Some(grader);

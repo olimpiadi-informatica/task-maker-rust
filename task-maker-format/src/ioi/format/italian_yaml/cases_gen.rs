@@ -806,7 +806,7 @@ mod tests {
         fn has_error(&mut self, message: &str);
     }
 
-    impl<'s> ErrorAssertion for Spec<'s, Error> {
+    impl ErrorAssertion for Spec<'_, Error> {
         fn has_error(&mut self, message: &str) {
             let error = format!("{:?}", self.subject);
             if !error.contains(message) {
