@@ -22,8 +22,12 @@ impl SanityCheck for StatementPresent {
     }
 
     fn pre_hook(&self, task: &TerryTask, eval: &mut EvaluationData) -> Result<(), Error> {
-        if !task.path.join("statement/statement.md").exists() {
-            eval.add_diagnostic(Diagnostic::error("statement/statement.md does not exist"))?;
+        if !task.path.join("statement/statement.md").exists()
+            && !task.path.join("statement/statement.in.md").exists()
+        {
+            eval.add_diagnostic(Diagnostic::error(
+                "Neither statement/statement.md nor statement/statement.in.md exists",
+            ))?;
         }
         Ok(())
     }

@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use task_maker_dag::{Execution, ExecutionCommand, File};
+use task_maker_diagnostics::Diagnostic;
 use typescript_definitions::TypeScriptify;
 
-use crate::{EvaluationData, Tag};
+use crate::{EvaluationData, Tag, UISender};
 use anyhow::Error;
 
 /// A statement is a markdown template together with subtasks data
@@ -59,6 +60,19 @@ impl Statement {
                 "output.md",
             ]);
         }
+
+        let sender = eval.sender.clone();
+
+        exec.capture_stderr(1024);
+        eval.dag.on_execution_done(&exec.uuid, move |res| {
+            if !res.status.is_success() {
+                sender.add_diagnostic(Diagnostic::error(format!(
+                    "Failed to generate statement.md. Generation stderr: {}",
+                    String::from_utf8_lossy(&res.stderr.expect("Failed to capture stderr"))
+                )))?;
+            }
+            Ok(())
+        });
 
         eval.dag.add_execution(exec);
         eval.dag.write_file_to(output, &self.output, false);
