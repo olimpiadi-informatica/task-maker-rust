@@ -112,6 +112,7 @@ impl FinishUI {
             self.print_stderr(&solution.checker_result);
 
             self.print_feedback(solution);
+            self.print_subtasks(solution);
 
             println!();
         }
@@ -132,16 +133,16 @@ impl FinishUI {
     }
 
     fn print_feedback(&mut self, solution: &SolutionState) {
-        let outcome = if let Some(Ok(outcome)) = &solution.outcome {
-            outcome
-        } else {
+        let Some(Ok(outcome)) = &solution.outcome else {
             return;
         };
-        for (index, (val, feedback)) in outcome
-            .validation
-            .cases
+
+        let validation_results = &outcome.validation.cases;
+        let evaluation_results = &outcome.feedback.cases;
+
+        for (index, (val, feedback)) in validation_results
             .iter()
-            .zip(outcome.feedback.cases.iter())
+            .zip(evaluation_results)
             .enumerate()
         {
             print!("#{:<3}  ", index);
@@ -162,6 +163,60 @@ impl FinishUI {
             if let Some(message) = &feedback.message {
                 print!(" | {}", message);
             }
+            println!();
+        }
+    }
+
+    fn print_subtasks(&mut self, solution: &SolutionState) {
+        let Some(Ok(outcome)) = &solution.outcome else {
+            return;
+        };
+
+        let Some(subtasks) = &outcome.subtasks else {
+            return;
+        };
+
+        let evaluation_results = &outcome.feedback.cases;
+
+        for (index, subtask) in subtasks.iter().enumerate() {
+            print!("Subtask #{:<2}  ", index);
+
+            if abs_diff_eq!(subtask.score, 0.0) {
+                cwrite!(
+                    self,
+                    RED,
+                    "{:>5.2} / {:>5.2}",
+                    subtask.score,
+                    subtask.max_score
+                );
+            } else if abs_diff_eq!(subtask.score, subtask.max_score) {
+                cwrite!(
+                    self,
+                    GREEN,
+                    "{:>5.2} / {:>5.2}",
+                    subtask.score,
+                    subtask.max_score
+                );
+            } else {
+                cwrite!(
+                    self,
+                    YELLOW,
+                    "{:>5.2} / {:>5.2}",
+                    subtask.score,
+                    subtask.max_score
+                );
+            }
+
+            print!(" | ");
+
+            for &testcase in &subtask.testcases {
+                if evaluation_results[testcase].correct {
+                    cwrite!(self, GREEN, "{} ", testcase);
+                } else {
+                    cwrite!(self, RED, "{} ", testcase);
+                }
+            }
+
             println!();
         }
     }

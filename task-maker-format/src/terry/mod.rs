@@ -72,6 +72,8 @@ pub struct SolutionOutcome {
     pub validation: SolutionValidation,
     /// The feedback outcome of the solution.
     pub feedback: SolutionFeedback,
+    /// The subtasks used for scoring
+    pub subtasks: Option<Vec<Subtask>>,
 }
 
 /// The validation part of the outcome of a solution.
@@ -129,6 +131,14 @@ pub struct SolutionAlert {
     pub severity: String,
     /// The content of the alert.
     pub message: String,
+}
+
+/// A subtask with its score and testcases
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+pub struct Subtask {
+    max_score: f64,
+    score: f64,
+    testcases: Vec<usize>,
 }
 
 impl TerryTask {
