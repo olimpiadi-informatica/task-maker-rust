@@ -15,7 +15,7 @@ pub struct TerryStatementOpt {
     #[clap(long = "statement-path", short = 's')]
     pub statement_path: Option<String>,
 
-    /// Path to subtasks files (none if omitted)
+    /// Path to subtasks file (none if omitted)
     #[clap(long = "subtasks-path", short = 't')]
     pub subtasks_path: Option<String>,
 

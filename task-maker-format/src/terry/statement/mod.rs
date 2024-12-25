@@ -7,10 +7,10 @@ use typescript_definitions::TypeScriptify;
 use crate::{EvaluationData, Tag, UISender};
 use anyhow::Error;
 
-/// A statement is a markdown template together with subtasks data
+/// A statement is a markdown template together with subtask data
 #[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
 pub struct Statement {
-    /// The path of the statement template
+    /// The path to the statement template
     pub path: PathBuf,
     /// The subtasks if they exist
     pub subtasks: Option<PathBuf>,
