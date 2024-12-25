@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["CaseStatus"],"struct":["SolutionAlert","SolutionFeedback","SolutionFeedbackCase","SolutionOutcome","SolutionValidation","SolutionValidationCase","TerryTask","TerryTaskInfo"],"type":["Seed"]};
+window.SIDEBAR_ITEMS = {"enum":["CaseStatus"],"struct":["SolutionAlert","SolutionFeedback","SolutionFeedbackCase","SolutionOutcome","SolutionValidation","SolutionValidationCase","Subtask","TerryTask","TerryTaskInfo"],"type":["Seed"]};

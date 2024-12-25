@@ -28,7 +28,11 @@
 <a href="#27" id="27">27</a>
 <a href="#28" id="28">28</a>
 <a href="#29" id="29">29</a>
-<a href="#30" id="30">30</a></pre></div><pre class="rust"><code><span class="kw">use </span>anyhow::Error;
+<a href="#30" id="30">30</a>
+<a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a></pre></div><pre class="rust"><code><span class="kw">use </span>anyhow::Error;
 <span class="kw">use </span>task_maker_diagnostics::Diagnostic;
 
 <span class="kw">use </span><span class="kw">crate</span>::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
@@ -52,8 +56,12 @@
     }
 
     <span class="kw">fn </span>pre_hook(<span class="kw-2">&amp;</span><span class="self">self</span>, task: <span class="kw-2">&amp;</span>TerryTask, eval: <span class="kw-2">&amp;mut </span>EvaluationData) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
-        <span class="kw">if </span>!task.path.join(<span class="string">"statement/statement.md"</span>).exists() {
-            eval.add_diagnostic(Diagnostic::error(<span class="string">"statement/statement.md does not exist"</span>))<span class="question-mark">?</span>;
+        <span class="kw">if </span>!task.path.join(<span class="string">"statement/statement.md"</span>).exists()
+            &amp;&amp; !task.path.join(<span class="string">"statement/statement.in.md"</span>).exists()
+        {
+            eval.add_diagnostic(Diagnostic::error(
+                <span class="string">"Neither statement/statement.md nor statement/statement.in.md exists"</span>,
+            ))<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }

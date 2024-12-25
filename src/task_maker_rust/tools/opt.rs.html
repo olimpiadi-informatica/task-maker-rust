@@ -61,7 +61,10 @@
 <a href="#60" id="60">60</a>
 <a href="#61" id="61">61</a>
 <a href="#62" id="62">62</a>
-<a href="#63" id="63">63</a></pre></div><pre class="rust"><code><span class="kw">use </span>clap::Parser;
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a></pre></div><pre class="rust"><code><span class="kw">use </span>clap::Parser;
 
 <span class="kw">use </span><span class="kw">crate</span>::tools::add_solution_checks::AddSolutionChecksOpt;
 <span class="kw">use </span><span class="kw">crate</span>::tools::booklet::BookletOpt;
@@ -74,6 +77,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::tools::sandbox::SandboxOpt;
 <span class="kw">use </span><span class="kw">crate</span>::tools::server::ServerOpt;
 <span class="kw">use </span><span class="kw">crate</span>::tools::task_info::TaskInfoOpt;
+<span class="kw">use </span><span class="kw">crate</span>::tools::terry_statement::TerryStatementOpt;
 <span class="kw">use </span><span class="kw">crate</span>::tools::worker::WorkerOpt;
 <span class="kw">use </span><span class="kw">crate</span>::LoggerOpt;
 
@@ -112,6 +116,8 @@
     </span>Booklet(BookletOpt),
     <span class="doccomment">/// Copy statements and attachments of a contest in a separate directory
     </span>CopyCompetitionFiles(CopyCompetitionFilesOpt),
+    <span class="doccomment">/// Build terry statements by adding the subtask table
+    </span>TerryStatement(TerryStatementOpt),
     <span class="doccomment">/// Fuzz the checker of a task.
     </span>FuzzChecker(FuzzCheckerOpt),
     <span class="doccomment">/// Generate and search for an input file that make a solution fail.

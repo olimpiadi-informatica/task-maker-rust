@@ -261,7 +261,27 @@
 <a href="#260" id="260">260</a>
 <a href="#261" id="261">261</a>
 <a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a></pre></div><pre class="rust"><code><span class="doccomment">//! The Terry task format.
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a></pre></div><pre class="rust"><code><span class="doccomment">//! The Terry task format.
 </span><span class="kw">use </span>std::collections::HashSet;
 <span class="kw">use </span>std::path::{Path, PathBuf};
 <span class="kw">use </span>std::sync::Arc;
@@ -279,6 +299,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::terry::curses_ui::CursesUI;
 <span class="kw">use </span><span class="kw">crate</span>::terry::dag::{Checker, InputGenerator, InputValidator, Solution};
 <span class="kw">use </span><span class="kw">crate</span>::terry::format::parse_task;
+<span class="kw">use </span><span class="kw">crate</span>::terry::statement::Statement;
 <span class="kw">use </span><span class="kw">crate</span>::terry::ui_state::UIState;
 <span class="kw">use </span><span class="kw">crate</span>::ui::{JsonUI, PrintUI, RawUI, SilentUI, UIMessage, UIType, UI};
 <span class="kw">use crate</span>::{list_files, EvaluationConfig, EvaluationData, SourceFile, TaskInfo, UISender};
@@ -288,6 +309,7 @@
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>finish_ui;
 <span class="kw">mod </span>format;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>sanity_checks;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>statement;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>task_info;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>ui_state;
 
@@ -306,6 +328,9 @@
     <span class="doccomment">/// The maximum score for this task.
     </span><span class="kw">pub </span>max_score: f64,
 
+    <span class="doccomment">/// The statement for this task
+    </span><span class="attr">#[serde(skip_serializing)]
+    </span><span class="kw">pub </span>statement: <span class="prelude-ty">Option</span>&lt;Statement&gt;,
     <span class="doccomment">/// The generator of input files of this task.
     </span><span class="attr">#[serde(skip_serializing)]
     </span><span class="kw">pub </span>generator: InputGenerator,
@@ -335,6 +360,8 @@
     </span><span class="kw">pub </span>validation: SolutionValidation,
     <span class="doccomment">/// The feedback outcome of the solution.
     </span><span class="kw">pub </span>feedback: SolutionFeedback,
+    <span class="doccomment">/// The subtasks used for scoring
+    </span><span class="kw">pub </span>subtasks: <span class="prelude-ty">Option</span>&lt;Vec&lt;Subtask&gt;&gt;,
 }
 
 <span class="doccomment">/// The validation part of the outcome of a solution.
@@ -392,6 +419,14 @@
     </span><span class="kw">pub </span>severity: String,
     <span class="doccomment">/// The content of the alert.
     </span><span class="kw">pub </span>message: String,
+}
+
+<span class="doccomment">/// A subtask with its score and testcases
+</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+</span><span class="kw">pub struct </span>Subtask {
+    max_score: f64,
+    score: f64,
+    testcases: Vec&lt;usize&gt;,
 }
 
 <span class="kw">impl </span>TerryTask {
@@ -482,6 +517,11 @@
                 },
             )<span class="question-mark">?</span>;
         }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(statement) = <span class="kw-2">&amp;</span><span class="self">self</span>.statement {
+            statement.generate_and_bind(eval)<span class="question-mark">?</span>;
+        }
+
         <span class="self">self</span>.sanity_checks.pre_hook(<span class="self">self</span>, eval)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(())
     }

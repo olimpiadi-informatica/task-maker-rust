@@ -84,7 +84,33 @@
 <a href="#83" id="83">83</a>
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fs;
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fs;
 <span class="kw">use </span>std::path::Path;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -93,6 +119,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::terry::dag::{Checker, InputGenerator, InputValidator};
 <span class="kw">use </span><span class="kw">crate</span>::terry::sanity_checks::get_sanity_checks;
+<span class="kw">use </span><span class="kw">crate</span>::terry::statement::Statement;
 <span class="kw">use </span><span class="kw">crate</span>::terry::TerryTask;
 <span class="kw">use crate</span>::{find_source_file, EvaluationConfig, SourceFile, WriteBinTo};
 
@@ -121,6 +148,7 @@
     <span class="kw">let </span>task_dir = task_dir.as_ref();
     <span class="kw">let </span>yaml: TaskYAML = serde_yaml::from_reader(fs::File::open(task_dir.join(<span class="string">"task.yaml"</span>))<span class="question-mark">?</span>)<span class="question-mark">?</span>;
 
+    <span class="kw">let </span>statement = get_statement_template(task_dir)<span class="question-mark">?</span>;
     <span class="kw">let </span>generator = get_manager(task_dir, <span class="string">"generator"</span>)<span class="question-mark">?
         </span>.map(InputGenerator::new)
         .ok_or_else(|| <span class="macro">anyhow!</span>(<span class="string">"No generator found in managers/"</span>))<span class="question-mark">?</span>;
@@ -135,6 +163,7 @@
         name: yaml.name,
         description: yaml.description,
         max_score: yaml.max_score,
+        statement,
         generator,
         validator,
         checker,
@@ -147,6 +176,29 @@
                 .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
         )),
     })
+}
+
+<span class="kw">fn </span>get_statement_template(task_dir: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Statement&gt;, Error&gt; {
+    <span class="kw">let </span>path = task_dir.join(<span class="string">"statement/statement.in.md"</span>);
+
+    <span class="kw">if </span>!path.exists() {
+        <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
+    }
+
+    <span class="kw">let </span>subtasks_path = task_dir.join(<span class="string">"managers/subtasks.yaml"</span>);
+    <span class="kw">let </span>subtasks = <span class="kw">if </span>subtasks_path.exists() {
+        <span class="prelude-val">Some</span>(subtasks_path)
+    } <span class="kw">else </span>{
+        <span class="prelude-val">None
+    </span>};
+
+    <span class="kw">let </span>output = task_dir.join(<span class="string">"statement/statement.md"</span>);
+
+    <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(Statement {
+        path,
+        subtasks,
+        output,
+    }))
 }
 
 <span class="doccomment">/// Search the specified manager in the managers/ folder of the task, returning the `SourceFile` if
