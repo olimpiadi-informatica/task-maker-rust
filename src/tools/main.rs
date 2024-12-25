@@ -13,6 +13,7 @@ use task_maker_rust::tools::reset::main_reset;
 use task_maker_rust::tools::sandbox::main_sandbox;
 use task_maker_rust::tools::server::main_server;
 use task_maker_rust::tools::task_info::main_task_info;
+use task_maker_rust::tools::terry_statement::main_terry_statement;
 use task_maker_rust::tools::typescriptify::main_typescriptify;
 use task_maker_rust::tools::worker::main_worker;
 
@@ -30,6 +31,7 @@ fn main() {
         Tool::Sandbox(opt) => main_sandbox(opt),
         Tool::TaskInfo(opt) => main_task_info(opt),
         Tool::Booklet(opt) => main_booklet(opt, base_opt.logger),
+        Tool::TerryStatement(opt) => main_terry_statement(opt, base_opt.logger),
         Tool::CopyCompetitionFiles(opt) => copy_competition_files_main(opt, base_opt.logger),
         Tool::FuzzChecker(opt) => main_fuzz_checker(opt),
         Tool::FindBadCase(opt) => main_find_bad_case(opt),

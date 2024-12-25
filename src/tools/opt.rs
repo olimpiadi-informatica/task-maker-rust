@@ -11,6 +11,7 @@ use crate::tools::reset::ResetOpt;
 use crate::tools::sandbox::SandboxOpt;
 use crate::tools::server::ServerOpt;
 use crate::tools::task_info::TaskInfoOpt;
+use crate::tools::terry_statement::TerryStatementOpt;
 use crate::tools::worker::WorkerOpt;
 use crate::LoggerOpt;
 
@@ -49,6 +50,8 @@ pub enum Tool {
     Booklet(BookletOpt),
     /// Copy statements and attachments of a contest in a separate directory
     CopyCompetitionFiles(CopyCompetitionFilesOpt),
+    /// Build terry statements by adding the subtask table
+    TerryStatement(TerryStatementOpt),
     /// Fuzz the checker of a task.
     FuzzChecker(FuzzCheckerOpt),
     /// Generate and search for an input file that make a solution fail.

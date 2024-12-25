@@ -43,6 +43,9 @@ pub struct TerryTask {
     /// The maximum score for this task.
     pub max_score: f64,
 
+    /// The statement for this task
+    #[serde(skip_serializing)]
+    pub statement: Option<Statement>,
     /// The generator of input files of this task.
     #[serde(skip_serializing)]
     pub generator: InputGenerator,
@@ -141,6 +144,26 @@ pub struct Subtask {
     testcases: Vec<usize>,
 }
 
+/// A subtask has a maximum score and a list of testcases
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+pub struct StatementSubtask {
+    /// The maximum score on the subtask
+    pub max_score: f64,
+    /// The additional constraints, as seen by the contestant
+    pub constraints: String,
+    /// The testcases in the subtask
+    pub testcases: Vec<usize>,
+}
+
+/// A statement is a markdown template together with subtasks data
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+pub struct Statement {
+    /// The content of the statement template
+    pub path: PathBuf,
+    /// The subtasks if they exist
+    pub subtasks: Option<Vec<StatementSubtask>>,
+}
+
 impl TerryTask {
     /// Try to make a `Task` from the specified path. Will return `Err` if the format of the task
     /// is not Terry or if the task is corrupted and cannot be parsed.
@@ -229,6 +252,7 @@ impl TerryTask {
                 },
             )?;
         }
+
         self.sanity_checks.pre_hook(self, eval)?;
         Ok(())
     }
