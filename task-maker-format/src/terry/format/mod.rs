@@ -2,12 +2,13 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Context, Error};
+use anyhow::{anyhow, bail, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::terry::dag::{Checker, InputGenerator, InputValidator};
 use crate::terry::sanity_checks::get_sanity_checks;
-use crate::terry::{Statement, TerryTask};
+use crate::terry::statement::Statement;
+use crate::terry::TerryTask;
 use crate::{find_source_file, EvaluationConfig, SourceFile, WriteBinTo};
 
 lazy_static! {
@@ -73,27 +74,13 @@ fn get_statement_template(task_dir: &Path) -> Result<Option<Statement>, Error> {
     }
 
     let subtasks_path = task_dir.join("managers/subtasks.yaml");
+    let subtasks = if subtasks_path.exists() {
+        Some(subtasks_path)
+    } else {
+        None
+    };
 
-    if !subtasks_path.exists() {
-        return Ok(Some(Statement {
-            path,
-            subtasks: None,
-        }));
-    }
-
-    let subtasks =
-        serde_yaml::from_str(&fs::read_to_string(&subtasks_path).with_context(|| {
-            format!(
-                "While trying to read subtasks at {}",
-                subtasks_path.display()
-            )
-        })?)
-        .context("While trying to decode subtasks")?;
-
-    Ok(Some(Statement {
-        path,
-        subtasks: Some(subtasks),
-    }))
+    Ok(Some(Statement { path, subtasks }))
 }
 
 /// Search the specified manager in the managers/ folder of the task, returning the `SourceFile` if

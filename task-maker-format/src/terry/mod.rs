@@ -16,6 +16,7 @@ use crate::solution::SolutionInfo;
 use crate::terry::curses_ui::CursesUI;
 use crate::terry::dag::{Checker, InputGenerator, InputValidator, Solution};
 use crate::terry::format::parse_task;
+use crate::terry::statement::Statement;
 use crate::terry::ui_state::UIState;
 use crate::ui::{JsonUI, PrintUI, RawUI, SilentUI, UIMessage, UIType, UI};
 use crate::{list_files, EvaluationConfig, EvaluationData, SourceFile, TaskInfo, UISender};
@@ -25,6 +26,7 @@ mod dag;
 pub(crate) mod finish_ui;
 mod format;
 pub(crate) mod sanity_checks;
+pub(crate) mod statement;
 pub(crate) mod task_info;
 pub(crate) mod ui_state;
 
@@ -142,26 +144,6 @@ pub struct Subtask {
     max_score: f64,
     score: f64,
     testcases: Vec<usize>,
-}
-
-/// A subtask has a maximum score and a list of testcases
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
-pub struct StatementSubtask {
-    /// The maximum score on the subtask
-    pub max_score: f64,
-    /// The additional constraints, as seen by the contestant
-    pub constraints: String,
-    /// The testcases in the subtask
-    pub testcases: Vec<usize>,
-}
-
-/// A statement is a markdown template together with subtasks data
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
-pub struct Statement {
-    /// The content of the statement template
-    pub path: PathBuf,
-    /// The subtasks if they exist
-    pub subtasks: Option<Vec<StatementSubtask>>,
 }
 
 impl TerryTask {
