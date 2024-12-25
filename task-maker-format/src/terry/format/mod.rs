@@ -80,7 +80,13 @@ fn get_statement_template(task_dir: &Path) -> Result<Option<Statement>, Error> {
         None
     };
 
-    Ok(Some(Statement { path, subtasks }))
+    let output = task_dir.join("statement/statement.md");
+
+    Ok(Some(Statement {
+        path,
+        subtasks,
+        output,
+    }))
 }
 
 /// Search the specified manager in the managers/ folder of the task, returning the `SourceFile` if

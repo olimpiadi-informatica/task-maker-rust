@@ -235,6 +235,10 @@ impl TerryTask {
             )?;
         }
 
+        if let Some(statement) = &self.statement {
+            statement.generate_and_bind(eval)?;
+        }
+
         self.sanity_checks.pre_hook(self, eval)?;
         Ok(())
     }
