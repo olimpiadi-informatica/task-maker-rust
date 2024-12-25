@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::terry::dag::{Checker, InputGenerator, InputValidator};
 use crate::terry::sanity_checks::get_sanity_checks;
+use crate::terry::statement::Statement;
 use crate::terry::TerryTask;
 use crate::{find_source_file, EvaluationConfig, SourceFile, WriteBinTo};
 
@@ -35,6 +36,7 @@ pub fn parse_task<P: AsRef<Path>>(
     let task_dir = task_dir.as_ref();
     let yaml: TaskYAML = serde_yaml::from_reader(fs::File::open(task_dir.join("task.yaml"))?)?;
 
+    let statement = get_statement_template(task_dir)?;
     let generator = get_manager(task_dir, "generator")?
         .map(InputGenerator::new)
         .ok_or_else(|| anyhow!("No generator found in managers/"))?;
@@ -49,6 +51,7 @@ pub fn parse_task<P: AsRef<Path>>(
         name: yaml.name,
         description: yaml.description,
         max_score: yaml.max_score,
+        statement,
         generator,
         validator,
         checker,
@@ -61,6 +64,29 @@ pub fn parse_task<P: AsRef<Path>>(
                 .collect::<Vec<_>>(),
         )),
     })
+}
+
+fn get_statement_template(task_dir: &Path) -> Result<Option<Statement>, Error> {
+    let path = task_dir.join("statement/statement.in.md");
+
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let subtasks_path = task_dir.join("managers/subtasks.yaml");
+    let subtasks = if subtasks_path.exists() {
+        Some(subtasks_path)
+    } else {
+        None
+    };
+
+    let output = task_dir.join("statement/statement.md");
+
+    Ok(Some(Statement {
+        path,
+        subtasks,
+        output,
+    }))
 }
 
 /// Search the specified manager in the managers/ folder of the task, returning the `SourceFile` if

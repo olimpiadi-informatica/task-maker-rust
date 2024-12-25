@@ -16,6 +16,7 @@ use crate::solution::SolutionInfo;
 use crate::terry::curses_ui::CursesUI;
 use crate::terry::dag::{Checker, InputGenerator, InputValidator, Solution};
 use crate::terry::format::parse_task;
+use crate::terry::statement::Statement;
 use crate::terry::ui_state::UIState;
 use crate::ui::{JsonUI, PrintUI, RawUI, SilentUI, UIMessage, UIType, UI};
 use crate::{list_files, EvaluationConfig, EvaluationData, SourceFile, TaskInfo, UISender};
@@ -25,6 +26,7 @@ mod dag;
 pub(crate) mod finish_ui;
 mod format;
 pub(crate) mod sanity_checks;
+pub(crate) mod statement;
 pub(crate) mod task_info;
 pub(crate) mod ui_state;
 
@@ -43,6 +45,9 @@ pub struct TerryTask {
     /// The maximum score for this task.
     pub max_score: f64,
 
+    /// The statement for this task
+    #[serde(skip_serializing)]
+    pub statement: Option<Statement>,
     /// The generator of input files of this task.
     #[serde(skip_serializing)]
     pub generator: InputGenerator,
@@ -72,6 +77,8 @@ pub struct SolutionOutcome {
     pub validation: SolutionValidation,
     /// The feedback outcome of the solution.
     pub feedback: SolutionFeedback,
+    /// The subtasks used for scoring
+    pub subtasks: Option<Vec<Subtask>>,
 }
 
 /// The validation part of the outcome of a solution.
@@ -129,6 +136,14 @@ pub struct SolutionAlert {
     pub severity: String,
     /// The content of the alert.
     pub message: String,
+}
+
+/// A subtask with its score and testcases
+#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+pub struct Subtask {
+    max_score: f64,
+    score: f64,
+    testcases: Vec<usize>,
 }
 
 impl TerryTask {
@@ -219,6 +234,11 @@ impl TerryTask {
                 },
             )?;
         }
+
+        if let Some(statement) = &self.statement {
+            statement.generate_and_bind(eval)?;
+        }
+
         self.sanity_checks.pre_hook(self, eval)?;
         Ok(())
     }

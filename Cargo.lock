@@ -1854,6 +1854,7 @@ dependencies = [
  "scopeguard",
  "serde",
  "serde_json",
+ "serde_yaml",
  "tabox",
  "task-maker-cache",
  "task-maker-dag",
