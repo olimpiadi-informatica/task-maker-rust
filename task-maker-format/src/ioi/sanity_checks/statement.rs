@@ -3,7 +3,7 @@ use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{Context, Error};
+use anyhow::{bail, Context, Error};
 use itertools::Itertools;
 use regex::Regex;
 use task_maker_diagnostics::{CodeSpan, Diagnostic};
@@ -277,7 +277,7 @@ impl SanityCheck for StatementCompiledOrGit {
 
         let check_statement = |path: &PathBuf| -> Result<(), Error> {
             // The file is a symlink but it not known to git
-            if path.is_symlink() && !check_known_to_git(task, &path)? {
+            if path.is_symlink() && !check_known_to_git(task, path)? {
                 eval.add_diagnostic(
                     Diagnostic::error(format!(
                         "The official statement at {} is a symbolic link and not known to git",
@@ -295,6 +295,8 @@ impl SanityCheck for StatementCompiledOrGit {
             let Ok(target) = &path.canonicalize() else {
                 return Ok(());
             };
+
+            let relative_target = relatively_resolve_symlink(path)?;
 
             if booklet_dest.contains(target) {
                 return Ok(());
@@ -314,7 +316,7 @@ impl SanityCheck for StatementCompiledOrGit {
                 )),
             )?;
 
-            if check_known_to_git(task, task.path_of(target))? {
+            if check_known_to_git(task, task.path_of(&relative_target))? {
                 return Ok(());
             }
 
@@ -323,10 +325,10 @@ impl SanityCheck for StatementCompiledOrGit {
             eval.add_diagnostic(
                 Diagnostic::error(format!(
                     "The official statement at {} is not compiled by task-maker and not known to git",
-                    task.path_of(target).display()
+                    task.path_of(&relative_target).display()
                 ))
                 .with_note("This means that it won't be available outside of your local directory")
-                .with_help(format!("Try git add -f {}", task.path_of(target).display()))
+                .with_help(format!("Try git add -f {}", task.path_of(&relative_target).display()))
             )?;
 
             Ok(())
@@ -460,6 +462,17 @@ fn extract_subtasks(path: &Path, tex: &str) -> Option<Vec<ExtractedSubtask>> {
     check_subtasks_oii(path, tex)
         .or_else(|| check_subtasks_oii_new(path, tex))
         .or_else(|| check_subtasks_ois(path, tex))
+}
+
+fn relatively_resolve_symlink(path: &Path) -> Result<PathBuf, Error> {
+    let mut new_path = path.to_path_buf();
+    while new_path.is_symlink() {
+        new_path = new_path.read_link()?;
+        if new_path == path {
+            bail!("Circular symbolic links detected");
+        }
+    }
+    Ok(new_path)
 }
 
 /// Search for the statement file, returning its path or None if it doesn't exists.

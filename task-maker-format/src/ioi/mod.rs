@@ -244,7 +244,6 @@ impl IOITask {
 
     /// Get the path relative to the task's root.
     pub fn path_of<'a>(&self, path: &'a Path) -> &'a Path {
-        dbg!(&path, &self.path);
         path.strip_prefix(&self.path).unwrap_or(path)
     }
 
