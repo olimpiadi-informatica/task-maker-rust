@@ -267,7 +267,7 @@ fn test_sanity_checks_statement_valid_missing() {
     let task = utils::new_task_with_context(tmpdir.path());
 
     let warnings = get_post_warnings(&task);
-    has_warning(&warnings, "Missing statement file");
+    has_warning(&warnings, "There is no functioning statement file");
 }
 
 #[test]
@@ -351,7 +351,7 @@ fn test_sanity_checks_statement_git_untracked() {
     let warnings = get_post_warnings(&task);
     has_warning(
         &warnings,
-        "File statement/statement.pdf is not known to git",
+        "The official statement at statement/statement.pdf is not compiled by task-maker and not known to git",
     );
 }
 
@@ -382,7 +382,7 @@ fn test_sanity_checks_statement_git_ignored() {
     let warnings = get_post_warnings(&task);
     has_warning(
         &warnings,
-        "File statement/statement.pdf is not known to git",
+        "The official statement at statement/statement.pdf is not compiled by task-maker and not known to git",
     );
 }
 

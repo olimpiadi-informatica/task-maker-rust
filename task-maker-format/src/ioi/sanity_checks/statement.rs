@@ -12,6 +12,69 @@ use crate::ioi::{IOITask, SubtaskId};
 use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::EvaluationData;
 
+const LANGUAGES: [&str; 60] = [
+    "afrikaans",
+    "arabic",
+    "armenian",
+    "azerbaijani",
+    "belarusian",
+    "bengali",
+    "bosnian",
+    "bulgarian",
+    "catalan",
+    "chinese",
+    "croatian",
+    "czech",
+    "danish",
+    "dutch",
+    "english",
+    "estonian",
+    "filipino",
+    "finnish",
+    "french",
+    "georgian",
+    "german",
+    "greek",
+    "hebrew",
+    "hindi",
+    "hungarian",
+    "icelandic",
+    "indonesian",
+    "irish",
+    "italian",
+    "japanese",
+    "kazakh",
+    "korean",
+    "kyrgyz",
+    "latvian",
+    "lithuanian",
+    "macedonian",
+    "malay",
+    "mongolian",
+    "norwegian",
+    "persian",
+    "polish",
+    "portuguese",
+    "romanian",
+    "russian",
+    "serbian",
+    "sinhala",
+    "slovak",
+    "slovene",
+    "spanish",
+    "swedish",
+    "tajik",
+    "tamil",
+    "thai",
+    "turkish",
+    "turkmen",
+    "ukrainian",
+    "urdu",
+    "uzbek",
+    "vietnamese",
+    "other",
+];
+
 /// Check that the subtasks in the statement are consistent with the ones of the task.
 #[derive(Debug, Default)]
 pub struct StatementSubtasks;
@@ -107,7 +170,8 @@ impl SanityCheck for StatementSubtasks {
     }
 }
 
-/// Check that the statement file is valid.
+/// Check that there is at least a statement file, and that all statement
+/// files are valid
 #[derive(Debug, Default)]
 pub struct StatementValid;
 make_sanity_check!(StatementValid);
@@ -124,51 +188,72 @@ impl SanityCheck for StatementValid {
     }
 
     fn post_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
-        if let Some(path) = find_statement_pdf(task) {
+        let mut found_valid_statement = false;
+
+        let check_statement = |path: &Path| -> Result<bool, Error> {
             // normal file or valid symlink
             if path.exists() {
-                let mut file = std::fs::File::open(&path).with_context(|| {
-                    format!("Failed to open statement file at {}", path.display())
-                })?;
-                let mut buf = [0u8; 4];
-                let invalid = match file.read_exact(&mut buf) {
-                    Err(_) => true,
-                    Ok(_) => {
-                        // check PDF magic number
-                        &buf != b"%PDF"
-                    }
-                };
-
-                if invalid {
+                if check_valid_pdf(path)? {
+                    return Ok(true);
+                } else {
                     eval.add_diagnostic(Diagnostic::error(format!(
                         "Invalid PDF file at {}",
-                        task.path_of(&path).display()
+                        task.path_of(path).display()
                     )))?;
                 }
-                return Ok(());
             }
             // broken symlink
             else if path.read_link().is_ok() {
                 eval.add_diagnostic(Diagnostic::error(format!(
                     "Statement {} is a broken link",
-                    task.path_of(&path).display()
+                    task.path_of(path).display()
                 )))?;
             }
+            Ok(false)
+        };
+
+        if let Some(path) = find_statement_pdf(task) {
+            eval.add_diagnostic(
+                Diagnostic::warning(format!(
+                    "Found statement at {}",
+                    task.path_of(&path).display()
+                ))
+                .with_note("This is deprecated, use a language specific statement instead"),
+            )?;
+
+            found_valid_statement |= check_statement(&path)?;
         }
+
+        for language in LANGUAGES {
+            if let Some(path) = find_language_statement_pdf(task, language) {
+                found_valid_statement |= check_statement(&path)?;
+            }
+        }
+
+        if !found_valid_statement {
+            eval.add_diagnostic(
+                Diagnostic::error("There is no functioning statement file").with_note(format!(
+                    "Consider adding a statement in any of the languages supported by CMS ({})",
+                    LANGUAGES.join(", ")
+                )),
+            )?;
+        }
+
         Ok(())
     }
 }
 
-/// Check that the statement file comes out of the compilation of one of the booklets.
+/// Check that the statement files come out of the compilation of one of the booklets,
+/// or that they are at least known to git
 #[derive(Debug, Default)]
-pub struct StatementCompiled;
-make_sanity_check!(StatementCompiled);
+pub struct StatementCompiledOrGit;
+make_sanity_check!(StatementCompiledOrGit);
 
-impl SanityCheck for StatementCompiled {
+impl SanityCheck for StatementCompiledOrGit {
     type Task = IOITask;
 
     fn name(&self) -> &'static str {
-        "StatementCompiled"
+        "StatementCompiledOrGit"
     }
 
     fn category(&self) -> SanityCheckCategory {
@@ -176,98 +261,85 @@ impl SanityCheck for StatementCompiled {
     }
 
     fn post_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
-        // If there are no booklets it may mean that the statement is compiled with an external tool
-        // or that the statement compilation is not done. Either way this sanity check should be
-        // ignored.
-        if task.booklets.is_empty() {
-            return Ok(());
-        }
+        // the statements compiled by us
+        let booklet_dest = task
+            .booklets
+            .iter()
+            .map(|booklet| booklet.dest.canonicalize())
+            .filter_map(Result::ok)
+            .collect::<Vec<_>>();
 
-        let path = match find_statement_pdf(task) {
-            Some(path) => path,
-            _ => return Ok(()),
-        };
-        // The source of the actual statement pdf (symlinks resolved). If the symlink is broken,
-        // there's nothing we can do (another sanity check will warn this error).
-        let target = match path.canonicalize() {
-            Ok(path) => path,
-            _ => return Ok(()),
-        };
-
-        let mut booklet_dest = vec![];
-        for booklet in &task.booklets {
-            let dest = match booklet.dest.canonicalize() {
-                Ok(dest) => dest,
-                _ => continue,
-            };
-            // this booklet corresponds to the official statement file, so we are good!
-            if dest == target {
-                return Ok(());
-            }
-            booklet_dest.push(dest);
-        }
-
-        // We didn't find any compiled booklet referring to the official statement, this means that
-        // the statement that will be used isn't the one compiled by us.
-        let booklet_dest = booklet_dest
+        let booklet_dest_list = booklet_dest
             .iter()
             .map(|p| task.path_of(p))
-            .map(|p| p.to_string_lossy())
+            .map(Path::to_string_lossy)
             .join(", ");
-        eval.add_diagnostic(
-            Diagnostic::warning(format!(
-                "The official statement at {} is not the one compiled by task-maker",
-                task.path_of(&path).display()
-            ))
-            .with_help(format!(
-                "Maybe it should be a symlink to one of the compiled PDF ({})",
-                booklet_dest
-            )),
-        )?;
-        Ok(())
-    }
-}
 
-/// Check that the statement file is known to git.
-#[derive(Debug, Default)]
-pub struct StatementGit;
-make_sanity_check!(StatementGit);
+        let check_statement = |path: &PathBuf| -> Result<(), Error> {
+            // The file is a symlink but it not known to git
+            if path.is_symlink() && !check_known_to_git(task, &path)? {
+                eval.add_diagnostic(
+                    Diagnostic::error(format!(
+                        "The official statement at {} is a symbolic link and not known to git",
+                        task.path_of(path).display()
+                    ))
+                    .with_note(
+                        "This means that it won't be available outside of your local directory",
+                    )
+                    .with_help(format!("Try git add -f {}", task.path_of(path).display())),
+                )?;
+            }
 
-impl SanityCheck for StatementGit {
-    type Task = IOITask;
+            // If the file is a broken symlink, we cannot check anything.
+            // Another sanity check will warn the issue.
+            let Ok(target) = &path.canonicalize() else {
+                return Ok(());
+            };
 
-    fn name(&self) -> &'static str {
-        "StatementGit"
-    }
+            if booklet_dest.contains(target) {
+                return Ok(());
+            }
 
-    fn category(&self) -> SanityCheckCategory {
-        SanityCheckCategory::Statement
-    }
+            // We didn't find any compiled booklet referring to the official statement, this means that
+            // the statement that will be used isn't the one compiled by us.
 
-    fn post_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
-        let path = match find_statement_pdf(task) {
-            None => return Ok(()),
-            Some(path) => path,
-        };
-        let path = task.path_of(&path);
-        let raw_path = path.as_os_str().as_bytes();
-        let mut command = Command::new("git");
-        command.arg("ls-files").arg("-z").current_dir(&task.path);
-        let output = match command.output() {
-            // git not available
-            Err(_) => return Ok(()),
-            Ok(output) => output,
-        };
-        // not a git repo
-        if !output.status.success() {
-            return Ok(());
-        }
-        // file not know to git
-        if !output.stdout.is_empty() && !output.stdout.split(|&b| b == 0).any(|p| p == raw_path) {
             eval.add_diagnostic(
-                Diagnostic::error(format!("File {} is not known to git", path.display()))
-                    .with_help(format!("Try git add -f {}", path.display())),
+                Diagnostic::warning(format!(
+                    "The official statement at {} is not the one compiled by task-maker",
+                    task.path_of(target).display()
+                ))
+                .with_help(format!(
+                    "Maybe it should be a symlink to one of the compiled PDF ({})",
+                    booklet_dest_list
+                )),
             )?;
+
+            if check_known_to_git(task, task.path_of(target))? {
+                return Ok(());
+            }
+
+            // The statement is not known to git
+
+            eval.add_diagnostic(
+                Diagnostic::error(format!(
+                    "The official statement at {} is not compiled by task-maker and not known to git",
+                    task.path_of(target).display()
+                ))
+                .with_note("This means that it won't be available outside of your local directory")
+                .with_help(format!("Try git add -f {}", task.path_of(target).display()))
+            )?;
+
+            Ok(())
+        };
+
+        if let Some(path) = find_statement_pdf(task) {
+            check_statement(&path)?;
+        }
+
+        for language in LANGUAGES {
+            if let Some(path) = find_language_statement_pdf(task, language) {
+                check_statement(&path)?;
+            }
         }
 
         Ok(())
@@ -401,4 +473,62 @@ fn find_statement_pdf(task: &IOITask) -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// Search for a language-specific statement file, returning its path or None if it doesn't exists.
+///
+/// Will return the path even in case of broken links.
+fn find_language_statement_pdf(task: &IOITask, language: &str) -> Option<PathBuf> {
+    for path in &[
+        format!("statement/{language}.pdf"),
+        format!("testo/{language}.pdf"),
+    ] {
+        let path = task.path.join(path);
+        if path.exists() || path.read_link().is_ok() {
+            return Some(path);
+        }
+    }
+    None
+}
+
+/// Checks whether a file is a valid PDF file
+fn check_valid_pdf(path: &Path) -> Result<bool, Error> {
+    let mut file = std::fs::File::open(path)
+        .with_context(|| format!("Failed to open statement file at {}", path.display()))?;
+    let mut buf = [0u8; 4];
+
+    let valid = match file.read_exact(&mut buf) {
+        Err(_) => false,
+        Ok(_) => {
+            // check PDF magic number
+            &buf == b"%PDF"
+        }
+    };
+
+    Ok(valid)
+}
+
+/// Checks whether a file is known to git
+///
+/// If git is not present, there is no git repository, or no file is tracked at all
+/// this will behave as if the file is known.
+fn check_known_to_git(task: &IOITask, path: &Path) -> Result<bool, Error> {
+    let raw_path = path.as_os_str().as_bytes();
+
+    let mut command = Command::new("git");
+    command.arg("ls-files").arg("-z").current_dir(&task.path);
+
+    let Ok(output) = command.output() else {
+        // git is not available
+        return Ok(true);
+    };
+
+    // not a git repo
+    if !output.status.success() {
+        return Ok(true);
+    }
+
+    let known = output.stdout.is_empty() || output.stdout.split(|&b| b == 0).any(|p| p == raw_path);
+
+    Ok(known)
 }
