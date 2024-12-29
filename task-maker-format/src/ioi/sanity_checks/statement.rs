@@ -12,6 +12,7 @@ use crate::ioi::{IOITask, SubtaskId};
 use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::EvaluationData;
 
+/// List of languages supported by CMS for statements
 const LANGUAGES: [&str; 60] = [
     "afrikaans",
     "arabic",
@@ -296,7 +297,7 @@ impl SanityCheck for StatementCompiledOrGit {
                 return Ok(());
             };
 
-            let relative_target = relatively_resolve_symlink(path)?;
+            let relative_target = resolve_symlink(path)?;
 
             if booklet_dest.contains(target) {
                 return Ok(());
@@ -464,15 +465,17 @@ fn extract_subtasks(path: &Path, tex: &str) -> Option<Vec<ExtractedSubtask>> {
         .or_else(|| check_subtasks_ois(path, tex))
 }
 
-fn relatively_resolve_symlink(path: &Path) -> Result<PathBuf, Error> {
-    let mut new_path = path.to_path_buf();
-    while new_path.is_symlink() {
-        new_path = new_path.read_link()?;
-        if new_path == path {
-            bail!("Circular symbolic links detected");
+fn resolve_symlink(path: &Path) -> Result<PathBuf, Error> {
+    let mut path = path.to_path_buf();
+    let mut depth = 0;
+    while path.is_symlink() {
+        if depth >= 40 {
+            bail!("Too many level of symbolic links");
         }
+        path = path.read_link()?;
+        depth += 1;
     }
-    Ok(new_path)
+    Ok(path)
 }
 
 /// Search for the statement file, returning its path or None if it doesn't exists.
