@@ -124,50 +124,35 @@ impl SanityCheck for StatementValid {
     }
 
     fn post_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
-        match find_statement_pdf(task) {
-            None => {
-                let mut diagnostic = Diagnostic::error(
-                    "Missing statement file (statement/statement.pdf or testo/testo.pdf)",
-                )
-                .with_note("Without that file cms will not be able to import the task");
-                if let Some(booklet) = task.booklets.first() {
-                    let name = booklet.dest.file_name().unwrap();
-                    let name = Path::new(name);
-                    diagnostic = diagnostic
-                        .with_help(format!("Try: ln -s {} testo/testo.pdf", name.display()));
-                };
-                eval.add_diagnostic(diagnostic)?;
-            }
-            Some(path) => {
-                // normal file or valid symlink
-                if path.exists() {
-                    let mut file = std::fs::File::open(&path).with_context(|| {
-                        format!("Failed to open statement file at {}", path.display())
-                    })?;
-                    let mut buf = [0u8; 4];
-                    let invalid = match file.read_exact(&mut buf) {
-                        Err(_) => true,
-                        Ok(_) => {
-                            // check PDF magic number
-                            &buf != b"%PDF"
-                        }
-                    };
-
-                    if invalid {
-                        eval.add_diagnostic(Diagnostic::error(format!(
-                            "Invalid PDF file at {}",
-                            task.path_of(&path).display()
-                        )))?;
+        if let Some(path) = find_statement_pdf(task) {
+            // normal file or valid symlink
+            if path.exists() {
+                let mut file = std::fs::File::open(&path).with_context(|| {
+                    format!("Failed to open statement file at {}", path.display())
+                })?;
+                let mut buf = [0u8; 4];
+                let invalid = match file.read_exact(&mut buf) {
+                    Err(_) => true,
+                    Ok(_) => {
+                        // check PDF magic number
+                        &buf != b"%PDF"
                     }
-                    return Ok(());
-                }
-                // broken symlink
-                else if path.read_link().is_ok() {
+                };
+
+                if invalid {
                     eval.add_diagnostic(Diagnostic::error(format!(
-                        "Statement {} is a broken link",
+                        "Invalid PDF file at {}",
                         task.path_of(&path).display()
                     )))?;
                 }
+                return Ok(());
+            }
+            // broken symlink
+            else if path.read_link().is_ok() {
+                eval.add_diagnostic(Diagnostic::error(format!(
+                    "Statement {} is a broken link",
+                    task.path_of(&path).display()
+                )))?;
             }
         }
         Ok(())
