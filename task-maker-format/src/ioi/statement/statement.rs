@@ -114,6 +114,8 @@ impl Statement {
         for path in &[
             Path::new("../gen/limiti.py"),
             Path::new("../gen/constraints.py"),
+            Path::new("../gen/limiti.yaml"),
+            Path::new("../gen/constraints.yaml"),
             Path::new("../gen/GEN"),
         ] {
             let full_path = base_dir.join(path);

@@ -148,8 +148,32 @@ impl Booklet {
             let deps = statement
                 .build_deps(eval, &booklet_name, &self.config)
                 .context("Failed to build booklet dependencies")?;
-            for (path, file) in deps {
+
+            for (path, file) in &deps {
                 exec.input(file, base_dir.join(path), false);
+            }
+
+            let deps_paths: Vec<_> = deps.iter().map(|(path, _file)| path.as_path()).collect();
+
+            // provide defaults limiti.py and constraints.py if needed
+            if !deps_paths.contains(&Path::new("limiti.py"))
+                && deps_paths.contains(&Path::new("limiti.yaml"))
+            {
+                let path = DATA_DIR.join("statements/limiti.py");
+
+                let file = File::new("Default limiti.py");
+                exec.input(&file, base_dir.join("limiti.py"), false);
+                eval.dag.provide_file(file, &path)?;
+            }
+
+            if !deps_paths.contains(&Path::new("constraints.py"))
+                && deps_paths.contains(&Path::new("constraints.yaml"))
+            {
+                let path = DATA_DIR.join("statements/constraints.py");
+
+                let file = File::new("Default constraints.py");
+                exec.input(&file, base_dir.join("constraints.py"), false);
+                eval.dag.provide_file(file, &path)?;
             }
         }
 

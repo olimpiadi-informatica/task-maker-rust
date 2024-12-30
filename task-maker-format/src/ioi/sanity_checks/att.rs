@@ -218,6 +218,7 @@ impl SanityCheck for AttSampleFilesValid {
                 .generate(None)
                 .validate(
                     eval,
+                    &task.path,
                     format!("Validation of sample case {}", input_name.display()),
                     0,
                     Some("att"),
