@@ -8,7 +8,7 @@ use itertools::Itertools;
 use regex::Regex;
 use task_maker_diagnostics::{CodeSpan, Diagnostic};
 
-use crate::ioi::{IOITask, SubtaskId};
+use crate::ioi::{get_language_from_extension, IOITask, Language, SubtaskId};
 use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::EvaluationData;
 
@@ -108,9 +108,15 @@ impl SanityCheck for StatementSubtasks {
             if booklet.statements.len() != 1 {
                 continue;
             }
+
+            let Some(lang) = &booklet.lang else {
+                continue;
+            };
+            let builder = get_language_from_extension(lang)?;
+
             let statement = &booklet.statements[0];
             let statement_path = task.path_of(&statement.path);
-            let source = statement.tex();
+            let source = builder.build_statement_source(statement);
             let subtasks = match extract_subtasks(statement_path, &source) {
                 None => continue,
                 Some(subtasks) => subtasks,

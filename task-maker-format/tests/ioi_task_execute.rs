@@ -99,7 +99,9 @@ fn test_ioi_task_execute_booklet() {
     let config = StatementConfig::default();
     let statement = Statement::new(tmpdir.path().join("statement.tex"), config).unwrap();
 
-    booklet.add_statement(statement);
+    booklet
+        .add_statement(statement)
+        .expect("There should not be any conflicting statement extension");
     task.booklets.push(booklet);
 
     let (mut eval, _receiver) = EvaluationData::new(tmpdir.path());

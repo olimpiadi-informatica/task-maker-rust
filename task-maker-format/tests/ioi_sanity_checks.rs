@@ -205,7 +205,9 @@ fn test_sanity_checks_statement_subtasks_oii_wrong() {
     let mut booklet = Booklet::new(config, tmpdir.path().join("foo.pdf"));
     let config = StatementConfig::from_task(&task);
     let statement = Statement::new(tmpdir.path().join("file.tex"), config).unwrap();
-    booklet.add_statement(statement);
+    booklet
+        .add_statement(statement)
+        .expect("There should not be any conflicting statement extension");
     task.booklets.push(booklet);
 
     let warnings = get_warnings(&task);
@@ -228,7 +230,9 @@ fn test_sanity_checks_statement_subtasks_oii_out_of_order() {
     let mut booklet = Booklet::new(config, tmpdir.path().join("foo.pdf"));
     let config = StatementConfig::from_task(&task);
     let statement = Statement::new(tmpdir.path().join("file.tex"), config).unwrap();
-    booklet.add_statement(statement);
+    booklet
+        .add_statement(statement)
+        .expect("There should not be any conflicting statement extension");
     task.booklets.push(booklet);
 
     let warnings = get_warnings(&task);
@@ -251,7 +255,9 @@ fn test_sanity_checks_statement_subtasks_ois_wrong() {
     let mut booklet = Booklet::new(config, tmpdir.path().join("foo.pdf"));
     let config = StatementConfig::from_task(&task);
     let statement = Statement::new(tmpdir.path().join("file.tex"), config).unwrap();
-    booklet.add_statement(statement);
+    booklet
+        .add_statement(statement)
+        .expect("There should not be any conflicting statement extension");
     task.booklets.push(booklet);
 
     let warnings = get_warnings(&task);

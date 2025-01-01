@@ -36,7 +36,7 @@ pub fn make_task_booklets(
         )
         .context("Failed to build booklet")?;
         let mut booklet = Booklet::new(booklet_config, dest);
-        booklet.add_statement(statement);
+        booklet.add_statement(statement)?;
         booklets.push(booklet);
     }
     Ok(booklets)
@@ -89,7 +89,8 @@ pub fn make_contest_booklets(
             let config = StatementConfig::from_task(task);
             let statement = Statement::new(path, config)
                 .with_context(|| format!("Failed to build statement for language {}", language))?;
-            booklet.add_statement(statement);
+
+            booklet.add_statement(statement)?;
         }
         booklets.push(booklet);
     }
@@ -99,13 +100,21 @@ pub fn make_contest_booklets(
 
 /// Find a list of all the statement files for a task, extracting the language from them.
 fn find_statement_files(task_dir: &Path) -> Vec<(String, PathBuf)> {
-    list_files(task_dir, vec!["statement/*.tex", "testo/*.tex"])
-        .into_iter()
-        .filter_map(|path| {
-            let language = path
-                .file_stem()
-                .map(|lang| lang.to_string_lossy().to_string());
-            language.map(|lang| (lang, path))
-        })
-        .collect()
+    list_files(
+        task_dir,
+        vec![
+            "statement/*.tex",
+            "statement/*.typ",
+            "testo/*.tex",
+            "testo/*.typ",
+        ],
+    )
+    .into_iter()
+    .filter_map(|path| {
+        let language = path
+            .file_stem()
+            .map(|lang| lang.to_string_lossy().to_string());
+        language.map(|lang| (lang, path))
+    })
+    .collect()
 }

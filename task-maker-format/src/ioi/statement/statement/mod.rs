@@ -1,21 +1,21 @@
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
-use anyhow::{Context, Error};
-use askama::Template;
-use regex::Regex;
+use anyhow::{bail, Context, Error};
 use serde::{Deserialize, Serialize};
+use tex::Tex;
 use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::File;
 
 use crate::ioi::statement::asy::AsyFile;
 use crate::ioi::{BookletConfig, IOITask};
+use crate::ui::UIMessageSender;
 use crate::EvaluationData;
 
-lazy_static! {
-    /// This regex will match all the `\usepackage` inside a latex file.
-    static ref USE_PACKAGE_REGEX: Regex = Regex::new(r"\\usepackage.+").expect("Invalid regex");
-}
+use super::Booklet;
+
+mod tex;
 
 /// The configuration of a `Statement`.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, TypeScriptify)]
@@ -49,19 +49,36 @@ pub struct Statement {
     content: String,
 }
 
-/// Template to use to render the `statement.tex` file.
-#[derive(Template)]
-#[template(path = "task.tex", escape = "none", syntax = "tex")]
-struct TaskTemplate {
-    name: String,
-    title: String,
-    infile: String,
-    outfile: String,
-    time_limit: String,
-    memory_limit: String,
-    difficulty: String,
-    syllabus_level: String,
-    content: String,
+/// A typesetting language used for statements
+pub trait Language {
+    /// The possible extensions of the language
+    fn extensions(&self) -> Vec<String>;
+    /// Creates the execution for the compilation and adds it to the dag
+    fn create_execution(
+        self,
+        booklet: &Booklet,
+        booklet_name: String,
+        eval: &mut EvaluationData,
+    ) -> Result<(), Error>;
+    /// Builds the source of a single statement file
+    fn build_statement_source(&self, statement: &Statement) -> String;
+    /// Builds the source of a booklet
+    fn build_booklet_source(&self, booklet: &Booklet) -> String;
+    /// Emit warnings taken from the compilation stderr
+    fn emit_warnings(
+        &self,
+        booklet_name: impl AsRef<Path>,
+        content: &[u8],
+        sender: Arc<Mutex<UIMessageSender>>,
+    ) -> Result<(), Error>;
+}
+
+/// Returns a valid `impl Language` for the provided extension
+pub fn get_language_from_extension(extension: &str) -> Result<impl Language, Error> {
+    match extension {
+        "tex" => Ok(Tex {}),
+        _ => bail!("Not a valid extension for statements: {}", extension),
+    }
 }
 
 impl Statement {
@@ -131,49 +148,6 @@ impl Statement {
         Ok(deps)
     }
 
-    /// Return the _tex_ source file of the statement, patched with the template.
-    pub fn tex(&self) -> String {
-        let template = TaskTemplate {
-            name: self.config.name.clone(),
-            title: self.config.title.clone(),
-            infile: self.config.infile.clone(),
-            outfile: self.config.outfile.clone(),
-            time_limit: self
-                .config
-                .time_limit
-                .map(|x| x.to_string())
-                .unwrap_or_default(),
-            memory_limit: self
-                .config
-                .memory_limit
-                .map(|x| x.to_string())
-                .unwrap_or_default(),
-            difficulty: self
-                .config
-                .difficulty
-                .map(|x| x.to_string())
-                .unwrap_or_default(),
-            syllabus_level: self
-                .config
-                .syllabus_level
-                .map(|x| x.to_string())
-                .unwrap_or_default(),
-            content: USE_PACKAGE_REGEX
-                .replace_all(&self.content, r"% $0")
-                .to_string(),
-        };
-        template.to_string()
-    }
-
-    /// Return a list of all the `\usepackage` used by the statement.
-    pub fn packages(&self) -> Vec<String> {
-        let mut packages = Vec::new();
-        for package in USE_PACKAGE_REGEX.find_iter(&self.content) {
-            packages.push(package.as_str().to_owned());
-        }
-        packages
-    }
-
     /// Process a possible statement dependency, eventually adding it to the compilation.
     fn process_possible_dependency(
         &self,
@@ -225,7 +199,7 @@ impl Statement {
     /// There are some cases where the .pdf should not be considered a dependency:
     /// - The file is the output of an asy compilation: asy will build it from scratch (or use the
     ///   cache)
-    /// - The file is the output of a .tex file (i.e. statement.tex, english.tex, ...): it could be
+    /// - The file is the output of a .tex or .typ file (i.e. statement.tex, english.tex, ...): it could be
     ///   the previous output of this statement, do not add it to the sandbox, otherwise the cache
     ///   will miss every time.
     fn is_valid_pdf_dependency(path: &Path) -> Result<bool, Error> {
@@ -239,6 +213,10 @@ impl Statement {
         }
         // ignore .pdf files that have the .tex source
         if path.with_extension("tex").exists() {
+            return Ok(false);
+        }
+        // ignore .pdf files that have the .typ source
+        if path.with_extension("typ").exists() {
             return Ok(false);
         }
         Ok(true)
