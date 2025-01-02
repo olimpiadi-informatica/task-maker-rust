@@ -1,10 +1,11 @@
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{Context, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
-use task_maker_dag::{Execution, FileUuid, Priority};
+use task_maker_dag::{Execution, File, FileUuid, Priority};
 use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::{SubtaskId, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
@@ -32,9 +33,11 @@ impl InputValidator {
     /// Build the execution for the validation of the input file. Return the handle to the standard
     /// output of the validator, if any and the `Execution` if any. The execution does not send UI
     /// messages yet and it's not added to the DAG.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn validate(
         &self,
         eval: &mut EvaluationData,
+        task_path: &Path,
         description: String,
         subtask_id: SubtaskId,
         subtask_name: Option<&str>,
@@ -56,6 +59,20 @@ impl InputValidator {
                     exec.env("TM_SUBTASK_NAME", name);
                 }
                 exec.limits_mut().allow_multiprocess();
+
+                // Add limiti.yaml and constraints.yaml file to the sandbox of the validator
+                for filename in &["limiti.yaml", "constraints.yaml"] {
+                    let path = task_path.join("gen").join(filename);
+
+                    if !path.is_file() {
+                        continue;
+                    }
+
+                    let file = File::new(format!("Constraints file at {}", path.display()));
+                    exec.input(&file, filename, false);
+                    eval.dag.provide_file(file, path)?;
+                }
+
                 let stdout = exec.stdout();
 
                 Ok((Some(stdout.uuid), Some(exec)))
@@ -69,6 +86,7 @@ impl InputValidator {
     pub(crate) fn validate_and_bind(
         &self,
         eval: &mut EvaluationData,
+        task_path: &Path,
         subtask_id: SubtaskId,
         subtask_name: Option<&str>,
         testcase_id: TestcaseId,
@@ -76,6 +94,7 @@ impl InputValidator {
     ) -> Result<Option<FileUuid>, Error> {
         let (handle, val) = self.validate(
             eval,
+            task_path,
             format!(
                 "Validation of input file of testcase {}, subtask {}",
                 testcase_id, subtask_id

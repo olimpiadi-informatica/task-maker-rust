@@ -165,7 +165,9 @@ mod tests {
         std::fs::write(&path, "x").unwrap();
         let generator = InputGenerator::StaticFile(path);
         let (mut eval, _) = EvaluationData::new(tmpdir.path());
-        let out = generator.generate_and_bind(&mut eval, 0, 0).unwrap();
+        let out = generator
+            .generate_and_bind(&mut eval, &PathBuf::from("."), 0, 0)
+            .unwrap();
         assert!(eval.dag.data.provided_files.contains_key(&out));
         assert!(eval
             .dag
@@ -182,7 +184,7 @@ mod tests {
         let path = tmpdir.path().join("input.txt");
         let generator = InputGenerator::StaticFile(path.clone());
         let (mut eval, _) = EvaluationData::new(tmpdir.path());
-        let gen = generator.generate_and_bind(&mut eval, 0, 0);
+        let gen = generator.generate_and_bind(&mut eval, &PathBuf::from("."), 0, 0);
         assert!(gen.is_err());
         let err = gen.unwrap_err().to_string();
         assert!(err.contains("COPY"));
@@ -197,7 +199,9 @@ mod tests {
         let source = SourceFile::new(&path, "", "", None, None::<PathBuf>).unwrap();
         let generator = InputGenerator::Custom(Arc::new(source), vec![]);
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
-        let out = generator.generate_and_bind(&mut eval, 0, 0).unwrap();
+        let out = generator
+            .generate_and_bind(&mut eval, &PathBuf::from("."), 0, 0)
+            .unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.execution_groups.len(), 1);
         let group = eval.dag.data.execution_groups.values().next().unwrap();
@@ -218,7 +222,7 @@ mod tests {
         let file = File::new("input");
         let (mut eval, _recv) = EvaluationData::new("");
         let out = validator
-            .validate_and_bind(&mut eval, 0, None, 0, file.uuid)
+            .validate_and_bind(&mut eval, &PathBuf::from("."), 0, None, 0, file.uuid)
             .unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 0);
         assert_eq!(eval.dag.data.execution_groups.len(), 0);
@@ -235,7 +239,7 @@ mod tests {
         let file = File::new("input");
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let out = validator
-            .validate_and_bind(&mut eval, 0, None, 0, file.uuid)
+            .validate_and_bind(&mut eval, &PathBuf::from("."), 0, None, 0, file.uuid)
             .unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.execution_groups.len(), 1);
@@ -259,7 +263,14 @@ mod tests {
         let file = File::new("input");
         let (mut eval, _recv) = EvaluationData::new(tmpdir.path());
         let out = validator
-            .validate_and_bind(&mut eval, 0, Some("name"), 0, file.uuid)
+            .validate_and_bind(
+                &mut eval,
+                &PathBuf::from("."),
+                0,
+                Some("name"),
+                0,
+                file.uuid,
+            )
             .unwrap();
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.execution_groups.len(), 1);

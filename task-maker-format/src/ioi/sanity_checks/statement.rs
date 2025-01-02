@@ -8,73 +8,9 @@ use itertools::Itertools;
 use regex::Regex;
 use task_maker_diagnostics::{CodeSpan, Diagnostic};
 
-use crate::ioi::{IOITask, SubtaskId};
+use crate::ioi::{get_language_from_extension, IOITask, SubtaskId, LANGUAGES};
 use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::EvaluationData;
-
-/// List of languages supported by CMS for statements
-const LANGUAGES: [&str; 60] = [
-    "afrikaans",
-    "arabic",
-    "armenian",
-    "azerbaijani",
-    "belarusian",
-    "bengali",
-    "bosnian",
-    "bulgarian",
-    "catalan",
-    "chinese",
-    "croatian",
-    "czech",
-    "danish",
-    "dutch",
-    "english",
-    "estonian",
-    "filipino",
-    "finnish",
-    "french",
-    "georgian",
-    "german",
-    "greek",
-    "hebrew",
-    "hindi",
-    "hungarian",
-    "icelandic",
-    "indonesian",
-    "irish",
-    "italian",
-    "japanese",
-    "kazakh",
-    "korean",
-    "kyrgyz",
-    "latvian",
-    "lithuanian",
-    "macedonian",
-    "malay",
-    "mongolian",
-    "norwegian",
-    "persian",
-    "polish",
-    "portuguese",
-    "romanian",
-    "russian",
-    "serbian",
-    "sinhala",
-    "slovak",
-    "slovene",
-    "spanish",
-    "swedish",
-    "tajik",
-    "tamil",
-    "thai",
-    "turkish",
-    "turkmen",
-    "ukrainian",
-    "urdu",
-    "uzbek",
-    "vietnamese",
-    "other",
-];
 
 /// Check that the subtasks in the statement are consistent with the ones of the task.
 #[derive(Debug, Default)]
@@ -108,9 +44,15 @@ impl SanityCheck for StatementSubtasks {
             if booklet.statements.len() != 1 {
                 continue;
             }
+
+            let Some(lang) = &booklet.lang else {
+                continue;
+            };
+            let builder = get_language_from_extension(lang)?;
+
             let statement = &booklet.statements[0];
             let statement_path = task.path_of(&statement.path);
-            let source = statement.tex();
+            let source = builder.build_statement_source(statement);
             let subtasks = match extract_subtasks(statement_path, &source) {
                 None => continue,
                 Some(subtasks) => subtasks,
@@ -457,12 +399,39 @@ fn check_subtasks_ois(path: &Path, text: &str) -> Option<Vec<ExtractedSubtask>> 
     }
 }
 
+/// Extract from the usual format for typst the subtasks. They are for example:
+///
+/// `subtask => [Samples],`
+fn check_subtasks_typst(path: &Path, text: &str) -> Option<Vec<ExtractedSubtask>> {
+    lazy_static! {
+        static ref FIND_SUBTASKS: Regex = Regex::new(r"subtask => \[.+\]").expect("Invalid regex");
+    }
+    let mut result = Vec::new();
+    for (index, subtask) in FIND_SUBTASKS.captures_iter(text).enumerate() {
+        let span = subtask.get(1).and_then(|span| {
+            CodeSpan::from_str(path, text, span.start(), span.end() - span.start()).ok()
+        });
+        result.push(ExtractedSubtask {
+            id: index as SubtaskId,
+            score: None,
+            subtask_id_span: None,
+            subtask_score_span: span,
+        });
+    }
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
+}
+
 /// Try to extract from the tex file the list of statements. If the list is empty, `None` is
 /// returned.
 fn extract_subtasks(path: &Path, tex: &str) -> Option<Vec<ExtractedSubtask>> {
     check_subtasks_oii(path, tex)
         .or_else(|| check_subtasks_oii_new(path, tex))
         .or_else(|| check_subtasks_ois(path, tex))
+        .or_else(|| check_subtasks_typst(path, tex))
 }
 
 fn resolve_symlink(path: &Path) -> Result<PathBuf, Error> {

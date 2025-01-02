@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Error};
@@ -30,6 +30,7 @@ impl InputGenerator {
     pub(crate) fn generate(
         &self,
         eval: &mut EvaluationData,
+        task_path: &Path,
         description: String,
         subtask_id: SubtaskId,
         testcase_id: TestcaseId,
@@ -56,9 +57,24 @@ impl InputGenerator {
                 let mut exec = source_file
                     .execute(eval, description, args.clone())
                     .context("Failed to execute generator source file")?;
+
                 exec.limits_mut().allow_multiprocess();
                 exec.tag(Tag::Generation.into());
                 exec.priority(GENERATION_PRIORITY - testcase_id as Priority);
+
+                // Add limiti.yaml and constraints.yaml file to the sandbox of the generator
+                for filename in &["limiti.yaml", "constraints.yaml"] {
+                    let path = task_path.join("gen").join(filename);
+
+                    if !path.is_file() {
+                        continue;
+                    }
+
+                    let file = File::new(format!("Constraints file at {}", path.display()));
+                    exec.input(&file, filename, false);
+                    eval.dag.provide_file(file, path)?;
+                }
+
                 let stdout = exec.stdout();
                 Ok((stdout.uuid, Some(exec)))
             }
@@ -70,11 +86,13 @@ impl InputGenerator {
     pub(crate) fn generate_and_bind(
         &self,
         eval: &mut EvaluationData,
+        task_path: &Path,
         subtask_id: SubtaskId,
         testcase_id: TestcaseId,
     ) -> Result<FileUuid, Error> {
         let (input, gen) = self.generate(
             eval,
+            task_path,
             format!(
                 "Generation of input file of testcase {}, subtask {}",
                 testcase_id, subtask_id

@@ -323,12 +323,13 @@ impl IOITask {
                     .expect("Testcase not found in the task");
                 let input = testcase
                     .input_generator
-                    .generate_and_bind(eval, subtask.id, testcase.id)
+                    .generate_and_bind(eval, &self.path, subtask.id, testcase.id)
                     .context("Failed to bind input generator")?;
                 let val_handle = subtask
                     .input_validator
                     .validate_and_bind(
                         eval,
+                        &self.path,
                         subtask.id,
                         subtask.name.as_deref(),
                         testcase.id,
@@ -387,6 +388,7 @@ impl IOITask {
                         .input_validator
                         .validate_and_bind(
                             eval,
+                            &self.path,
                             subtask.id,
                             subtask.name.as_deref(),
                             testcase.id,

@@ -15,6 +15,70 @@ mod booklet;
 #[allow(clippy::module_inception)]
 mod statement;
 
+/// List of languages supported by CMS for statements
+pub const LANGUAGES: [&str; 60] = [
+    "afrikaans",
+    "arabic",
+    "armenian",
+    "azerbaijani",
+    "belarusian",
+    "bengali",
+    "bosnian",
+    "bulgarian",
+    "catalan",
+    "chinese",
+    "croatian",
+    "czech",
+    "danish",
+    "dutch",
+    "english",
+    "estonian",
+    "filipino",
+    "finnish",
+    "french",
+    "georgian",
+    "german",
+    "greek",
+    "hebrew",
+    "hindi",
+    "hungarian",
+    "icelandic",
+    "indonesian",
+    "irish",
+    "italian",
+    "japanese",
+    "kazakh",
+    "korean",
+    "kyrgyz",
+    "latvian",
+    "lithuanian",
+    "macedonian",
+    "malay",
+    "mongolian",
+    "norwegian",
+    "persian",
+    "polish",
+    "portuguese",
+    "romanian",
+    "russian",
+    "serbian",
+    "sinhala",
+    "slovak",
+    "slovene",
+    "spanish",
+    "swedish",
+    "tajik",
+    "tamil",
+    "thai",
+    "turkish",
+    "turkmen",
+    "ukrainian",
+    "urdu",
+    "uzbek",
+    "vietnamese",
+    "other",
+];
+
 /// Find all the `Booklet` it makes sense to build for a single task.
 pub fn make_task_booklets(
     task: &IOITask,
@@ -23,6 +87,18 @@ pub fn make_task_booklets(
     let statements = find_statement_files(&task.path);
     let mut booklets = vec![];
     let config = StatementConfig::from_task(task);
+
+    let unique_languages = statements
+        .iter()
+        .map(|(lang, _path)| lang)
+        .sorted()
+        .unique()
+        .count();
+
+    if unique_languages != statements.len() {
+        bail!("Booklet contains statements with two or more different extensions");
+    }
+
     for (language, path) in statements {
         let dest = path.with_extension("pdf");
         let statement = Statement::new(path, config.clone())
@@ -36,9 +112,10 @@ pub fn make_task_booklets(
         )
         .context("Failed to build booklet")?;
         let mut booklet = Booklet::new(booklet_config, dest);
-        booklet.add_statement(statement);
+        booklet.add_statement(statement)?;
         booklets.push(booklet);
     }
+
     Ok(booklets)
 }
 
@@ -89,7 +166,8 @@ pub fn make_contest_booklets(
             let config = StatementConfig::from_task(task);
             let statement = Statement::new(path, config)
                 .with_context(|| format!("Failed to build statement for language {}", language))?;
-            booklet.add_statement(statement);
+
+            booklet.add_statement(statement)?;
         }
         booklets.push(booklet);
     }
@@ -99,13 +177,21 @@ pub fn make_contest_booklets(
 
 /// Find a list of all the statement files for a task, extracting the language from them.
 fn find_statement_files(task_dir: &Path) -> Vec<(String, PathBuf)> {
-    list_files(task_dir, vec!["statement/*.tex", "testo/*.tex"])
-        .into_iter()
-        .filter_map(|path| {
-            let language = path
-                .file_stem()
-                .map(|lang| lang.to_string_lossy().to_string());
-            language.map(|lang| (lang, path))
-        })
-        .collect()
+    list_files(
+        task_dir,
+        vec![
+            "statement/*.tex",
+            "statement/*.typ",
+            "testo/*.tex",
+            "testo/*.typ",
+        ],
+    )
+    .into_iter()
+    .filter_map(|path| {
+        path.file_stem()
+            .map(|lang| lang.to_string_lossy().to_string())
+            .map(|lang| (lang, path))
+    })
+    .filter(|(lang, _path)| LANGUAGES.contains(&lang.as_str()))
+    .collect()
 }
