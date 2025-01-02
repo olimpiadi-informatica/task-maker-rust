@@ -1,15 +1,18 @@
 use super::{Language, Statement};
-use crate::bind_exec_callbacks;
 use crate::ioi::{Booklet, BOOKLET_PRIORITY};
 use crate::ui::{UIMessage, UIMessageSender};
+use crate::{bind_exec_callbacks, UISender};
 use crate::{EvaluationData, Tag};
 
+use std::env;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Error};
 use itertools::Itertools;
 use task_maker_dag::{Execution, ExecutionCommand, File};
+use task_maker_diagnostics::Diagnostic;
 
 #[derive(Debug)]
 pub(super) struct Typst;
@@ -39,6 +42,8 @@ impl Language for Typst {
             "constraints_yaml=constraints.yaml",
             "--input",
             "contest_yaml=../../contest.yaml",
+            "--package-cache-path",
+            "typst-cache",
         ]);
 
         exec.limits_mut()
@@ -105,6 +110,28 @@ impl Language for Typst {
             eval.dag.provide_file(intro, intro_page)?;
         }
 
+        // Copy the typst cache to provide packages
+        let cache_dir = match env::var("XDG_CACHE_HOME") {
+            Ok(cache) => Path::new(&cache).join("typst/packages"),
+            Err(_) => Path::new(&env::var("HOME")?).join(".cache/typst/packages"),
+        };
+        let glob_pattern = cache_dir.to_string_lossy().to_string() + "/**/*";
+        for path in glob::glob(&glob_pattern).context("Invalid glob pattern")? {
+            let path = path.context("Failed to iterate with glob")?;
+            if !path.is_file() {
+                continue;
+            }
+            let file = File::new(format!("Typst package file at {:?}", path.display(),));
+            eval.dag
+                .provide_file(file.clone(), &path)
+                .context("Failed to provide typst package file")?;
+            exec.input(
+                file,
+                Path::new("typst-cache").join(path.strip_prefix(&cache_dir)?),
+                false,
+            );
+        }
+
         bind_exec_callbacks!(
             eval,
             exec.uuid,
@@ -162,10 +189,21 @@ impl Language for Typst {
 
     fn emit_warnings(
         &self,
-        _booklet_name: PathBuf,
-        _content: Vec<u8>,
-        _sender: Arc<Mutex<UIMessageSender>>,
+        booklet_name: PathBuf,
+        content: Vec<u8>,
+        sender: Arc<Mutex<UIMessageSender>>,
     ) -> Result<(), Error> {
+        if !content.is_empty() {
+            let mut buf = String::new();
+            content.as_slice().read_to_string(&mut buf)?;
+
+            sender.add_diagnostic(
+                Diagnostic::warning(format!(
+                    "The compilation of the booklet at {} produced the following errors or warnings",
+                    booklet_name.display()
+                )).with_note(buf).with_help("Use --copy-logs to save the compilation stderr")
+            )?;
+        }
         Ok(())
     }
 }
