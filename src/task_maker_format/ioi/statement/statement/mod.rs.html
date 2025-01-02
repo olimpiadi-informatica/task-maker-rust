@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `task-maker-format/src/ioi/statement/statement.rs`."><title>statement.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-b0742ba02757f159.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="task_maker_format" data-themes="" data-resource-suffix="" data-rustdoc-version="1.83.0 (90b35a623 2024-11-26)" data-channel="1.83.0" data-search-js="search-f0d225181b97f9a4.js" data-settings-js="settings-805db61a62df4bd2.js" ><script src="../../../../static.files/storage-1d39b6787ed640ff.js"></script><script defer src="../../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-f070b9041d14864c.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-0111fcff984fae8f.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">task_maker_format/ioi/statement/</div>statement.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `task-maker-format/src/ioi/statement/statement/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../../static.files/rustdoc-b0742ba02757f159.css"><meta name="rustdoc-vars" data-root-path="../../../../../" data-static-root-path="../../../../../static.files/" data-current-crate="task_maker_format" data-themes="" data-resource-suffix="" data-rustdoc-version="1.83.0 (90b35a623 2024-11-26)" data-channel="1.83.0" data-search-js="search-f0d225181b97f9a4.js" data-settings-js="settings-805db61a62df4bd2.js" ><script src="../../../../../static.files/storage-1d39b6787ed640ff.js"></script><script defer src="../../../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../../../src-files.js"></script><script defer src="../../../../../static.files/main-f070b9041d14864c.js"></script><noscript><link rel="stylesheet" href="../../../../../static.files/noscript-0111fcff984fae8f.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">task_maker_format/ioi/statement/statement/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -328,41 +328,26 @@
 <a href="#327" id="327">327</a>
 <a href="#328" id="328">328</a>
 <a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::path::{Path, PathBuf};
+<a href="#330" id="330">330</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::path::{Path, PathBuf};
+<span class="kw">use </span>std::sync::{Arc, Mutex};
 
-<span class="kw">use </span>anyhow::{Context, Error};
-<span class="kw">use </span>askama::Template;
-<span class="kw">use </span>regex::Regex;
+<span class="kw">use </span>anyhow::{bail, Context, Error};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>typescript_definitions::TypeScriptify;
 
 <span class="kw">use </span>task_maker_dag::File;
+<span class="kw">use </span>tex::Tex;
+<span class="kw">use </span>typst::Typst;
 
 <span class="kw">use </span><span class="kw">crate</span>::ioi::statement::asy::AsyFile;
 <span class="kw">use </span><span class="kw">crate</span>::ioi::{BookletConfig, IOITask};
+<span class="kw">use </span><span class="kw">crate</span>::ui::UIMessageSender;
 <span class="kw">use </span><span class="kw">crate</span>::EvaluationData;
 
-<span class="macro">lazy_static!</span> {
-    <span class="doccomment">/// This regex will match all the `\usepackage` inside a latex file.
-    </span><span class="kw">static </span><span class="kw-2">ref </span>USE_PACKAGE_REGEX: Regex = Regex::new(<span class="string">r"\\usepackage.+"</span>).expect(<span class="string">"Invalid regex"</span>);
-}
+<span class="kw">use </span><span class="kw">super</span>::Booklet;
+
+<span class="kw">mod </span>tex;
+<span class="kw">mod </span>typst;
 
 <span class="doccomment">/// The configuration of a `Statement`.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, Default, TypeScriptify)]
@@ -396,19 +381,37 @@
     </span>content: String,
 }
 
-<span class="doccomment">/// Template to use to render the `statement.tex` file.
-</span><span class="attr">#[derive(Template)]
-#[template(path = <span class="string">"task.tex"</span>, escape = <span class="string">"none"</span>, syntax = <span class="string">"tex"</span>)]
-</span><span class="kw">struct </span>TaskTemplate {
-    name: String,
-    title: String,
-    infile: String,
-    outfile: String,
-    time_limit: String,
-    memory_limit: String,
-    difficulty: String,
-    syllabus_level: String,
-    content: String,
+<span class="doccomment">/// A typesetting language used for statements
+</span><span class="kw">pub trait </span>Language {
+    <span class="doccomment">/// The possible extensions of the language
+    </span><span class="kw">fn </span>extensions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;String&gt;;
+    <span class="doccomment">/// Creates the execution for the compilation and adds it to the dag
+    </span><span class="kw">fn </span>create_execution(
+        <span class="self">self</span>: Box&lt;<span class="self">Self</span>&gt;,
+        booklet: <span class="kw-2">&amp;</span>Booklet,
+        booklet_name: String,
+        eval: <span class="kw-2">&amp;mut </span>EvaluationData,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt;;
+    <span class="doccomment">/// Builds the source of a single statement file
+    </span><span class="kw">fn </span>build_statement_source(<span class="kw-2">&amp;</span><span class="self">self</span>, statement: <span class="kw-2">&amp;</span>Statement) -&gt; String;
+    <span class="doccomment">/// Builds the source of a booklet
+    </span><span class="kw">fn </span>build_booklet_source(<span class="kw-2">&amp;</span><span class="self">self</span>, booklet: <span class="kw-2">&amp;</span>Booklet) -&gt; String;
+    <span class="doccomment">/// Emit warnings taken from the compilation stderr
+    </span><span class="kw">fn </span>emit_warnings(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        booklet_name: PathBuf,
+        content: Vec&lt;u8&gt;,
+        sender: Arc&lt;Mutex&lt;UIMessageSender&gt;&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt;;
+}
+
+<span class="doccomment">/// Returns a valid `impl Language` for the provided extension
+</span><span class="kw">pub fn </span>get_language_from_extension(extension: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;<span class="kw">dyn </span>Language&gt;, Error&gt; {
+    <span class="kw">match </span>extension {
+        <span class="string">"tex" </span>=&gt; <span class="prelude-val">Ok</span>(Box::new(Tex {})),
+        <span class="string">"typ" </span>=&gt; <span class="prelude-val">Ok</span>(Box::new(Typst {})),
+        <span class="kw">_ </span>=&gt; <span class="macro">bail!</span>(<span class="string">"Not a valid extension for statements: {}"</span>, extension),
+    }
 }
 
 <span class="kw">impl </span>Statement {
@@ -461,6 +464,8 @@
         <span class="kw">for </span>path <span class="kw">in </span><span class="kw-2">&amp;</span>[
             Path::new(<span class="string">"../gen/limiti.py"</span>),
             Path::new(<span class="string">"../gen/constraints.py"</span>),
+            Path::new(<span class="string">"../gen/limiti.yaml"</span>),
+            Path::new(<span class="string">"../gen/constraints.yaml"</span>),
             Path::new(<span class="string">"../gen/GEN"</span>),
         ] {
             <span class="kw">let </span>full_path = base_dir.join(path);
@@ -474,49 +479,6 @@
             deps.push((path.file_name().unwrap().into(), file));
         }
         <span class="prelude-val">Ok</span>(deps)
-    }
-
-    <span class="doccomment">/// Return the _tex_ source file of the statement, patched with the template.
-    </span><span class="kw">pub fn </span>tex(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String {
-        <span class="kw">let </span>template = TaskTemplate {
-            name: <span class="self">self</span>.config.name.clone(),
-            title: <span class="self">self</span>.config.title.clone(),
-            infile: <span class="self">self</span>.config.infile.clone(),
-            outfile: <span class="self">self</span>.config.outfile.clone(),
-            time_limit: <span class="self">self
-                </span>.config
-                .time_limit
-                .map(|x| x.to_string())
-                .unwrap_or_default(),
-            memory_limit: <span class="self">self
-                </span>.config
-                .memory_limit
-                .map(|x| x.to_string())
-                .unwrap_or_default(),
-            difficulty: <span class="self">self
-                </span>.config
-                .difficulty
-                .map(|x| x.to_string())
-                .unwrap_or_default(),
-            syllabus_level: <span class="self">self
-                </span>.config
-                .syllabus_level
-                .map(|x| x.to_string())
-                .unwrap_or_default(),
-            content: USE_PACKAGE_REGEX
-                .replace_all(<span class="kw-2">&amp;</span><span class="self">self</span>.content, <span class="string">r"% $0"</span>)
-                .to_string(),
-        };
-        template.to_string()
-    }
-
-    <span class="doccomment">/// Return a list of all the `\usepackage` used by the statement.
-    </span><span class="kw">pub fn </span>packages(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;String&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>packages = Vec::new();
-        <span class="kw">for </span>package <span class="kw">in </span>USE_PACKAGE_REGEX.find_iter(<span class="kw-2">&amp;</span><span class="self">self</span>.content) {
-            packages.push(package.as_str().to_owned());
-        }
-        packages
     }
 
     <span class="doccomment">/// Process a possible statement dependency, eventually adding it to the compilation.
@@ -570,7 +532,7 @@
     /// There are some cases where the .pdf should not be considered a dependency:
     /// - The file is the output of an asy compilation: asy will build it from scratch (or use the
     ///   cache)
-    /// - The file is the output of a .tex file (i.e. statement.tex, english.tex, ...): it could be
+    /// - The file is the output of a .tex or .typ file (i.e. statement.tex, english.tex, ...): it could be
     ///   the previous output of this statement, do not add it to the sandbox, otherwise the cache
     ///   will miss every time.
     </span><span class="kw">fn </span>is_valid_pdf_dependency(path: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result</span>&lt;bool, Error&gt; {
@@ -584,6 +546,10 @@
         }
         <span class="comment">// ignore .pdf files that have the .tex source
         </span><span class="kw">if </span>path.with_extension(<span class="string">"tex"</span>).exists() {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
+        }
+        <span class="comment">// ignore .pdf files that have the .typ source
+        </span><span class="kw">if </span>path.with_extension(<span class="string">"typ"</span>).exists() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
         }
         <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)

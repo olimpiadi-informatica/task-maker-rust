@@ -517,38 +517,7 @@
 <a href="#516" id="516">516</a>
 <a href="#517" id="517">517</a>
 <a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
-<a href="#547" id="547">547</a>
-<a href="#548" id="548">548</a>
-<a href="#549" id="549">549</a>
-<a href="#550" id="550">550</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::io::Read;
+<a href="#519" id="519">519</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::io::Read;
 <span class="kw">use </span>std::os::unix::ffi::OsStrExt;
 <span class="kw">use </span>std::path::{Path, PathBuf};
 <span class="kw">use </span>std::process::Command;
@@ -558,73 +527,9 @@
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>task_maker_diagnostics::{CodeSpan, Diagnostic};
 
-<span class="kw">use </span><span class="kw">crate</span>::ioi::{IOITask, SubtaskId};
+<span class="kw">use </span><span class="kw">crate</span>::ioi::{get_language_from_extension, IOITask, SubtaskId, LANGUAGES};
 <span class="kw">use </span><span class="kw">crate</span>::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 <span class="kw">use </span><span class="kw">crate</span>::EvaluationData;
-
-<span class="doccomment">/// List of languages supported by CMS for statements
-</span><span class="kw">const </span>LANGUAGES: [<span class="kw-2">&amp;</span>str; <span class="number">60</span>] = [
-    <span class="string">"afrikaans"</span>,
-    <span class="string">"arabic"</span>,
-    <span class="string">"armenian"</span>,
-    <span class="string">"azerbaijani"</span>,
-    <span class="string">"belarusian"</span>,
-    <span class="string">"bengali"</span>,
-    <span class="string">"bosnian"</span>,
-    <span class="string">"bulgarian"</span>,
-    <span class="string">"catalan"</span>,
-    <span class="string">"chinese"</span>,
-    <span class="string">"croatian"</span>,
-    <span class="string">"czech"</span>,
-    <span class="string">"danish"</span>,
-    <span class="string">"dutch"</span>,
-    <span class="string">"english"</span>,
-    <span class="string">"estonian"</span>,
-    <span class="string">"filipino"</span>,
-    <span class="string">"finnish"</span>,
-    <span class="string">"french"</span>,
-    <span class="string">"georgian"</span>,
-    <span class="string">"german"</span>,
-    <span class="string">"greek"</span>,
-    <span class="string">"hebrew"</span>,
-    <span class="string">"hindi"</span>,
-    <span class="string">"hungarian"</span>,
-    <span class="string">"icelandic"</span>,
-    <span class="string">"indonesian"</span>,
-    <span class="string">"irish"</span>,
-    <span class="string">"italian"</span>,
-    <span class="string">"japanese"</span>,
-    <span class="string">"kazakh"</span>,
-    <span class="string">"korean"</span>,
-    <span class="string">"kyrgyz"</span>,
-    <span class="string">"latvian"</span>,
-    <span class="string">"lithuanian"</span>,
-    <span class="string">"macedonian"</span>,
-    <span class="string">"malay"</span>,
-    <span class="string">"mongolian"</span>,
-    <span class="string">"norwegian"</span>,
-    <span class="string">"persian"</span>,
-    <span class="string">"polish"</span>,
-    <span class="string">"portuguese"</span>,
-    <span class="string">"romanian"</span>,
-    <span class="string">"russian"</span>,
-    <span class="string">"serbian"</span>,
-    <span class="string">"sinhala"</span>,
-    <span class="string">"slovak"</span>,
-    <span class="string">"slovene"</span>,
-    <span class="string">"spanish"</span>,
-    <span class="string">"swedish"</span>,
-    <span class="string">"tajik"</span>,
-    <span class="string">"tamil"</span>,
-    <span class="string">"thai"</span>,
-    <span class="string">"turkish"</span>,
-    <span class="string">"turkmen"</span>,
-    <span class="string">"ukrainian"</span>,
-    <span class="string">"urdu"</span>,
-    <span class="string">"uzbek"</span>,
-    <span class="string">"vietnamese"</span>,
-    <span class="string">"other"</span>,
-];
 
 <span class="doccomment">/// Check that the subtasks in the statement are consistent with the ones of the task.
 </span><span class="attr">#[derive(Debug, Default)]
@@ -658,9 +563,15 @@
             <span class="kw">if </span>booklet.statements.len() != <span class="number">1 </span>{
                 <span class="kw">continue</span>;
             }
+
+            <span class="kw">let </span><span class="prelude-val">Some</span>(lang) = <span class="kw-2">&amp;</span>booklet.lang <span class="kw">else </span>{
+                <span class="kw">continue</span>;
+            };
+            <span class="kw">let </span>builder = get_language_from_extension(lang)<span class="question-mark">?</span>;
+
             <span class="kw">let </span>statement = <span class="kw-2">&amp;</span>booklet.statements[<span class="number">0</span>];
             <span class="kw">let </span>statement_path = task.path_of(<span class="kw-2">&amp;</span>statement.path);
-            <span class="kw">let </span>source = statement.tex();
+            <span class="kw">let </span>source = builder.build_statement_source(statement);
             <span class="kw">let </span>subtasks = <span class="kw">match </span>extract_subtasks(statement_path, <span class="kw-2">&amp;</span>source) {
                 <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
                 <span class="prelude-val">Some</span>(subtasks) =&gt; subtasks,
@@ -1007,12 +918,39 @@
     }
 }
 
+<span class="doccomment">/// Extract from the usual format for typst the subtasks. They are for example:
+///
+/// `subtask =&gt; [Samples],`
+</span><span class="kw">fn </span>check_subtasks_typst(path: <span class="kw-2">&amp;</span>Path, text: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Vec&lt;ExtractedSubtask&gt;&gt; {
+    <span class="macro">lazy_static!</span> {
+        <span class="kw">static </span><span class="kw-2">ref </span>FIND_SUBTASKS: Regex = Regex::new(<span class="string">r"subtask =&gt; \[.+\]"</span>).expect(<span class="string">"Invalid regex"</span>);
+    }
+    <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::new();
+    <span class="kw">for </span>(index, subtask) <span class="kw">in </span>FIND_SUBTASKS.captures_iter(text).enumerate() {
+        <span class="kw">let </span>span = subtask.get(<span class="number">1</span>).and_then(|span| {
+            CodeSpan::from_str(path, text, span.start(), span.end() - span.start()).ok()
+        });
+        result.push(ExtractedSubtask {
+            id: index <span class="kw">as </span>SubtaskId,
+            score: <span class="prelude-val">None</span>,
+            subtask_id_span: <span class="prelude-val">None</span>,
+            subtask_score_span: span,
+        });
+    }
+    <span class="kw">if </span>result.is_empty() {
+        <span class="prelude-val">None
+    </span>} <span class="kw">else </span>{
+        <span class="prelude-val">Some</span>(result)
+    }
+}
+
 <span class="doccomment">/// Try to extract from the tex file the list of statements. If the list is empty, `None` is
 /// returned.
 </span><span class="kw">fn </span>extract_subtasks(path: <span class="kw-2">&amp;</span>Path, tex: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Vec&lt;ExtractedSubtask&gt;&gt; {
     check_subtasks_oii(path, tex)
         .or_else(|| check_subtasks_oii_new(path, tex))
         .or_else(|| check_subtasks_ois(path, tex))
+        .or_else(|| check_subtasks_typst(path, tex))
 }
 
 <span class="kw">fn </span>resolve_symlink(path: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Result</span>&lt;PathBuf, Error&gt; {

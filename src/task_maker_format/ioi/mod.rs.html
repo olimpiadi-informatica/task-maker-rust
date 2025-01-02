@@ -663,7 +663,9 @@
 <a href="#662" id="662">662</a>
 <a href="#663" id="663">663</a>
 <a href="#664" id="664">664</a>
-<a href="#665" id="665">665</a></pre></div><pre class="rust"><code><span class="doccomment">//! The IOI task format.
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a></pre></div><pre class="rust"><code><span class="doccomment">//! The IOI task format.
 //!
 //! In IOI-like tasks there is the concept of _subtask_ and of _testcase_: a testcase is a single
 //! instance of the evaluation of a solution on a given input file, producing a single output file
@@ -988,12 +990,13 @@
                     .expect(<span class="string">"Testcase not found in the task"</span>);
                 <span class="kw">let </span>input = testcase
                     .input_generator
-                    .generate_and_bind(eval, subtask.id, testcase.id)
+                    .generate_and_bind(eval, <span class="kw-2">&amp;</span><span class="self">self</span>.path, subtask.id, testcase.id)
                     .context(<span class="string">"Failed to bind input generator"</span>)<span class="question-mark">?</span>;
                 <span class="kw">let </span>val_handle = subtask
                     .input_validator
                     .validate_and_bind(
                         eval,
+                        <span class="kw-2">&amp;</span><span class="self">self</span>.path,
                         subtask.id,
                         subtask.name.as_deref(),
                         testcase.id,
@@ -1052,6 +1055,7 @@
                         .input_validator
                         .validate_and_bind(
                             eval,
+                            <span class="kw-2">&amp;</span><span class="self">self</span>.path,
                             subtask.id,
                             subtask.name.as_deref(),
                             testcase.id,

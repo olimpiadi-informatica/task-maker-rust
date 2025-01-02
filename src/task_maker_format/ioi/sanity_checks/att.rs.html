@@ -580,7 +580,8 @@
 <a href="#579" id="579">579</a>
 <a href="#580" id="580">580</a>
 <a href="#581" id="581">581</a>
-<a href="#582" id="582">582</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeSet, HashMap};
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::io::{Read, Seek, SeekFrom};
 <span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::sync::{Arc, Mutex};
@@ -800,6 +801,7 @@
                 .generate(<span class="prelude-val">None</span>)
                 .validate(
                     eval,
+                    <span class="kw-2">&amp;</span>task.path,
                     <span class="macro">format!</span>(<span class="string">"Validation of sample case {}"</span>, input_name.display()),
                     <span class="number">0</span>,
                     <span class="prelude-val">Some</span>(<span class="string">"att"</span>),

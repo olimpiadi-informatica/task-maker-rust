@@ -589,7 +589,18 @@
 <a href="#588" id="588">588</a>
 <a href="#589" id="589">589</a>
 <a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a></pre></div><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a></pre></div><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">pub use </span>checker::Checker;
 <span class="kw">pub use </span>input_generator::InputGenerator;
@@ -756,7 +767,9 @@
         std::fs::write(<span class="kw-2">&amp;</span>path, <span class="string">"x"</span>).unwrap();
         <span class="kw">let </span>generator = InputGenerator::StaticFile(path);
         <span class="kw">let </span>(<span class="kw-2">mut </span>eval, <span class="kw">_</span>) = EvaluationData::new(tmpdir.path());
-        <span class="kw">let </span>out = generator.generate_and_bind(<span class="kw-2">&amp;mut </span>eval, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>out = generator
+            .generate_and_bind(<span class="kw-2">&amp;mut </span>eval, <span class="kw-2">&amp;</span>PathBuf::from(<span class="string">"."</span>), <span class="number">0</span>, <span class="number">0</span>)
+            .unwrap();
         <span class="macro">assert!</span>(eval.dag.data.provided_files.contains_key(<span class="kw-2">&amp;</span>out));
         <span class="macro">assert!</span>(eval
             .dag
@@ -773,7 +786,7 @@
         <span class="kw">let </span>path = tmpdir.path().join(<span class="string">"input.txt"</span>);
         <span class="kw">let </span>generator = InputGenerator::StaticFile(path.clone());
         <span class="kw">let </span>(<span class="kw-2">mut </span>eval, <span class="kw">_</span>) = EvaluationData::new(tmpdir.path());
-        <span class="kw">let </span>gen = generator.generate_and_bind(<span class="kw-2">&amp;mut </span>eval, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">let </span>gen = generator.generate_and_bind(<span class="kw-2">&amp;mut </span>eval, <span class="kw-2">&amp;</span>PathBuf::from(<span class="string">"."</span>), <span class="number">0</span>, <span class="number">0</span>);
         <span class="macro">assert!</span>(gen.is_err());
         <span class="kw">let </span>err = gen.unwrap_err().to_string();
         <span class="macro">assert!</span>(err.contains(<span class="string">"COPY"</span>));
@@ -788,7 +801,9 @@
         <span class="kw">let </span>source = SourceFile::new(<span class="kw-2">&amp;</span>path, <span class="string">""</span>, <span class="string">""</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>::&lt;PathBuf&gt;).unwrap();
         <span class="kw">let </span>generator = InputGenerator::Custom(Arc::new(source), <span class="macro">vec!</span>[]);
         <span class="kw">let </span>(<span class="kw-2">mut </span>eval, _recv) = EvaluationData::new(tmpdir.path());
-        <span class="kw">let </span>out = generator.generate_and_bind(<span class="kw-2">&amp;mut </span>eval, <span class="number">0</span>, <span class="number">0</span>).unwrap();
+        <span class="kw">let </span>out = generator
+            .generate_and_bind(<span class="kw-2">&amp;mut </span>eval, <span class="kw-2">&amp;</span>PathBuf::from(<span class="string">"."</span>), <span class="number">0</span>, <span class="number">0</span>)
+            .unwrap();
         <span class="macro">assert_eq!</span>(eval.dag.data.provided_files.len(), <span class="number">1</span>);
         <span class="macro">assert_eq!</span>(eval.dag.data.execution_groups.len(), <span class="number">1</span>);
         <span class="kw">let </span>group = eval.dag.data.execution_groups.values().next().unwrap();
@@ -809,7 +824,7 @@
         <span class="kw">let </span>file = File::new(<span class="string">"input"</span>);
         <span class="kw">let </span>(<span class="kw-2">mut </span>eval, _recv) = EvaluationData::new(<span class="string">""</span>);
         <span class="kw">let </span>out = validator
-            .validate_and_bind(<span class="kw-2">&amp;mut </span>eval, <span class="number">0</span>, <span class="prelude-val">None</span>, <span class="number">0</span>, file.uuid)
+            .validate_and_bind(<span class="kw-2">&amp;mut </span>eval, <span class="kw-2">&amp;</span>PathBuf::from(<span class="string">"."</span>), <span class="number">0</span>, <span class="prelude-val">None</span>, <span class="number">0</span>, file.uuid)
             .unwrap();
         <span class="macro">assert_eq!</span>(eval.dag.data.provided_files.len(), <span class="number">0</span>);
         <span class="macro">assert_eq!</span>(eval.dag.data.execution_groups.len(), <span class="number">0</span>);
@@ -826,7 +841,7 @@
         <span class="kw">let </span>file = File::new(<span class="string">"input"</span>);
         <span class="kw">let </span>(<span class="kw-2">mut </span>eval, _recv) = EvaluationData::new(tmpdir.path());
         <span class="kw">let </span>out = validator
-            .validate_and_bind(<span class="kw-2">&amp;mut </span>eval, <span class="number">0</span>, <span class="prelude-val">None</span>, <span class="number">0</span>, file.uuid)
+            .validate_and_bind(<span class="kw-2">&amp;mut </span>eval, <span class="kw-2">&amp;</span>PathBuf::from(<span class="string">"."</span>), <span class="number">0</span>, <span class="prelude-val">None</span>, <span class="number">0</span>, file.uuid)
             .unwrap();
         <span class="macro">assert_eq!</span>(eval.dag.data.provided_files.len(), <span class="number">1</span>);
         <span class="macro">assert_eq!</span>(eval.dag.data.execution_groups.len(), <span class="number">1</span>);
@@ -850,7 +865,14 @@
         <span class="kw">let </span>file = File::new(<span class="string">"input"</span>);
         <span class="kw">let </span>(<span class="kw-2">mut </span>eval, _recv) = EvaluationData::new(tmpdir.path());
         <span class="kw">let </span>out = validator
-            .validate_and_bind(<span class="kw-2">&amp;mut </span>eval, <span class="number">0</span>, <span class="prelude-val">Some</span>(<span class="string">"name"</span>), <span class="number">0</span>, file.uuid)
+            .validate_and_bind(
+                <span class="kw-2">&amp;mut </span>eval,
+                <span class="kw-2">&amp;</span>PathBuf::from(<span class="string">"."</span>),
+                <span class="number">0</span>,
+                <span class="prelude-val">Some</span>(<span class="string">"name"</span>),
+                <span class="number">0</span>,
+                file.uuid,
+            )
             .unwrap();
         <span class="macro">assert_eq!</span>(eval.dag.data.provided_files.len(), <span class="number">1</span>);
         <span class="macro">assert_eq!</span>(eval.dag.data.execution_groups.len(), <span class="number">1</span>);

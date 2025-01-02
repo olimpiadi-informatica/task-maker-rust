@@ -111,13 +111,33 @@
 <a href="#110" id="110">110</a>
 <a href="#111" id="111">111</a>
 <a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::path::Path;
+<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>anyhow::{Context, Error};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>typescript_definitions::TypeScriptify;
 
-<span class="kw">use </span>task_maker_dag::{Execution, FileUuid, Priority};
+<span class="kw">use </span>task_maker_dag::{Execution, File, FileUuid, Priority};
 <span class="kw">use </span>task_maker_diagnostics::Diagnostic;
 
 <span class="kw">use </span><span class="kw">crate</span>::ioi::{SubtaskId, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
@@ -145,9 +165,11 @@
     <span class="doccomment">/// Build the execution for the validation of the input file. Return the handle to the standard
     /// output of the validator, if any and the `Execution` if any. The execution does not send UI
     /// messages yet and it's not added to the DAG.
+    </span><span class="attr">#[allow(clippy::too_many_arguments)]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>validate(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         eval: <span class="kw-2">&amp;mut </span>EvaluationData,
+        task_path: <span class="kw-2">&amp;</span>Path,
         description: String,
         subtask_id: SubtaskId,
         subtask_name: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
@@ -169,6 +191,20 @@
                     exec.env(<span class="string">"TM_SUBTASK_NAME"</span>, name);
                 }
                 exec.limits_mut().allow_multiprocess();
+
+                <span class="comment">// Add limiti.yaml and constraints.yaml file to the sandbox of the validator
+                </span><span class="kw">for </span>filename <span class="kw">in </span><span class="kw-2">&amp;</span>[<span class="string">"limiti.yaml"</span>, <span class="string">"constraints.yaml"</span>] {
+                    <span class="kw">let </span>path = task_path.join(<span class="string">"gen"</span>).join(filename);
+
+                    <span class="kw">if </span>!path.is_file() {
+                        <span class="kw">continue</span>;
+                    }
+
+                    <span class="kw">let </span>file = File::new(<span class="macro">format!</span>(<span class="string">"Constraints file at {}"</span>, path.display()));
+                    exec.input(<span class="kw-2">&amp;</span>file, filename, <span class="bool-val">false</span>);
+                    eval.dag.provide_file(file, path)<span class="question-mark">?</span>;
+                }
+
                 <span class="kw">let </span>stdout = exec.stdout();
 
                 <span class="prelude-val">Ok</span>((<span class="prelude-val">Some</span>(stdout.uuid), <span class="prelude-val">Some</span>(exec)))
@@ -182,6 +218,7 @@
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>validate_and_bind(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         eval: <span class="kw-2">&amp;mut </span>EvaluationData,
+        task_path: <span class="kw-2">&amp;</span>Path,
         subtask_id: SubtaskId,
         subtask_name: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
         testcase_id: TestcaseId,
@@ -189,6 +226,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;FileUuid&gt;, Error&gt; {
         <span class="kw">let </span>(handle, val) = <span class="self">self</span>.validate(
             eval,
+            task_path,
             <span class="macro">format!</span>(
                 <span class="string">"Validation of input file of testcase {}, subtask {}"</span>,
                 testcase_id, subtask_id

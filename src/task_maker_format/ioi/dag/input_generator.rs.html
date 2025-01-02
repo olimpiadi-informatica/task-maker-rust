@@ -116,7 +116,25 @@
 <a href="#115" id="115">115</a>
 <a href="#116" id="116">116</a>
 <a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::path::PathBuf;
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::path::{Path, PathBuf};
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>anyhow::{bail, Context, Error};
@@ -148,6 +166,7 @@
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>generate(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         eval: <span class="kw-2">&amp;mut </span>EvaluationData,
+        task_path: <span class="kw-2">&amp;</span>Path,
         description: String,
         subtask_id: SubtaskId,
         testcase_id: TestcaseId,
@@ -174,9 +193,24 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>exec = source_file
                     .execute(eval, description, args.clone())
                     .context(<span class="string">"Failed to execute generator source file"</span>)<span class="question-mark">?</span>;
+
                 exec.limits_mut().allow_multiprocess();
                 exec.tag(Tag::Generation.into());
                 exec.priority(GENERATION_PRIORITY - testcase_id <span class="kw">as </span>Priority);
+
+                <span class="comment">// Add limiti.yaml and constraints.yaml file to the sandbox of the generator
+                </span><span class="kw">for </span>filename <span class="kw">in </span><span class="kw-2">&amp;</span>[<span class="string">"limiti.yaml"</span>, <span class="string">"constraints.yaml"</span>] {
+                    <span class="kw">let </span>path = task_path.join(<span class="string">"gen"</span>).join(filename);
+
+                    <span class="kw">if </span>!path.is_file() {
+                        <span class="kw">continue</span>;
+                    }
+
+                    <span class="kw">let </span>file = File::new(<span class="macro">format!</span>(<span class="string">"Constraints file at {}"</span>, path.display()));
+                    exec.input(<span class="kw-2">&amp;</span>file, filename, <span class="bool-val">false</span>);
+                    eval.dag.provide_file(file, path)<span class="question-mark">?</span>;
+                }
+
                 <span class="kw">let </span>stdout = exec.stdout();
                 <span class="prelude-val">Ok</span>((stdout.uuid, <span class="prelude-val">Some</span>(exec)))
             }
@@ -188,11 +222,13 @@
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>generate_and_bind(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         eval: <span class="kw-2">&amp;mut </span>EvaluationData,
+        task_path: <span class="kw-2">&amp;</span>Path,
         subtask_id: SubtaskId,
         testcase_id: TestcaseId,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;FileUuid, Error&gt; {
         <span class="kw">let </span>(input, gen) = <span class="self">self</span>.generate(
             eval,
+            task_path,
             <span class="macro">format!</span>(
                 <span class="string">"Generation of input file of testcase {}, subtask {}"</span>,
                 testcase_id, subtask_id
