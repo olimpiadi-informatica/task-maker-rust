@@ -54,7 +54,7 @@ pub struct BookletTemplate {
 }
 
 #[derive(Debug)]
-pub struct Tex;
+pub(super) struct Tex;
 
 impl Language for Tex {
     fn extensions(&self) -> Vec<String> {
@@ -62,7 +62,7 @@ impl Language for Tex {
     }
 
     fn create_execution(
-        self,
+        self: Box<Tex>,
         booklet: &Booklet,
         booklet_name: String,
         eval: &mut EvaluationData,
@@ -170,8 +170,8 @@ impl Language for Tex {
 
         let dest = booklet.dest.file_name().unwrap().to_owned();
         eval.dag.on_execution_done(&exec.uuid, move |res| {
-            if let Some(content) = &res.stdout {
-                self.emit_warnings(dest, content, sender)?;
+            if let Some(content) = res.stdout {
+                self.emit_warnings(PathBuf::from(dest), content, sender)?;
             }
             Ok(())
         });
@@ -253,8 +253,8 @@ impl Language for Tex {
 
     fn emit_warnings(
         &self,
-        booklet_name: impl AsRef<Path>,
-        content: &[u8],
+        booklet_name: PathBuf,
+        content: Vec<u8>,
         sender: Arc<Mutex<UIMessageSender>>,
     ) -> Result<(), Error> {
         lazy_static! {
@@ -264,7 +264,7 @@ impl Language for Tex {
         }
         // latexmk sometimes emit the same warning more than once
         let mut errors = HashSet::new();
-        for cap in FIND_ERRORS.captures_iter(&String::from_utf8_lossy(content)) {
+        for cap in FIND_ERRORS.captures_iter(&String::from_utf8_lossy(&content)) {
             let line = cap[2]
                 .strip_prefix("l.")
                 .and_then(|line| line.parse::<i32>().ok());
@@ -285,7 +285,7 @@ impl Language for Tex {
             sender.add_diagnostic(
                 Diagnostic::warning(format!(
                     "Found Latex errors while compiling the booklet {}",
-                    booklet_name.as_ref().display()
+                    booklet_name.display()
                 ))
                 .with_note(note),
             )?;

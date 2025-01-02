@@ -1,5 +1,5 @@
 [general]
-dirs = ["src/ioi/statement/templates"]
+dirs = ["src/ioi/statement/statement/templates"]
 default_syntax = "tex"
 
 [[syntax]]

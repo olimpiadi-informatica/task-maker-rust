@@ -3,10 +3,11 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Error};
 use serde::{Deserialize, Serialize};
-use tex::Tex;
 use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::File;
+use tex::Tex;
+use typst::Typst;
 
 use crate::ioi::statement::asy::AsyFile;
 use crate::ioi::{BookletConfig, IOITask};
@@ -16,6 +17,7 @@ use crate::EvaluationData;
 use super::Booklet;
 
 mod tex;
+mod typst;
 
 /// The configuration of a `Statement`.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, TypeScriptify)]
@@ -55,7 +57,7 @@ pub trait Language {
     fn extensions(&self) -> Vec<String>;
     /// Creates the execution for the compilation and adds it to the dag
     fn create_execution(
-        self,
+        self: Box<Self>,
         booklet: &Booklet,
         booklet_name: String,
         eval: &mut EvaluationData,
@@ -67,16 +69,17 @@ pub trait Language {
     /// Emit warnings taken from the compilation stderr
     fn emit_warnings(
         &self,
-        booklet_name: impl AsRef<Path>,
-        content: &[u8],
+        booklet_name: PathBuf,
+        content: Vec<u8>,
         sender: Arc<Mutex<UIMessageSender>>,
     ) -> Result<(), Error>;
 }
 
 /// Returns a valid `impl Language` for the provided extension
-pub fn get_language_from_extension(extension: &str) -> Result<impl Language, Error> {
+pub fn get_language_from_extension(extension: &str) -> Result<Box<dyn Language>, Error> {
     match extension {
-        "tex" => Ok(Tex {}),
+        "tex" => Ok(Box::new(Tex {})),
+        "typ" => Ok(Box::new(Typst {})),
         _ => bail!("Not a valid extension for statements: {}", extension),
     }
 }

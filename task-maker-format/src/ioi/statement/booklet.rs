@@ -4,7 +4,7 @@ use anyhow::{anyhow, bail, Context, Error};
 use serde::{Deserialize, Serialize};
 use typescript_definitions::TypeScriptify;
 
-use crate::ioi::statement::statement::{Language, Statement};
+use crate::ioi::statement::Statement;
 use crate::EvaluationData;
 
 use super::get_language_from_extension;
@@ -59,8 +59,9 @@ pub struct ContestYAML {
     pub date: Option<String>,
     /// The logo of the contest.
     pub logo: Option<String>,
-    /// `Some("True")` if the time and memory limits should be put in the booklet.
-    pub show_summary: Option<String>,
+    /// `true` if the time and memory limits should be put in the booklet.
+    #[serde(default)]
+    pub show_summary: bool,
     /// Some(relative_path) for a front page for the booklet.
     pub booklet_intro_path: Option<PathBuf>,
     /// The list of the tasks in the contest (in the correct order).
@@ -130,7 +131,7 @@ impl BookletConfig {
             Ok(BookletConfig {
                 language: language.into(),
                 show_solutions: booklet_solutions,
-                show_summary: contest_yaml.show_summary == Some("True".to_string()),
+                show_summary: contest_yaml.show_summary,
                 font_enc: "T1".into(),
                 input_enc: "utf8".into(),
                 description: contest_yaml.description,
