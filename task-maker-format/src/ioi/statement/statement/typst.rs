@@ -19,7 +19,7 @@ pub(super) struct Typst;
 
 impl Language for Typst {
     fn extensions(&self) -> Vec<String> {
-        vec![String::from("tex")]
+        vec![String::from("typ")]
     }
 
     fn create_execution(
@@ -201,8 +201,19 @@ impl Language for Typst {
                 Diagnostic::warning(format!(
                     "The compilation of the booklet at {} produced the following errors or warnings",
                     booklet_name.display()
-                )).with_note(buf).with_help("Use --copy-logs to save the compilation stderr")
+                )).with_note(&buf).with_help("Use --copy-logs to save the compilation stderr")
             )?;
+
+            // if it seems like typst tried to download a package we emit an error
+            if buf.contains("error: failed to download package") {
+                sender.add_diagnostic(
+                    Diagnostic::error("Typst tried to download a package, but couldn't")
+                        .with_note("This is because the compilation of the booklet is sandboxed")
+                        .with_help(
+                            "Try compiling manually once to store the package in the offline cache",
+                        ),
+                )?;
+            }
         }
         Ok(())
     }
