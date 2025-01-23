@@ -67,10 +67,7 @@ impl FileStoreIndex {
         let mut reader = BufReader::new(file);
         let mut magic = [0u8; MAGIC.len()];
 
-        if reader
-            .read_exact(&mut magic)
-            .map_or(false, |_| magic != MAGIC)
-        {
+        if reader.read_exact(&mut magic).is_ok_and(|_| magic != MAGIC) {
             info!(
                 "FileStore version mismatch:\nExpected: {:?}\nFound: {:?}",
                 MAGIC, magic
