@@ -4,7 +4,7 @@ directory cannot be created.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.insert" class="method"><a class="src rightside" href="../src/task_maker_cache/lib.rs.html#140-157">Source</a><h4 class="code-header">pub fn <a href="#method.insert" class="fn">insert</a>(
     &amp;mut self,
     group: &amp;ExecutionGroup,
-    file_keys: &amp;<a class="struct" href="https://doc.rust-lang.org/1.84.0/std/collections/hash/map/struct.HashMap.html" title="struct std::collections::hash::map::HashMap">HashMap</a>&lt;FileUuid, <a class="struct" href="../task_maker_store/struct.FileStoreHandle.html" title="struct task_maker_store::FileStoreHandle">FileStoreHandle</a>&gt;,
+    file_keys: &amp;<a class="struct" href="https://doc.rust-lang.org/1.84.0/std/collections/hash/map/struct.HashMap.html" title="struct std::collections::hash::map::HashMap">HashMap</a>&lt;FileUuid, FileStoreHandle&gt;,
     result: <a class="struct" href="https://doc.rust-lang.org/1.84.0/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;ExecutionResult&gt;,
 )</h4></section></summary><div class="docblock"><p>Insert a new entry inside the cache. They key is computed based on the execution’s metadata
 and on the hash of it’s inputs, defined by the mapping <code>file_keys</code> from the UUIDs of the DAG
@@ -12,8 +12,8 @@ to the persistent <code>FileStoreKey</code>s.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.get" class="method"><a class="src rightside" href="../src/task_maker_cache/lib.rs.html#164-209">Source</a><h4 class="code-header">pub fn <a href="#method.get" class="fn">get</a>(
     &amp;mut self,
     group: &amp;ExecutionGroup,
-    file_keys: &amp;<a class="struct" href="https://doc.rust-lang.org/1.84.0/std/collections/hash/map/struct.HashMap.html" title="struct std::collections::hash::map::HashMap">HashMap</a>&lt;FileUuid, <a class="struct" href="../task_maker_store/struct.FileStoreHandle.html" title="struct task_maker_store::FileStoreHandle">FileStoreHandle</a>&gt;,
-    file_store: &amp;<a class="struct" href="../task_maker_store/struct.FileStore.html" title="struct task_maker_store::FileStore">FileStore</a>,
+    file_keys: &amp;<a class="struct" href="https://doc.rust-lang.org/1.84.0/std/collections/hash/map/struct.HashMap.html" title="struct std::collections::hash::map::HashMap">HashMap</a>&lt;FileUuid, FileStoreHandle&gt;,
+    file_store: &amp;FileStore,
 ) -&gt; <a class="enum" href="enum.CacheResult.html" title="enum task_maker_cache::CacheResult">CacheResult</a></h4></section></summary><div class="docblock"><p>Search in the cache for a valid entry, returning a cache hit if it’s found or a cache miss
 if not.</p>
 <p>The result contains the handles to the files in the <code>FileStore</code>, preventing the flushing
