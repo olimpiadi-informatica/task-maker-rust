@@ -133,10 +133,7 @@
 <a href="#132" id="132">132</a>
 <a href="#133" id="133">133</a>
 <a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a>
-<a href="#138" id="138">138</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
+<a href="#135" id="135">135</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::io::{BufReader, BufWriter, Read, Write};
 <span class="kw">use </span>std::path::PathBuf;
@@ -184,10 +181,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>reader = BufReader::new(file);
         <span class="kw">let </span><span class="kw-2">mut </span>magic = [<span class="number">0u8</span>; MAGIC.len()];
 
-        <span class="kw">if </span>reader
-            .read_exact(<span class="kw-2">&amp;mut </span>magic)
-            .map_or(<span class="bool-val">false</span>, |<span class="kw">_</span>| magic != MAGIC)
-        {
+        <span class="kw">if </span>reader.read_exact(<span class="kw-2">&amp;mut </span>magic).is_ok_and(|<span class="kw">_</span>| magic != MAGIC) {
             <span class="macro">info!</span>(
                 <span class="string">"Cache version mismatch:\nExpected: {:?}\nFound: {:?}"</span>,
                 MAGIC, magic

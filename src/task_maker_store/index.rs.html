@@ -350,10 +350,7 @@
 <a href="#349" id="349">349</a>
 <a href="#350" id="350">350</a>
 <a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
+<a href="#352" id="352">352</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::{BinaryHeap, HashMap};
 <span class="kw">use </span>std::fs::{create_dir_all, remove_dir, File};
@@ -422,10 +419,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>reader = BufReader::new(file);
         <span class="kw">let </span><span class="kw-2">mut </span>magic = [<span class="number">0u8</span>; MAGIC.len()];
 
-        <span class="kw">if </span>reader
-            .read_exact(<span class="kw-2">&amp;mut </span>magic)
-            .map_or(<span class="bool-val">false</span>, |<span class="kw">_</span>| magic != MAGIC)
-        {
+        <span class="kw">if </span>reader.read_exact(<span class="kw-2">&amp;mut </span>magic).is_ok_and(|<span class="kw">_</span>| magic != MAGIC) {
             <span class="macro">info!</span>(
                 <span class="string">"FileStore version mismatch:\nExpected: {:?}\nFound: {:?}"</span>,
                 MAGIC, magic
