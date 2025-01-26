@@ -202,7 +202,6 @@ where
                     for dep in deps {
                         if dep == "*" {
                             subtask.dependencies = (0..cases.subtask_id).collect();
-                            eprintln!("ASDFASDFQWERQWER {}", cases.subtask_id);
                         } else {
                             let dep_id = *cases
                                 .st_name_to_id
