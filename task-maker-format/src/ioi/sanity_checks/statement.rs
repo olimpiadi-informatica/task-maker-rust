@@ -498,7 +498,7 @@ fn check_valid_pdf(path: &Path) -> Result<bool, Error> {
 /// If git is not present, there is no git repository, or no file is tracked at all
 /// this will behave as if the file is known.
 fn check_known_to_git(task: &IOITask, path: &Path) -> Result<bool, Error> {
-    let raw_path = path.as_os_str().as_bytes();
+    let raw_path = task.path_of(path).as_os_str().as_bytes();
 
     let mut command = Command::new("git");
     command.arg("ls-files").arg("-z").current_dir(&task.path);
