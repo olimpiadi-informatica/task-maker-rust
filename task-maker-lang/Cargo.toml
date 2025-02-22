@@ -1,6 +1,6 @@
 [package]
 name = "task-maker-lang"
-version = "0.6.5"
+version = "0.6.6"
 authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
 edition = "2021"
 
