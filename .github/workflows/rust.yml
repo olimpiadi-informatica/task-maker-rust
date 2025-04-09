@@ -59,6 +59,14 @@ jobs:
       - name: cargo fmt
         run: cargo fmt --all -- --check
 
+  cargo-lock-3:
+    name: Check cargo lock version = 3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: check
+        run: grep "version = 3" Cargo.lock > /dev/null
+
   ts-bindings:
     name: Typescript Bindings
     runs-on: ubuntu-latest
