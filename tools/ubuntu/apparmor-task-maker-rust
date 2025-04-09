@@ -1,0 +1,10 @@
+# Allow user namespaces for task-maker-rust
+
+abi <abi/4.0>,
+
+profile task-maker-rust /usr/bin/task-maker-tools flags=(default_allow) {
+  userns,
+
+  # Site-specific additions and overrides. See local/README for details.
+  include if exists <local/task-maker-rust>
+}

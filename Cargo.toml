@@ -32,6 +32,8 @@ assets = [
     # vim syntax highlight
     ["tools/vim/ftdetect/cases_gen.vim", "usr/share/vim/vimfiles/ftdetect/cases_gen.vim", "644"],
     ["tools/vim/syntax/cases_gen.vim", "usr/share/vim/vimfiles/syntax/cases_gen.vim", "644"],
+    # AppArmor profile for allowing user namespaces on Ubuntu 23.10+.
+    ["tools/ubuntu/apparmor-task-maker-rust", "etc/apparmor.d/task-maker-rust", "644"]
 ]
 
 [badges]

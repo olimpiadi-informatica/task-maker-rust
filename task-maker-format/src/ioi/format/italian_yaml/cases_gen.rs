@@ -734,11 +734,7 @@ impl ConstraintOperand {
             ConstraintOperand::Constant(k) => Some(*k),
             ConstraintOperand::Variable(var) => {
                 if let Some(val) = vars.get(var) {
-                    if let Ok(val) = i64::from_str(val) {
-                        Some(val)
-                    } else {
-                        None
-                    }
+                    i64::from_str(val).ok()
                 } else {
                     None
                 }
