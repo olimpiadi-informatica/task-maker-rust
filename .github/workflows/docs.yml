@@ -6,12 +6,22 @@ on:
       - master
   workflow_dispatch:
 
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   docs:
     name: Build documentation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
       - name: Install Deps
         run: |
           sudo apt update
@@ -22,8 +32,10 @@ jobs:
       - name: Make index.html
         run: |
           echo '<meta http-equiv="Refresh" content="0; url=./task_maker/index.html">' > target/doc/index.html
-      - name: Publish
-        uses: JamesIves/github-pages-deploy-action@v4.7.2
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          branch: gh-pages
-          folder: target/doc
+          path: target/doc
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
