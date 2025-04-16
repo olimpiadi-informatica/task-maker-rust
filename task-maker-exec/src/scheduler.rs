@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Context, Error};
-use typescript_definitions::TypeScriptify;
 use uuid::Uuid;
 
 use task_maker_cache::{Cache, CacheResult};
@@ -23,7 +22,7 @@ use crate::worker_manager::WorkerManagerInMessage;
 pub type ClientUuid = Uuid;
 
 /// Information about a client of the scheduler.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ClientInfo {
     /// Unique identifier of the client.
     pub uuid: ClientUuid,

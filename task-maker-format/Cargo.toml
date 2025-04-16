@@ -51,8 +51,6 @@ shell-words = { workspace = true }
 derivative = { workspace = true }
 # For sending ^C to the process
 nix = { workspace = true }
-# Typescript definition generation
-typescript-definitions = { workspace = true }
 # Unicode for subtask names
 unic = { workspace = true }
 # Wildcard match for subtask names.

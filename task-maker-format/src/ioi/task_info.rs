@@ -3,12 +3,11 @@ use std::path::PathBuf;
 use anyhow::Error;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 
 use crate::ioi::IOITask;
 
 /// Task information structure.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IOITaskInfo {
     /// Version of this task-info structure.
     version: u64,
@@ -27,7 +26,7 @@ pub struct IOITaskInfo {
 }
 
 /// Limits of the task.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskInfoLimits {
     /// Time limit in seconds.
     pub time: Option<f64>,
@@ -36,7 +35,7 @@ pub struct TaskInfoLimits {
 }
 
 /// Attachment of the task.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskInfoAttachment {
     /// Name of this attachment.
     pub name: String,
@@ -47,7 +46,7 @@ pub struct TaskInfoAttachment {
 }
 
 /// Info of the subtasks.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskInfoSubtask {
     /// Maximum score for this subtask.
     pub max_score: f64,
@@ -56,7 +55,7 @@ pub struct TaskInfoSubtask {
 }
 
 /// Scoring for the task.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskInfoScoring {
     /// Maximum score for the task.
     pub max_score: f64,
@@ -65,7 +64,7 @@ pub struct TaskInfoScoring {
 }
 
 /// Statement of the task.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskInfoStatement {
     /// Language of the statement.
     pub language: String,

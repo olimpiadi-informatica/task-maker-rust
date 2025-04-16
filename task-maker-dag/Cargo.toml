@@ -13,8 +13,6 @@ serde = { workspace = true, features = ["derive"] }
 uuid = { workspace = true, features = ["v4", "fast-rng", "serde"] }
 # Generic error utilities
 anyhow = { workspace = true, features = ["backtrace"] }
-# Typescript definition generation
-typescript-definitions = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

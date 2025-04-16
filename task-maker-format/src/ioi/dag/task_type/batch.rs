@@ -2,7 +2,6 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Context, Error};
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{ExecutionStatus, FileUuid, Priority};
 
@@ -14,7 +13,7 @@ use crate::{bind_exec_callbacks, bind_exec_io};
 use crate::{EvaluationData, SourceFile, Tag};
 
 /// The internal data of a task of type `Batch`.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchTypeData {
     /// The default output generator for this task, if any.
     #[serde(skip_serializing)]

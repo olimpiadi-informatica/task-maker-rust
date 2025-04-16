@@ -27,7 +27,6 @@ use std::sync::{Arc, Mutex};
 use anyhow::Error;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 
 pub use detect_format::find_task;
 pub use sanity_checks::get_sanity_check_list;
@@ -73,7 +72,7 @@ lazy_static! {
 }
 
 /// Information about a parsed task, returned with the `--task-info` option.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TaskInfo {
     /// The task is IOI-like.
     IOI(IOITaskInfo),

@@ -2,13 +2,12 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use task_maker_dag::{Execution, ExecutionCommand, File};
 use task_maker_diagnostics::Diagnostic;
-use typescript_definitions::TypeScriptify;
 
 use crate::{EvaluationData, Tag, UISender};
 use anyhow::Error;
 
 /// A statement is a markdown template together with subtask data
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Statement {
     /// The path to the statement template
     pub path: PathBuf,

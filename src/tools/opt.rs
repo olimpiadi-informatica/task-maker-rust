@@ -36,8 +36,6 @@ pub enum Tool {
     Server(ServerOpt),
     /// Spawn an instance of a worker
     Worker(WorkerOpt),
-    /// Print the TypeScript type definitions
-    Typescriptify,
     /// Wipe the internal storage of task-maker
     ///
     /// Warning: no other instances of task-maker should be running when this flag is provided.

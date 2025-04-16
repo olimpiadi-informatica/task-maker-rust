@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use anyhow::Error;
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 use uuid::Uuid;
 
 use crate::file::*;
@@ -217,7 +216,7 @@ pub struct ExecutionLimits {
 }
 
 /// Status of a completed [`Execution`](struct.Execution.html).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ExecutionStatus {
     /// The program exited with status 0 within the limits.
     Success,
@@ -239,7 +238,7 @@ pub enum ExecutionStatus {
 
 /// Resources used during the execution, note that on some platform these values may not be
 /// accurate.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct ExecutionResourcesUsage {
     /// Number of seconds the process used in user space.
     pub cpu_time: f64,
@@ -252,7 +251,7 @@ pub struct ExecutionResourcesUsage {
 }
 
 /// The result of an [`Execution`](struct.Execution.html).
-#[derive(Clone, Serialize, Deserialize, PartialEq, TypeScriptify)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct ExecutionResult {
     /// Status of the completed execution.
     pub status: ExecutionStatus,

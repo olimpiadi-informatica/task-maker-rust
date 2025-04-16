@@ -14,7 +14,6 @@ use task_maker_rust::tools::sandbox::main_sandbox;
 use task_maker_rust::tools::server::main_server;
 use task_maker_rust::tools::task_info::main_task_info;
 use task_maker_rust::tools::terry_statement::main_terry_statement;
-use task_maker_rust::tools::typescriptify::main_typescriptify;
 use task_maker_rust::tools::worker::main_worker;
 
 fn main() {
@@ -26,7 +25,6 @@ fn main() {
         Tool::GenAutocompletion(opt) => main_get_autocompletion(opt),
         Tool::Server(opt) => main_server(opt),
         Tool::Worker(opt) => main_worker(opt),
-        Tool::Typescriptify => main_typescriptify(),
         Tool::Reset(opt) => main_reset(opt),
         Tool::Sandbox(opt) => main_sandbox(opt),
         Tool::TaskInfo(opt) => main_task_info(opt),

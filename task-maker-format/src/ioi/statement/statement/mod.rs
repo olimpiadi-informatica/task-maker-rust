@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Error};
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::File;
 use tex::Tex;
@@ -20,7 +19,7 @@ mod tex;
 mod typst;
 
 /// The configuration of a `Statement`.
-#[derive(Debug, Clone, Serialize, Deserialize, Default, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct StatementConfig {
     /// The name of the task.
     pub name: String,
@@ -41,7 +40,7 @@ pub struct StatementConfig {
 }
 
 /// A statement is a `.tex` file with all the other assets included in its directory.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Statement {
     /// The configuration of the statement.
     config: StatementConfig,

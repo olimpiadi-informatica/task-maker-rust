@@ -94,8 +94,6 @@ which = "7.0"
 whoami = "1.6"
 wildmatch = "2.1.0"
 
-typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs" }
-
 [dependencies]
 task-maker-dag = { path = "./task-maker-dag" }
 task-maker-store = { path = "./task-maker-store" }
@@ -146,10 +144,8 @@ rlimit = { workspace = true }
 fastrand = { workspace = true }
 # Curses UI
 ratatui = { workspace = true, features = ["termion"] }
-
-# Typescript definition generation
-typescript-definitions = { workspace = true }
-serde_yaml.workspace = true
+# Terry statements
+serde_yaml = { workspace = true }
 
 [dev-dependencies]
 approx = { workspace = true }

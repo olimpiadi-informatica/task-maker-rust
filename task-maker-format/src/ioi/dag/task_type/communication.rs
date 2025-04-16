@@ -2,7 +2,6 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Context, Error};
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{ExecutionGroup, FileUuid, Priority};
 
@@ -12,7 +11,7 @@ use crate::{bind_exec_callbacks, bind_exec_io};
 use crate::{EvaluationData, SourceFile, Tag};
 
 /// The type of communication for the solution in a communication task.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, TypeScriptify, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum UserIo {
     /// Communication is achieved by using stdin/stdout.
@@ -36,7 +35,7 @@ impl UserIo {
 }
 
 /// The internal data of a task of type `Batch`.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommunicationTypeData {
     /// The source file of the manager that communicates with the solutions.
     pub manager: Arc<SourceFile>,

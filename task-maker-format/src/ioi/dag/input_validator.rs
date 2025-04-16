@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use anyhow::{Context, Error};
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{Execution, File, FileUuid, Priority};
 use task_maker_diagnostics::Diagnostic;
@@ -19,7 +18,7 @@ pub const TM_VALIDATION_FILE_NAME: &str = "tm_validation_file";
 
 /// An input file validator is responsible for checking that the input file follows the format and
 /// constraints defined by the task.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum InputValidator {
     /// Skip the validation and assume the input file is valid.
     #[default]
