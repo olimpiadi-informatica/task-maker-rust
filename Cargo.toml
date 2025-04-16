@@ -91,7 +91,7 @@ url = "2.5"
 uuid = "1.16"
 walkdir = "2.5"
 which = "7.0"
-whoami = "1.5"
+whoami = "1.6"
 wildmatch = "2.1.0"
 
 typescript-definitions = { git = "https://github.com/onelson/typescript-definitions", branch = "no-debug-attrs" }
