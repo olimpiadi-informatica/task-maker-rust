@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use anyhow::{bail, Context, Error};
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 
 use task_maker_dag::{Execution, File, FileUuid, Priority};
 use task_maker_diagnostics::Diagnostic;
@@ -15,7 +14,7 @@ use crate::{EvaluationData, SourceFile, Tag};
 
 /// The source of the output files. It can either be a statically provided output file or a custom
 /// command that will generate an output file.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OutputGenerator {
     /// The output generator is not available.
     NotAvailable,

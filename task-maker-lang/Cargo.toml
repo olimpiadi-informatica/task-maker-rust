@@ -19,8 +19,6 @@ lazy_static = { workspace = true }
 which = { workspace = true }
 # Split command line arguments
 shell-words = { workspace = true }
-# Typescript definition generation
-typescript-definitions = { workspace = true }
 
 [dev-dependencies]
 task-maker-exec = { path = "../task-maker-exec" }

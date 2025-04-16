@@ -36,8 +36,6 @@ nix = { workspace = true }
 ductile = { workspace = true }
 # Key Derivation Function from a password
 blake3 = { workspace = true }
-# Typescript definition generation
-typescript-definitions = { workspace = true }
 crossbeam-channel = { workspace = true }
 
 [dev-dependencies]

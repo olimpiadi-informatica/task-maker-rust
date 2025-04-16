@@ -2,7 +2,6 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Error;
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 
 pub use batch::BatchTypeData;
 pub use communication::{CommunicationTypeData, UserIo};
@@ -15,7 +14,7 @@ mod batch;
 mod communication;
 
 /// The type of the task. This changes the behavior of the solutions.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TaskType {
     /// The solution is a single file that will be executed once per testcase, feeding in the input
     /// file and reading the output file. The solution may be compiled with additional graders

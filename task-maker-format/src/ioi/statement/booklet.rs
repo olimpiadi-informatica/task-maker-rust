@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Context, Error};
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 
 use crate::ioi::statement::Statement;
 use crate::EvaluationData;
@@ -10,7 +9,7 @@ use crate::EvaluationData;
 use super::get_language_from_extension;
 
 /// Configuration of a `Booklet`, including the setting from the contest configuration.
-#[derive(Debug, Clone, Serialize, Deserialize, Default, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BookletConfig {
     /// The language to use for this booklet, e.g. `"english"`.
     pub language: String,
@@ -36,7 +35,7 @@ pub struct BookletConfig {
 
 /// A `Booklet` is a pdf file containing the statements of some tasks. It is compiled from a series
 /// of `.tex` files defined by `Statement` objects. The compiled pdf file is then copied somewhere.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Booklet {
     /// Configuration of the booklet.
     pub config: BookletConfig,

@@ -3,7 +3,6 @@ use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 use task_maker_diagnostics::Diagnostic;
-use typescript_definitions::TypeScriptify;
 
 use task_maker_exec::ExecutorStatus;
 
@@ -14,7 +13,7 @@ use crate::ui::UIExecutionStatus;
 use crate::{ioi, terry};
 
 /// A message sent to the UI.
-#[derive(Debug, Serialize, Deserialize, Clone, TypeScriptify)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum UIMessage {
     /// A message asking the UI to exit.
     StopUI,

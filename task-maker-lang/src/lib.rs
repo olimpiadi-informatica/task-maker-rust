@@ -33,7 +33,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 
 pub use grader_map::GraderMap;
 pub use source_file::SourceFile;
@@ -47,7 +46,7 @@ mod languages;
 mod source_file;
 
 /// A dependency of an execution, all the sandbox paths must be relative and inside of the sandbox.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Dependency {
     /// The handle of the file.
     pub file: File,

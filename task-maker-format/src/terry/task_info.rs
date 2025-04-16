@@ -1,11 +1,10 @@
 use anyhow::Error;
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 
 use crate::terry::TerryTask;
 
 /// Task information structure.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerryTaskInfo {
     /// The version of the `TaskInfo` structure.
     version: u64,

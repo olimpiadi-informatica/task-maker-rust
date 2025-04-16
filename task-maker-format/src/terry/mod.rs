@@ -6,7 +6,6 @@ use std::sync::Arc;
 use anyhow::Error;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 
 pub use task_info::*;
 use task_maker_dag::ExecutionDAGConfig;
@@ -34,7 +33,7 @@ pub(crate) mod ui_state;
 pub type Seed = u64;
 
 /// Information about a generic Terry task.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerryTask {
     /// Path of the directory of the task.
     pub path: PathBuf,
@@ -69,7 +68,7 @@ pub struct TerryTask {
 }
 
 /// The output of the checker for a solution.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolutionOutcome {
     /// The score normalized from 0.0 to 1.0.
     pub score: f64,
@@ -82,7 +81,7 @@ pub struct SolutionOutcome {
 }
 
 /// The validation part of the outcome of a solution.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolutionValidation {
     /// The validation of the test cases, in the same order as the input.
     pub cases: Vec<SolutionValidationCase>,
@@ -91,7 +90,7 @@ pub struct SolutionValidation {
 }
 
 /// The validation outcome of a test case.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolutionValidationCase {
     /// The status of the testcase.
     pub status: CaseStatus,
@@ -100,7 +99,7 @@ pub struct SolutionValidationCase {
 }
 
 /// The possible statuses of the validation of a test case.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CaseStatus {
     /// The testcase is not present in the output file.
@@ -112,7 +111,7 @@ pub enum CaseStatus {
 }
 
 /// The feedback part of the outcome.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolutionFeedback {
     /// The feedback of each testcase, in the same order as the input.
     pub cases: Vec<SolutionFeedbackCase>,
@@ -121,7 +120,7 @@ pub struct SolutionFeedback {
 }
 
 /// The feedback of a test case.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolutionFeedbackCase {
     /// Whether this testcase is correct.
     pub correct: bool,
@@ -130,7 +129,7 @@ pub struct SolutionFeedbackCase {
 }
 
 /// A message with an associated severity.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolutionAlert {
     /// The severity of the alert message.
     pub severity: String,
@@ -139,7 +138,7 @@ pub struct SolutionAlert {
 }
 
 /// A subtask with its score and testcases
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Subtask {
     max_score: f64,
     score: f64,

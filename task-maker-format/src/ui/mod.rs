@@ -9,7 +9,6 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 pub use termcolor::WriteColor;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
-use typescript_definitions::TypeScriptify;
 
 pub use curses::{inner_block, render_block, render_server_status, CursesDrawer, CursesUI};
 pub use json::JsonUI;
@@ -110,7 +109,7 @@ lazy_static! {
 }
 
 /// The status of an execution.
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, TypeScriptify)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum UIExecutionStatus {
     /// The `Execution` is known to the DAG and when all its dependencies are ready it will
     /// started.

@@ -23,7 +23,6 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Context, Error};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use typescript_definitions::TypeScriptify;
 use unic::normal::StrNormalForm;
 use wildmatch::WildMatch;
 
@@ -105,7 +104,7 @@ impl InputValidatorGenerator {
 }
 
 /// Information about a generic IOI task.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IOITask {
     /// Path of the directory of the task.
     pub path: PathBuf,
@@ -153,7 +152,7 @@ pub struct IOITask {
 }
 
 /// A subtask of a IOI task.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SubtaskInfo {
     /// The id of the subtask.
     pub id: SubtaskId,
@@ -184,7 +183,7 @@ pub struct SubtaskInfo {
 ///
 /// Every testcase has an input and an output that will be put in the input/ and output/ folders.
 /// The files are written there only if it's not a dry-run and if the files are not static.
-#[derive(Debug, Clone, Serialize, Deserialize, TypeScriptify)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestcaseInfo {
     /// The id of the testcase.
     pub id: TestcaseId,
