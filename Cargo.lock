@@ -1747,7 +1747,7 @@ dependencies = [
  "task-maker-dag",
  "task-maker-store",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "uuid",
  "which",
 ]
