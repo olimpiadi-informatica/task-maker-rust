@@ -16,7 +16,7 @@ mod booklet;
 mod statement;
 
 /// List of languages supported by CMS for statements
-pub const LANGUAGES: [&str; 60] = [
+pub const LANGUAGES: [&str; 61] = [
     "afrikaans",
     "arabic",
     "armenian",
@@ -52,6 +52,7 @@ pub const LANGUAGES: [&str; 60] = [
     "kyrgyz",
     "latvian",
     "lithuanian",
+    "luxembourgish",
     "macedonian",
     "malay",
     "mongolian",
