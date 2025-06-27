@@ -591,7 +591,7 @@ impl Drop for SandboxData {
     fn drop(&mut self) {
         if self.keep_sandbox {
             // this will unwrap the directory, dropping the `TempDir` without deleting the directory
-            self.boxdir.take().map(TempDir::into_path);
+            self.boxdir.take().map(TempDir::keep);
         } else if Sandbox::set_permissions(&self.path().join("box"), 0o700).is_err() {
             warn!("Cannot 'chmod 700' the sandbox directory");
         }
