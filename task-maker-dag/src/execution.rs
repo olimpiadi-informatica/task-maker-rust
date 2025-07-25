@@ -63,6 +63,8 @@ pub enum ExecutionCommand {
     System(PathBuf),
     /// A command relative to the sandbox directory, not to be searched in the `$PATH`.
     Local(PathBuf),
+    /// Typst compilation, done unsandboxed by task-maker itself
+    TypstCompilation,
 }
 
 /// An input file of an [`Execution`](struct.Execution.html), can be marked as executable if it has
