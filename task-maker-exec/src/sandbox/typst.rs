@@ -143,7 +143,10 @@ impl TypstCompiler {
             let path = path
                 .strip_prefix("./")
                 .unwrap_or(&path);
-            self.files[path].clone()
+            self.files
+                .get(path)
+                .ok_or(FileError::NotFound(path.to_owned()))?
+                .clone()
         };
 
         Ok(path)
@@ -195,4 +198,3 @@ impl World for TypstCompiler {
             .map(|time| Datetime::Date(time.date()))
     }
 }
-

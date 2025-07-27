@@ -603,13 +603,21 @@ fn compute_execution_result(
                 stderr: stderr.ok().unwrap_or_default(),
             }
         }
-        SandboxResult::Failed { error } => ExecutionResult {
-            status: ExecutionStatus::InternalError(error),
-            resources: ExecutionResourcesUsage::default(),
-            stdout: None,
-            was_killed: false,
-            was_cached: false,
-            stderr: None,
+        SandboxResult::Failed { error } => {
+            let status = if execution.command != ExecutionCommand::TypstCompilation {
+                ExecutionStatus::InternalError(error.clone())
+            } else {
+                ExecutionStatus::Failure
+            };
+
+            ExecutionResult {
+                status,
+                resources: ExecutionResourcesUsage::default(),
+                was_killed: false,
+                was_cached: false,
+                stdout: None,
+                stderr: None,
+            }
         },
     }
 }
