@@ -33,7 +33,7 @@ impl AsyFile {
         let source_file = File::new(format!("Source of {name}"));
 
         let mut comp_pdf_svg = Execution::new(
-            format!("Compilation of {}", name),
+            format!("Compilation of {name}"),
             ExecutionCommand::system("sh"),
         );
         comp_pdf_svg.args(vec![

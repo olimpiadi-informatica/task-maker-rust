@@ -14,8 +14,8 @@ use tabox::result::SandboxExecutionResult;
 use task_maker_dag::*;
 use task_maker_store::*;
 
-use crate::sandbox::sandbox::Sandbox;
-use crate::sandbox::typst::TypstCompiler;
+use crate::execution_unit::sandbox::Sandbox;
+use crate::execution_unit::typst::TypstCompiler;
 use crate::sandbox_runner::SandboxRunner;
 use crate::worker::OutputFile;
 
@@ -67,7 +67,7 @@ pub enum ExecutionUnit {
     /// A sandboxed execution
     Sandbox(Sandbox),
     /// A Typst compilation
-    TypstCompilation(TypstCompiler),
+    TypstCompilation(Box<TypstCompiler>),
 }
 
 impl ExecutionUnit {
@@ -80,25 +80,24 @@ impl ExecutionUnit {
     ) -> Result<ExecutionUnit, Error> {
         if execution.command == ExecutionCommand::TypstCompilation {
             TypstCompiler::new(Path::new("."), execution, dep_keys)
-                .map(ExecutionUnit::TypstCompilation)
+                .map(|typst_compiler| ExecutionUnit::TypstCompilation(Box::new(typst_compiler)))
         } else {
-            Sandbox::new(sandboxes_dir, execution, dep_keys, fifo_dir)
-                .map(ExecutionUnit::Sandbox)
+            Sandbox::new(sandboxes_dir, execution, dep_keys, fifo_dir).map(ExecutionUnit::Sandbox)
         }
     }
 
     /// Kills the process off the execution, if it is run in a sandbox
     pub fn kill(&self) {
         match self {
-            ExecutionUnit::Sandbox(sandbox) => { sandbox.kill() } 
-            ExecutionUnit::TypstCompilation(_) => { }
+            ExecutionUnit::Sandbox(sandbox) => sandbox.kill(),
+            ExecutionUnit::TypstCompilation(_) => {}
         }
     }
 
     /// Keeps the sandbox if one exists
     pub fn keep(&mut self) -> Result<(), Error> {
         match self {
-            ExecutionUnit::Sandbox(sandbox) => sandbox.keep(), 
+            ExecutionUnit::Sandbox(sandbox) => sandbox.keep(),
             ExecutionUnit::TypstCompilation(_) => Ok(()),
         }
     }
@@ -106,7 +105,7 @@ impl ExecutionUnit {
     /// Runs the execution
     pub fn run(&mut self, runner: &dyn SandboxRunner) -> Result<SandboxResult, Error> {
         match self {
-            ExecutionUnit::Sandbox(sandbox) => sandbox.run(runner), 
+            ExecutionUnit::Sandbox(sandbox) => sandbox.run(runner),
             ExecutionUnit::TypstCompilation(typst_compiler) => typst_compiler.run(),
         }
     }
@@ -114,7 +113,7 @@ impl ExecutionUnit {
     /// Obtains the outputted standard output
     pub fn stdout_path(&self) -> OutputFile {
         match self {
-            ExecutionUnit::Sandbox(sandbox) => OutputFile::OnDisk(sandbox.stdout_path()), 
+            ExecutionUnit::Sandbox(sandbox) => OutputFile::OnDisk(sandbox.stdout_path()),
             ExecutionUnit::TypstCompilation(_) => OutputFile::InMemory(Vec::new()),
         }
     }
@@ -122,7 +121,7 @@ impl ExecutionUnit {
     /// Obtains the outputted standard error
     pub fn stderr_path(&self) -> OutputFile {
         match self {
-            ExecutionUnit::Sandbox(sandbox) => OutputFile::OnDisk(sandbox.stderr_path()), 
+            ExecutionUnit::Sandbox(sandbox) => OutputFile::OnDisk(sandbox.stderr_path()),
             ExecutionUnit::TypstCompilation(_) => OutputFile::InMemory(Vec::new()),
         }
     }
@@ -130,8 +129,10 @@ impl ExecutionUnit {
     /// Obtains the specified output file
     pub fn output_path(&self, output: &Path) -> OutputFile {
         match self {
-            ExecutionUnit::Sandbox(sandbox) => OutputFile::OnDisk(sandbox.output_path(output)), 
-            ExecutionUnit::TypstCompilation(typst_compiler) => OutputFile::InMemory(typst_compiler.output(output)),
+            ExecutionUnit::Sandbox(sandbox) => OutputFile::OnDisk(sandbox.output_path(output)),
+            ExecutionUnit::TypstCompilation(typst_compiler) => {
+                OutputFile::InMemory(typst_compiler.output(output))
+            }
         }
     }
 }

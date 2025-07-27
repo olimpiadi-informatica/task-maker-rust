@@ -284,6 +284,7 @@ impl<'a> FinishUIUtils<'a> {
     pub fn print_fail_execution_status(status: &ExecutionStatus) {
         match status {
             ExecutionStatus::Success => {}
+            ExecutionStatus::Failure => print!("Failed"),
             ExecutionStatus::ReturnCode(code) => print!("Exited with {code}"),
             ExecutionStatus::Signal(sig, name) => print!("Signal {sig} ({name})"),
             ExecutionStatus::TimeLimitExceeded => print!("Time limit exceeded"),

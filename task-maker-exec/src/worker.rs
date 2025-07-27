@@ -5,8 +5,8 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
-use std::{cmp, thread};
 use std::thread::JoinHandle;
+use std::{cmp, thread};
 
 use anyhow::{anyhow, bail, Context, Error};
 use ductile::{new_local_channel, ChannelReceiver, ChannelSender};
@@ -16,9 +16,9 @@ use uuid::Uuid;
 use task_maker_dag::*;
 use task_maker_store::*;
 
+use crate::execution_unit::{ExecutionUnit, SandboxResult};
 use crate::executor::WorkerJob;
 use crate::proto::*;
-use crate::sandbox::{ExecutionUnit, SandboxResult};
 use crate::sandbox_runner::SandboxRunner;
 
 /// The information about the current job the worker is doing.
@@ -504,7 +504,7 @@ fn sandbox_group_manager(
                         OutputFile::OnDisk(path) => {
                             ChannelFileSender::send(path, &sender)
                                 .context("Failed to send missing file")?;
-                        },
+                        }
                         OutputFile::InMemory(content) => {
                             ChannelFileSender::send_data(content.clone(), &sender)
                                 .context("Failed to sent in-memory file")?;
@@ -601,14 +601,22 @@ fn compute_execution_result(
                 stderr: stderr.ok().unwrap_or_default(),
             }
         }
-        SandboxResult::Failed { error } => ExecutionResult {
-            status: ExecutionStatus::InternalError(error),
-            resources: ExecutionResourcesUsage::default(),
-            stdout: None,
-            was_killed: false,
-            was_cached: false,
-            stderr: None,
-        },
+        SandboxResult::Failed { error } => {
+            let status = if execution.command != ExecutionCommand::TypstCompilation {
+                ExecutionStatus::InternalError(error.clone())
+            } else {
+                ExecutionStatus::Failure
+            };
+
+            ExecutionResult {
+                status,
+                resources: ExecutionResourcesUsage::default(),
+                was_killed: false,
+                was_cached: false,
+                stdout: None,
+                stderr: None,
+            }
+        }
     }
 }
 
@@ -620,35 +628,33 @@ fn get_result_outputs(
     output_paths: &mut HashMap<FileUuid, OutputFile>,
     status: &mut ExecutionStatus,
 ) {
-    let mut add_file = |file: FileUuid, out: OutputFile| {
-        match &out {
-            OutputFile::OnDisk(path) => {
-                if path.exists() {
-                    let key = FileStoreKey::from_file(&path);
-                    match key {
-                        Ok(key) => {
-                            outputs.insert(file, key);
-                            output_paths.insert(file, out);
-                        }
-                        Err(e) => {
-                            *status = ExecutionStatus::internal_error(format!(
-                                "Failed to get store key for {} at {}: {:?}",
-                                file,
-                                path.display(),
-                                e
-                            ));
-                        }
+    let mut add_file = |file: FileUuid, out: OutputFile| match &out {
+        OutputFile::OnDisk(path) => {
+            if path.exists() {
+                let key = FileStoreKey::from_file(path);
+                match key {
+                    Ok(key) => {
+                        outputs.insert(file, key);
+                        output_paths.insert(file, out);
                     }
-                } else {
-                    outputs.insert(file, FileStoreKey::from_content(&[]));
-                    output_paths.insert(file, OutputFile::OnDisk("/dev/null".into()));
+                    Err(e) => {
+                        *status = ExecutionStatus::internal_error(format!(
+                            "Failed to get store key for {} at {}: {:?}",
+                            file,
+                            path.display(),
+                            e
+                        ));
+                    }
                 }
-            },
-            OutputFile::InMemory(content) => {
-                let key = FileStoreKey::from_content(content);
-                outputs.insert(file, key);
-                output_paths.insert(file, out);
+            } else {
+                outputs.insert(file, FileStoreKey::from_content(&[]));
+                output_paths.insert(file, OutputFile::OnDisk("/dev/null".into()));
             }
+        }
+        OutputFile::InMemory(content) => {
+            let key = FileStoreKey::from_content(content);
+            outputs.insert(file, key);
+            output_paths.insert(file, out);
         }
     };
 
@@ -684,10 +690,10 @@ fn capture_stream(file: &OutputFile, count: Option<usize>) -> Result<Option<Vec<
                     }
                 }
                 Ok(Some(result))
-            },
+            }
             OutputFile::InMemory(content) => {
                 Ok(Some(content[..cmp::min(count, content.len())].to_owned()))
-            },
+            }
         }
     } else {
         Ok(None)

@@ -222,6 +222,8 @@ pub struct ExecutionLimits {
 pub enum ExecutionStatus {
     /// The program exited with status 0 within the limits.
     Success,
+    /// The task-maker-executed execution returned an Error
+    Failure,
     /// The program exited with a non-zero status code, which is attached.
     ReturnCode(u32),
     /// The program stopped due to a signal, the number and the name of the signal are attached.

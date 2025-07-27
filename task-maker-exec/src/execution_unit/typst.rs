@@ -9,10 +9,10 @@ use typst_pdf::PdfOptions;
 use zune_inflate::DeflateDecoder;
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use std::{env, fs};
-use std::path::{Path, PathBuf};
 
 use typst::diag::{FileError, FileResult, PackageError, PackageResult};
 use typst::foundations::{Bytes, Datetime, Dict, Str, Value};
@@ -22,7 +22,7 @@ use typst::utils::LazyHash;
 use typst::{Library, World};
 use typst_kit::fonts::{FontSearcher, FontSlot};
 
-use crate::sandbox::SandboxResult;
+use crate::execution_unit::SandboxResult;
 
 #[derive(Debug, Clone)]
 pub struct TypstCompiler {
@@ -38,17 +38,26 @@ pub struct TypstCompiler {
 }
 
 impl TypstCompiler {
-    pub fn new(root: &Path, execution: &Execution, dep_keys: &HashMap<FileUuid, FileStoreHandle>) -> anyhow::Result<TypstCompiler> {
-        let files = execution.inputs.iter().map(|(path, input)| Ok::<_, anyhow::Error>((
-            path.strip_prefix("./").unwrap_or(path).to_owned(), 
-            dep_keys
-                .get(&input.file)
-                .context("file not provided")?
-                .path()
-                .to_owned(),
-        )))
-        .collect::<Result<HashMap<_, _>, _>>()?;
-        
+    pub fn new(
+        root: &Path,
+        execution: &Execution,
+        dep_keys: &HashMap<FileUuid, FileStoreHandle>,
+    ) -> anyhow::Result<TypstCompiler> {
+        let files = execution
+            .inputs
+            .iter()
+            .map(|(path, input)| {
+                Ok::<_, anyhow::Error>((
+                    path.strip_prefix("./").unwrap_or(path).to_owned(),
+                    dep_keys
+                        .get(&input.file)
+                        .context("file not provided")?
+                        .path()
+                        .to_owned(),
+                ))
+            })
+            .collect::<Result<HashMap<_, _>, _>>()?;
+
         let fonts = FontSearcher::new().include_system_fonts(true).search();
 
         let cache_dir = match env::var("XDG_CACHE_HOME") {
@@ -58,12 +67,16 @@ impl TypstCompiler {
 
         let mut inputs = Dict::new();
         inputs.insert(Str::from("gen_gen"), Value::Str(Str::from("GEN")));
-        inputs.insert(Str::from("constraints_yaml"), Value::Str(Str::from("constraints.yaml")));
-        inputs.insert(Str::from("contest_yaml"), Value::Str(Str::from("../../contest.yaml")));
+        inputs.insert(
+            Str::from("constraints_yaml"),
+            Value::Str(Str::from("constraints.yaml")),
+        );
+        inputs.insert(
+            Str::from("contest_yaml"),
+            Value::Str(Str::from("../../contest.yaml")),
+        );
 
-        let library = Library::builder()
-            .with_inputs(inputs)
-            .build();
+        let library = Library::builder().with_inputs(inputs).build();
 
         let http_client = ClientBuilder::new()
             .timeout(Duration::from_secs(10))
@@ -90,7 +103,8 @@ impl TypstCompiler {
         let pdf = typst_pdf::pdf(&document, &PdfOptions::default())
             .map_err(|err| anyhow!("Error compiling typst: {err:?}"))?;
 
-        self.outputs.insert(Path::new("booklet.pdf").to_owned(), pdf);
+        self.outputs
+            .insert(Path::new("booklet.pdf").to_owned(), pdf);
 
         Ok(SandboxResult::default())
     }
@@ -100,19 +114,24 @@ impl TypstCompiler {
     }
 
     fn get_package_dir(&self, package: &PackageSpec) -> PackageResult<PathBuf> {
-        let PackageSpec { namespace, name, version } = package;
+        let PackageSpec {
+            namespace,
+            name,
+            version,
+        } = package;
         let package_subdir = format!("{namespace}/{name}/{version}");
         let path = self.cache_dir.join(package_subdir);
 
         if !path.exists() {
             let url = format!("https://packages.typst.org/{namespace}/{name}-{version}.tar.gz");
-            let req = self.http_client
+            let req = self
+                .http_client
                 .get(url)
                 .send()
                 .map_err(|err| PackageError::NetworkFailed(Some(eco_format!("{err}"))))?
                 .error_for_status()
                 .map_err(|err| PackageError::NetworkFailed(Some(eco_format!("{err}"))))?
-                .bytes()    
+                .bytes()
                 .map_err(|err| PackageError::NetworkFailed(Some(eco_format!("{err}"))))?;
 
             let archive = DeflateDecoder::new(&req)
@@ -132,18 +151,20 @@ impl TypstCompiler {
     fn resolve_path(&self, id: FileId) -> FileResult<PathBuf> {
         let path = if let Some(package) = id.package() {
             let package_dir = self.get_package_dir(package)?;
-            id
-                .vpath()
+            id.vpath()
                 .resolve(&package_dir)
                 .ok_or(FileError::AccessDenied)?
                 .clone()
         } else {
-            let path = id.vpath().resolve(&self.root)
+            let path = id
+                .vpath()
+                .resolve(&self.root)
                 .ok_or(FileError::AccessDenied)?;
-            let path = path
-                .strip_prefix("./")
-                .unwrap_or(&path);
-            self.files[path].clone()
+            let path = path.strip_prefix("./").unwrap_or(&path);
+            self.files
+                .get(path)
+                .ok_or(FileError::NotFound(path.to_owned()))?
+                .clone()
         };
 
         Ok(path)
@@ -155,7 +176,7 @@ impl World for TypstCompiler {
         &self.library
     }
 
-    fn book(&self) ->  &LazyHash<FontBook> {
+    fn book(&self) -> &LazyHash<FontBook> {
         &self.book
     }
 
@@ -195,4 +216,3 @@ impl World for TypstCompiler {
             .map(|time| Datetime::Date(time.date()))
     }
 }
-

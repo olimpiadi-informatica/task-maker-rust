@@ -20,8 +20,8 @@ use task_maker_dag::*;
 use task_maker_store::*;
 
 use crate::detect_exe::detect_exe;
+use crate::execution_unit::{RawSandboxResult, SandboxResult};
 use crate::sandbox_runner::SandboxRunner;
-use crate::sandbox::{RawSandboxResult, SandboxResult};
 
 /// The list of all the system-wide readable directories inside the sandbox.
 pub const READABLE_DIRS: &[&str] = &[
@@ -62,15 +62,6 @@ struct SandboxData {
 pub struct Sandbox {
     /// Internal data of the sandbox.
     data: Arc<Mutex<SandboxData>>,
-}
-
-/// A singular execution, which can either be performed in a sandbox or be a Typst compilation
-#[derive(Debug, Clone)]
-pub enum ExecutionUnit {
-    /// A sandboxed execution
-    Sandbox(Sandbox),
-    /// A Typst compilation
-    TypstCompilation,
 }
 
 impl Sandbox {
@@ -578,7 +569,6 @@ impl Drop for SandboxData {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -591,7 +581,7 @@ mod tests {
 
     use task_maker_dag::{Execution, ExecutionCommand};
 
-    use crate::sandbox::Sandbox;
+    use crate::execution_unit::Sandbox;
     use crate::ErrorSandboxRunner;
 
     #[test]

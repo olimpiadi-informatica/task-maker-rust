@@ -11,7 +11,7 @@ use tabox::{Sandbox, SandboxImplementation};
 use tempfile::TempDir;
 
 #[cfg(not(target_os = "macos"))]
-use task_maker_exec::sandbox::sandbox::READABLE_DIRS;
+use task_maker_exec::execution_unit::sandbox::READABLE_DIRS;
 
 #[derive(Parser, Debug, Clone)]
 pub struct SandboxOpt {
