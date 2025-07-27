@@ -166,11 +166,17 @@ impl Statement {
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default();
         if ext.as_str() == "asy" {
-            let dest = suffix.with_extension("pdf");
-            if self.content.contains(dest.to_string_lossy().as_ref()) {
-                let file = AsyFile::compile(path, eval, booklet_name)
+            let dest_pdf = suffix.with_extension("pdf");
+            let dest_svg = suffix.with_extension("svg");
+
+            let is_dep = self.content.contains(dest_pdf.to_string_lossy().as_ref())
+                || self.content.contains(dest_svg.to_string_lossy().as_ref());
+
+            if is_dep {
+                let (pdf_file, svg_file) = AsyFile::compile(path, eval, booklet_name)
                     .context("Failed to compile asy file")?;
-                deps.push((dest, file));
+                deps.push((suffix.with_extension("pdf"), pdf_file));
+                deps.push((suffix.with_extension("svg"), svg_file));
             }
         } else {
             if ext == "pdf" {

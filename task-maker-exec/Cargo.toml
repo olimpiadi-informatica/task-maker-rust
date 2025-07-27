@@ -37,6 +37,13 @@ ductile = { workspace = true }
 # Key Derivation Function from a password
 blake3 = { workspace = true }
 crossbeam-channel = { workspace = true }
+typst = "0.13.1"
+typst-kit = "0.13.1"
+time = "0.3.41"
+typst-pdf = "0.13.1"
+reqwest = { version = "0.12.22", features = ["blocking"] }
+zune-inflate = "0.2.54"
+tar = "0.4.44"
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

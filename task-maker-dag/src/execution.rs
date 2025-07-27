@@ -63,6 +63,8 @@ pub enum ExecutionCommand {
     System(PathBuf),
     /// A command relative to the sandbox directory, not to be searched in the `$PATH`.
     Local(PathBuf),
+    /// Typst compilation, done unsandboxed by task-maker itself
+    TypstCompilation,
 }
 
 /// An input file of an [`Execution`](struct.Execution.html), can be marked as executable if it has
@@ -220,6 +222,8 @@ pub struct ExecutionLimits {
 pub enum ExecutionStatus {
     /// The program exited with status 0 within the limits.
     Success,
+    /// The task-maker-executed execution returned an Error
+    Failure,
     /// The program exited with a non-zero status code, which is attached.
     ReturnCode(u32),
     /// The program stopped due to a signal, the number and the name of the signal are attached.

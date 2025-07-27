@@ -12,9 +12,7 @@ use std::time::Duration;
 use anyhow::{bail, Context, Error};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
-use serde::{Deserialize, Serialize};
 use tabox::configuration::SandboxConfiguration;
-use tabox::result::SandboxExecutionResult;
 use tabox::syscall_filter::SyscallFilter;
 use tempfile::TempDir;
 
@@ -23,6 +21,7 @@ use task_maker_store::*;
 
 use crate::detect_exe::detect_exe;
 use crate::sandbox_runner::SandboxRunner;
+use crate::sandbox::{RawSandboxResult, SandboxResult};
 
 /// The list of all the system-wide readable directories inside the sandbox.
 pub const READABLE_DIRS: &[&str] = &[
@@ -37,28 +36,6 @@ pub const READABLE_DIRS: &[&str] = &[
     // required by texlive on Ubuntu
     "/var/lib/texmf/",
 ];
-
-/// Result of the execution of the sandbox.
-#[derive(Debug)]
-pub enum SandboxResult {
-    /// The sandbox exited successfully, the statistics about the sandboxed process are reported.
-    Success {
-        /// The exit status of the process.
-        exit_status: u32,
-        /// The signal that caused the process to exit.
-        signal: Option<(u32, String)>,
-        /// Resources used by the process.
-        resources: ExecutionResourcesUsage,
-        /// Whether the sandbox killed the process.
-        was_killed: bool,
-    },
-    /// The sandbox failed to execute the process, an error message is reported. Note that this
-    /// represents a sandbox error, not the process failure.
-    Failed {
-        /// The error reported by the sandbox.
-        error: String,
-    },
-}
 
 /// Internals of the sandbox.
 #[derive(Debug)]
@@ -76,15 +53,6 @@ struct SandboxData {
     box_pid: Arc<AtomicU32>,
 }
 
-/// Response of the internal implementation of the sandbox.
-#[derive(Debug, Serialize, Deserialize)]
-pub enum RawSandboxResult {
-    /// The sandbox has been executed successfully.
-    Success(SandboxExecutionResult),
-    /// There was an error executing the sandbox.
-    Error(String),
-}
-
 /// Wrapper around the sandbox. Cloning this struct will keep the reference of the same sandbox,
 /// keeping the content alive.
 ///
@@ -94,6 +62,15 @@ pub enum RawSandboxResult {
 pub struct Sandbox {
     /// Internal data of the sandbox.
     data: Arc<Mutex<SandboxData>>,
+}
+
+/// A singular execution, which can either be performed in a sandbox or be a Typst compilation
+#[derive(Debug, Clone)]
+pub enum ExecutionUnit {
+    /// A sandboxed execution
+    Sandbox(Sandbox),
+    /// A Typst compilation
+    TypstCompilation,
 }
 
 impl Sandbox {
@@ -114,6 +91,7 @@ impl Sandbox {
         let boxdir = TempDir::new_in(sandboxes_dir)
             .context("Failed to create sandbox temporary directory")?;
         Sandbox::setup(boxdir.path(), execution, dep_keys).context("Sandbox setup failed")?;
+
         Ok(Sandbox {
             data: Arc::new(Mutex::new(SandboxData {
                 boxdir: Some(boxdir),
@@ -277,7 +255,8 @@ impl Sandbox {
         }
     }
 
-    /// Path of the file where that output file is written to (in the host).
+    /// Path of the file where that output file is written to (in the host),
+    /// or the content of the file if it is in memory
     pub fn output_path(&self, output: &Path) -> PathBuf {
         self.data.lock().unwrap().path().join("box").join(output)
     }
@@ -442,6 +421,7 @@ impl Sandbox {
                 })?;
                 config.executable(box_root.join(cmd));
             }
+            _ => unreachable!(),
         };
         for arg in execution.args.iter() {
             config.arg(arg);
@@ -597,6 +577,7 @@ impl Drop for SandboxData {
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {
