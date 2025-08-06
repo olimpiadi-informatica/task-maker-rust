@@ -66,7 +66,7 @@ pub fn main_worker(opt: WorkerOpt) -> Result<(), Error> {
     }
 
     let name = if let Some(wid) = opt.worker_id {
-        format!("{} {}", name, wid)
+        format!("{name} {wid}")
     } else {
         name
     };

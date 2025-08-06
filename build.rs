@@ -18,7 +18,7 @@ fn get_version() -> String {
             if from_git.is_empty() {
                 version
             } else {
-                format!("{}\n\nRevision: {}", version, from_git)
+                format!("{version}\n\nRevision: {from_git}")
             }
         }
         Err(_) => version,

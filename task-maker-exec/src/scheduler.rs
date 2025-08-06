@@ -555,10 +555,7 @@ impl Scheduler {
     /// This will also send the file to the client, if needed.
     fn file_failed(&mut self, client_uuid: ClientUuid, file: FileUuid) -> Result<(), Error> {
         self.send_file(client_uuid, file, false).with_context(|| {
-            format!(
-                "Failed sending failed file {} to client {}",
-                file, client_uuid
-            )
+            format!("Failed sending failed file {file} to client {client_uuid}")
         })?;
         let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
             client
@@ -604,10 +601,7 @@ impl Scheduler {
     /// This will also send the file to the client, if needed.
     fn file_success(&mut self, client_uuid: ClientUuid, file: FileUuid) -> Result<(), Error> {
         self.send_file(client_uuid, file, true).with_context(|| {
-            format!(
-                "Failed sending succeeded file {} to client {}",
-                file, client_uuid
-            )
+            format!("Failed sending succeeded file {file} to client {client_uuid}")
         })?;
         let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
             client
@@ -839,7 +833,7 @@ impl Scheduler {
                     let handle = client
                         .file_handles
                         .get(&file)
-                        .unwrap_or_else(|| panic!("Unknown file key of {}", file))
+                        .unwrap_or_else(|| panic!("Unknown file key of {file}"))
                         .key()
                         .clone();
                     dep_keys.insert(file, handle);

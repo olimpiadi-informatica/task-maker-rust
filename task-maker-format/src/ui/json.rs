@@ -14,7 +14,7 @@ impl JsonUI {
 impl UI for JsonUI {
     fn on_message(&mut self, message: UIMessage) {
         let message = serde_json::to_string(&message).expect("Failed to serialize message");
-        println!("{}", message);
+        println!("{message}");
     }
 
     fn finish(&mut self) {}

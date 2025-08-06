@@ -66,7 +66,7 @@ impl SanityCheck for AttTemplates {
             if !template.exists() {
                 let grader_name = task.path_of(grader);
                 eval.add_diagnostic(
-                    Diagnostic::warning(format!("Missing template at {}", att_name))
+                    Diagnostic::warning(format!("Missing template at {att_name}"))
                         .with_note(format!("Because of {}", grader_name.display())),
                 )?;
             }
@@ -158,7 +158,7 @@ impl SanityCheck for AttSampleFiles {
                     .join(", ");
                 eval.add_diagnostic(
                     Diagnostic::error("Missing samples in att/")
-                        .with_note(format!("Samples in the task, but not in att/: {}", paths)),
+                        .with_note(format!("Samples in the task, but not in att/: {paths}")),
                 )?;
             }
             if !missing_in_task.is_empty() {
@@ -168,7 +168,7 @@ impl SanityCheck for AttSampleFiles {
                     .join(", ");
                 eval.add_diagnostic(
                     Diagnostic::error("Missing samples in the task")
-                        .with_note(format!("Samples in att/, but not in the task: {}", paths)),
+                        .with_note(format!("Samples in att/, but not in the task: {paths}")),
                 )?;
             }
         }
@@ -361,8 +361,8 @@ fn get_sample_files(
             .map(|p| task.path_of(p).to_string_lossy())
             .join(", ");
         eval.add_diagnostic(
-            Diagnostic::error(format!("Sample input {} is present more than once", num))
-                .with_note(format!("Found at: {}", paths)),
+            Diagnostic::error(format!("Sample input {num} is present more than once"))
+                .with_note(format!("Found at: {paths}")),
         )?;
     }
     let mut outputs: HashMap<_, Vec<_>> = HashMap::new();
@@ -380,8 +380,8 @@ fn get_sample_files(
             .map(|p| task.path_of(p).to_string_lossy())
             .join(", ");
         eval.add_diagnostic(
-            Diagnostic::error(format!("Sample output {} is present more than once", num))
-                .with_note(format!("Found at: {}", paths)),
+            Diagnostic::error(format!("Sample output {num} is present more than once"))
+                .with_note(format!("Found at: {paths}")),
         )?;
     }
     let mut samples = Vec::new();
@@ -554,7 +554,7 @@ impl SanityCheck for AttTemplatesShouldCompile {
                 .file_name()
                 .ok_or_else(|| anyhow!("Grader has no file name"))?
                 .to_string_lossy();
-            let att_grader_name = format!("att/{}", grader_name);
+            let att_grader_name = format!("att/{grader_name}");
             let att_grader = task.path.join(&att_grader_name);
 
             // Only run the check if the grader is not a symlink, as otherwise we are already
@@ -567,10 +567,7 @@ impl SanityCheck for AttTemplatesShouldCompile {
             let source_file = SourceFile::new(
                 template,
                 &task.path,
-                format!(
-                    "Template {} compiled with attached grader {}",
-                    att_name, att_grader_name
-                ),
+                format!("Template {att_name} compiled with attached grader {att_grader_name}"),
                 Some(Arc::new(grader_map)),
                 None::<String>,
             );

@@ -56,8 +56,7 @@ impl SanityCheck for FuzzCheckerWithJunkOutput {
 
         for (description, content) in &*JUNK_OUTPUTS {
             let test_output = File::new(format!(
-                "Junk input for fuzzing checker with '{}'",
-                description
+                "Junk input for fuzzing checker with '{description}'"
             ));
             let test_output_uuid = test_output.uuid;
             eval.dag.provide_content(test_output, content.to_vec());
@@ -83,8 +82,7 @@ impl SanityCheck for FuzzCheckerWithJunkOutput {
                     move |score, outcome| {
                         if score != 0.0 {
                             sender.add_diagnostic(Diagnostic::error(format!(
-                                "Junk file '{}' scored {} (with message '{}')",
-                                description, score, outcome
+                                "Junk file '{description}' scored {score} (with message '{outcome}')"
                             )))?;
                         }
                         Ok(())
@@ -92,8 +90,7 @@ impl SanityCheck for FuzzCheckerWithJunkOutput {
                 )
                 .with_context(|| {
                     format!(
-                        "Failed to build DAG for fuzzing the checker with '{}'",
-                        description
+                        "Failed to build DAG for fuzzing the checker with '{description}'"
                     )
                 })?;
 

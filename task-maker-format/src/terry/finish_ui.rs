@@ -62,14 +62,14 @@ impl FinishUI {
                 Some(Err(e)) => {
                     println!();
                     cwrite!(self, RED, "Fail: ");
-                    println!("{}", e);
+                    println!("{e}");
                 }
                 None => {
                     println!();
                 }
             }
             if let Some(seed) = solution.seed {
-                println!("      Seed: {}", seed);
+                println!("      Seed: {seed}");
             }
 
             let print_result = |result: &Option<ExecutionResult>| {
@@ -126,7 +126,7 @@ impl FinishUI {
                 let content = content.trim();
                 if !content.is_empty() {
                     cwriteln!(self, YELLOW, "Stderr:");
-                    println!("{}", content);
+                    println!("{content}");
                 }
             }
         }
@@ -145,7 +145,7 @@ impl FinishUI {
             .zip(evaluation_results)
             .enumerate()
         {
-            print!("#{:<3}  ", index);
+            print!("#{index:<3}  ");
             match val.status {
                 CaseStatus::Missing => cwrite!(self, YELLOW, "Missing"),
                 CaseStatus::Parsed => cwrite!(self, GREEN, " Valid "),
@@ -158,10 +158,10 @@ impl FinishUI {
                 cwrite!(self, RED, "Wrong  ");
             }
             if let Some(message) = &val.message {
-                print!(" | {}", message);
+                print!(" | {message}");
             }
             if let Some(message) = &feedback.message {
-                print!(" | {}", message);
+                print!(" | {message}");
             }
             println!();
         }
@@ -179,7 +179,7 @@ impl FinishUI {
         let evaluation_results = &outcome.feedback.cases;
 
         for (index, subtask) in subtasks.iter().enumerate() {
-            print!("Subtask #{:<2}  ", index);
+            print!("Subtask #{index:<2}  ");
 
             if abs_diff_eq!(subtask.score, 0.0) {
                 cwrite!(
@@ -261,11 +261,11 @@ impl FinishUI {
                     }
                 }
                 Some(Err(e)) => {
-                    print!("    {}", e);
+                    print!("    {e}");
                 }
                 None => {
                     if let SolutionStatus::Failed(e) = &solution.status {
-                        print!("    {}", e);
+                        print!("    {e}");
                     } else {
                         print!("    Failed");
                     }

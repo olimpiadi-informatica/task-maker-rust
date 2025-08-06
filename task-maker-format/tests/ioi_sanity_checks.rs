@@ -37,13 +37,13 @@ fn has_warning(warnings: &[String], warning: &str) {
             return;
         }
     }
-    panic!("{:?} does not contain {:?}", warnings, warning);
+    panic!("{warnings:?} does not contain {warning:?}");
 }
 
 fn does_not_have_warning(warnings: &[String], warning: &str) {
     for warn in warnings {
         if warn.contains(warning) {
-            panic!("{:?} contains {:?}", warnings, warning);
+            panic!("{warnings:?} contains {warning:?}");
         }
     }
 }

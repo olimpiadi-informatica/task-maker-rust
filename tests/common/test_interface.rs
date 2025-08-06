@@ -85,17 +85,11 @@ impl TestInterface {
     pub fn fail<S: AsRef<str>>(self, err: S) {
         let err = err.as_ref();
         if let Err(e) = self.state {
-            if !format!("{:?}", e).contains(err) {
-                panic!(
-                    "Expecting task-maker to fail with '{}' but failed with {:?}",
-                    err, e
-                );
+            if !format!("{e:?}").contains(err) {
+                panic!("Expecting task-maker to fail with '{err}' but failed with {e:?}");
             }
         } else {
-            panic!(
-                "Expecting task-maker to fail with '{}' but didn't fail",
-                err
-            );
+            panic!("Expecting task-maker to fail with '{err}' but didn't fail");
         }
     }
 
@@ -104,7 +98,7 @@ impl TestInterface {
     pub fn success(self) -> TestInterfaceSuccessful {
         match self.state {
             Ok(state) => TestInterfaceSuccessful { state },
-            Err(e) => panic!("Expecting task-maker not to fail, but failed with {:?}", e),
+            Err(e) => panic!("Expecting task-maker not to fail, but failed with {e:?}"),
         }
     }
 
@@ -119,7 +113,7 @@ impl TestInterface {
     ) -> Result<UIState, Error> {
         let mut args: Vec<&str> = vec!["task-maker"];
         let path = task_dir.to_string_lossy().into_owned();
-        let path = format!("--task-dir={}", path);
+        let path = format!("--task-dir={path}");
         args.push(&path);
         args.push("--ui=silent");
         args.push("--num-cores=1");
@@ -196,7 +190,7 @@ impl TestInterface {
                         &format!("unix://{}", client_path.display()),
                         &format!("unix://{}", worker_path.display()),
                     ]);
-                    eprintln!("Server opts {:?}", opt);
+                    eprintln!("Server opts {opt:?}");
                     main_server(opt).unwrap();
                 }
             })
@@ -214,7 +208,7 @@ impl TestInterface {
                     &store,
                     &format!("unix://{}", worker_path.display()),
                 ]);
-                eprintln!("Worker opts {:?}", opt);
+                eprintln!("Worker opts {opt:?}");
                 std::env::set_var(
                     "TASK_MAKER_TOOLS_PATH",
                     env!("CARGO_BIN_EXE_task-maker-tools"),
@@ -259,7 +253,7 @@ impl TestInterfaceSuccessful {
         if let Some(comp) = comp {
             match comp {
                 CompilationStatus::Done { .. } => {}
-                _ => panic!("Expecting {:?} to compile, but was: {:?}", source, comp),
+                _ => panic!("Expecting {source:?} to compile, but was: {comp:?}"),
             }
         } else {
             panic!(
@@ -277,10 +271,10 @@ impl TestInterfaceSuccessful {
         if let Some(comp) = comp {
             match comp {
                 CompilationStatus::Failed { .. } => {}
-                _ => panic!("Expecting {:?} not to compile, but was: {:?}", source, comp),
+                _ => panic!("Expecting {source:?} not to compile, but was: {comp:?}"),
             }
         } else {
-            panic!("Compilation not present: {:?}", source);
+            panic!("Compilation not present: {source:?}");
         }
         self
     }
@@ -290,10 +284,7 @@ impl TestInterfaceSuccessful {
         let source = source.into();
         let comp = self.get_path_key(&self.state.compilations, &source);
         if let Some(comp) = comp {
-            panic!(
-                "Expecting {:?} not to be compiled, but was {:?}",
-                source, comp
-            );
+            panic!("Expecting {source:?} not to be compiled, but was {comp:?}");
         }
         self
     }
@@ -306,11 +297,10 @@ impl TestInterfaceSuccessful {
         for (i, expected) in scores.iter().enumerate() {
             let actual = subtasks
                 .get(&(i as SubtaskId))
-                .unwrap_or_else(|| panic!("Missing subtask {}", i));
+                .unwrap_or_else(|| panic!("Missing subtask {i}"));
             assert!(
                 abs_diff_eq!(actual.max_score, expected),
-                "Wrong subtask score of subtask {}",
-                i
+                "Wrong subtask score of subtask {i}"
             );
         }
         self
@@ -326,17 +316,15 @@ impl TestInterfaceSuccessful {
         let scores: Vec<_> = scores.into_iter().collect();
         let state = self
             .get_path_key(&self.state.evaluations, &solution)
-            .unwrap_or_else(|| panic!("No evaluation score for solution {:?}", solution));
+            .unwrap_or_else(|| panic!("No evaluation score for solution {solution:?}"));
 
         let score: f64 = scores.iter().sum();
         let state_score = state
             .score
-            .unwrap_or_else(|| panic!("Missing score of {:?}", solution));
+            .unwrap_or_else(|| panic!("Missing score of {solution:?}"));
         assert!(
             abs_diff_eq!(score, state_score),
-            "Solution score mismatch for solution {:?}: {:#?}",
-            solution,
-            state
+            "Solution score mismatch for solution {solution:?}: {state:#?}"
         );
         assert_eq!(
             scores.len(),
@@ -347,10 +335,7 @@ impl TestInterfaceSuccessful {
             let actual = state.subtasks[&(st as SubtaskId)].score.unwrap();
             assert!(
                 abs_diff_eq!(*expected, actual),
-                "Solution subtask score mismatch of solution {:?} at subtask {}: {:#?}",
-                solution,
-                st,
-                state
+                "Solution subtask score mismatch of solution {solution:?} at subtask {st}: {state:#?}"
             );
         }
         self
@@ -366,7 +351,7 @@ impl TestInterfaceSuccessful {
         let statuses: Vec<_> = statuses.into_iter().collect();
         let actuals = self
             .get_path_key(&self.state.evaluations, &solution)
-            .unwrap_or_else(|| panic!("Evaluation status missing for solution {:?}", solution));
+            .unwrap_or_else(|| panic!("Evaluation status missing for solution {solution:?}"));
         let mut id = 0;
         for st in actuals.subtasks.keys().sorted() {
             for tc in &self.state.task.subtasks[st].testcases {
@@ -374,8 +359,7 @@ impl TestInterfaceSuccessful {
                 let actual = &actuals.testcases[tc].status;
                 assert_eq!(
                     actual, expected,
-                    "Solution status mismatch of {:?} at subtask {}, testcase {}",
-                    solution, st, tc
+                    "Solution status mismatch of {solution:?} at subtask {st}, testcase {tc}"
                 );
                 if id + 1 < statuses.len() {
                     id += 1;
@@ -397,10 +381,7 @@ impl TestInterfaceSuccessful {
             for tc in subtask.testcases.keys().sorted() {
                 let actual = &subtask.testcases[tc].status;
                 let expected = statuses.get(id).unwrap_or_else(|| {
-                    panic!(
-                        "Too few testcases in provided status, needing at least {}",
-                        id
-                    )
+                    panic!("Too few testcases in provided status, needing at least {id}")
                 });
 
                 assert_eq!(actual, expected);
@@ -429,9 +410,7 @@ impl TestInterfaceSuccessful {
                         assert_ne!(
                             &ExecutionStatus::Success,
                             status,
-                            "Expecting generation of subtask {}, testcase {} to fail",
-                            st,
-                            tc
+                            "Expecting generation of subtask {st}, testcase {tc} to fail"
                         );
                         let stderr = testcase
                             .generation
@@ -443,24 +422,17 @@ impl TestInterfaceSuccessful {
                         let stderr = String::from_utf8_lossy(stderr);
                         assert!(
                             stderr.contains(expected),
-                            "Generation stderr of subtask {}, testcase {} does not contain '{}'. It is '{:?}'",
-                            st, tc, expected, stderr
+                            "Generation stderr of subtask {st}, testcase {tc} does not contain '{expected}'. It is '{stderr:?}'"
                         );
                     }
                     Some(None) => {
                         assert_eq!(
                             &ExecutionStatus::Success,
                             status,
-                            "Expecting generation of subtask {}, testcase {} not to fail, but was: {:?}",
-                            st,
-                            tc,
-                            status
+                            "Expecting generation of subtask {st}, testcase {tc} not to fail, but was: {status:?}"
                         );
                     }
-                    None => panic!(
-                        "Too few testcases in provided status, needing at least {}",
-                        id
-                    ),
+                    None => panic!("Too few testcases in provided status, needing at least {id}"),
                 }
                 id += 1;
             }
@@ -487,9 +459,7 @@ impl TestInterfaceSuccessful {
                         assert_ne!(
                             &ExecutionStatus::Success,
                             status,
-                            "Expecting validation of subtask {}, testcase {} to fail",
-                            st,
-                            tc
+                            "Expecting validation of subtask {st}, testcase {tc} to fail"
                         );
                         let stderr = testcase
                             .validation
@@ -501,24 +471,17 @@ impl TestInterfaceSuccessful {
                         let stderr = String::from_utf8_lossy(stderr);
                         assert!(
                             stderr.contains(expected),
-                            "Validation stderr of subtask {}, testcase {} does not contain '{}'. It is '{:?}'",
-                            st, tc, expected, stderr
+                            "Validation stderr of subtask {st}, testcase {tc} does not contain '{expected}'. It is '{stderr:?}'"
                         );
                     }
                     Some(None) => {
                         assert_eq!(
                             &ExecutionStatus::Success,
                             status,
-                            "Expecting validation of subtask {}, testcase {} not to fail, but was: {:?}",
-                            st,
-                            tc,
-                            status
+                            "Expecting validation of subtask {st}, testcase {tc} not to fail, but was: {status:?}"
                         );
                     }
-                    None => panic!(
-                        "Too few testcases in provided status, needing at least {}",
-                        id
-                    ),
+                    None => panic!("Too few testcases in provided status, needing at least {id}"),
                 }
                 id += 1;
             }
@@ -563,10 +526,7 @@ impl TestInterfaceSuccessful {
             .iter()
             .any(|d| d.message().contains(message))
         {
-            panic!(
-                "Expecting the diagnostics to contain {}, but they don't",
-                message
-            );
+            panic!("Expecting the diagnostics to contain {message}, but they don't");
         }
         self
     }
@@ -581,10 +541,7 @@ impl TestInterfaceSuccessful {
             .iter()
             .any(|d| d.message().contains(message))
         {
-            panic!(
-                "Expecting the diagnostics not to contain {}, but they do",
-                message
-            );
+            panic!("Expecting the diagnostics not to contain {message}, but they do");
         }
         self
     }

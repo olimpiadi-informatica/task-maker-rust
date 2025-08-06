@@ -80,10 +80,10 @@ pub fn patch_task_for_batch(
                 let data = TestcaseData {
                     generator_args,
                     seed,
-                    input_path: working_directory.join(format!("testcase-{}/input.txt", seed)),
-                    output_path: working_directory.join(format!("testcase-{}/output.txt", seed)),
+                    input_path: working_directory.join(format!("testcase-{seed}/input.txt")),
+                    output_path: working_directory.join(format!("testcase-{seed}/output.txt")),
                     correct_output_path: working_directory
-                        .join(format!("testcase-{}/correct_output.txt", seed)),
+                        .join(format!("testcase-{seed}/correct_output.txt")),
                 };
 
                 testcases.insert(testcase_id, testcase);
@@ -91,7 +91,7 @@ pub fn patch_task_for_batch(
             }
             let subtask = SubtaskInfo {
                 id: 0,
-                name: Some(format!("batch-{}", batch_index)),
+                name: Some(format!("batch-{batch_index}")),
                 max_score: 100.0,
                 testcases: testcases.keys().cloned().collect(),
                 testcases_owned: testcases.keys().cloned().collect(),

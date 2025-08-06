@@ -71,7 +71,7 @@ impl Language for Typst {
 
         for statement in booklet.statements.iter() {
             let name = &statement.config().name;
-            let typst = File::new(format!("Source of statement of {}", name));
+            let typst = File::new(format!("Source of statement of {name}"));
             exec.input(
                 &typst,
                 Path::new(&name).join("statement/statement.typ"),
@@ -80,7 +80,7 @@ impl Language for Typst {
             eval.dag
                 .provide_content(typst, self.build_statement_source(statement).into_bytes());
 
-            let task_yaml = File::new(format!("task.yaml for {}", name));
+            let task_yaml = File::new(format!("task.yaml for {name}"));
             exec.input(&task_yaml, Path::new(&name).join("task.yaml"), false);
             eval.dag.provide_content(
                 task_yaml,
@@ -140,8 +140,8 @@ impl Language for Typst {
         )?;
         if eval.dag.data.config.copy_logs {
             let log_dir = eval.task_root.join("bin/logs/booklets");
-            let stderr_dest = log_dir.join(format!("{}.stderr.log", booklet_name));
-            let stdout_dest = log_dir.join(format!("{}.stdout.log", booklet_name));
+            let stderr_dest = log_dir.join(format!("{booklet_name}.stderr.log"));
+            let stdout_dest = log_dir.join(format!("{booklet_name}.stdout.log"));
             eval.dag
                 .write_file_to_allow_fail(exec.stderr(), stderr_dest, false);
             eval.dag
@@ -181,7 +181,7 @@ impl Language for Typst {
             .join("\n");
 
         if booklet.config.intro_page.is_some() {
-            format!("#include \"intro_page.typ\"\n{}", statements)
+            format!("#include \"intro_page.typ\"\n{statements}")
         } else {
             statements
         }

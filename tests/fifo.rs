@@ -35,7 +35,7 @@ fn test_fifo() {
             .to_owned(),
     );
     dag.on_execution_done(&exec1.uuid, |res| {
-        assert!(res.status.is_success(), "Process 1 crashed: {:?}", res);
+        assert!(res.status.is_success(), "Process 1 crashed: {res:?}");
         Ok(())
     });
     dag.on_execution_skip(&exec1.uuid, || panic!("Process 1 has been skipped"));
@@ -60,7 +60,7 @@ fn test_fifo() {
             .to_owned(),
     );
     dag.on_execution_done(&exec2.uuid, |res| {
-        assert!(res.status.is_success(), "Process 2 crashed: {:?}", res);
+        assert!(res.status.is_success(), "Process 2 crashed: {res:?}");
         Ok(())
     });
     dag.on_execution_skip(&exec2.uuid, || panic!("Process 2 has been skipped"));

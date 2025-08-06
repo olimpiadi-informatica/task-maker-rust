@@ -96,7 +96,7 @@ impl RemoteExecutor {
     ) -> Result<(), Error> {
         let server = if let Some(path) = bind_client_addr.strip_prefix("unix://") {
             ChannelServer::bind_unix(path)
-                .with_context(|| format!("Failed to bind client unix socket at {}", path))?
+                .with_context(|| format!("Failed to bind client unix socket at {path}"))?
         } else {
             match client_password {
                 Some(password) => {
@@ -115,7 +115,7 @@ impl RemoteExecutor {
         info!(
             "Accepting client connections at {}",
             if let Some(addr) = local_addr {
-                format!("tcp://{}", addr)
+                format!("tcp://{addr}")
             } else {
                 bind_client_addr
             }
@@ -157,7 +157,7 @@ impl RemoteExecutor {
     ) -> Result<(), Error> {
         let server = if let Some(path) = bind_worker_addr.strip_prefix("unix://") {
             ChannelServer::bind_unix(path)
-                .with_context(|| format!("Failed to bind worker unix socket at {}", path))?
+                .with_context(|| format!("Failed to bind worker unix socket at {path}"))?
         } else {
             match worker_password {
                 Some(password) => {
@@ -175,7 +175,7 @@ impl RemoteExecutor {
         info!(
             "Accepting worker connections at {}",
             if let Some(addr) = local_addr {
-                format!("tcp://{}", addr)
+                format!("tcp://{addr}")
             } else {
                 bind_worker_addr
             }
@@ -225,8 +225,7 @@ fn validate_welcome(
             client, name, addr, version, VERSION
         );
         let _ = sender.send(RemoteEntityMessageResponse::Rejected(format!(
-            "Wrong task-maker version, you have {}, server has {}",
-            version, VERSION
+            "Wrong task-maker version, you have {version}, server has {VERSION}"
         )));
         false
     } else {

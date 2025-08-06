@@ -76,7 +76,7 @@ impl FinishUI {
             state
                 .task
                 .time_limit
-                .map(|t| format!("{}s", t))
+                .map(|t| format!("{t}s"))
                 .unwrap_or_else(|| "unlimited".to_string())
         );
         cwrite!(self, BOLD, "Memory limit: ");
@@ -85,7 +85,7 @@ impl FinishUI {
             state
                 .task
                 .memory_limit
-                .map(|t| format!("{}MiB", t))
+                .map(|t| format!("{t}MiB"))
                 .unwrap_or_else(|| "unlimited".to_string())
         );
     }
@@ -100,7 +100,7 @@ impl FinishUI {
             println!();
             for name in booklet.dependencies.keys().sorted() {
                 let dep = &booklet.dependencies[name];
-                print!("  {:<18}  ", name);
+                print!("  {name:<18}  ");
                 let mut first = true;
                 for step in dep.iter() {
                     if first {
@@ -121,11 +121,11 @@ impl FinishUI {
         for (st_num, subtask) in state.generations.iter().sorted_by_key(|(n, _)| *n) {
             cwrite!(self, BOLD, "Subtask {}", st_num);
             if let Some(name) = &state.task.subtasks[st_num].name {
-                print!(" [{}]", name);
+                print!(" [{name}]");
             }
             println!(": {} points", state.task.subtasks[st_num].max_score);
             for (tc_num, testcase) in subtask.testcases.iter().sorted_by_key(|(n, _)| *n) {
-                print!("#{:<3} ", tc_num);
+                print!("#{tc_num:<3} ");
 
                 let mut first = true;
                 let mut gen_failed = false;
@@ -229,7 +229,7 @@ impl FinishUI {
         for (st_num, subtask) in eval.subtasks.iter().sorted_by_key(|(n, _)| *n) {
             cwrite!(self, BOLD, "Subtask #{}", st_num);
             if let Some(name) = &state.task.subtasks[st_num].name {
-                print!(" [{}]", name);
+                print!(" [{name}]");
             }
             print!(": ");
             let max_score = state.task.subtasks[st_num].max_score;
@@ -254,7 +254,7 @@ impl FinishUI {
         max_memory: u64,
         state: &UIState,
     ) {
-        print!("{:3}) ", tc_num);
+        print!("{tc_num:3}) ");
         let score_precision = Self::score_precision(&state.task);
         if let Some(score) = testcase.score {
             if abs_diff_eq!(score, 1.0) {
@@ -305,9 +305,9 @@ impl FinishUI {
         }
         for result in testcase.results.iter().flatten() {
             match &result.status {
-                ExecutionStatus::ReturnCode(code) => print!(": Exited with {}", code),
-                ExecutionStatus::Signal(sig, name) => print!(": Signal {} ({})", sig, name),
-                ExecutionStatus::InternalError(err) => print!(": Internal error: {}", err),
+                ExecutionStatus::ReturnCode(code) => print!(": Exited with {code}"),
+                ExecutionStatus::Signal(sig, name) => print!(": Signal {sig} ({name})"),
+                ExecutionStatus::InternalError(err) => print!(": Internal error: {err}"),
                 _ => {}
             }
         }
@@ -318,7 +318,7 @@ impl FinishUI {
             print!(" (from cache)");
         }
         if FinishUI::is_ansi() {
-            self.print_right(format!("[{}]", name));
+            self.print_right(format!("[{name}]"));
         }
         println!();
     }
@@ -363,12 +363,7 @@ impl FinishUI {
                 width = max_len
             );
             if let Some(score) = eval.score {
-                print!(
-                    "{:>width$.prec$} | ",
-                    score,
-                    width = column_width,
-                    prec = score_precision
-                );
+                print!("{score:>column_width$.score_precision$} | ");
             } else if score_precision == 0 {
                 print!("{:>width$} | ", "X", width = column_width);
             } else {
@@ -452,7 +447,7 @@ impl FinishUI {
                 prec = task.score_precision
             );
         } else if task.score_precision == 0 {
-            print!("X / {:.0}", max_score,);
+            print!("X / {max_score:.0}",);
         } else {
             print!(
                 "X.{:X<prec$} / {:.prec$}",

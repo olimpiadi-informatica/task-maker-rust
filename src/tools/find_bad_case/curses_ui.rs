@@ -116,7 +116,7 @@ impl CursesUI {
             let mut line = Vec::new();
             let batch_index = state.batches.len() - 1 - i;
             let batch = &state.batches[state.batches.len() - 1 - i];
-            line.push(Span::raw(format!("Batch {:>3}: ", batch_index)));
+            line.push(Span::raw(format!("Batch {batch_index:>3}: ")));
             line.extend(
                 batch
                     .testcase_status

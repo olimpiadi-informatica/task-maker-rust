@@ -94,10 +94,7 @@ impl InputValidator {
         let (handle, val) = self.validate(
             eval,
             task_path,
-            format!(
-                "Validation of input file of testcase {}, subtask {}",
-                testcase_id, subtask_id
-            ),
+            format!("Validation of input file of testcase {testcase_id}, subtask {subtask_id}"),
             subtask_id,
             subtask_name,
             testcase_id,
@@ -114,8 +111,7 @@ impl InputValidator {
             eval.dag.on_execution_done(&val.uuid, move |result| {
                 if !result.status.is_success() {
                     let mut diagnostic = Diagnostic::error(format!(
-                        "Failed to validate input {} for subtask {}",
-                        testcase_id, subtask_id
+                        "Failed to validate input {testcase_id} for subtask {subtask_id}"
                     ));
                     if let Some(stderr) = result.stderr {
                         diagnostic = diagnostic.with_help_attachment(stderr);

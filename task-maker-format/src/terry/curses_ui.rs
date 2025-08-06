@@ -152,7 +152,7 @@ fn evaluation_line<'a>(state: &SolutionState) -> Vec<Span<'a>> {
         SolutionStatus::Solved => vec![Span::raw("Solved")],
         SolutionStatus::Checking => vec![Span::raw("Checking")],
         SolutionStatus::Done => evaluation_outcome(state.outcome.as_ref()),
-        SolutionStatus::Failed(e) => vec![Span::raw(format!("Failed: {}", e))],
+        SolutionStatus::Failed(e) => vec![Span::raw(format!("Failed: {e}"))],
         SolutionStatus::Skipped => vec![Span::raw("Skipped")],
     }
 }
@@ -182,7 +182,7 @@ fn evaluation_outcome<'a>(outcome: Option<&Result<SolutionOutcome, String>>) -> 
             }
             res
         }
-        Some(Err(e)) => vec![Span::raw(format!("Checker failed: {}", e))],
+        Some(Err(e)) => vec![Span::raw(format!("Checker failed: {e}"))],
         None => vec![Span::raw("unknown")],
     }
 }
@@ -197,7 +197,7 @@ fn evaluation_score<'a>(max_score: f64, state: &SolutionState, loading: char) ->
         | SolutionStatus::Validated
         | SolutionStatus::Solving
         | SolutionStatus::Solved
-        | SolutionStatus::Checking => Span::raw(format!(" {} ", loading)),
+        | SolutionStatus::Checking => Span::raw(format!(" {loading} ")),
         SolutionStatus::Done => {
             if let Some(Ok(outcome)) = &state.outcome {
                 let score = format!("{:>3.0}", outcome.score * max_score);
@@ -209,7 +209,7 @@ fn evaluation_score<'a>(max_score: f64, state: &SolutionState, loading: char) ->
                     Span::styled(score, *YELLOW)
                 }
             } else {
-                Span::raw(format!(" {} ", loading))
+                Span::raw(format!(" {loading} "))
             }
         }
         SolutionStatus::Failed(_) | SolutionStatus::Skipped => Span::raw(" X "),

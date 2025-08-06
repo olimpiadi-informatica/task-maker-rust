@@ -48,8 +48,7 @@ impl SanityCheck for FuzzChecker {
         eval.dag.on_execution_done(&gen.uuid, move |res| {
             if !res.status.is_success() {
                 let mut diagnostic = Diagnostic::error(format!(
-                    "Failed to generate input for FuzzChecker with seed {}",
-                    seed
+                    "Failed to generate input for FuzzChecker with seed {seed}"
                 ))
                 .with_note(format!("The generator failed with: {:?}", res.status));
                 if let Some(stderr) = res.stderr {

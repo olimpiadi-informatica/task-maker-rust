@@ -53,7 +53,7 @@ impl Language for LanguagePascal {
             .add_arg("-Fe/dev/stderr")
             .add_arg("-O2")
             .add_arg("-XS")
-            .add_arg(format!("-o{}", binary_name));
+            .add_arg(format!("-o{binary_name}"));
 
         if let Some(fpc_cfg) = find_fpc_cfg() {
             metadata.add_dependency(Dependency {

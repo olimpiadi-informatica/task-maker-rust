@@ -214,7 +214,7 @@ fn process_solution(
                 )
             })
         {
-            eprintln!("Error: {:?}", e);
+            eprintln!("Error: {e:?}");
         } else {
             written = " (written!)";
         }

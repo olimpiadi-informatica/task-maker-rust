@@ -49,7 +49,7 @@ impl Language for LanguageCSharp {
         metadata
             .add_arg("-define:EVAL")
             .add_arg("-optimize+")
-            .add_arg(format!("-out:{}", binary_name));
+            .add_arg(format!("-out:{binary_name}"));
 
         metadata.callback(move |comp| {
             comp.limits_mut().add_extra_readable_dir("/etc/mono");

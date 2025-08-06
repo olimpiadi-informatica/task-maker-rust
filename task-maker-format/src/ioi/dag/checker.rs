@@ -106,8 +106,7 @@ impl Checker {
                     if !res.status.is_success() {
                         let message = if let Some(testcase_id) = testcase_id {
                             format!(
-                                "Checker failed while computing a score for testcase {}",
-                                testcase_id
+                                "Checker failed while computing a score for testcase {testcase_id}"
                             )
                         } else {
                             "Checker failed while computing a score for a testcase".into()
@@ -125,15 +124,14 @@ impl Checker {
                         Err(e) => {
                             let message = if let Some(testcase_id) = testcase_id {
                                 format!(
-                                    "Checker returned an invalid score ({:?}) for testcase {}",
-                                    score, testcase_id
+                                    "Checker returned an invalid score ({score:?}) for testcase {testcase_id}"
                                 )
                             } else {
-                                format!("Checker returned an invalid score ({:?})", score)
+                                format!("Checker returned an invalid score ({score:?})")
                             };
                             let diagnostic = Diagnostic::error(message)
                                 .with_note(description)
-                                .with_help(format!("The parse error is: {:?}", e))
+                                .with_help(format!("The parse error is: {e:?}"))
                                 .with_help_attachment(stdout);
                             sender.add_diagnostic(diagnostic)?;
                             return Ok(());

@@ -254,8 +254,7 @@ impl SanityCheck for StatementCompiledOrGit {
                     task.path_of(target).display()
                 ))
                 .with_help(format!(
-                    "Maybe it should be a symlink to one of the compiled PDF ({})",
-                    booklet_dest_list
+                    "Maybe it should be a symlink to one of the compiled PDF ({booklet_dest_list})"
                 )),
             )?;
 

@@ -104,7 +104,7 @@ impl SanityCheck for IOEndWithNewLine {
                 CheckEndWithNewLine::bind(
                     eval,
                     input_file,
-                    format!("input/input{}.txt", testcase_id),
+                    format!("input/input{testcase_id}.txt"),
                     self.inputs.clone(),
                 );
             }
@@ -112,7 +112,7 @@ impl SanityCheck for IOEndWithNewLine {
                 CheckEndWithNewLine::bind(
                     eval,
                     output_file,
-                    format!("output/output{}.txt", testcase_id),
+                    format!("output/output{testcase_id}.txt"),
                     self.outputs.clone(),
                 );
             }

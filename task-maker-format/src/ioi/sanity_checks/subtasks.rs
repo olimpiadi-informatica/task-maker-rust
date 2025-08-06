@@ -97,7 +97,7 @@ impl SanityCheck for InvalidSubtaskName {
                             check.subtask_name_pattern,
                             solution.source_file.relative_path().display()
                         ))
-                        .with_note(format!("The valid names are: {}", subtask_names)),
+                        .with_note(format!("The valid names are: {subtask_names}")),
                     )?;
                 }
             }
@@ -216,7 +216,7 @@ impl SanityCheck for AllOutputsEqual {
                 let name = subtask
                     .name
                     .as_ref()
-                    .map(|name| format!(" ({})", name))
+                    .map(|name| format!(" ({name})"))
                     .unwrap_or_default();
                 let message = format!("All outputs for subtask {id}{name} are identical");
 

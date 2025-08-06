@@ -52,8 +52,7 @@ impl OutputGenerator {
                     bail!("Static output file not found: {:?}", path);
                 }
                 let file = File::new(format!(
-                    "Static output file of testcase {}, subtask {} from {:?}",
-                    subtask_id, testcase_id, path
+                    "Static output file of testcase {subtask_id}, subtask {testcase_id} from {path:?}"
                 ));
                 let uuid = file.uuid;
                 eval.dag.provide_file(file, path).with_context(|| {
@@ -90,10 +89,7 @@ impl OutputGenerator {
         let (output, sol) = self.generate(
             task,
             eval,
-            format!(
-                "Generation of output file of testcase {}, subtask {}",
-                testcase_id, subtask_id
-            ),
+            format!("Generation of output file of testcase {testcase_id}, subtask {subtask_id}"),
             subtask_id,
             testcase_id,
             input,
@@ -110,7 +106,7 @@ impl OutputGenerator {
             eval.dag.on_execution_done(&sol.uuid, move |result| {
                 if !result.status.is_success() {
                     let mut diagnostic =
-                        Diagnostic::error(format!("Failed to generate output {}", testcase_id));
+                        Diagnostic::error(format!("Failed to generate output {testcase_id}"));
                     if let Some(stderr) = result.stderr {
                         diagnostic = diagnostic.with_help_attachment(stderr);
                     }
@@ -125,7 +121,7 @@ impl OutputGenerator {
                 output,
                 task.path
                     .join("output")
-                    .join(format!("output{}.txt", testcase_id)),
+                    .join(format!("output{testcase_id}.txt")),
                 false,
             );
         }

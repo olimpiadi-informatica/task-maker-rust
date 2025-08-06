@@ -49,7 +49,7 @@ pub fn render_dag(dag: &ExecutionDAG) -> String {
         for exec in &group.executions {
             for dep in exec.dependencies() {
                 if !files.contains_key(&dep) {
-                    panic!("Nope: {:#?} does not contain {:?}", exec, dep);
+                    panic!("Nope: {exec:#?} does not contain {dep:?}");
                 }
                 let file = &files[&dep];
                 edges.push((Node::File(file.clone()), Node::Execution(exec.clone())));

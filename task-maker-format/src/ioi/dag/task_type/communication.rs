@@ -332,10 +332,7 @@ impl ScoreSender {
                     data.sender.clone(),
                 )
                 .with_context(|| {
-                    format!(
-                        "Failed to store testcase score (score: {}, message: {})",
-                        score, message
-                    )
+                    format!("Failed to store testcase score (score: {score}, message: {message})")
                 })?;
         }
         Ok(())

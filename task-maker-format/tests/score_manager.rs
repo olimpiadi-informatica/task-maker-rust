@@ -34,7 +34,7 @@ fn test_score_manager() {
                 assert_abs_diff_eq!(score, 1.0);
                 assert_eq!(message, "foo");
             }
-            _ => panic!("Expecting UIMessage::IOITestcaseScore but was {:?}", mex),
+            _ => panic!("Expecting UIMessage::IOITestcaseScore but was {mex:?}"),
         }
     } else {
         panic!("Expecting UIMessage::IOITestcaseScore but was nothing");
@@ -52,7 +52,7 @@ fn test_score_manager() {
                 assert_abs_diff_eq!(score, 10.0);
                 assert_abs_diff_eq!(normalized_score, 1.0);
             }
-            _ => panic!("Expecting UIMessage::IOISubtaskScore but was {:?}", mex),
+            _ => panic!("Expecting UIMessage::IOISubtaskScore but was {mex:?}"),
         }
     } else {
         panic!("Expecting UIMessage::IOISubtaskScore but was nothing");
@@ -77,13 +77,13 @@ fn test_score_manager() {
                 assert_abs_diff_eq!(score, 1.0);
                 assert_eq!(message, "foo");
             }
-            _ => panic!("Expecting UIMessage::IOITestcaseScore but was {:?}", mex),
+            _ => panic!("Expecting UIMessage::IOITestcaseScore but was {mex:?}"),
         }
     } else {
         panic!("Expecting UIMessage::IOITestcaseScore but was nothing");
     }
     if let Ok(mex) = receiver.try_recv() {
-        panic!("Expecting nothing but was {:?}", mex);
+        panic!("Expecting nothing but was {mex:?}");
     }
 
     manager.score(1, 2, 0.0, "foo".into(), sender).unwrap();
@@ -102,7 +102,7 @@ fn test_score_manager() {
                 assert_abs_diff_eq!(score, 0.0);
                 assert_eq!(message, "foo");
             }
-            _ => panic!("Expecting UIMessage::IOITestcaseScore but was {:?}", mex),
+            _ => panic!("Expecting UIMessage::IOITestcaseScore but was {mex:?}"),
         }
     } else {
         panic!("Expecting UIMessage::IOITestcaseScore but was nothing");
@@ -120,7 +120,7 @@ fn test_score_manager() {
                 assert_abs_diff_eq!(score, 0.0);
                 assert_abs_diff_eq!(normalized_score, 0.0);
             }
-            _ => panic!("Expecting UIMessage::IOISubtaskScore but was {:?}", mex),
+            _ => panic!("Expecting UIMessage::IOISubtaskScore but was {mex:?}"),
         }
     } else {
         panic!("Expecting UIMessage::IOISubtaskScore but was nothing");
@@ -131,7 +131,7 @@ fn test_score_manager() {
                 assert_eq!(solution, PathBuf::from("sol"));
                 assert_abs_diff_eq!(score, 10.0);
             }
-            _ => panic!("Expecting UIMessage::IOITaskScore but was {:?}", mex),
+            _ => panic!("Expecting UIMessage::IOITaskScore but was {mex:?}"),
         }
     } else {
         panic!("Expecting UIMessage::IOITaskScore but was nothing");
@@ -164,7 +164,7 @@ fn test_score_manager_empty_subtask() {
                 assert_abs_diff_eq!(score, 90.0);
                 assert_abs_diff_eq!(normalized_score, 1.0);
             }
-            _ => panic!("Expecting UIMessage::IOISubtaskScore but was {:?}", mex),
+            _ => panic!("Expecting UIMessage::IOISubtaskScore but was {mex:?}"),
         }
     } else {
         panic!("Expecting UIMessage::IOISubtaskScore but was nothing");
@@ -186,7 +186,7 @@ fn test_score_manager_empty_subtask() {
                 assert_abs_diff_eq!(score, 1.0);
                 assert_eq!(message, "foo");
             }
-            _ => panic!("Expecting UIMessage::IOITestcaseScore but was {:?}", mex),
+            _ => panic!("Expecting UIMessage::IOITestcaseScore but was {mex:?}"),
         }
     } else {
         panic!("Expecting UIMessage::IOITestcaseScore but was nothing");
@@ -204,7 +204,7 @@ fn test_score_manager_empty_subtask() {
                 assert_abs_diff_eq!(score, 10.0);
                 assert_abs_diff_eq!(normalized_score, 1.0);
             }
-            _ => panic!("Expecting UIMessage::IOISubtaskScore but was {:?}", mex),
+            _ => panic!("Expecting UIMessage::IOISubtaskScore but was {mex:?}"),
         }
     } else {
         panic!("Expecting UIMessage::IOISubtaskScore but was nothing");
@@ -215,7 +215,7 @@ fn test_score_manager_empty_subtask() {
                 assert_eq!(solution, PathBuf::from("sol"));
                 assert_abs_diff_eq!(score, 100.0);
             }
-            _ => panic!("Expecting UIMessage::IOITaskScore but was {:?}", mex),
+            _ => panic!("Expecting UIMessage::IOITaskScore but was {mex:?}"),
         }
     } else {
         panic!("Expecting UIMessage::IOITaskScore but was nothing");

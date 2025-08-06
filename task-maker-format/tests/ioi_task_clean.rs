@@ -14,8 +14,8 @@ fn test_ioi_task_clean() {
     std::fs::create_dir(&input).unwrap();
     std::fs::create_dir(&output).unwrap();
     for i in 0..3 {
-        std::fs::write(input.join(format!("input{}.txt", i)), "x").unwrap();
-        std::fs::write(output.join(format!("output{}.txt", i)), "x").unwrap();
+        std::fs::write(input.join(format!("input{i}.txt")), "x").unwrap();
+        std::fs::write(output.join(format!("output{i}.txt")), "x").unwrap();
     }
     task.clean().unwrap();
     assert!(!input.exists());
@@ -31,8 +31,8 @@ fn test_ioi_task_clean_skip_static() {
     std::fs::create_dir(&input).unwrap();
     std::fs::create_dir(&output).unwrap();
     for i in 0..3 {
-        std::fs::write(input.join(format!("input{}.txt", i)), "x").unwrap();
-        std::fs::write(output.join(format!("output{}.txt", i)), "x").unwrap();
+        std::fs::write(input.join(format!("input{i}.txt")), "x").unwrap();
+        std::fs::write(output.join(format!("output{i}.txt")), "x").unwrap();
     }
     task.testcases.get_mut(&0).unwrap().input_generator =
         InputGenerator::StaticFile(input.join("input0.txt"));

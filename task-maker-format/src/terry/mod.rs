@@ -228,7 +228,7 @@ impl TerryTask {
                 move |outcome| {
                     sender.send(UIMessage::TerrySolutionOutcome {
                         solution: solution_path,
-                        outcome: outcome.map_err(|e| format!("Invalid checker outcome: {}", e)),
+                        outcome: outcome.map_err(|e| format!("Invalid checker outcome: {e}")),
                     })
                 },
             )?;

@@ -284,13 +284,13 @@ impl<'a> FinishUIUtils<'a> {
     pub fn print_fail_execution_status(status: &ExecutionStatus) {
         match status {
             ExecutionStatus::Success => {}
-            ExecutionStatus::ReturnCode(code) => print!("Exited with {}", code),
-            ExecutionStatus::Signal(sig, name) => print!("Signal {} ({})", sig, name),
+            ExecutionStatus::ReturnCode(code) => print!("Exited with {code}"),
+            ExecutionStatus::Signal(sig, name) => print!("Signal {sig} ({name})"),
             ExecutionStatus::TimeLimitExceeded => print!("Time limit exceeded"),
             ExecutionStatus::SysTimeLimitExceeded => print!("Kernel time limit exceeded"),
             ExecutionStatus::WallTimeLimitExceeded => print!("Wall time limit exceeded"),
             ExecutionStatus::MemoryLimitExceeded => print!("Memory limit exceeded"),
-            ExecutionStatus::InternalError(err) => print!("Internal error: {}", err),
+            ExecutionStatus::InternalError(err) => print!("Internal error: {err}"),
         }
     }
 
@@ -308,7 +308,7 @@ impl<'a> FinishUIUtils<'a> {
         let diagnostics = diagnostics.diagnostics();
         if !diagnostics.is_empty() {
             for diagnostic in diagnostics.iter().sorted_by_key(|d| d.level()) {
-                println!("{}", diagnostic);
+                println!("{diagnostic}");
             }
         }
     }
@@ -366,7 +366,7 @@ impl std::str::FromStr for UIType {
             "curses" => Ok(UIType::Curses),
             "json" => Ok(UIType::Json),
             "silent" => Ok(UIType::Silent),
-            _ => Err(format!("Unknown ui: {}", s)),
+            _ => Err(format!("Unknown ui: {s}")),
         }
     }
 }

@@ -256,7 +256,7 @@ pub(crate) fn draw_compilations<'a, I>(
 pub(crate) fn compilation_status_text(status: &CompilationStatus, loading: char) -> Span<'static> {
     match status {
         CompilationStatus::Pending => Span::raw("... "),
-        CompilationStatus::Running => Span::raw(format!("{}   ", loading)),
+        CompilationStatus::Running => Span::raw(format!("{loading}   ")),
         CompilationStatus::Done { .. } => Span::styled("OK  ", *GREEN),
         CompilationStatus::Failed { .. } => Span::styled("FAIL", *RED),
         CompilationStatus::Skipped => Span::styled("skip", *YELLOW),
@@ -405,7 +405,7 @@ fn draw_workers_chunk(
                     } else {
                         let job_name: String =
                             line.chars().take(job.job.len() - extra_len - 3).collect();
-                        line = format!("{} {}... ({:.2}s)", loading, job_name, duration);
+                        line = format!("{loading} {job_name}... ({duration:.2}s)");
                     }
                 }
                 spans.push(Span::raw(line));
