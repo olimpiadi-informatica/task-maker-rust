@@ -14,7 +14,7 @@ impl RawUI {
 
 impl UI for RawUI {
     fn on_message(&mut self, message: UIMessage) {
-        println!("{:?}", message);
+        println!("{message:?}");
     }
 
     fn finish(&mut self) {

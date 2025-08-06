@@ -181,7 +181,7 @@ impl<'l, 'c> SimpleCompiledLanguageBuilder<'l, 'c> {
             .to_string();
         // names starting with - can be interpreted as command line options
         if source_name.starts_with('-') {
-            source_name = format!("./{}", source_name);
+            source_name = format!("./{source_name}");
         }
         Self {
             language,
@@ -230,7 +230,7 @@ impl CompiledLanguageBuilder for SimpleCompiledLanguageBuilder<'_, '_> {
 
     fn finalize(&mut self, dag: &mut ExecutionDAG) -> Result<(Execution, File), Error> {
         let name = self.source_path.file_name().unwrap().to_string_lossy();
-        let mut comp = Execution::new(format!("Compilation of {}", name), self.compiler.clone());
+        let mut comp = Execution::new(format!("Compilation of {name}"), self.compiler.clone());
         comp.args.clone_from(&self.args);
 
         // compilation dependencies

@@ -362,7 +362,7 @@ impl Executor {
                         } else {
                             sender
                                 .send(ExecutorServerMessage::AskFile(*uuid))
-                                .with_context(|| format!("Failed to send AskFile({})", uuid))?;
+                                .with_context(|| format!("Failed to send AskFile({uuid})"))?;
                         }
                     }
                     // tell the scheduler that a new DAG is ready to be executed.
@@ -396,7 +396,7 @@ impl Executor {
                     let handle = file_store
                         .store(&key, ChannelFileIterator::new(&receiver))
                         .with_context(|| {
-                            format!("Failed to store client provided file {} ({})", uuid, key)
+                            format!("Failed to store client provided file {uuid} ({key})")
                         })?;
                     scheduler
                         .as_ref()
@@ -417,13 +417,12 @@ impl Executor {
                             .send(ExecutorServerMessage::ProvideFile(uuid, success))
                             .context("Failed to send ProvideFile to the client")?;
                         ChannelFileSender::send(handle.path(), &sender).with_context(|| {
-                            format!("Failed to send file {} to the client", handle)
+                            format!("Failed to send file {handle} to the client")
                         })?;
                     } else {
                         sender
                             .send(ExecutorServerMessage::Error(format!(
-                                "Unknown file {:?}",
-                                key
+                                "Unknown file {key:?}"
                             )))
                             .context("Failed to send Error to the client")?;
                     }

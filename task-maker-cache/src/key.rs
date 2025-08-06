@@ -52,7 +52,7 @@ impl CacheKeyItem {
             let mut fifos = HashMap::new();
             for (i, fifo) in group.fifo.iter().enumerate() {
                 let name = fifo.sandbox_path().to_string_lossy().to_string();
-                fifos.insert(name, format!("tm_fifo_{}", i));
+                fifos.insert(name, format!("tm_fifo_{i}"));
             }
             let mut args = Vec::new();
             for arg in &execution.args {

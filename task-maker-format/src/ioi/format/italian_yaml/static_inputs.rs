@@ -45,7 +45,7 @@ where
             }));
         }
         let id = self.index - 1; // offset caused by the first iteration
-        let path = self.path.join(format!("input{}.txt", id));
+        let path = self.path.join(format!("input{id}.txt"));
         if path.exists() {
             self.index += 1;
             Some(TaskInputEntry::Testcase(TestcaseInfo::new(
@@ -106,11 +106,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         fs::create_dir(dir.path().join("input")).unwrap();
         for tc in iter.into_iter() {
-            fs::write(
-                dir.path().join("input").join(format!("input{}.txt", tc)),
-                "",
-            )
-            .unwrap();
+            fs::write(dir.path().join("input").join(format!("input{tc}.txt")), "").unwrap();
         }
         dir
     }
@@ -144,7 +140,7 @@ mod tests {
                 InputGenerator::Custom(_, _) => panic!("Invalid generator"),
             }
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 
@@ -157,7 +153,7 @@ mod tests {
             assert_eq!(subtask.id, 0);
             assert_eq!(subtask.max_score as u32, 100);
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 }

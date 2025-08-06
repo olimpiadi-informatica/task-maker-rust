@@ -143,8 +143,7 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
                     .expect("num_dependencies of an unknown execution group");
                 assert_ne!(
                     *num_deps, 0,
-                    "num_dependencies is going to be negative for {}",
-                    group_uuid
+                    "num_dependencies is going to be negative for {group_uuid}"
                 );
                 *num_deps -= 1;
                 if *num_deps == 0 {

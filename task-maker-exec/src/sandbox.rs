@@ -154,7 +154,7 @@ impl Sandbox {
         let raw_result = runner.run(config.build(), pid);
         if keep {
             let target = boxdir.join("result.txt");
-            std::fs::write(&target, format!("{:#?}", raw_result))
+            std::fs::write(&target, format!("{raw_result:#?}"))
                 .with_context(|| format!("Failed to write {}", target.display()))?;
         }
 
@@ -249,7 +249,7 @@ impl Sandbox {
         if let Ok(()) =
             self.build_command(&path, &data.execution, &mut config, data.fifo_dir.clone())
         {
-            std::fs::write(path.join("tabox.txt"), format!("{:#?}\n", config))
+            std::fs::write(path.join("tabox.txt"), format!("{config:#?}\n"))
                 .context("Cannot write command info inside sandbox")?;
         }
         Ok(())

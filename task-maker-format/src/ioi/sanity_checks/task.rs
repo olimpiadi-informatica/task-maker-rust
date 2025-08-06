@@ -34,8 +34,7 @@ impl SanityCheck for TaskMaxScore {
         let task_score: f64 = task.subtasks.values().map(|st| st.max_score).sum();
         if approx::abs_diff_ne!(task_score, DEFAULT_TASK_MAX_SCORE) {
             eval.add_diagnostic(Diagnostic::error(format!(
-                "The score of the task is {} (not {})",
-                task_score, DEFAULT_TASK_MAX_SCORE
+                "The score of the task is {task_score} (not {DEFAULT_TASK_MAX_SCORE})"
             )))?;
         }
         Ok(())

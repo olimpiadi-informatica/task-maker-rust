@@ -89,7 +89,7 @@ pub fn main_terry_statement(opt: TerryStatementOpt, _logger_opt: LoggerOpt) -> R
 
     match output_path {
         Some(output_file) => fs::write(output_file, new_content)?,
-        None => print!("{}", new_content),
+        None => print!("{new_content}"),
     }
 
     Ok(())

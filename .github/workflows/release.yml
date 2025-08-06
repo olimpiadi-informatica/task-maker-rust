@@ -1,36 +1,67 @@
 name: Release
 
 on:
+  workflow_dispatch:
   release:
     types: [created]
 
 jobs:
   deb:
-    name: Debian/Ubuntu (deb)
+    name: Create deb packages
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu:25.04
+        - ubuntu:24.10
+        - ubuntu:24.04
+        - ubuntu:22.04
+        - debian:bullseye
+        - debian:bookworm
+        - debian:trixie
+    container:
+      image: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Build deb file
+      - name: Install Deps
         run: |
-          docker run --rm -v $(pwd):/source ghcr.io/edomora97/task-maker-rust-release-linux
-      - name: Upload the artifacts
-        uses: skx/github-action-publish-binaries@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          apt update
+          apt install -yy libseccomp-dev build-essential fpc
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        id: install-rust
+      - name: Install cargo-deb
+        run: cargo install cargo-deb
+
+      - name: Calculate artifact suffix
+        shell: python3 {0}
+        run: |
+          import os
+          artifact_suffix="${{ matrix.os }}".replace(':', '-')
+          open(os.getenv("GITHUB_ENV"), "a").write(f"ARTIFACT_SUFFIX={artifact_suffix}\n")
+
+      - name: Release build
+        run: cargo build --release
+
+      - name: Generate autocompletion files
+        run: target/release/task-maker-tools gen-autocompletion
+
+      - name: Build deb file
+        run: cargo deb
+
+      - name: Package release tarball
+        run: |
+          ROOT=`pwd`
+          cd target/debian/
+          tar -zcvf ${ROOT}/tmr-debs-${{ env.ARTIFACT_SUFFIX }}.tar.gz *task-maker-rust*.*
+
+      - name: Upload release tarball
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          args: "target/debian/*.deb"
-      ## For now do not build the docker container for the server/worker: it requires some fixes because the workers
-      ## now spawn a single instance instead of as many as cores. Moreover, the server and worker commands changed.
-      # - name: Publish docker container
-      #   run: |
-      #     echo ${DOCKER_PASSWORD} | docker login --username edomora97 --password-stdin
-      #     export TM_VERSION=$(grep version Cargo.toml | head -n 1 | cut -d'"' -f 2)
-      #     cd tools/docker
-      #     docker build --build-arg TM_VERSION=$TM_VERSION -t edomora97/task-maker-rust:latest -t edomora97/task-maker-rust:$TM_VERSION .
-      #     docker push edomora97/task-maker-rust:$TM_VERSION
-      #     docker push edomora97/task-maker-rust:latest
-      #   env:
-      #     DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          name: tmr-debs-${{ env.ARTIFACT_SUFFIX }}
+          path: tmr-debs-${{ env.ARTIFACT_SUFFIX }}.tar.gz
+          compression-level: 0
 
   aur:
     name: AUR
@@ -41,6 +72,7 @@ jobs:
         working-directory: tools/aur/task-maker-rust
         run: ./gen.sh > ../../../PKGBUILD
       - name: Publish PKGBUILD
+        if: ${{ github.event_name == 'release' }} # skip on manual runs.
         uses: KSXGitHub/github-actions-deploy-aur@v4.1.1
         with:
           pkgname: task-maker-rust
@@ -48,14 +80,3 @@ jobs:
           commit_username: ${{ secrets.AUR_USERNAME }}
           commit_email: ${{ secrets.AUR_EMAIL }}
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
-
-  ppa:
-    name: Publish PPA
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Trigger PPA build
-        env:
-          GH_TOKEN: ${{ secrets.PAT_PPA_ACTION_TRIGGER }}
-        run: |
-          gh workflow run -R dp1/task-maker-rust-ppa --ref master check-for-release.yml

@@ -103,7 +103,7 @@ pub fn make_task_booklets(
     for (language, path) in statements {
         let dest = path.with_extension("pdf");
         let statement = Statement::new(path, config.clone())
-            .with_context(|| format!("Failed to build statement for language {}", language))?;
+            .with_context(|| format!("Failed to build statement for language {language}"))?;
         let booklet_config = BookletConfig::from_contest(
             language,
             task.path
@@ -160,13 +160,13 @@ pub fn make_contest_booklets(
         let booklet_config =
             BookletConfig::from_contest(&language, contest_dir, eval_config.booklet_solutions)
                 .context("Failed to build booklet contest configuration")?;
-        let dest = contest_dir.join(format!("{}.pdf", language));
+        let dest = contest_dir.join(format!("{language}.pdf"));
         let mut booklet = Booklet::new(booklet_config, dest);
 
         for (task, path) in tasks {
             let config = StatementConfig::from_task(task);
             let statement = Statement::new(path, config)
-                .with_context(|| format!("Failed to build statement for language {}", language))?;
+                .with_context(|| format!("Failed to build statement for language {language}"))?;
 
             booklet.add_statement(statement)?;
         }

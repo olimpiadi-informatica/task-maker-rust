@@ -47,7 +47,7 @@ impl<State: UIStateT> PrintUI<State> {
         match status {
             UIExecutionStatus::Pending => {}
             UIExecutionStatus::Started { worker } => {
-                print!("Worker: {:?}", worker);
+                print!("Worker: {worker:?}");
             }
             UIExecutionStatus::Done { result } => {
                 self.write_execution_status(&result.status);
@@ -67,7 +67,7 @@ impl<State: UIStateT> PrintUI<State> {
 
     /// Write a message, padding it to at least 80 chars.
     fn write_message(&mut self, message: String) {
-        print!("{:<80}", message);
+        print!("{message:<80}");
     }
 }
 
@@ -98,17 +98,17 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
             }
             UIMessage::Compilation { file, status } => {
                 self.write_status(&status);
-                self.write_message(format!("Compilation of {:?} ", file));
+                self.write_message(format!("Compilation of {file:?} "));
                 self.write_status_details(&status);
                 if let UIExecutionStatus::Done { result } = status {
                     if let Some(stderr) = result.stderr {
                         let stderr = String::from_utf8_lossy(&stderr);
-                        println!("\n[STDERR]  Compilation stderr of {:?}", file);
+                        println!("\n[STDERR]  Compilation stderr of {file:?}");
                         print!("{}", stderr.trim());
                     }
                     if let Some(stdout) = result.stdout {
                         let stdout = String::from_utf8_lossy(&stdout);
-                        println!("\n[STDOUT]  Compilation stdout of {:?}", file);
+                        println!("\n[STDOUT]  Compilation stdout of {file:?}");
                         print!("{}", stdout.trim());
                     }
                 }
@@ -121,7 +121,7 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
                     println!("  {}: {} points", st_num, subtask.max_score);
                     print!("     testcases: [");
                     for tc_num in subtask.testcases_owned.iter().sorted() {
-                        print!(" {}", tc_num);
+                        print!(" {tc_num}");
                     }
                     println!(" ]");
                 }
@@ -133,16 +133,14 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
             } => {
                 self.write_status(&status);
                 self.write_message(format!(
-                    "Generation of testcase {} of subtask {} ",
-                    testcase, subtask
+                    "Generation of testcase {testcase} of subtask {subtask} "
                 ));
                 self.write_status_details(&status);
                 if let UIExecutionStatus::Done { result } = status {
                     if let Some(stderr) = result.stderr {
                         let stderr = String::from_utf8_lossy(&stderr);
                         println!(
-                            "\n[STDERR]  Generation stderr of testcase {} of subtask {}",
-                            testcase, subtask
+                            "\n[STDERR]  Generation stderr of testcase {testcase} of subtask {subtask}"
                         );
                         print!("{}", stderr.trim());
                     }
@@ -155,16 +153,14 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
             } => {
                 self.write_status(&status);
                 self.write_message(format!(
-                    "Validation of testcase {} of subtask {} ",
-                    testcase, subtask
+                    "Validation of testcase {testcase} of subtask {subtask} "
                 ));
                 self.write_status_details(&status);
                 if let UIExecutionStatus::Done { result } = status {
                     if let Some(stderr) = result.stderr {
                         let stderr = String::from_utf8_lossy(&stderr);
                         println!(
-                            "\n[STDERR]  Validation stderr of testcase {} of subtask {}",
-                            testcase, subtask
+                            "\n[STDERR]  Validation stderr of testcase {testcase} of subtask {subtask}"
                         );
                         print!("{}", stderr.trim());
                     }
@@ -177,8 +173,7 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
             } => {
                 self.write_status(&status);
                 self.write_message(format!(
-                    "Solution of testcase {} of subtask {} ",
-                    testcase, subtask
+                    "Solution of testcase {testcase} of subtask {subtask} "
                 ));
                 self.write_status_details(&status);
             }
@@ -209,8 +204,7 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
             } => {
                 self.write_status(&status);
                 self.write_message(format!(
-                    "Checking output of {:?} of testcase {} of subtask {} ",
-                    solution, testcase, subtask
+                    "Checking output of {solution:?} of testcase {testcase} of subtask {subtask} "
                 ));
             }
             UIMessage::IOITestcaseScore {
@@ -222,8 +216,7 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
             } => {
                 print!("[TESTCAS] ");
                 self.write_message(format!(
-                    "Solution {:?} scored {} on testcase {} of subtask {}: {}",
-                    solution, score, testcase, subtask, message
+                    "Solution {solution:?} scored {score} on testcase {testcase} of subtask {subtask}: {message}"
                 ));
             }
             UIMessage::IOISubtaskScore {
@@ -234,17 +227,16 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
             } => {
                 print!("[SUBTASK] ");
                 self.write_message(format!(
-                    "Solution {:?} scored {} on subtask {} (normalized score {})",
-                    solution, score, subtask, normalized_score,
+                    "Solution {solution:?} scored {score} on subtask {subtask} (normalized score {normalized_score})",
                 ));
             }
             UIMessage::IOITaskScore { solution, score } => {
                 print!("[TASK]    ");
-                self.write_message(format!("Solution {:?} scored {} ", solution, score));
+                self.write_message(format!("Solution {solution:?} scored {score} "));
             }
             UIMessage::IOIBooklet { name, status } => {
                 self.write_status(&status);
-                self.write_message(format!("Compilation of booklet {}", name));
+                self.write_message(format!("Compilation of booklet {name}"));
             }
             UIMessage::IOIBookletDependency {
                 booklet,
@@ -264,7 +256,7 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
             }
             UIMessage::Diagnostic { diagnostic } => {
                 println!("[DIAGNOSTIC]");
-                println!("{}", diagnostic);
+                println!("{diagnostic}");
             }
             UIMessage::TerryTask { .. } => {}
             UIMessage::TerryGeneration {

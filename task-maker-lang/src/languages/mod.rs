@@ -47,8 +47,7 @@ where
                 pending.push_back(local_path.clone());
                 result.push(Dependency {
                     file: File::new(format!(
-                        "Dependency {:?} at {:?} of {:?}",
-                        sandbox_path, local_path, filename
+                        "Dependency {sandbox_path:?} at {local_path:?} of {filename:?}"
                     )),
                     local_path,
                     sandbox_path,

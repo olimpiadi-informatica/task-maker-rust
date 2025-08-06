@@ -234,7 +234,7 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
     cwrite!(printer, BOLD, "    Seed:           ");
     println!("{}", testcase.seed);
     cwrite!(printer, BOLD, "    Message:        ");
-    println!("{}", message);
+    println!("{message}");
     println!();
     print_file("Input file", &task_path, &input_path, &mut printer)?;
     if let Some(correct_output_path) = correct_output_path {
@@ -342,7 +342,7 @@ fn print_failures(shared: &SharedUIState, printer: &mut StdoutPrinter) {
     if let Some((testcase, message, result)) = &shared.errored_testcase {
         println!();
         cwrite!(printer, RED, "Error: ");
-        println!("{}", message);
+        println!("{message}");
         cwrite!(printer, BOLD, "Generator args: ");
         println!("{}", testcase.generator_args.join(" "));
         cwrite!(printer, BOLD, "Result:         ");

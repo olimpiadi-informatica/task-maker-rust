@@ -129,7 +129,7 @@ where
                             }
                             subtask.name = Some(
                                 cleanup_subtask_name(name)
-                                    .with_context(|| format!("Invalid subtask name: {}", name))?,
+                                    .with_context(|| format!("Invalid subtask name: {name}"))?,
                             );
                             let old_id =
                                 st_name_to_id.insert(subtask.name.clone().unwrap(), subtask.id);
@@ -290,7 +290,7 @@ mod tests {
                 InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 
@@ -306,7 +306,7 @@ mod tests {
                 InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 
@@ -323,7 +323,7 @@ mod tests {
                 InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 
@@ -339,7 +339,7 @@ mod tests {
                 InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 
@@ -355,7 +355,7 @@ mod tests {
                 InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 
@@ -376,7 +376,7 @@ mod tests {
                 InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 
@@ -397,7 +397,7 @@ mod tests {
                 InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 
@@ -421,7 +421,7 @@ mod tests {
                 InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 
@@ -453,7 +453,7 @@ mod tests {
                 InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 
@@ -471,7 +471,7 @@ mod tests {
             assert_eq!(subtask2.max_score as u32, 321);
             assert_eq!(subtask2.name.as_deref(), Some("wow"));
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 
@@ -490,7 +490,7 @@ mod tests {
             assert_eq!(subtask2.max_score as u32, 321);
             assert_eq!(subtask2.name.as_deref(), Some("wow"));
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 
@@ -511,7 +511,7 @@ mod tests {
                 InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 
@@ -527,7 +527,7 @@ mod tests {
                 InputGenerator::StaticFile(_) => panic!("Invalid generator"),
             }
         } else {
-            panic!("Wrong entries returned: {:?}", entries);
+            panic!("Wrong entries returned: {entries:?}");
         }
     }
 

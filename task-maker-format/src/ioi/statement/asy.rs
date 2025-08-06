@@ -30,10 +30,10 @@ impl AsyFile {
             .ok_or_else(|| anyhow!("Invalid path of asy file: {:?}", source_path))?
             .to_string_lossy()
             .to_string();
-        let source_file = File::new(format!("Source of {}", name));
+        let source_file = File::new(format!("Source of {name}"));
 
         let mut comp = Execution::new(
-            format!("Compilation of {}", name),
+            format!("Compilation of {name}"),
             ExecutionCommand::system("asy"),
         );
         comp.args(vec![
@@ -88,8 +88,8 @@ impl AsyFile {
         let compiled = comp.output("tm-compilation.pdf");
         if eval.dag.data.config.copy_logs {
             let log_dir = eval.task_root.join("bin/logs/asy");
-            let stderr_dest = log_dir.join(format!("{}.stderr.log", name));
-            let stdout_dest = log_dir.join(format!("{}.stdout.log", name));
+            let stderr_dest = log_dir.join(format!("{name}.stderr.log"));
+            let stdout_dest = log_dir.join(format!("{name}.stdout.log"));
             eval.dag
                 .write_file_to_allow_fail(comp.stderr(), stderr_dest, false);
             eval.dag
@@ -102,7 +102,7 @@ impl AsyFile {
             let name = name.clone();
             move |result| {
                 if !result.status.is_success() {
-                    let mut diagnostic = Diagnostic::error(format!("Failed to compile {}", name));
+                    let mut diagnostic = Diagnostic::error(format!("Failed to compile {name}"));
                     if result.status.is_internal_error() {
                         diagnostic = diagnostic.with_help("Is 'asymptote' installed?");
                     }
@@ -117,7 +117,7 @@ impl AsyFile {
         eval.dag.add_execution(comp);
 
         let mut crop = Execution::new(
-            format!("Crop of {}", name),
+            format!("Crop of {name}"),
             ExecutionCommand::system("pdfcrop"),
         );
         crop.limits_mut()
@@ -148,8 +148,7 @@ impl AsyFile {
             let sender = eval.sender.clone();
             move |result| {
                 if !result.status.is_success() {
-                    let mut diagnostic =
-                        Diagnostic::error(format!("Failed to crop pdf of {}", name));
+                    let mut diagnostic = Diagnostic::error(format!("Failed to crop pdf of {name}"));
                     if result.status.is_internal_error() {
                         diagnostic = diagnostic.with_help("Is 'pdfcrop' installed?");
                     }
@@ -212,16 +211,16 @@ mod tests {
             local_path: path.join("util.asy"),
             sandbox_path: PathBuf::from("util.asy"),
         };
-        assert!(deps.contains(&dep), "{:#?} vs {:#?}", deps, dep);
+        assert!(deps.contains(&dep), "{deps:#?} vs {dep:#?}");
         let dep = AsyDependency {
             local_path: path.join("image.png"),
             sandbox_path: PathBuf::from("image.png"),
         };
-        assert!(deps.contains(&dep), "{:#?} vs {:#?}", deps, dep);
+        assert!(deps.contains(&dep), "{deps:#?} vs {dep:#?}");
         let dep = AsyDependency {
             local_path: path.join("assets/wow.txt"),
             sandbox_path: PathBuf::from("assets/wow.txt"),
         };
-        assert!(deps.contains(&dep), "{:#?} vs {:#?}", deps, dep);
+        assert!(deps.contains(&dep), "{deps:#?} vs {dep:#?}");
     }
 }

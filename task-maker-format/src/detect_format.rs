@@ -57,7 +57,7 @@ pub fn find_task(
             path.display()
         );
         error.chain().for_each(|cause| {
-            let _ = write!(message, "      Caused by:\n        {}\n", cause);
+            let _ = write!(message, "      Caused by:\n        {cause}\n");
         });
     }
 

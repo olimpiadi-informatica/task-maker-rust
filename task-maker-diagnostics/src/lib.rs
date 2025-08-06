@@ -130,7 +130,7 @@ impl Diagnostic {
             write!(f, "{:>pad$}: ", "Note".bold(), pad = pad)?;
             let mut lines = note.lines();
             if let Some(line) = lines.next() {
-                writeln!(f, "{}", line)?;
+                writeln!(f, "{line}")?;
             }
             for line in lines {
                 writeln!(f, "{:>pad$}  {}", "", line, pad = pad)?;

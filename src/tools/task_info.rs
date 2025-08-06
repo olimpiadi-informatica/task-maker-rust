@@ -17,9 +17,9 @@ pub fn main_task_info(opt: TaskInfoOpt) -> Result<(), Error> {
     let info = task.task_info().context("Cannot produce task info")?;
     if opt.json {
         let json = serde_json::to_string(&info).context("Non-serializable task info")?;
-        println!("{}", json);
+        println!("{json}");
     } else {
-        println!("{:#?} ", info);
+        println!("{info:#?} ");
     }
     Ok(())
 }

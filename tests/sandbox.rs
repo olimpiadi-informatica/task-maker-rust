@@ -15,7 +15,7 @@ fn test_remove_output_file() {
         .output("file1");
 
     dag.on_execution_done(&exec.uuid, |res| {
-        assert!(!res.status.is_success(), "rm didn't fail: {:?}", res);
+        assert!(!res.status.is_success(), "rm didn't fail: {res:?}");
         Ok(())
     });
     dag.add_execution(exec);
@@ -35,7 +35,7 @@ fn test_chmod_dir() {
         .output("file1");
 
     dag.on_execution_done(&exec.uuid, |res| {
-        assert!(!res.status.is_success(), "chmod didn't fail: {:?}", res);
+        assert!(!res.status.is_success(), "chmod didn't fail: {res:?}");
         Ok(())
     });
     dag.add_execution(exec);
@@ -53,7 +53,7 @@ fn test_create_files() {
         .capture_stderr(1000);
 
     dag.on_execution_done(&exec.uuid, |res| {
-        assert!(!res.status.is_success(), "touch didn't fail: {:?}", res);
+        assert!(!res.status.is_success(), "touch didn't fail: {res:?}");
         Ok(())
     });
     dag.add_execution(exec);
@@ -76,7 +76,7 @@ fn test_list_fifo() {
         .output("file1");
 
     dag.on_execution_done(&exec.uuid, |res| {
-        assert!(!res.status.is_success(), "ls didn't fail: {:?}", res);
+        assert!(!res.status.is_success(), "ls didn't fail: {res:?}");
         Ok(())
     });
     dag.add_execution(exec);

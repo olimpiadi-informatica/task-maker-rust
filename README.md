@@ -7,17 +7,15 @@ The new cmsMake!
 [![asciicast](https://asciinema.org/a/301849.svg)](https://asciinema.org/a/301849)
 
 ## Installation
-For **Ubuntu** and **Debian** users you can find the `.deb` file in the [Releases](https://github.com/olimpiadi-informatica/task-maker-rust/releases) page.
-Install the package using `sudo dpkg -i the_file.deb` and it's dependencies (if you need to) with `sudo apt install -f`.
-There is a good chance that you have already all the dependencies already installed.
-
-For **Ubuntu** it's also possible to install task-maker-rust using a PPA:
+For **Ubuntu** and **Debian** users, you can install this package as follows:
 
 ```bash
-sudo add-apt-repository ppa:dariop1/task-maker-rust
-sudo apt update
-sudo apt install task-maker-rust
+echo "deb [signed-by=/etc/apt/keyrings/task-maker-rust.asc] https://artifacts.lucaversari.it/olimpiadi-informatica/task-maker-rust/latest/deb/$(lsb_release -cs) /" | sudo tee /etc/apt/sources.list.d/task-maker-rust.list
+curl https://artifacts.lucaversari.it/signing-key.asc | sudo tee /etc/apt/keyrings/task-maker-rust.asc > /dev/null
+sudo apt update && sudo apt install task-maker-rust
 ```
+
+You can also find the `.deb` files in the [Releases](https://github.com/olimpiadi-informatica/task-maker-rust/releases) page.
 
 For **ArchLinux** users you can find the packages in the AUR: [`task-maker-rust`](https://aur.archlinux.org/packages/task-maker-rust) (the stable release)
 and [`task-maker-rust-git`](https://aur.archlinux.org/packages/task-maker-rust-git) (the version based on `master`).

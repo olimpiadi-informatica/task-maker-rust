@@ -150,14 +150,14 @@ fn draw_booklets(frame: &mut Frame, rect: Rect, state: &UIState, loading: char) 
         .flat_map(|name| {
             let booklet = &state.booklets[name];
             let mut text: Vec<Line> = vec![vec![
-                Span::raw(format!("{:<20} ", name)),
+                Span::raw(format!("{name:<20} ")),
                 ui_execution_status_text(&booklet.status, loading),
             ]
             .into()];
             for name in booklet.dependencies.keys().sorted() {
                 let mut line = Vec::new();
                 let dep = &booklet.dependencies[name];
-                line.push(Span::raw(format!("  {:<18} ", name)));
+                line.push(Span::raw(format!("  {name:<18} ")));
                 line.push(Span::raw("["));
                 for step in dep {
                     line.push(ui_execution_status_text(&step.status, loading));
@@ -175,7 +175,7 @@ fn draw_booklets(frame: &mut Frame, rect: Rect, state: &UIState, loading: char) 
 fn ui_execution_status_text(status: &UIExecutionStatus, loading: char) -> Span {
     match status {
         UIExecutionStatus::Pending => Span::raw("."),
-        UIExecutionStatus::Started { .. } => Span::raw(format!("{}", loading)),
+        UIExecutionStatus::Started { .. } => Span::raw(format!("{loading}")),
         UIExecutionStatus::Skipped => Span::raw("S"),
         UIExecutionStatus::Done { result } => match &result.status {
             ExecutionStatus::Success => Span::styled("S", *GREEN),
@@ -212,11 +212,11 @@ fn draw_generations(frame: &mut Frame, rect: Rect, state: &UIState, loading: cha
 fn generation_status_text(status: &TestcaseGenerationStatus, loading: char) -> Span {
     match status {
         TestcaseGenerationStatus::Pending => Span::raw("."),
-        TestcaseGenerationStatus::Generating => Span::raw(format!("{}", loading)),
+        TestcaseGenerationStatus::Generating => Span::raw(format!("{loading}")),
         TestcaseGenerationStatus::Generated => Span::styled("G", *GREEN),
-        TestcaseGenerationStatus::Validating => Span::raw(format!("{}", loading)),
+        TestcaseGenerationStatus::Validating => Span::raw(format!("{loading}")),
         TestcaseGenerationStatus::Validated => Span::styled("V", *GREEN),
-        TestcaseGenerationStatus::Solving => Span::raw(format!("{}", loading)),
+        TestcaseGenerationStatus::Solving => Span::raw(format!("{loading}")),
         TestcaseGenerationStatus::Solved => Span::styled("S", *GREEN),
         TestcaseGenerationStatus::Failed => Span::styled("F", *RED),
         TestcaseGenerationStatus::Skipped => Span::styled("s", *YELLOW),
@@ -269,9 +269,9 @@ fn evaluation_score<'a>(state: &'a UIState, solution: &Path, loading: char) -> S
     };
     if let Some(score) = sol_state.score {
         match ScoreStatus::from_score(score, state.max_score) {
-            ScoreStatus::WrongAnswer => Span::styled(format!(" {:>3.0} ", score), *RED),
-            ScoreStatus::Accepted => Span::styled(format!(" {:>3.0} ", score), *GREEN),
-            ScoreStatus::PartialScore => Span::styled(format!(" {:>3.0} ", score), *YELLOW),
+            ScoreStatus::WrongAnswer => Span::styled(format!(" {score:>3.0} "), *RED),
+            ScoreStatus::Accepted => Span::styled(format!(" {score:>3.0} "), *GREEN),
+            ScoreStatus::PartialScore => Span::styled(format!(" {score:>3.0} "), *YELLOW),
         }
     } else {
         let has_skipped = sol_state
@@ -281,7 +281,7 @@ fn evaluation_score<'a>(state: &'a UIState, solution: &Path, loading: char) -> S
         if has_skipped {
             Span::raw("  X  ")
         } else {
-            Span::raw(format!("  {}  ", loading))
+            Span::raw(format!("  {loading}  "))
         }
     }
 }
@@ -350,9 +350,9 @@ fn testcase_evaluation_status_text<'a>(
     };
     match &testcase.status {
         TestcaseEvaluationStatus::Pending => Span::raw("."),
-        TestcaseEvaluationStatus::Solving => Span::raw(format!("{}", loading)),
+        TestcaseEvaluationStatus::Solving => Span::raw(format!("{loading}")),
         TestcaseEvaluationStatus::Solved => Span::raw("s"),
-        TestcaseEvaluationStatus::Checking => Span::raw(format!("{}", loading)),
+        TestcaseEvaluationStatus::Checking => Span::raw(format!("{loading}")),
         TestcaseEvaluationStatus::Accepted(_) => Span::styled("A", close_color.unwrap_or(*GREEN)),
         TestcaseEvaluationStatus::WrongAnswer(_) => Span::styled("W", *RED),
         TestcaseEvaluationStatus::Partial(_) => Span::styled("P", *YELLOW),

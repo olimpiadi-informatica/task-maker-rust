@@ -40,8 +40,7 @@ impl InputGenerator {
                     bail!("COPY from not existing file: {:?}", path);
                 }
                 let file = File::new(format!(
-                    "Static input file of testcase {}, subtask {} from {:?}",
-                    subtask_id, testcase_id, path
+                    "Static input file of testcase {subtask_id}, subtask {testcase_id} from {path:?}"
                 ));
                 let uuid = file.uuid;
                 eval.dag.provide_file(file, path).with_context(|| {
@@ -92,10 +91,7 @@ impl InputGenerator {
         let (input, gen) = self.generate(
             eval,
             task_path,
-            format!(
-                "Generation of input file of testcase {}, subtask {}",
-                testcase_id, subtask_id
-            ),
+            format!("Generation of input file of testcase {testcase_id}, subtask {subtask_id}"),
             subtask_id,
             testcase_id,
         )?;
@@ -103,7 +99,7 @@ impl InputGenerator {
             input,
             eval.task_root
                 .join("input")
-                .join(format!("input{}.txt", testcase_id)),
+                .join(format!("input{testcase_id}.txt")),
             false,
         );
         // If there is an execution, bind its callbacks and store the input file.
@@ -119,8 +115,8 @@ impl InputGenerator {
             eval.dag.on_execution_done(&gen.uuid, move |result| {
                 if !result.status.is_success() {
                     let mut diagnostic =
-                        Diagnostic::error(format!("Failed to generate input {}", testcase_id))
-                            .with_note(format!("Generator arguments are: {}", args));
+                        Diagnostic::error(format!("Failed to generate input {testcase_id}"))
+                            .with_note(format!("Generator arguments are: {args}"));
                     if let Some(stderr) = result.stderr {
                         diagnostic = diagnostic.with_help_attachment(stderr);
                     }

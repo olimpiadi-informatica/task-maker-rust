@@ -126,7 +126,7 @@ pub fn main_fuzz_checker(opt: FuzzCheckerOpt) -> Result<(), Error> {
     let fuzz_data = FuzzData {
         checker_source: checker.path.clone(),
         initial_output_files: (0..num_testcases)
-            .map(|i| task_dir.join(format!("output/output{}.txt", i)))
+            .map(|i| task_dir.join(format!("output/output{i}.txt")))
             .collect(),
         task_dir,
         opt,
@@ -192,7 +192,7 @@ fn write_initial_corpus(fuzz_dir: &Path, data: &FuzzData) -> Result<(), Error> {
     }
 
     for (index, output) in data.initial_output_files.iter().enumerate() {
-        let path = initial_corpus_dir.join(format!("{}.txt", index));
+        let path = initial_corpus_dir.join(format!("{index}.txt"));
         if path.exists() {
             debug!("Removing old corpus at {}", path.display());
             std::fs::remove_file(&path)
@@ -380,7 +380,7 @@ fn compile_fuzzer(
     command.arg(sanitizers);
 
     let std_version = std::env::var("TM_CXX_STD_VERSION").unwrap_or_else(|_| "c++17".into());
-    command.arg(format!("-std={}", std_version));
+    command.arg(format!("-std={std_version}"));
 
     if data.opt.extra_args.is_empty() {
         debug!("Adding -O2 and -g since no extra argument has been specified");
@@ -465,7 +465,7 @@ fn run_fuzzer(fuzz_dir: &Path, data: &FuzzData, fuzzer: &Path) -> Result<Vec<Pat
     } else {
         num_cpus::get()
     };
-    command.arg(format!("-fork={}", jobs));
+    command.arg(format!("-fork={jobs}"));
     command.arg(format!("-timeout={}", data.opt.checker_timeout));
     command.arg(format!("-max_total_time={}", data.opt.max_time));
     command.arg(fuzz_dir.join("initial_corpus"));
@@ -561,7 +561,7 @@ fn organize_failures(
             bail!("Invalid artifact name {}", artifact.display());
         };
 
-        let target_dir = failures.join(format!("fail-{}", artifact_id));
+        let target_dir = failures.join(format!("fail-{artifact_id}"));
         std::fs::create_dir(&target_dir).with_context(|| {
             anyhow!(
                 "Failed to create artifact output directory at {}",
@@ -569,7 +569,7 @@ fn organize_failures(
             )
         })?;
 
-        let failure_path = target_dir.join(format!("output-{}.txt", fail_type));
+        let failure_path = target_dir.join(format!("output-{fail_type}.txt"));
         std::fs::write(&failure_path, &output).with_context(|| {
             anyhow!(
                 "Failed to write {} bytes of output file at {}",
@@ -578,8 +578,8 @@ fn organize_failures(
             )
         })?;
 
-        let source_input_path = data.task_dir.join(format!("input/input{}.txt", id));
-        let source_correct_path = data.task_dir.join(format!("output/output{}.txt", id));
+        let source_input_path = data.task_dir.join(format!("input/input{id}.txt"));
+        let source_correct_path = data.task_dir.join(format!("output/output{id}.txt"));
         let target_input_path = target_dir.join("input.txt");
         let target_output_path = target_dir.join("output.txt");
         let target_artifact_path = target_dir.join("artifact.bin");

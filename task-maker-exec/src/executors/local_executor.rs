@@ -54,7 +54,7 @@ impl LocalExecutor {
         for i in 0..num_workers {
             let runner = sandbox_runner.clone();
             let (worker, conn) = Worker::new(
-                format!("Local worker {}", i),
+                format!("Local worker {i}"),
                 file_store.clone(),
                 #[allow(clippy::needless_borrow)]
                 &sandbox_path,
@@ -64,7 +64,7 @@ impl LocalExecutor {
             executor_tx
                 .send(ExecutorInMessage::WorkerConnected { worker: conn })
                 .map_err(|e| anyhow!("Failed to send WorkerConnected: {:?}", e))?;
-            let worker_name = format!("Worker {}", worker);
+            let worker_name = format!("Worker {worker}");
             workers.push(
                 thread::Builder::new()
                     .name(worker_name.clone())

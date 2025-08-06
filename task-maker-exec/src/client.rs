@@ -107,7 +107,7 @@ impl ExecutorClient {
                         .map_err(|_| anyhow!("Failed to obtain file_mode lock"))?;
                     let provided_files = &dag.data.provided_files;
                     handle_server_ask_file(uuid, provided_files, &sender).with_context(|| {
-                        format!("Failed to process AskFile({}) from the server", uuid)
+                        format!("Failed to process AskFile({uuid}) from the server")
                     })?;
                 }
                 Ok(ExecutorServerMessage::ProvideFile(uuid, success)) => {
@@ -119,8 +119,7 @@ impl ExecutorClient {
                     process_provided_file(dag.file_callbacks(), uuid, success, iterator, None)
                         .with_context(|| {
                             format!(
-                                "Failed to process ProvideFile({}, {}) from the server",
-                                uuid, success
+                                "Failed to process ProvideFile({uuid}, {success}) from the server"
                             )
                         })?;
                 }
@@ -177,8 +176,7 @@ impl ExecutorClient {
                             let iterator =
                                 ReadFileIterator::new(handle.path()).with_context(|| {
                                     format!(
-                                        "Failed to read produced file ({}) from the local storage",
-                                        handle
+                                        "Failed to read produced file ({handle}) from the local storage"
                                     )
                                 })?;
                             process_provided_file(
@@ -190,15 +188,14 @@ impl ExecutorClient {
                             )
                             .with_context(|| {
                                 format!(
-                                    "Failed to process produced file ({}) from the local storage",
-                                    handle
+                                    "Failed to process produced file ({handle}) from the local storage"
                                 )
                             })?;
                         } else {
                             sender
                                 .send(ExecutorClientMessage::AskFile(uuid, key, success))
                                 .with_context(|| {
-                                    format!("Failed to ask for a completed file ({})", uuid)
+                                    format!("Failed to ask for a completed file ({uuid})")
                                 })?;
                             missing += 1;
                         }
@@ -445,7 +442,7 @@ fn process_provided_file<I: IntoIterator<Item = Vec<u8>>>(
 
         if let Some(get_content) = callback.get_content.take().map(|(_, f)| f) {
             get_content(buffer)
-                .with_context(|| format!("get_content callback for file {} failed", uuid))?;
+                .with_context(|| format!("get_content callback for file {uuid} failed"))?;
         }
     } else {
         iterator.into_iter().last();

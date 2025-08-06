@@ -228,7 +228,7 @@ impl Worker {
                     let handle = self
                         .file_store
                         .store(&key, reader)
-                        .with_context(|| format!("Failed to store server-provided file {}", key))?;
+                        .with_context(|| format!("Failed to store server-provided file {key}"))?;
                     let should_start = {
                         let mut job = self.current_job.lock().unwrap();
                         let uuids = job
@@ -359,7 +359,7 @@ fn execute_job(
     let sender = sender.clone();
     let description = job.group.description.clone();
     let join_handle = std::thread::Builder::new()
-        .name(format!("Sandbox group manager for {}", description))
+        .name(format!("Sandbox group manager for {description}"))
         .spawn(move || {
             sandbox_group_manager(
                 current_job,
@@ -370,7 +370,7 @@ fn execute_job(
                 runner,
                 fifo_dir,
             )
-            .with_context(|| format!("Sandbox group for {} failed", description))
+            .with_context(|| format!("Sandbox group for {description} failed"))
             // FIXME: find a better way to propagate the error to the server
             .unwrap();
         })?;
@@ -541,7 +541,7 @@ fn spawn_sandbox(
     group_sender: Sender<(usize, SandboxResult)>,
 ) -> Result<JoinHandle<Result<(), Error>>, Error> {
     Ok(thread::Builder::new()
-        .name(format!("Sandbox of {}", description))
+        .name(format!("Sandbox of {description}"))
         .spawn(move || {
             let res = match sandbox.run(runner.as_ref()) {
                 Ok(res) => res,
@@ -572,14 +572,12 @@ fn compute_execution_result(
             let stderr = capture_stream(&sandbox.stderr_path(), execution.capture_stderr);
             let status = match (&stdout, &stderr) {
                 (Ok(_), Ok(_)) => execution.status(exit_status, signal, &resources),
-                (Err(err), _) => ExecutionStatus::internal_error(format!(
-                    "Failed to read stdout file: {:?}",
-                    err
-                )),
-                (_, Err(err)) => ExecutionStatus::internal_error(format!(
-                    "Failed to read stderr file: {:?}",
-                    err
-                )),
+                (Err(err), _) => {
+                    ExecutionStatus::internal_error(format!("Failed to read stdout file: {err:?}"))
+                }
+                (_, Err(err)) => {
+                    ExecutionStatus::internal_error(format!("Failed to read stderr file: {err:?}"))
+                }
             };
             ExecutionResult {
                 status,

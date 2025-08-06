@@ -94,7 +94,7 @@ fn get_statement_template(task_dir: &Path) -> Result<Option<Statement>, Error> {
 fn get_manager(task_dir: &Path, manager: &str) -> Result<Option<Arc<SourceFile>>, Error> {
     let mut managers = find_source_file(
         task_dir,
-        vec![&format!("managers/{}.*", manager)],
+        vec![&format!("managers/{manager}.*")],
         task_dir,
         "Terry manager at",
         None,
