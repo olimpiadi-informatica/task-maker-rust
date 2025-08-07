@@ -583,8 +583,15 @@ fn compute_execution_result(
         } => {
             let stdout = capture_stream(&sandbox.stdout_path(), execution.capture_stdout);
             let stderr = capture_stream(&sandbox.stderr_path(), execution.capture_stderr);
+            let execution_status = if exit_status != 0 {
+                ExecutionStatus::ReturnCode(exit_status)
+            } else if let Some((code, name)) = signal {
+                ExecutionStatus::Signal(code, name)
+            } else {
+                ExecutionStatus::Success
+            };
             let status = match (&stdout, &stderr) {
-                (Ok(_), Ok(_)) => execution.status(exit_status, signal, &resources),
+                (Ok(_), Ok(_)) => execution.status(&execution_status, &resources),
                 (Err(err), _) => {
                     ExecutionStatus::internal_error(format!("Failed to read stdout file: {err:?}"))
                 }
@@ -605,7 +612,7 @@ fn compute_execution_result(
             let status = if execution.command != ExecutionCommand::TypstCompilation {
                 ExecutionStatus::InternalError(error.clone())
             } else {
-                ExecutionStatus::Failure
+                ExecutionStatus::Failure(error)
             };
 
             ExecutionResult {

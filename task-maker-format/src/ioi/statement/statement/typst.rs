@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Error};
 use itertools::Itertools;
-use task_maker_dag::{Execution, ExecutionCommand, File};
+use task_maker_dag::{Execution, ExecutionCommand, ExecutionStatus, File};
 use task_maker_diagnostics::Diagnostic;
 
 #[derive(Debug)]
@@ -108,13 +108,14 @@ impl Language for Typst {
 
         let dest = booklet.dest.file_name().unwrap().to_owned();
         eval.dag.on_execution_done(&exec.uuid, move |res| {
-            if !res.status.is_success() {
+            if let ExecutionStatus::Failure(error) = res.status {
                 sender.add_diagnostic(
                     Diagnostic::error(format!(
-                        "The compilation of the booklet at {} was unsuccesful",
+                        "The compilation of the booklet at {} failed with the following errors:\n{}",
                         PathBuf::from(&dest).display(),
+                        error,
                     ))
-                    .with_help("Try compiling the file manually to fix the issue"),
+                    .with_help("Consider compiling the file manually to troubleshoot the issue")
                 )?
             }
             Ok(())

@@ -223,7 +223,7 @@ pub enum ExecutionStatus {
     /// The program exited with status 0 within the limits.
     Success,
     /// The task-maker-executed execution returned an Error
-    Failure,
+    Failure(String),
     /// The program exited with a non-zero status code, which is attached.
     ReturnCode(u32),
     /// The program stopped due to a signal, the number and the name of the signal are attached.
@@ -773,8 +773,7 @@ impl Execution {
     /// execution, checking the signals, the return code and the time/memory constraints.
     pub fn status(
         &self,
-        exit_status: u32,
-        signal: Option<(u32, String)>,
+        status: &ExecutionStatus,
         resources: &ExecutionResourcesUsage,
     ) -> ExecutionStatus {
         // it's important to check those before the signals because exceeding those
@@ -799,13 +798,7 @@ impl Execution {
                 return ExecutionStatus::MemoryLimitExceeded;
             }
         }
-        if let Some((signal, name)) = signal {
-            return ExecutionStatus::Signal(signal, name);
-        }
-        if exit_status != 0 {
-            return ExecutionStatus::ReturnCode(exit_status);
-        }
-        ExecutionStatus::Success
+        status.clone()
     }
 }
 
@@ -860,8 +853,7 @@ mod tests {
     fn test_status_success() {
         let exec = Execution::new("foo", ExecutionCommand::local("foo"));
         let status = exec.status(
-            0,
-            None,
+            &ExecutionStatus::Success,
             &ExecutionResourcesUsage {
                 cpu_time: 0.0,
                 sys_time: 0.0,
@@ -877,8 +869,7 @@ mod tests {
         let mut exec = Execution::new("foo", ExecutionCommand::local("foo"));
         exec.limits_mut().cpu_time(1.0);
         let status = exec.status(
-            0,
-            None,
+            &ExecutionStatus::Success,
             &ExecutionResourcesUsage {
                 cpu_time: 1.1,
                 sys_time: 0.0,
@@ -894,8 +885,7 @@ mod tests {
         let mut exec = Execution::new("foo", ExecutionCommand::local("foo"));
         exec.limits_mut().sys_time(1.0);
         let status = exec.status(
-            0,
-            None,
+            &ExecutionStatus::Success,
             &ExecutionResourcesUsage {
                 cpu_time: 0.0,
                 sys_time: 1.1,
@@ -911,8 +901,7 @@ mod tests {
         let mut exec = Execution::new("foo", ExecutionCommand::local("foo"));
         exec.limits_mut().wall_time(1.0);
         let status = exec.status(
-            0,
-            None,
+            &ExecutionStatus::Success,
             &ExecutionResourcesUsage {
                 cpu_time: 0.0,
                 sys_time: 0.0,
@@ -928,8 +917,7 @@ mod tests {
         let mut exec = Execution::new("foo", ExecutionCommand::local("foo"));
         exec.limits_mut().memory(1234);
         let status = exec.status(
-            0,
-            None,
+            &ExecutionStatus::Success,
             &ExecutionResourcesUsage {
                 cpu_time: 0.0,
                 sys_time: 0.0,
@@ -944,8 +932,7 @@ mod tests {
     fn test_status_signal() {
         let exec = Execution::new("foo", ExecutionCommand::local("foo"));
         let status = exec.status(
-            0,
-            Some((11, "Killed".into())),
+            &ExecutionStatus::Signal(11, "Killed".into()),
             &ExecutionResourcesUsage {
                 cpu_time: 0.0,
                 sys_time: 0.0,
@@ -960,8 +947,7 @@ mod tests {
     fn test_status_return_code() {
         let exec = Execution::new("foo", ExecutionCommand::local("foo"));
         let status = exec.status(
-            1,
-            None,
+            &ExecutionStatus::ReturnCode(1),
             &ExecutionResourcesUsage {
                 cpu_time: 0.0,
                 sys_time: 0.0,

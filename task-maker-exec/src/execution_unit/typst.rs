@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Context, Error};
+use itertools::Itertools;
 use reqwest::blocking::{Client, ClientBuilder};
 use tar::Archive;
 use task_maker_dag::{Execution, FileUuid};
 use task_maker_store::FileStoreHandle;
-use typst::ecow::eco_format;
+use typst::ecow::{eco_format, EcoVec};
 use typst::syntax::package::PackageSpec;
 use typst_pdf::PdfOptions;
 use zune_inflate::DeflateDecoder;
@@ -14,7 +15,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{env, fs};
 
-use typst::diag::{FileError, FileResult, PackageError, PackageResult};
+use typst::diag::{FileError, FileResult, PackageError, PackageResult, SourceDiagnostic};
 use typst::foundations::{Bytes, Datetime, Dict, Str, Value};
 use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
@@ -99,9 +100,9 @@ impl TypstCompiler {
     pub fn run(&mut self) -> Result<SandboxResult, Error> {
         let document = typst::compile(self)
             .output
-            .map_err(|err| anyhow!("Error compiling typst: {err:?}"))?;
+            .map_err(display_compilation_errors)?;
         let pdf = typst_pdf::pdf(&document, &PdfOptions::default())
-            .map_err(|err| anyhow!("Error compiling typst: {err:?}"))?;
+            .map_err(display_compilation_errors)?;
 
         self.outputs
             .insert(Path::new("booklet.pdf").to_owned(), pdf);
@@ -215,4 +216,14 @@ impl World for TypstCompiler {
             .checked_to_offset(offset)
             .map(|time| Datetime::Date(time.date()))
     }
+}
+
+fn display_compilation_errors(errors: EcoVec<SourceDiagnostic>) -> anyhow::Error {
+    anyhow!(
+        "\t* {}",
+        errors
+            .iter()
+            .map(|diag| diag.message.as_str())
+            .join("\n\t* ")
+    )
 }
