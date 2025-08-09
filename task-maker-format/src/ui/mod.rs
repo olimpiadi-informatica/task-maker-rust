@@ -281,17 +281,17 @@ impl<'a> FinishUIUtils<'a> {
     }
 
     /// Print a message for the non-successful variants of the provided status.
-    pub fn print_fail_execution_status(status: &ExecutionStatus) {
+    pub fn display_fail_execution_status(status: &ExecutionStatus) -> String {
         match status {
-            ExecutionStatus::Success => {}
-            ExecutionStatus::Failure(_) => print!("Failed"),
-            ExecutionStatus::ReturnCode(code) => print!("Exited with {code}"),
-            ExecutionStatus::Signal(sig, name) => print!("Signal {sig} ({name})"),
-            ExecutionStatus::TimeLimitExceeded => print!("Time limit exceeded"),
-            ExecutionStatus::SysTimeLimitExceeded => print!("Kernel time limit exceeded"),
-            ExecutionStatus::WallTimeLimitExceeded => print!("Wall time limit exceeded"),
-            ExecutionStatus::MemoryLimitExceeded => print!("Memory limit exceeded"),
-            ExecutionStatus::InternalError(err) => print!("Internal error: {err}"),
+            ExecutionStatus::Success => "".into(),
+            ExecutionStatus::Failure(_) => "Failed".into(),
+            ExecutionStatus::ReturnCode(code) => format!("Exited with {code}"),
+            ExecutionStatus::Signal(sig, name) => format!("Signal {sig} ({name})"),
+            ExecutionStatus::TimeLimitExceeded => "Time limit exceeded".into(),
+            ExecutionStatus::SysTimeLimitExceeded => "Kernel time limit exceeded".into(),
+            ExecutionStatus::WallTimeLimitExceeded => "Wall time limit exceeded".into(),
+            ExecutionStatus::MemoryLimitExceeded => "Memory limit exceeded".into(),
+            ExecutionStatus::InternalError(err) => format!("Internal error: {err}"),
         }
     }
 

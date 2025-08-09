@@ -403,7 +403,8 @@ fn check_subtasks_ois(path: &Path, text: &str) -> Option<Vec<ExtractedSubtask>> 
 /// `subtask => [Samples],`
 fn check_subtasks_typst(path: &Path, text: &str) -> Option<Vec<ExtractedSubtask>> {
     lazy_static! {
-        static ref FIND_SUBTASKS: Regex = Regex::new(r"subtask => \[.+\]").expect("Invalid regex");
+        static ref FIND_SUBTASKS: Regex =
+            Regex::new(r"subtask => \[(.|\n)+?\]").expect("Invalid regex");
     }
     let mut result = Vec::new();
     for (index, subtask) in FIND_SUBTASKS.captures_iter(text).enumerate() {

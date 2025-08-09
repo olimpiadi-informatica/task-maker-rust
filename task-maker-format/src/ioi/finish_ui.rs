@@ -500,7 +500,12 @@ impl FinishUI {
             UIExecutionStatus::Started { .. } => cwrite!(self, YELLOW, "started"),
             UIExecutionStatus::Done { result } => match &result.status {
                 ExecutionStatus::Success => cwrite!(self, GREEN, "Success"),
-                _ => cwrite!(self, RED, "{:?}", result.status),
+                _ => cwrite!(
+                    self,
+                    RED,
+                    "{}",
+                    FinishUIUtils::display_fail_execution_status(&result.status)
+                ),
             },
         }
     }
