@@ -4,14 +4,12 @@ use crate::ui::{UIMessage, UIMessageSender};
 use crate::{bind_exec_callbacks, UISender};
 use crate::{EvaluationData, Tag};
 
-use std::env;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Error};
 use itertools::Itertools;
-use task_maker_dag::{Execution, ExecutionCommand, File};
+use task_maker_dag::{Execution, ExecutionCommand, ExecutionStatus, File};
 use task_maker_diagnostics::Diagnostic;
 
 #[derive(Debug)]
@@ -30,28 +28,8 @@ impl Language for Typst {
     ) -> Result<(), Error> {
         let mut exec = Execution::new(
             "Compilation of the booklet",
-            ExecutionCommand::system("typst"),
+            ExecutionCommand::TypstCompilation,
         );
-
-        exec.args(vec![
-            "compile",
-            "booklet.typ",
-            "--input",
-            "gen_gen=GEN",
-            "--input",
-            "constraints_yaml=constraints.yaml",
-            "--input",
-            "contest_yaml=../../contest.yaml",
-            "--package-cache-path",
-            "typst-cache",
-        ]);
-
-        exec.limits_mut()
-            .read_only(false)
-            .allow_multiprocess()
-            .mount_tmpfs(true)
-            .mount_proc(true)
-            .add_extra_readable_dir("/etc");
 
         exec.tag(Tag::Booklet.into());
         exec.priority(BOOKLET_PRIORITY);
@@ -110,28 +88,6 @@ impl Language for Typst {
             eval.dag.provide_file(intro, intro_page)?;
         }
 
-        // Copy the typst cache to provide packages
-        let cache_dir = match env::var("XDG_CACHE_HOME") {
-            Ok(cache) => Path::new(&cache).join("typst/packages"),
-            Err(_) => Path::new(&env::var("HOME")?).join(".cache/typst/packages"),
-        };
-        let glob_pattern = cache_dir.to_string_lossy().to_string() + "/**/*";
-        for path in glob::glob(&glob_pattern).context("Invalid glob pattern")? {
-            let path = path.context("Failed to iterate with glob")?;
-            if !path.is_file() {
-                continue;
-            }
-            let file = File::new(format!("Typst package file at {:?}", path.display(),));
-            eval.dag
-                .provide_file(file.clone(), &path)
-                .context("Failed to provide typst package file")?;
-            exec.input(
-                file,
-                Path::new("typst-cache").join(path.strip_prefix(&cache_dir)?),
-                false,
-            );
-        }
-
         bind_exec_callbacks!(
             eval,
             exec.uuid,
@@ -152,8 +108,15 @@ impl Language for Typst {
 
         let dest = booklet.dest.file_name().unwrap().to_owned();
         eval.dag.on_execution_done(&exec.uuid, move |res| {
-            if let Some(content) = res.stderr {
-                self.emit_warnings(PathBuf::from(dest), content, sender)?;
+            if let ExecutionStatus::Failure(error) = res.status {
+                sender.add_diagnostic(
+                    Diagnostic::error(format!(
+                        "The compilation of the booklet at {} failed with the following errors:\n{}",
+                        PathBuf::from(&dest).display(),
+                        error,
+                    ))
+                    .with_help("Consider compiling the file manually to troubleshoot the issue")
+                )?
             }
             Ok(())
         });
@@ -189,32 +152,10 @@ impl Language for Typst {
 
     fn emit_warnings(
         &self,
-        booklet_name: PathBuf,
-        content: Vec<u8>,
-        sender: Arc<Mutex<UIMessageSender>>,
+        _booklet_name: PathBuf,
+        _content: Vec<u8>,
+        _sender: Arc<Mutex<UIMessageSender>>,
     ) -> Result<(), Error> {
-        if !content.is_empty() {
-            let mut buf = String::new();
-            content.as_slice().read_to_string(&mut buf)?;
-
-            sender.add_diagnostic(
-                Diagnostic::warning(format!(
-                    "The compilation of the booklet at {} produced the following errors or warnings",
-                    booklet_name.display()
-                )).with_note(&buf).with_help("Use --copy-logs to save the compilation stderr")
-            )?;
-
-            // if it seems like typst tried to download a package we emit an error
-            if buf.contains("error: failed to download package") {
-                sender.add_diagnostic(
-                    Diagnostic::error("Typst tried to download a package, but couldn't")
-                        .with_note("This is because the compilation of the booklet is sandboxed")
-                        .with_help(
-                            "Try compiling manually once to store the package in the offline cache",
-                        ),
-                )?;
-            }
-        }
         Ok(())
     }
 }

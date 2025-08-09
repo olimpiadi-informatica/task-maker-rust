@@ -183,13 +183,8 @@ impl Cache {
                     if entry.is_compatible(group) {
                         let mut results = Vec::new();
                         for (exec, item) in group.executions.iter().zip(entry.items.iter()) {
-                            let (exit_status, signal) = match &item.result.status {
-                                ExecutionStatus::ReturnCode(c) => (*c, None),
-                                ExecutionStatus::Signal(s, name) => (0, Some((*s, name.clone()))),
-                                _ => (0, None),
-                            };
                             results.push(ExecutionResult {
-                                status: exec.status(exit_status, signal, &item.result.resources),
+                                status: exec.status(&item.result.status, &item.result.resources),
                                 was_killed: item.result.was_killed,
                                 was_cached: true,
                                 resources: item.result.resources.clone(),

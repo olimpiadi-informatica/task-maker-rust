@@ -78,7 +78,10 @@ impl FinishUI {
                     if let ExecutionStatus::Success = result.status {
                     } else {
                         print!(" | ");
-                        FinishUIUtils::print_fail_execution_status(&result.status);
+                        print!(
+                            "{}",
+                            FinishUIUtils::display_fail_execution_status(&result.status)
+                        );
                     }
                     if result.was_cached {
                         print!(" (cached)");

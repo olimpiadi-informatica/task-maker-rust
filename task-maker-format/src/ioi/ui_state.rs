@@ -556,6 +556,9 @@ impl UIStateT for UIState {
                             ExecutionStatus::Success => {
                                 testcase.status = TestcaseEvaluationStatus::Solved
                             }
+                            ExecutionStatus::Failure(_) => {
+                                testcase.status = TestcaseEvaluationStatus::RuntimeError
+                            }
                             ExecutionStatus::ReturnCode(_) => {
                                 testcase.status = TestcaseEvaluationStatus::RuntimeError
                             }

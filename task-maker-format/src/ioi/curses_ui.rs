@@ -94,7 +94,7 @@ fn draw_frame(state: &UIState, f: &mut Frame, loading: char, frame_index: usize)
     }
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(
+        .constraints::<&[Constraint]>(
             [
                 Constraint::Length(header_len),
                 Constraint::Length(compilations_len),
