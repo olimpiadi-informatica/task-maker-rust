@@ -11,6 +11,7 @@ use zune_inflate::DeflateDecoder;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
 use std::{env, fs};
@@ -59,7 +60,22 @@ impl TypstCompiler {
             })
             .collect::<Result<HashMap<_, _>, _>>()?;
 
-        let fonts = FontSearcher::new().include_system_fonts(true).search();
+        // Try adding tex directories to the font searcher
+        let tex_dir = Command::new("kpsewhich")
+            .arg("-var-value=TEXMFMAIN")
+            .output()
+            .ok()
+            .and_then(|output| {
+                str::from_utf8(&output.stdout[..output.stdout.len() - 1])
+                    .ok()
+                    .map(PathBuf::from)
+            })
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        let fonts = FontSearcher::new()
+            .include_system_fonts(true)
+            .search_with(tex_dir);
 
         let cache_dir = match env::var("XDG_CACHE_HOME") {
             Ok(cache) => Path::new(&cache).join("typst/packages"),
