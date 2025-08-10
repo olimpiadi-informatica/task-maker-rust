@@ -16,7 +16,7 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt update
-          sudo apt install -yy libseccomp-dev build-essential fpc
+          sudo apt install -yy libseccomp-dev libssl-dev build-essential fpc
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable

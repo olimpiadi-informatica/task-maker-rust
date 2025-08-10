@@ -25,7 +25,7 @@ jobs:
       - name: Install Deps
         run: |
           sudo apt update
-          sudo apt install -yy libseccomp-dev build-essential
+          sudo apt install -yy libseccomp-dev libssl-dev build-essential
       - uses: dtolnay/rust-toolchain@stable
       - name: cargo doc
         run: cargo doc --color=always --no-deps --all
