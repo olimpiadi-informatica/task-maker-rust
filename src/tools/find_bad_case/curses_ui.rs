@@ -29,7 +29,7 @@ impl CursesUI {
         // FIXME: shrink workers_len if needed
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(
+            .constraints::<&[Constraint]>(
                 [
                     Constraint::Length(header_len),
                     Constraint::Min(0),

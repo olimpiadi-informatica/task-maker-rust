@@ -22,7 +22,7 @@ impl AsyFile {
         source: P,
         eval: &mut EvaluationData,
         booklet_name: &str,
-    ) -> Result<File, Error> {
+    ) -> Result<(File, File), Error> {
         let source_path = source.into();
         let booklet = booklet_name.to_string();
         let name = source_path
@@ -32,17 +32,16 @@ impl AsyFile {
             .to_string();
         let source_file = File::new(format!("Source of {name}"));
 
-        let mut comp = Execution::new(
+        let mut comp_pdf_svg = Execution::new(
             format!("Compilation of {name}"),
-            ExecutionCommand::system("asy"),
+            ExecutionCommand::system("sh"),
         );
-        comp.args(vec![
-            "-f",
-            "pdf",
-            "-localhistory", // This prevents "failed to create directory /.asy."
-            "tm-compilation.asy",
+        comp_pdf_svg.args(vec![
+            "-c",
+            "asy -f pdf -localhistory tm-compilation.asy && asy -f svg -localhistory tm-compilation.asy",
         ]);
-        comp.limits_mut()
+        comp_pdf_svg
+            .limits_mut()
             .read_only(false)
             .wall_time(10.0) // asy tends to deadlock on failure
             .stack(8192 * 1024) // due to a libgc bug, asy may crash with unlimited stack
@@ -50,14 +49,14 @@ impl AsyFile {
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true)
             .mount_proc(true);
-        comp.tag(Tag::Booklet.into());
-        comp.input(&source_file, "tm-compilation.asy", false);
+        comp_pdf_svg.tag(Tag::Booklet.into());
+        comp_pdf_svg.input(&source_file, "tm-compilation.asy", false);
         eval.dag
             .provide_file(source_file, &source_path)
             .context("Failed to provide any source file")?;
         bind_exec_callbacks!(
             eval,
-            comp.uuid,
+            comp_pdf_svg.uuid,
             |status, booklet, name| UIMessage::IOIBookletDependency {
                 booklet,
                 name,
@@ -80,24 +79,25 @@ impl AsyFile {
                 dep.sandbox_path.display(),
                 name
             ));
-            comp.input(&file, &dep.sandbox_path, false);
+            comp_pdf_svg.input(&file, &dep.sandbox_path, false);
             eval.dag
                 .provide_file(file, &dep.local_path)
                 .context("Failed to provide asy dependency")?;
         }
-        let compiled = comp.output("tm-compilation.pdf");
+        let compiled = comp_pdf_svg.output("tm-compilation.pdf");
+        let vector = comp_pdf_svg.output("tm-compilation.svg");
         if eval.dag.data.config.copy_logs {
             let log_dir = eval.task_root.join("bin/logs/asy");
             let stderr_dest = log_dir.join(format!("{name}.stderr.log"));
             let stdout_dest = log_dir.join(format!("{name}.stdout.log"));
             eval.dag
-                .write_file_to_allow_fail(comp.stderr(), stderr_dest, false);
+                .write_file_to_allow_fail(comp_pdf_svg.stderr(), stderr_dest, false);
             eval.dag
-                .write_file_to_allow_fail(comp.stdout(), stdout_dest, false);
+                .write_file_to_allow_fail(comp_pdf_svg.stdout(), stdout_dest, false);
         }
 
-        comp.capture_stderr(1024);
-        eval.dag.on_execution_done(&comp.uuid, {
+        comp_pdf_svg.capture_stderr(1024);
+        eval.dag.on_execution_done(&comp_pdf_svg.uuid, {
             let sender = eval.sender.clone();
             let name = name.clone();
             move |result| {
@@ -114,7 +114,7 @@ impl AsyFile {
                 Ok(())
             }
         });
-        eval.dag.add_execution(comp);
+        eval.dag.add_execution(comp_pdf_svg);
 
         let mut crop = Execution::new(
             format!("Crop of {name}"),
@@ -162,7 +162,7 @@ impl AsyFile {
         });
         eval.dag.add_execution(crop);
 
-        Ok(cropped)
+        Ok((cropped, vector))
     }
 
     /// Search for all the dependencies of an Asymptote source file.
