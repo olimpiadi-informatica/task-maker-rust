@@ -242,7 +242,7 @@ impl UIOpt {
     /// Disable the Curses UI and fallback to PrintUI if verbose output is enabled.
     pub fn disable_if_needed(&mut self, logger: &LoggerOpt) {
         let mut show_warning = false;
-        if logger.should_diable_curses() {
+        if logger.should_disable_curses() {
             if let task_maker_format::ui::UIType::Curses = self.ui {
                 // warning deferred to after the logger has been initialized
                 show_warning = true;
@@ -280,9 +280,10 @@ impl LoggerOpt {
             std::env::set_var("RUST_BACKTRACE", "1");
         }
         match self.verbose {
-            0 => std::env::set_var("RUST_LOG", "warn,tabox=warn"),
-            1 => std::env::set_var("RUST_LOG", "info,tabox=info"),
-            2 => std::env::set_var("RUST_LOG", "debug,tabox=debug"),
+            0 => std::env::set_var("RUST_LOG", "error,tabox=error"),
+            1 => std::env::set_var("RUST_LOG", "warn,tabox=warn"),
+            2 => std::env::set_var("RUST_LOG", "info,tabox=info"),
+            3 => std::env::set_var("RUST_LOG", "debug,tabox=debug"),
             _ => std::env::set_var("RUST_LOG", "trace,tabox=trace"),
         }
 
@@ -292,7 +293,7 @@ impl LoggerOpt {
         better_panic::install();
     }
 
-    pub fn should_diable_curses(&self) -> bool {
+    pub fn should_disable_curses(&self) -> bool {
         self.verbose > 0
     }
 }
