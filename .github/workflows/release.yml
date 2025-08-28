@@ -23,7 +23,7 @@ jobs:
     container:
       image: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Deps
         run: |
           apt update
@@ -67,7 +67,7 @@ jobs:
     name: AUR
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build PKGBUILD
         working-directory: tools/aur/task-maker-rust
         run: ./gen.sh > ../../../PKGBUILD
