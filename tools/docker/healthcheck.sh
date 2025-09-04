@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
+set -euo pipefail
+IFS=$'\n\t'
 
-processes=$(ps aux)
+task_maker_processes=$(pgrep -f 'task-maker-tools' \
+                       | xargs --no-run-if-empty ps -o 'command' \
+                       | tail -n+2)
 
 # check server
-echo $processes | grep task-maker-rust | grep -- --server 2>/dev/null >/dev/null
+echo $task_maker_processes | grep server 2>&1 >/dev/null
 server_ok=$?
 
 # check worker
-echo $processes | grep task-maker-rust | grep -- --worker 2>/dev/null >/dev/null
+echo $task_maker_processes | grep server 2>&1 >/dev/null
 worker_ok=$?
 
 if [[ $server_ok == 0 && $worker_ok == 0 ]]; then
-  echo "server & worker ok"
+  echo "server and worker ok"
   exit 0
 fi
 if [[ $server_ok == 0 ]]; then
@@ -22,5 +26,5 @@ if [[ $worker_ok == 0 ]]; then
   echo "server down"
   exit 1
 fi
-echo "server & worker down"
+echo "server and worker down"
 exit 1
