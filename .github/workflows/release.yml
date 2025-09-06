@@ -22,6 +22,8 @@ jobs:
         - debian:trixie
     container:
       image: ${{ matrix.os }}
+    env:
+      TM_DATA_DIR: /usr/share/task-maker-rust
     steps:
       - uses: actions/checkout@v4
       - name: Install Deps
@@ -60,8 +62,15 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: tmr-debs-${{ env.ARTIFACT_SUFFIX }}
-          path: tmr-debs-${{ env.ARTIFACT_SUFFIX }}.tar.gz
+          path: "target/debian/*.deb"
           compression-level: 0
+
+      - name: Upload the artifacts
+        uses: skx/github-action-publish-binaries@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: "target/debian/*.deb"
 
   aur:
     name: AUR
