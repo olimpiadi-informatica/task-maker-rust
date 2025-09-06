@@ -50,7 +50,7 @@ jobs:
         run: target/release/task-maker-tools gen-autocompletion
 
       - name: Build deb file
-        run: cargo deb
+        run: cargo deb --deb-revision 1~${{ env.ARTIFACT_SUFFIX }}
 
       - name: Package release tarball
         run: |
