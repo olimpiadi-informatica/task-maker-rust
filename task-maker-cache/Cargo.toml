@@ -1,6 +1,6 @@
 [package]
 name = "task-maker-cache"
-version = "0.6.14"
+version = "0.6.15"
 authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
 edition = "2021"
 

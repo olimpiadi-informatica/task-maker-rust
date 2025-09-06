@@ -4,7 +4,7 @@ members = ["task-maker-*"]
 
 [package]
 name = "task-maker-rust"
-version = "0.6.14"
+version = "0.6.15"
 description = "Tool for building tasks for informatics competitions, with support for cache, distributed computations and more"
 readme = "README.md"
 authors = ["Edoardo Morassutto <edoardo.morassutto@gmail.com>"]
