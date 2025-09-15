@@ -92,7 +92,7 @@ uuid = "1.18"
 walkdir = "2.5"
 which = "7.0"
 whoami = "1.6"
-wildmatch = "2.1.0"
+wildmatch = "2.5.0"
 
 [dependencies]
 task-maker-dag = { path = "./task-maker-dag" }
