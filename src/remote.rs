@@ -51,7 +51,7 @@ pub fn connect_to_remote_server<S, R, Str: AsRef<str>>(
     match schema {
         Schema::Tcp(server_addrs) => {
             for server_addr in server_addrs {
-                info!("Connecting to remote server at {}", server_addr);
+                info!("Connecting to remote server at {server_addr}");
                 let res = match &password {
                     Some(password) => {
                         let key = derive_key_from_password(password);
@@ -63,7 +63,7 @@ pub fn connect_to_remote_server<S, R, Str: AsRef<str>>(
                     Ok(x) => return Ok(x),
                     Err(e) => {
                         if let Some(io_err) = e.downcast_ref::<std::io::Error>() {
-                            debug!("Connection to server failed: {:?}", io_err);
+                            debug!("Connection to server failed: {io_err:?}");
                             err = Some(e);
                         } else {
                             err = Some(e);

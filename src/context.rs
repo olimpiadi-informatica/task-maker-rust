@@ -250,7 +250,7 @@ impl ConnectedExecutor {
                     }
                 }
             }) {
-                warn!("Cannot bind control-C handler: {:?}", e);
+                warn!("Cannot bind control-C handler: {e:?}");
             }
         }
 

@@ -213,11 +213,11 @@ impl FileStore {
         I: IntoIterator<Item = Vec<u8>>,
     {
         let path = self.key_to_path(key);
-        trace!("Storing {:?}", path);
+        trace!("Storing {path:?}");
         // make the key to avoid racing while writing
         let handle = FileStoreHandle::new(self, key);
         if path.exists() {
-            trace!("File {:?} already exists", path);
+            trace!("File {path:?} already exists");
             content.into_iter().last(); // consume all the iterator
         } else {
             // assuming moving files is atomic this should be MT-safe
@@ -296,9 +296,9 @@ impl FileStore {
             return None;
         }
         if INTEGRITY_CHECKS_ENABLED && !self.check_integrity(key) {
-            warn!("File {:?} failed the integrity check", path);
+            warn!("File {path:?} failed the integrity check");
             if let Err(e) = FileStore::remove_file(&path) {
-                warn!("Cannot remove corrupted file: {:?}", e);
+                warn!("Cannot remove corrupted file: {e:?}");
             }
             return None;
         }
@@ -384,11 +384,11 @@ impl Drop for FileStore {
                 };
                 if index.need_flush(self.max_store_size) {
                     if let Err(e) = index.flush(self, &locked, self.min_store_size) {
-                        warn!("Cannot flush the index: {}", e.to_string());
+                        warn!("Cannot flush the index: {e}");
                     }
                 }
                 if let Err(e) = index.store(self.base_path.join(STORE_INDEX_FILE)) {
-                    warn!("Cannot store the index: {}", e.to_string());
+                    warn!("Cannot store the index: {e}");
                 }
             }
             Err(_) => {

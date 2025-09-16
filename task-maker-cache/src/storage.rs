@@ -47,10 +47,7 @@ impl CacheFile {
         let mut magic = [0u8; MAGIC.len()];
 
         if reader.read_exact(&mut magic).is_ok_and(|_| magic != MAGIC) {
-            info!(
-                "Cache version mismatch:\nExpected: {:?}\nFound: {:?}",
-                MAGIC, magic
-            );
+            info!("Cache version mismatch:\nExpected: {MAGIC:?}\nFound: {magic:?}");
             return Ok(Self {
                 entries: Default::default(),
                 path,
@@ -98,7 +95,7 @@ impl CacheFile {
         Ok(())
     }
 
-    pub fn entry(&mut self, key: CacheKey) -> Entry<CacheKey, Vec<CacheEntry>> {
+    pub fn entry(&mut self, key: CacheKey) -> Entry<'_, CacheKey, Vec<CacheEntry>> {
         self.entries.entry(key)
     }
 

@@ -79,7 +79,7 @@ where
         bail!("No generator found");
     }
     let generator = generators.pop().map(Arc::new).unwrap();
-    debug!("Detected input generator: {:?}", generator);
+    debug!("Detected input generator: {generator:?}");
 
     for line in file.into_inner() {
         match line.as_rule() {

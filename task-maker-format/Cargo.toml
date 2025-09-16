@@ -61,6 +61,7 @@ inventory = { workspace = true }
 paste = { workspace = true }
 # Hashing function
 blake3 = { workspace = true }
+locale-codes = "0.3.0"
 
 [dev-dependencies]
 tempfile = { workspace = true }

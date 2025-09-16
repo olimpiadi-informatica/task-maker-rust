@@ -372,7 +372,7 @@ impl Scheduler {
         let worker = match self.connected_workers.remove(&worker) {
             Some(worker) => worker,
             None => {
-                warn!("Unknown worker {} completed a job", worker);
+                warn!("Unknown worker {worker} completed a job");
                 return Ok(());
             }
         };
@@ -414,7 +414,7 @@ impl Scheduler {
 
     /// Handle the connection of a worker.
     fn handle_worker_connected(&mut self, uuid: WorkerUuid, name: String) -> Result<(), Error> {
-        info!("Worker {} ({}) connected", name, uuid);
+        info!("Worker {name} ({uuid}) connected");
         self.connected_workers.insert(
             uuid,
             ConnectedWorker {
@@ -429,7 +429,7 @@ impl Scheduler {
 
     /// Handle the disconnection of a worker.
     fn handle_worker_disconnected(&mut self, uuid: WorkerUuid) -> Result<(), Error> {
-        info!("Worker {} disconnected", uuid);
+        info!("Worker {uuid} disconnected");
         if let Some(worker) = self.connected_workers.remove(&uuid) {
             // reschedule the job if the worker failed
             if let Some((client_uuid, job, _)) = worker.current_job {
@@ -451,7 +451,7 @@ impl Scheduler {
 
     /// Handle the disconnection of a client.
     fn handle_client_disconnected(&mut self, client_uuid: ClientUuid) -> Result<(), Error> {
-        info!("Client {} disconnected", client_uuid);
+        info!("Client {client_uuid} disconnected");
         if let Some(client) = self.clients.get(&client_uuid) {
             if !client.is_done() {
                 warn!("The client's evaluation wasn't completed yet");
@@ -474,10 +474,7 @@ impl Scheduler {
         for (uuid, worker) in self.connected_workers.iter() {
             if let Some((owner, exec, _)) = worker.current_job {
                 if owner == client_uuid {
-                    warn!(
-                        "Worker {} is doing {} owned by disconnected client, killing",
-                        uuid, exec
-                    );
+                    warn!("Worker {uuid} is doing {exec} owned by disconnected client, killing",);
                     self.worker_manager
                         .send(WorkerManagerInMessage::StopWorkerJob {
                             worker: *uuid,
@@ -529,7 +526,7 @@ impl Scheduler {
             .executor
             .send((client_uuid, SchedulerExecutorMessageData::Status { status }))
         {
-            warn!("Cannot send the status to the client: {:?}", e);
+            warn!("Cannot send the status to the client: {e:?}");
         }
         Ok(())
     }
@@ -543,7 +540,7 @@ impl Scheduler {
             return Ok(());
         };
         if client.is_done() {
-            debug!("Computation completed for client: {}", client_uuid);
+            debug!("Computation completed for client: {client_uuid}");
             self.executor
                 .send((client_uuid, SchedulerExecutorMessageData::EvaluationDone))
                 .context("Failed to send EvaluationDone to the executor")?;
@@ -583,7 +580,7 @@ impl Scheduler {
                             execution: exec.uuid,
                         },
                     )) {
-                        warn!("Cannot tell the client the execution was skipped: {:?}", e);
+                        warn!("Cannot tell the client the execution was skipped: {e:?}");
                     }
                 }
                 for output in exec.outputs() {
@@ -659,7 +656,7 @@ impl Scheduler {
             urgent: client.callbacks.urgent_files.contains(&file),
         };
         if let Err(e) = self.executor.send((client_uuid, mex)) {
-            warn!("Cannot send the file to the client: {:?}", e);
+            warn!("Cannot send the file to the client: {e:?}");
         }
         Ok(())
     }
@@ -688,7 +685,7 @@ impl Scheduler {
                     result: res.clone(),
                 };
                 if let Err(e) = self.executor.send((client_uuid, mex)) {
-                    warn!("Cannot tell the client the execution is done: {:?}", e);
+                    warn!("Cannot tell the client the execution is done: {e:?}");
                 }
             }
         }
@@ -816,7 +813,7 @@ impl Scheduler {
                 Some(exec) => exec,
                 None => break,
             };
-            trace!("Assigning {} to worker {}", group_uuid, worker_uuid);
+            trace!("Assigning {group_uuid} to worker {worker_uuid}");
             worker.current_job = Some((client_uuid, group_uuid, Instant::now()));
             let client = if let Some(client) = self.clients.get_mut(&client_uuid) {
                 client
@@ -858,7 +855,7 @@ impl Scheduler {
                             worker: *worker_uuid,
                         },
                     )) {
-                        warn!("Cannot tell the client the execution started: {:?}", e);
+                        warn!("Cannot tell the client the execution started: {e:?}");
                     }
                 }
             }

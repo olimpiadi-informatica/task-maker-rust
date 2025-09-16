@@ -100,7 +100,7 @@ impl ExecutorClient {
         while missing_files.unwrap_or(1) > 0 {
             match receiver.recv() {
                 Ok(ExecutorServerMessage::AskFile(uuid)) => {
-                    info!("Server is asking for {}", uuid);
+                    info!("Server is asking for {uuid}");
                     // prevent the status poller for sending messages while sending the file
                     let _lock = file_mode
                         .lock()
@@ -111,7 +111,7 @@ impl ExecutorClient {
                     })?;
                 }
                 Ok(ExecutorServerMessage::ProvideFile(uuid, success)) => {
-                    info!("Server sent the file {}, success: {}", uuid, success);
+                    info!("Server sent the file {uuid}, success: {success}");
                     if let Some(missing) = missing_files {
                         missing_files = Some(missing - 1);
                     }
@@ -124,47 +124,47 @@ impl ExecutorClient {
                         })?;
                 }
                 Ok(ExecutorServerMessage::NotifyStart(uuid, worker)) => {
-                    info!("Execution {} started on {}", uuid, worker);
+                    info!("Execution {uuid} started on {worker}");
                     if let Some(callbacks) = dag.execution_callbacks().get_mut(&uuid) {
                         for callback in callbacks.on_start.drain(..) {
                             if let Err(e) = callback(worker) {
-                                warn!("Start callback for {} failed: {:?}", uuid, e);
+                                warn!("Start callback for {uuid} failed: {e:?}");
                                 return Err(e);
                             }
                         }
                     }
                 }
                 Ok(ExecutorServerMessage::NotifyDone(uuid, result)) => {
-                    info!("Execution {} completed with {:?}", uuid, result);
+                    info!("Execution {uuid} completed with {result:?}");
                     if let Some(callbacks) = dag.execution_callbacks().get_mut(&uuid) {
                         for callback in callbacks.on_done.drain(..) {
                             if let Err(e) = callback(result.clone()) {
-                                warn!("Done callback for {} failed: {:?}", uuid, e);
+                                warn!("Done callback for {uuid} failed: {e:?}");
                                 return Err(e);
                             }
                         }
                     }
                 }
                 Ok(ExecutorServerMessage::NotifySkip(uuid)) => {
-                    info!("Execution {} skipped", uuid);
+                    info!("Execution {uuid} skipped");
                     if let Some(callbacks) = dag.execution_callbacks().get_mut(&uuid) {
                         for callback in callbacks.on_skip.drain(..) {
                             if let Err(e) = callback() {
-                                warn!("Skip callback for {} failed: {:?}", uuid, e);
+                                warn!("Skip callback for {uuid} failed: {e:?}");
                                 return Err(e);
                             }
                         }
                     }
                 }
                 Ok(ExecutorServerMessage::Error(error)) => {
-                    error!("Error occurred: {}", error);
+                    error!("Error occurred: {error}");
                     sender
                         .send(ExecutorClientMessage::Stop)
                         .context("Failed to send Stop message to the server after an error")?;
                     break;
                 }
                 Ok(ExecutorServerMessage::Status(status)) => {
-                    info!("Server status: {:#?}", status);
+                    info!("Server status: {status:#?}");
                     handle_server_status(status, &mut status_callback)
                         .context("Failed to process Status() from the server")?;
                 }
@@ -205,9 +205,9 @@ impl ExecutorClient {
                 Err(e) => {
                     let cause = e.root_cause().to_string();
                     if cause == "receiving on an empty and disconnected channel" {
-                        trace!("Connection closed: {}", cause);
+                        trace!("Connection closed: {cause}");
                     } else {
-                        error!("Connection error: {}", cause);
+                        error!("Connection error: {cause}");
                     }
                     break;
                 }

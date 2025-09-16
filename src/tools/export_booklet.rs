@@ -1,16 +1,21 @@
+use std::fs::{self, File};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context, Error};
+use anyhow::{anyhow, bail, Context, Error};
 use clap::Parser;
 
+use task_maker_dag::ProvidedFile;
 use task_maker_format::ioi::{make_contest_booklets, Booklet, BookletConfig, IOITask};
 use task_maker_format::{find_task, EvaluationConfig};
+use zip::write::SimpleFileOptions;
+use zip::ZipWriter;
 
 use crate::context::RuntimeContext;
-use crate::{ExecutionOpt, LoggerOpt, StorageOpt, ToolsSandboxRunner, UIOpt};
+use crate::ExecutionOpt;
 
 #[derive(Parser, Debug, Clone)]
-pub struct BookletOpt {
+pub struct ExportBookletOpt {
     /// Include the solutions in the booklet
     #[clap(long = "booklet-solutions")]
     pub booklet_solutions: bool,
@@ -30,19 +35,9 @@ pub struct BookletOpt {
     /// Look at most for this number of parents for searching the task
     #[clap(long = "max-depth", default_value = "3")]
     pub max_depth: u32,
-
-    #[clap(flatten, next_help_heading = Some("UI"))]
-    pub ui: UIOpt,
-
-    #[clap(flatten, next_help_heading = Some("EXECUTION"))]
-    pub execution: ExecutionOpt,
-
-    #[clap(flatten, next_help_heading = Some("STORAGE"))]
-    pub storage: StorageOpt,
 }
 
-pub fn main_booklet(mut opt: BookletOpt, logger_opt: LoggerOpt) -> Result<(), Error> {
-    opt.ui.disable_if_needed(&logger_opt);
+pub fn main_export_booklet(opt: ExportBookletOpt) -> Result<(), Error> {
     let eval_config = EvaluationConfig {
         solution_filter: vec![],
         booklet_solutions: opt.booklet_solutions,
@@ -50,7 +45,7 @@ pub fn main_booklet(mut opt: BookletOpt, logger_opt: LoggerOpt) -> Result<(), Er
         solution_paths: vec![],
         disabled_sanity_checks: vec![],
         seed: None,
-        dry_run: opt.execution.dry_run,
+        dry_run: true,
     };
 
     if opt.contest_dir.is_some() && !opt.task_dir.is_empty() {
@@ -69,18 +64,42 @@ pub fn main_booklet(mut opt: BookletOpt, logger_opt: LoggerOpt) -> Result<(), Er
     task.subtasks.clear();
 
     // setup the configuration and the evaluation metadata
-    let mut context = RuntimeContext::new(task.into(), &opt.execution, |_task, eval| {
+    let context = RuntimeContext::new(task.into(), &ExecutionOpt::default(), |_task, eval| {
         for booklet in booklets {
             booklet.build(eval)?;
         }
         Ok(())
     })?;
-    context.sandbox_runner(ToolsSandboxRunner::default());
 
-    // start the execution
-    let executor = context.connect_executor(&opt.execution, &opt.storage)?;
-    let executor = executor.start_ui(&opt.ui.ui, |ui, mex| ui.on_message(mex))?;
-    executor.execute()?;
+    let dag_files = context.eval.dag.data.provided_files;
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    let mut execution_count = 0;
+    for (_, execution_group) in context.eval.dag.data.execution_groups {
+        for execution in execution_group.executions {
+            let mut zip = ZipWriter::new(File::create(format!(
+                "booklet_export_{execution_count:0>2}.zip",
+            ))?);
+
+            for (name, file) in execution.inputs {
+                let file = dag_files
+                    .get(&file.file)
+                    .ok_or_else(|| anyhow!("File dependency not found."))?;
+                let content = match file {
+                    ProvidedFile::Content { content, .. } => content.to_owned(),
+                    ProvidedFile::LocalFile { local_path, .. } => fs::read(local_path)?,
+                };
+
+                zip.start_file(
+                    name.to_str().ok_or(anyhow!("Invalid path"))?.to_owned(),
+                    options,
+                )?;
+                zip.write_all(&content)?;
+            }
+
+            zip.finish()?;
+            execution_count += 1;
+        }
+    }
 
     Ok(())
 }
@@ -127,7 +146,7 @@ fn get_booklets_from_task_dirs(
 }
 
 fn get_booklets_from_current_dir(
-    opt: &BookletOpt,
+    opt: &ExportBookletOpt,
     eval_config: &EvaluationConfig,
 ) -> Result<(IOITask, Vec<Booklet>), Error> {
     let task = find_task(None, opt.max_depth, eval_config)?;

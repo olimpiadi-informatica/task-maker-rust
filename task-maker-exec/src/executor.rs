@@ -294,9 +294,9 @@ impl Executor {
                         if let Err(e) =
                             client.send(ExecutorServerMessage::ProvideFile(file, successful))
                         {
-                            warn!("Failed to send urgent file: {:?}", e);
+                            warn!("Failed to send urgent file: {e:?}");
                         } else if let Err(e) = ChannelFileSender::send(handle.path(), client) {
-                            warn!("Failed to send urgent file content: {:?}", e);
+                            warn!("Failed to send urgent file content: {e:?}");
                         }
                     } else {
                         ready_files
@@ -320,7 +320,7 @@ impl Executor {
                 }
             };
             if let Err(e) = client.send(message) {
-                warn!("Failed to send message to the client: {:?}", e);
+                warn!("Failed to send message to the client: {e:?}");
             }
         }
         debug!("Scheduler binder exiting");
@@ -340,7 +340,7 @@ impl Executor {
             match message {
                 ExecutorClientMessage::Evaluate { dag, callbacks } => {
                     if let Err(e) = check_dag(&dag, &callbacks) {
-                        warn!("Invalid DAG: {:?}", e);
+                        warn!("Invalid DAG: {e:?}");
                         sender
                             .send(ExecutorServerMessage::Error(e.to_string()))
                             .context("Failed to send Error message to client")?;
@@ -390,7 +390,7 @@ impl Executor {
                     }
                 }
                 ExecutorClientMessage::ProvideFile(uuid, key) => {
-                    info!("Client provided file {}", uuid);
+                    info!("Client provided file {uuid}");
                     // the client provided a file that was not present locally, store it and tell
                     // the scheduler that it's now ready.
                     let handle = file_store
@@ -409,7 +409,7 @@ impl Executor {
                         .context("Failed to send FileReady to the scheduler")?;
                 }
                 ExecutorClientMessage::AskFile(uuid, key, success) => {
-                    info!("Client asking file {:?}", key);
+                    info!("Client asking file {key:?}");
                     // the client wants to know a file that was produced by the computation, send it
                     // if it exists.
                     if let Some(handle) = file_store.get(&key) {

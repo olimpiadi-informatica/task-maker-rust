@@ -130,7 +130,7 @@ impl CursesUI {
         f.render_widget(paragraph, inner_block(rect));
     }
 
-    fn testcase_status_to_text(status: &TestcaseStatus) -> Span {
+    fn testcase_status_to_text(status: &TestcaseStatus) -> Span<'_> {
         match status {
             TestcaseStatus::Pending => Span::raw("."),
             TestcaseStatus::Generating => Span::raw("g"),

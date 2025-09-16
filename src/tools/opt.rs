@@ -4,6 +4,7 @@ use crate::tools::add_solution_checks::AddSolutionChecksOpt;
 use crate::tools::booklet::BookletOpt;
 use crate::tools::clear::ClearOpt;
 use crate::tools::copy_competition_files::CopyCompetitionFilesOpt;
+use crate::tools::export_booklet::ExportBookletOpt;
 use crate::tools::export_solution_checks::ExportSolutionChecksOpt;
 use crate::tools::find_bad_case::FindBadCaseOpt;
 use crate::tools::fuzz_checker::FuzzCheckerOpt;
@@ -59,6 +60,8 @@ pub enum Tool {
     AddSolutionChecks(AddSolutionChecksOpt),
     /// Exports solution checks to json.
     ExportSolutionChecks(ExportSolutionChecksOpt),
+    /// Exports internal booklet structure as a zip.
+    ExportBooklet(ExportBookletOpt),
     /// Run the sandbox instead of the normal task-maker.
     ///
     /// This option is left as undocumented as it's not part of the public API.
