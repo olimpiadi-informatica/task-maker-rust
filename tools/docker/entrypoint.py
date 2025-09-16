@@ -174,8 +174,16 @@ def main() -> int:
     if WORKER_ARGS.strip():
         logger.debug("WORKER_ARGS=%r", WORKER_ARGS)
 
+    # create nworkers file in the current dir and save a 0 into it
+    nworkers_file: Path = Path('nworkers')
+    with nworkers_file.open('w') as nw_fp:
+        nw_fp.write("0\n")
+
     if SPAWN_WORKERS:
         worker_stores: List[str] = make_worker_stores(nworkers)
+        # overwrite ith the actual number of wokers if we spawn them
+        with nworkers_file.open('w') as nw_fp:
+            nw_fp.write(f"{nworkers}\n")
 
     # worker only
     if (not SPAWN_SERVER) and SPAWN_WORKERS:
@@ -194,7 +202,7 @@ def main() -> int:
 
     # server + worker
     elif SPAWN_SERVER and SPAWN_WORKERS:
-        logger.info("Mode: server + workers (delayed worker start).")
+        logger.info("Mode: server + workers.")
         procs: List[subprocess.Popen[Any]] = []
 
         def launch_workers() -> None:
