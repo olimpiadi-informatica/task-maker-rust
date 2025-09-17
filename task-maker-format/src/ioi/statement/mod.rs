@@ -211,8 +211,11 @@ fn is_valid_statement_name(name: &str) -> bool {
         return false;
     }
 
-    let lang_ok = language::lookup(sections[0]).is_some();
-    let country_ok = country::lookup(sections[1]).is_some() || sections[1] == "ISC";
+    let lang_ok =
+        2 <= sections[0].len() && sections[0].len() <= 3 && language::lookup(sections[0]).is_some();
+    let country_ok =
+        2 <= sections[1].len() && sections[1].len() <= 3 && country::lookup(sections[1]).is_some()
+            || sections[1] == "ISC";
 
     lang_ok && country_ok
 }
