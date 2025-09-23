@@ -111,14 +111,14 @@ impl Sandbox {
                 ),
             )
         };
-        trace!("Running sandbox at {:?}", boxdir);
+        trace!("Running sandbox at {boxdir:?}");
 
         if let Err(e) = cmd {
             return Ok(SandboxResult::Failed {
                 error: e.to_string(),
             });
         }
-        trace!("Sandbox configuration: {:#?}", config);
+        trace!("Sandbox configuration: {config:#?}");
 
         let raw_result = runner.run(config.build(), pid);
         if keep {
@@ -131,7 +131,7 @@ impl Sandbox {
             RawSandboxResult::Success(res) => res,
             RawSandboxResult::Error(e) => bail!("Sandbox failed: {}", e),
         };
-        trace!("Sandbox output: {:?}", res);
+        trace!("Sandbox output: {res:?}");
 
         let resources = ExecutionResourcesUsage {
             cpu_time: res.resource_usage.user_cpu_time,
@@ -184,18 +184,18 @@ impl Sandbox {
                 break;
             } else {
                 // if the PID has not been set yet try again in few milliseconds
-                warn!("Sandbox at {} has no known pid... waiting", path);
+                warn!("Sandbox at {path} has no known pid... waiting");
                 std::thread::sleep(Duration::from_millis(200));
             }
         }
         // if after many tries the PID has not been set lose hope and don't kill the sandbox.
         if pid == 0 {
-            warn!("Cannot kill sandbox at {} since the pid is unknown", path);
+            warn!("Cannot kill sandbox at {path} since the pid is unknown");
             return;
         }
-        info!("Sandbox at {:?} (pid {}) will be killed", path, pid);
+        info!("Sandbox at {path:?} (pid {pid}) will be killed");
         if let Err(e) = signal::kill(Pid::from_raw(pid as i32), Signal::SIGTERM) {
-            warn!("Cannot kill sandbox at {} (pid {}): {:?}", path, pid, e);
+            warn!("Cannot kill sandbox at {path} (pid {pid}): {e:?}");
         }
     }
 
@@ -208,7 +208,7 @@ impl Sandbox {
             .context("Box dir has gone")?
             .path()
             .to_owned();
-        debug!("Keeping sandbox at {:?}", path);
+        debug!("Keeping sandbox at {path:?}");
         data.keep_sandbox = true;
         let serialized = serde_json::to_string_pretty(&data.execution)
             .context("Failed to serialize execution")?;
@@ -480,7 +480,7 @@ impl Sandbox {
         if execution.limits.read_only {
             Sandbox::set_permissions(&box_dir.join("box"), 0o500)?;
         }
-        trace!("Sandbox at {:?} ready!", box_dir);
+        trace!("Sandbox at {box_dir:?} ready!");
         Ok(())
     }
 

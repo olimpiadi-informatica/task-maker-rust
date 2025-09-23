@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Error};
 use itertools::Itertools;
+use locale_codes::{country, language};
 
 pub use booklet::*;
 pub use statement::*;
@@ -193,6 +194,28 @@ fn find_statement_files(task_dir: &Path) -> Vec<(String, PathBuf)> {
             .map(|lang| lang.to_string_lossy().to_string())
             .map(|lang| (lang, path))
     })
-    .filter(|(lang, _path)| LANGUAGES.contains(&lang.as_str()))
+    .filter(|(lang, _path)| is_valid_statement_name(lang))
     .collect()
+}
+
+fn is_valid_statement_name(name: &str) -> bool {
+    // if the file name is a language name recognized by cms, it is valid
+    if LANGUAGES.contains(&name) {
+        return true;
+    }
+
+    let sections = name.split(&['_', '.']).collect::<Vec<_>>();
+
+    // If the filename has been split in more than two parts, it is not valid
+    if sections.len() != 2 {
+        return false;
+    }
+
+    let lang_ok =
+        2 <= sections[0].len() && sections[0].len() <= 3 && language::lookup(sections[0]).is_some();
+    let country_ok =
+        2 <= sections[1].len() && sections[1].len() <= 3 && country::lookup(sections[1]).is_some()
+            || sections[1] == "ISC";
+
+    lang_ok && country_ok
 }

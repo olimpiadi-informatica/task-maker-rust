@@ -427,7 +427,7 @@ impl IOITask {
                 let file = match file {
                     Ok(file) => file,
                     Err(e) => {
-                        warn!("Glob error: {:?}", e);
+                        warn!("Glob error: {e:?}");
                         continue;
                     }
                 };
@@ -488,10 +488,7 @@ impl IOITask {
                     format!("Failed to remove gen/GEN at {}", gen_gen_path.display())
                 })?;
             } else {
-                warn!(
-                    "Won't remove gen/GEN since it doesn't contain {}",
-                    TM_ALLOW_DELETE_COOKIE
-                );
+                warn!("Won't remove gen/GEN since it doesn't contain {TM_ALLOW_DELETE_COOKIE}");
             }
         }
         // remove task.yaml if there is task.yaml.orig
@@ -504,10 +501,7 @@ impl IOITask {
                     format!("Failed to remove task.yaml at {}", task_yaml_path.display())
                 })?;
             } else {
-                warn!(
-                    "Won't remove task.yaml since it doesn't contain {}",
-                    TM_ALLOW_DELETE_COOKIE
-                );
+                warn!("Won't remove task.yaml since it doesn't contain {TM_ALLOW_DELETE_COOKIE}");
             }
         }
         Ok(())

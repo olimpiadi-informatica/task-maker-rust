@@ -48,7 +48,7 @@ impl LocalExecutor {
         // share the runner for all the workers
         let sandbox_runner = Arc::new(sandbox_runner);
 
-        info!("Spawning {} workers", num_workers);
+        info!("Spawning {num_workers} workers");
         let mut workers = vec![];
         // spawn the workers and connect them to the executor
         for i in 0..num_workers {

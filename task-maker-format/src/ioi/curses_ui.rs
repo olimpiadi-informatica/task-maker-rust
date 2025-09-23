@@ -172,7 +172,7 @@ fn draw_booklets(frame: &mut Frame, rect: Rect, state: &UIState, loading: char) 
     frame.render_widget(paragraph, rect);
 }
 
-fn ui_execution_status_text(status: &UIExecutionStatus, loading: char) -> Span {
+fn ui_execution_status_text(status: &UIExecutionStatus, loading: char) -> Span<'_> {
     match status {
         UIExecutionStatus::Pending => Span::raw("."),
         UIExecutionStatus::Started { .. } => Span::raw(format!("{loading}")),
@@ -209,7 +209,7 @@ fn draw_generations(frame: &mut Frame, rect: Rect, state: &UIState, loading: cha
 }
 
 /// Get the colored character corresponding to the status of the generation of a testcase.
-fn generation_status_text(status: &TestcaseGenerationStatus, loading: char) -> Span {
+fn generation_status_text(status: &TestcaseGenerationStatus, loading: char) -> Span<'_> {
     match status {
         TestcaseGenerationStatus::Pending => Span::raw("."),
         TestcaseGenerationStatus::Generating => Span::raw(format!("{loading}")),

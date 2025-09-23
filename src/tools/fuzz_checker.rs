@@ -132,7 +132,7 @@ pub fn main_fuzz_checker(opt: FuzzCheckerOpt) -> Result<(), Error> {
         opt,
     };
 
-    trace!("Fuzz data: {:#?}", fuzz_data);
+    trace!("Fuzz data: {fuzz_data:#?}");
 
     if fuzz_data.opt.no_build {
         for output in &fuzz_data.initial_output_files {
@@ -282,10 +282,7 @@ fn checker_sanity_check(data: &FuzzData, checker_content: &str) -> Result<(), Er
     let output = match command.output() {
         Ok(output) => output,
         Err(e) => {
-            warn!(
-                "Failed to execute ctags, you may need to installed it: {:?}",
-                e
-            );
+            warn!("Failed to execute ctags, you may need to installed it: {e:?}");
             return Ok(());
         }
     };
@@ -311,10 +308,7 @@ fn checker_sanity_check(data: &FuzzData, checker_content: &str) -> Result<(), Er
         let line = match serde_json::from_str::<OutputLine>(line) {
             Ok(line) => line,
             Err(e) => {
-                warn!(
-                    "Failed to deserialize line from ctags: {:?} (line was {})",
-                    e, line
-                );
+                warn!("Failed to deserialize line from ctags: {e:?} (line was {line})");
                 continue;
             }
         };
@@ -338,7 +332,7 @@ fn checker_sanity_check(data: &FuzzData, checker_content: &str) -> Result<(), Er
         if definition.contains("const") {
             continue;
         }
-        error!("Static variable found! '{}' looks like a static variable and it will probably interfere with the fuzzing process", definition);
+        error!("Static variable found! '{definition}' looks like a static variable and it will probably interfere with the fuzzing process");
     }
 
     Ok(())
@@ -392,10 +386,10 @@ fn compile_fuzzer(
         }
     }
 
-    info!("Compiling with: {:?}", command);
+    info!("Compiling with: {command:?}");
     let status = command
         .status()
-        .with_context(|| anyhow!("Failed to start the checker compilation with {:?}", command))?;
+        .with_context(|| anyhow!("Failed to start the checker compilation with {command:?}"))?;
     if !status.success() {
         bail!("Checker compilation failed (exit code {:?})", status.code());
     }
@@ -429,7 +423,7 @@ fn compile_fuzzer(
         }
     }
 
-    info!("Compiling with: {:?}", command);
+    info!("Compiling with: {command:?}");
     let status = command
         .status()
         .with_context(|| anyhow!("Failed to start the checker compilation with {:?}", command))?;
@@ -456,7 +450,7 @@ fn run_fuzzer(fuzz_dir: &Path, data: &FuzzData, fuzzer: &Path) -> Result<Vec<Pat
 
     // Give unlimited stack to the checker.
     if let Err(e) = rlimit::Resource::STACK.set(rlimit::INFINITY, rlimit::INFINITY) {
-        warn!("Failed to set ulimit -s unlimited: {:?}", e);
+        warn!("Failed to set ulimit -s unlimited: {e:?}");
     }
 
     let mut command = std::process::Command::new(fuzzer);
@@ -487,10 +481,10 @@ fn run_fuzzer(fuzz_dir: &Path, data: &FuzzData, fuzzer: &Path) -> Result<Vec<Pat
         command.stderr(stderr);
     };
 
-    info!("Running fuzzer with: {:?}", command);
+    info!("Running fuzzer with: {command:?}");
     let status = command
         .status()
-        .with_context(|| anyhow!("Failed to start the fuzzer with {:?}", command))?;
+        .with_context(|| anyhow!("Failed to start the fuzzer with {command:?}"))?;
     if !status.success() {
         warn!("Fuzzer failed (exit code {:?})", status.code());
     }

@@ -16,7 +16,7 @@ pub trait NiceError<T, E> {
 }
 
 fn print_error(error: Error) {
-    debug!("{:?}", error);
+    debug!("{error:?}");
     let mut fail: &dyn std::error::Error = error.as_ref();
     eprintln!("Error: {fail}");
     while let Some(cause) = fail.source() {

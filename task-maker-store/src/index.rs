@@ -54,24 +54,21 @@ impl FileStoreIndex {
     pub(crate) fn load<P: AsRef<Path>>(path: P) -> Result<FileStoreIndex, Error> {
         let path = path.as_ref();
         if !path.exists() {
-            debug!("Index at {:?} not found, creating new one", path);
+            debug!("Index at {path:?} not found, creating new one");
             return Ok(FileStoreIndex {
                 total_size: 0,
                 known_files: HashMap::new(),
             });
         }
 
-        debug!("Loading index from {:?}", path);
+        debug!("Loading index from {path:?}");
         let file = File::open(path)
             .with_context(|| format!("Failed to open index file from {}", path.display()))?;
         let mut reader = BufReader::new(file);
         let mut magic = [0u8; MAGIC.len()];
 
         if reader.read_exact(&mut magic).is_ok_and(|_| magic != MAGIC) {
-            info!(
-                "FileStore version mismatch:\nExpected: {:?}\nFound: {:?}",
-                MAGIC, magic
-            );
+            info!("FileStore version mismatch:\nExpected: {MAGIC:?}\nFound: {magic:?}");
             return Ok(FileStoreIndex {
                 total_size: 0,
                 known_files: HashMap::new(),
@@ -173,7 +170,7 @@ impl FileStoreIndex {
                 let path = file_store.key_to_path(&key);
                 debug!("Removing file {:?} claiming {}KiB", path, entry.size / 1024);
                 if let Err(e) = FileStore::remove_file(&path) {
-                    warn!("Cannot flush file {:?}: {}", path, e.to_string());
+                    warn!("Cannot flush file {path:?}: {e}");
                 }
                 let base_path = file_store.base_path.canonicalize().with_context(|| {
                     format!(
@@ -187,7 +184,7 @@ impl FileStoreIndex {
                     if p == base_path {
                         break;
                     }
-                    debug!("Removing {:?}", p);
+                    debug!("Removing {p:?}");
                     if remove_dir(p).is_err() {
                         debug!("... it wasn't empty");
                         break;

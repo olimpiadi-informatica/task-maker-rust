@@ -95,7 +95,7 @@ impl WorkerManager {
                             if let Err(e) =
                                 WorkerManager::worker_thread(worker, scheduler, sender, file_store)
                             {
-                                warn!("The manager of a worker failed: {:?}", e);
+                                warn!("The manager of a worker failed: {e:?}");
                             }
                         })
                         .context("Failed to spawn manager for a worker")?;
@@ -130,7 +130,7 @@ impl WorkerManager {
         debug!("Worker manager exiting");
         for (worker, sender) in connected_workers.iter() {
             if sender.send(WorkerServerMessage::Exit).is_err() {
-                warn!("Cannot tell worker {} to exit", worker);
+                warn!("Cannot tell worker {worker} to exit");
             }
         }
         Ok(())
@@ -215,7 +215,7 @@ impl WorkerManager {
                         outputs: output_handlers,
                     };
                     if let Err(e) = scheduler.send(mex) {
-                        warn!("Failed to send message to scheduler: {:?}", e);
+                        warn!("Failed to send message to scheduler: {e:?}");
                         break;
                     }
                 }

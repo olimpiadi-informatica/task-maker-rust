@@ -212,7 +212,7 @@ impl Cache {
 impl Drop for Cache {
     fn drop(&mut self) {
         if let Err(e) = self.file.store() {
-            warn!("Failed to store cache file: {:?}", e);
+            warn!("Failed to store cache file: {e:?}");
         }
     }
 }

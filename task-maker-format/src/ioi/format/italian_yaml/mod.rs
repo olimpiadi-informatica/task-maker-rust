@@ -527,7 +527,7 @@ pub fn parse_task<P: AsRef<Path>>(
     } else {
         bail!("No task.yaml found in {}", task_dir.display());
     }
-    debug!("The yaml is {:#?}", yaml);
+    debug!("The yaml is {yaml:#?}");
 
     let map_file = |file: String| -> Option<PathBuf> {
         match file.as_ref() {
@@ -540,7 +540,7 @@ pub fn parse_task<P: AsRef<Path>>(
 
     let graders = list_files(task_dir, vec!["sol/grader.*", "sol/stub.*"]);
     let grader_map = Arc::new(GraderMap::new(graders));
-    debug!("The graders are: {:#?}", grader_map);
+    debug!("The graders are: {grader_map:#?}");
 
     let task_type = if let Some(comm) = parse_communication_task_data(task_dir, &yaml)? {
         comm
@@ -665,10 +665,7 @@ pub fn parse_task<P: AsRef<Path>>(
                 serde_yaml::to_writer(buf_file, &yaml).context("Failed to serialize task.yaml")?;
             }
         } else {
-            warn!(
-                "The task.yaml file does not contain {}. Won't overwrite",
-                TM_ALLOW_DELETE_COOKIE
-            );
+            warn!("The task.yaml file does not contain {TM_ALLOW_DELETE_COOKIE}. Won't overwrite",);
         }
     } else if subtasks.values().any(|st| !st.dependencies.is_empty()) {
         bail!("Use task.yaml.orig to use subtask dependencies");
@@ -742,7 +739,7 @@ fn detect_validator(
         bail!("Multiple validators found: {:?}", paths);
     }
     let validator = validators.pop().map(Arc::new);
-    debug!("Detected input validator: {:?}", validator);
+    debug!("Detected input validator: {validator:?}");
     Ok(move |st: Option<SubtaskId>| -> InputValidator {
         if let Some(validator) = validator.as_ref() {
             InputValidator::Custom(
@@ -787,7 +784,7 @@ fn detect_output_generator(
         bail!("Multiple official solutions found: {:?}", paths);
     }
     let official_solution = official_solutions.pop().map(Arc::new);
-    debug!("Detected output generator: {:?}", official_solution);
+    debug!("Detected output generator: {official_solution:?}");
     let output_directory = task_dir.join("output");
     Ok(move |tc: TestcaseId| -> OutputGenerator {
         if let Some(solution) = official_solution.as_ref() {

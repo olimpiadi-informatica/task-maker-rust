@@ -124,7 +124,7 @@ impl RemoteExecutor {
             let addr = addr
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| "(local)".into());
-            info!("Client connected from {}", addr);
+            info!("Client connected from {addr}");
             let uuid = Uuid::new_v4();
             let name = if let Ok(RemoteEntityMessage::Welcome { name, version }) = receiver.recv() {
                 if !validate_welcome(&addr, &name, version, &sender, "Client") {
@@ -132,10 +132,7 @@ impl RemoteExecutor {
                 }
                 name
             } else {
-                warn!(
-                    "Client at {} has not sent the correct welcome message!",
-                    addr
-                );
+                warn!("Client at {addr} has not sent the correct welcome message!");
                 continue;
             };
             let client = ClientInfo { uuid, name };
@@ -184,7 +181,7 @@ impl RemoteExecutor {
             let addr = addr
                 .map(|s| s.to_string())
                 .unwrap_or_else(|| "(local)".into());
-            info!("Worker connected from {}", addr);
+            info!("Worker connected from {addr}");
             let uuid = Uuid::new_v4();
             let name = if let Ok(RemoteEntityMessage::Welcome { name, version }) = receiver.recv() {
                 if !validate_welcome(&addr, &name, version, &sender, "Worker") {
@@ -192,10 +189,7 @@ impl RemoteExecutor {
                 }
                 name
             } else {
-                warn!(
-                    "Worker at {} has not sent the correct welcome message!",
-                    addr
-                );
+                warn!("Worker at {addr} has not sent the correct welcome message!");
                 continue;
             };
             let worker = WorkerConn {
@@ -221,8 +215,7 @@ fn validate_welcome(
 ) -> bool {
     if version != VERSION {
         warn!(
-            "{} '{}' from {} connected with version {}, server has {}",
-            client, name, addr, version, VERSION
+            "{client} '{name}' from {addr} connected with version {version}, server has {VERSION}"
         );
         let _ = sender.send(RemoteEntityMessageResponse::Rejected(format!(
             "Wrong task-maker version, you have {version}, server has {VERSION}"

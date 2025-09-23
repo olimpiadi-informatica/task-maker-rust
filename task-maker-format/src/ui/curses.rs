@@ -421,6 +421,6 @@ fn draw_workers_chunk(
 fn send_ctrl_c() {
     let pid = std::process::id();
     if let Err(e) = signal::kill(Pid::from_raw(pid as i32), Signal::SIGINT) {
-        error!("Failed to send SIGINT to {}: {}", pid, e);
+        error!("Failed to send SIGINT to {pid}: {e}");
     }
 }

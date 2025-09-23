@@ -142,12 +142,12 @@ pub fn main_sandbox(opt: SandboxOpt) -> Result<(), Error> {
     config.uid(opt.uid);
     config.gid(opt.gid);
 
-    debug!("Config: {:#?}", config);
+    debug!("Config: {config:#?}");
 
     let sandbox = SandboxImplementation::run(config).context("Failed to create sandbox")?;
     let res = sandbox.wait().context("Failed to wait sandbox")?;
 
-    debug!("Result: {:#?}", res);
+    debug!("Result: {res:#?}");
 
     Ok(())
 }

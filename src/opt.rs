@@ -82,7 +82,7 @@ pub struct UIOpt {
     pub ui: task_maker_format::ui::UIType,
 }
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Default, Debug, Clone)]
 pub struct ExecutionOpt {
     /// Keep all the sandbox directories
     #[clap(long = "keep-sandboxes")]

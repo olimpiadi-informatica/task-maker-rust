@@ -182,7 +182,7 @@ impl Worker {
     /// The worker body, this function will block until the worker disconnects.
     #[allow(clippy::cognitive_complexity)]
     pub fn work(mut self) -> Result<(), Error> {
-        trace!("Worker {} ready, asking for work", self);
+        trace!("Worker {self} ready, asking for work");
         self.sender
             .send(WorkerClientMessage::GetWork)
             .context("Failed to send GetWork")?;
@@ -190,7 +190,7 @@ impl Worker {
         loop {
             match self.receiver.recv() {
                 Ok(WorkerServerMessage::Work(job)) => {
-                    trace!("Worker {} got job: {:?}", self, job);
+                    trace!("Worker {self} got job: {job:?}");
                     assert!(self.current_job.lock().unwrap().current_job.is_none());
                     self.wait_sandbox()?;
                     let mut missing_deps: HashMap<FileStoreKey, Vec<FileUuid>> = HashMap::new();
@@ -228,7 +228,7 @@ impl Worker {
                     }
                 }
                 Ok(WorkerServerMessage::ProvideFile(key)) => {
-                    info!("Server sent file {:?}", key);
+                    info!("Server sent file {key:?}");
                     let reader = ChannelFileIterator::new(&self.receiver);
                     let handle = self
                         .file_store
@@ -275,7 +275,7 @@ impl Worker {
                     let mut current_job = self.current_job.lock().unwrap();
                     if let Some(sender) = current_job.server_asked_files.take() {
                         if let Err(e) = sender.send(files) {
-                            error!("Cannot send the list of files from the server to the worker manager: {:?}", e);
+                            error!("Cannot send the list of files from the server to the worker manager: {e:?}");
                         }
                     } else {
                         error!("Unexpected WorkerServerMessage::AskFiles");
@@ -284,9 +284,9 @@ impl Worker {
                 Err(e) => {
                     let cause = e.root_cause().to_string();
                     if cause == "receiving on an empty and disconnected channel" {
-                        trace!("Connection closed: {}", cause);
+                        trace!("Connection closed: {cause}");
                     } else {
-                        error!("Connection error: {}", cause);
+                        error!("Connection error: {cause}");
                     }
                     if let Some(sandboxes) =
                         self.current_job.lock().unwrap().current_sandboxes.as_ref()
@@ -511,10 +511,7 @@ fn sandbox_group_manager(
                         }
                     }
                 } else {
-                    error!(
-                        "Server asked for file {}, which is not known to the worker",
-                        uuid
-                    );
+                    error!("Server asked for file {uuid}, which is not known to the worker");
                 }
             }
         }
@@ -522,10 +519,7 @@ fn sandbox_group_manager(
             // not receiving the list from the server means that the server is going down and does
             // not bother of responding, letting the worker crash will crash the local executor.
             // So just cleanup and exit without asking for more jobs.
-            warn!(
-                "List of missing files not received from the server: {:?}",
-                e
-            );
+            warn!("List of missing files not received from the server: {e:?}");
             let mut job = current_job.lock().unwrap();
             job.current_job = None;
             job.current_sandboxes = None;
