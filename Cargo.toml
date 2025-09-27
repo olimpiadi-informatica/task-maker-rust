@@ -146,7 +146,7 @@ fastrand = { workspace = true }
 ratatui = { workspace = true, features = ["termion"] }
 # Terry statements
 serde_yaml = { workspace = true }
-zip = "5.1.1"
+zip = { version = "5.1.1", default-features = false }
 
 [dev-dependencies]
 approx = { workspace = true }
