@@ -62,6 +62,7 @@ pub fn main_export_booklet(opt: ExportBookletOpt) -> Result<(), Error> {
 
     // clean up the task a bit for a cleaner ui
     task.subtasks.clear();
+    let task_name = task.name.clone();
 
     // setup the configuration and the evaluation metadata
     let context = RuntimeContext::new(task.into(), &ExecutionOpt::default(), |_task, eval| {
@@ -77,7 +78,7 @@ pub fn main_export_booklet(opt: ExportBookletOpt) -> Result<(), Error> {
     for (_, execution_group) in context.eval.dag.data.execution_groups {
         for execution in execution_group.executions {
             let mut zip = ZipWriter::new(File::create(format!(
-                "booklet_export_{execution_count:0>2}.zip",
+                "{task_name}_booklet_export_{execution_count:0>2}.zip",
             ))?);
 
             for (name, file) in execution.inputs {
