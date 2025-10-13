@@ -347,6 +347,9 @@ struct TaskYAML {
     /// The parameters of the score type.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub score_type_parameters: Option<Vec<(f64, String)>>,
+    /// The number of inputs of the task
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub n_input: Option<usize>,
     /// The number of decimal digits when displaying the scores.
     #[serde(default)]
     pub score_precision: usize,
@@ -449,6 +452,7 @@ impl TaskYAMLOrig {
             title: self.title,
             score_type: self.score_type,
             score_type_parameters: None,
+            n_input: None,
             score_precision: self.score_precision,
             primary_language: Some(self.primary_language.unwrap_or_else(|| "en".into())),
             time_limit: Some(self.time_limit),
@@ -654,6 +658,13 @@ pub fn parse_task<P: AsRef<Path>>(
                         })
                         .collect(),
                 );
+
+                let n_input = subtasks
+                    .iter()
+                    .flat_map(|(_, st)| st.testcases.clone())
+                    .unique()
+                    .count();
+                yaml.n_input = Some(n_input);
 
                 let file = File::create(&task_yaml_path).with_context(|| {
                     format!("Cannot open task.yaml from {}", task_yaml_path.display())
