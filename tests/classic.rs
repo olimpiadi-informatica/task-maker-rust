@@ -18,6 +18,7 @@ fn classic(test: TestInterface) {
         .must_compile("tle.cpp")
         .must_compile("wa.cpp")
         .must_compile("wrong_file.cpp")
+        .must_compile("rust.rs")
         .must_not_compile("not_compile.cpp")
         // .not_compiled(".ignoreme.cpp")
         .not_compiled("bash.sh")
@@ -33,6 +34,7 @@ fn classic(test: TestInterface) {
         .solution_score("tle.cpp", vec![5.0, 45.0, 0.0])
         .solution_score("wa.cpp", vec![0.0, 0.0, 0.0])
         .solution_score("wrong_file.cpp", vec![0.0, 0.0, 0.0])
+        .solution_score("rust.rs", vec![5.0, 45.0, 50.0])
         .solution_statuses("soluzione.py", vec![Accepted("Output is correct".into())])
         .solution_statuses("bash.sh", vec![Accepted("Output is correct".into())])
         // .solution_statuses("mle.cpp", vec![RuntimeError]) // pretty unreliable

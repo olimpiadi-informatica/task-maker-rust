@@ -391,8 +391,9 @@ impl Sandbox {
             ExecutionCommand::System(cmd) => {
                 if let Ok(cmd) = which::which(cmd) {
                     // Always mount the directory with the executable.
-                    let cmd = std::fs::canonicalize(cmd).context("Failed to canonicalize path")?;
-                    let path = cmd.parent().expect("invalid binary path");
+                    let path =
+                        std::fs::canonicalize(&cmd).context("Failed to canonicalize path")?;
+                    let path = path.parent().expect("invalid binary path");
                     if !mounted_dirs.contains(path) {
                         config.mount(path, path, false);
                         mounted_dirs.insert(path);
@@ -646,10 +647,7 @@ mod tests {
         assert_eq!(config.stdin, Some("/dev/null".into()));
         assert_eq!(config.stdout, Some("/dev/null".into()));
         assert_eq!(config.stderr, Some("/dev/null".into()));
-        assert_eq!(
-            config.executable,
-            std::fs::canonicalize(Path::new("/bin/sh")).unwrap()
-        );
+        assert_eq!(config.executable, Path::new("/bin/sh"));
         assert_eq!(config.args, vec!["bar", "baz"]);
     }
 }
