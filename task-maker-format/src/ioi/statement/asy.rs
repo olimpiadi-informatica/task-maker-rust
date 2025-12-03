@@ -41,12 +41,8 @@ impl AsyFile {
             ExecutionCommand::system("asy"),
         );
 
-        comp_svg.args(vec![
-            "-f", "svg", "-localhistory", "tm-compilation.asy",
-        ]);
-        comp_pdf.args(vec![
-            "-f", "pdf", "-localhistory", "tm-compilation.asy",
-        ]);
+        comp_svg.args(vec!["-f", "svg", "-localhistory", "tm-compilation.asy"]);
+        comp_pdf.args(vec!["-f", "pdf", "-localhistory", "tm-compilation.asy"]);
 
         comp_svg
             .limits_mut()

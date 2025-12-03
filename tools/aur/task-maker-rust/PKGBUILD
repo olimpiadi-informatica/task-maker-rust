@@ -8,7 +8,14 @@ arch=('i686' 'x86_64' 'armv7h' 'aarch64')
 url="https://github.com/olimpiadi-informatica/task-maker-rust"
 license=('MPL2')
 makedepends=('cargo')
-optdepends=('texlive-core: booklet compilations')
+optdepends=('texlive-core: for compiling tex statements'
+            'gcc: for running C/C++ solutions'
+            'mono: for running C# solutions'
+            'nodejs: for running JavaScript solutions'
+            'fpc: for running Pascal solutions'
+            'python: for running Python solutions'
+            'cargo: for running Rust solutions'
+            'bash: for running Bash solutions')
 source=("https://github.com/olimpiadi-informatica/task-maker-rust/archive/v${pkgver}.tar.gz")
 sha256sums=('@@SHA256@@')
 
