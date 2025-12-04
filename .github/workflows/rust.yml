@@ -9,6 +9,8 @@ jobs:
       matrix:
         os: [ubuntu-22.04, macos-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_INCREMENTAL: 0
     steps:
       - uses: actions/checkout@v5
 
