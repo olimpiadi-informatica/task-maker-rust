@@ -43,7 +43,7 @@ github = { repository = "olimpiadi-informatica/task-maker-rust", workflow = "Rus
 anyhow = "1.0"
 approx = "0.5"
 askama = "0.11"
-askama_derive = "0.11"
+askama_derive = "0.14"
 better-panic = "0.3"
 bincode = "1.2"
 blake3 = "1.8"
