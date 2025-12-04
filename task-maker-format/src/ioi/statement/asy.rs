@@ -32,19 +32,15 @@ impl AsyFile {
             .to_string();
         let source_file = File::new(format!("Source of {name}"));
 
-        let mut comp_svg = Execution::new(
-            format!("Compilation of {name} to SVG"),
-            ExecutionCommand::system("asy"),
+        let mut comp_pdf_svg = Execution::new(
+            format!("Compilation of {name}"),
+            ExecutionCommand::system("sh"),
         );
-        let mut comp_pdf = Execution::new(
-            format!("Compilation of {name} to PDF"),
-            ExecutionCommand::system("asy"),
-        );
-
-        comp_svg.args(vec!["-f", "svg", "-localhistory", "tm-compilation.asy"]);
-        comp_pdf.args(vec!["-f", "pdf", "-localhistory", "tm-compilation.asy"]);
-
-        comp_svg
+        comp_pdf_svg.args(vec![
+            "-c",
+            "asy -f pdf -localhistory tm-compilation.asy && asy -f svg -localhistory tm-compilation.asy",
+        ]);
+        comp_pdf_svg
             .limits_mut()
             .read_only(false)
             .wall_time(10.0) // asy tends to deadlock on failure
@@ -53,46 +49,19 @@ impl AsyFile {
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true)
             .mount_proc(true);
-        comp_svg.tag(Tag::Booklet.into());
-        comp_svg.input(&source_file, "tm-compilation.asy", false);
-
-        comp_pdf
-            .limits_mut()
-            .read_only(false)
-            .wall_time(10.0) // asy tends to deadlock on failure
-            .stack(8192 * 1024) // due to a libgc bug, asy may crash with unlimited stack
-            .allow_multiprocess()
-            .add_extra_readable_dir("/etc")
-            .mount_tmpfs(true)
-            .mount_proc(true);
-        comp_pdf.tag(Tag::Booklet.into());
-        comp_pdf.input(&source_file, "tm-compilation.asy", false);
-
+        comp_pdf_svg.tag(Tag::Booklet.into());
+        comp_pdf_svg.input(&source_file, "tm-compilation.asy", false);
         eval.dag
             .provide_file(source_file, &source_path)
             .context("Failed to provide any source file")?;
-
         bind_exec_callbacks!(
             eval,
-            comp_svg.uuid,
+            comp_pdf_svg.uuid,
             |status, booklet, name| UIMessage::IOIBookletDependency {
                 booklet,
                 name,
                 step: 0,
-                num_steps: 3,
-                status
-            },
-            booklet,
-            name
-        )?;
-        bind_exec_callbacks!(
-            eval,
-            comp_pdf.uuid,
-            |status, booklet, name| UIMessage::IOIBookletDependency {
-                booklet,
-                name,
-                step: 1,
-                num_steps: 3,
+                num_steps: 2,
                 status
             },
             booklet,
@@ -110,33 +79,25 @@ impl AsyFile {
                 dep.sandbox_path.display(),
                 name
             ));
-            comp_svg.input(&file, &dep.sandbox_path, false);
-            comp_pdf.input(&file, &dep.sandbox_path, false);
+            comp_pdf_svg.input(&file, &dep.sandbox_path, false);
             eval.dag
                 .provide_file(file, &dep.local_path)
                 .context("Failed to provide asy dependency")?;
         }
-        let compiled = comp_pdf.output("tm-compilation.pdf");
-        let vector = comp_svg.output("tm-compilation.svg");
+        let compiled = comp_pdf_svg.output("tm-compilation.pdf");
+        let vector = comp_pdf_svg.output("tm-compilation.svg");
         if eval.dag.data.config.copy_logs {
             let log_dir = eval.task_root.join("bin/logs/asy");
-            let svg_stderr_dest = log_dir.join(format!("{name}_to_svg.stderr.log"));
-            let svg_stdout_dest = log_dir.join(format!("{name}_to_svg.stdout.log"));
-            let pdf_stderr_dest = log_dir.join(format!("{name}_to_pdf.stderr.log"));
-            let pdf_stdout_dest = log_dir.join(format!("{name}_to_pdf.stdout.log"));
+            let stderr_dest = log_dir.join(format!("{name}.stderr.log"));
+            let stdout_dest = log_dir.join(format!("{name}.stdout.log"));
             eval.dag
-                .write_file_to_allow_fail(comp_svg.stderr(), svg_stderr_dest, false);
+                .write_file_to_allow_fail(comp_pdf_svg.stderr(), stderr_dest, false);
             eval.dag
-                .write_file_to_allow_fail(comp_svg.stdout(), svg_stdout_dest, false);
-            eval.dag
-                .write_file_to_allow_fail(comp_pdf.stderr(), pdf_stderr_dest, false);
-            eval.dag
-                .write_file_to_allow_fail(comp_pdf.stdout(), pdf_stdout_dest, false);
+                .write_file_to_allow_fail(comp_pdf_svg.stdout(), stdout_dest, false);
         }
 
-        comp_svg.capture_stderr(1024);
-        comp_pdf.capture_stderr(1024);
-        eval.dag.on_execution_done(&comp_svg.uuid, {
+        comp_pdf_svg.capture_stderr(1024);
+        eval.dag.on_execution_done(&comp_pdf_svg.uuid, {
             let sender = eval.sender.clone();
             let name = name.clone();
             move |result| {
@@ -153,25 +114,7 @@ impl AsyFile {
                 Ok(())
             }
         });
-        eval.dag.on_execution_done(&comp_pdf.uuid, {
-            let sender = eval.sender.clone();
-            let name = name.clone();
-            move |result| {
-                if !result.status.is_success() {
-                    let mut diagnostic = Diagnostic::error(format!("Failed to compile {name}"));
-                    if result.status.is_internal_error() {
-                        diagnostic = diagnostic.with_help("Is 'asymptote' installed?");
-                    }
-                    if let Some(stderr) = result.stderr {
-                        diagnostic = diagnostic.with_help_attachment(stderr);
-                    }
-                    sender.add_diagnostic(diagnostic)?;
-                }
-                Ok(())
-            }
-        });
-        eval.dag.add_execution(comp_svg);
-        eval.dag.add_execution(comp_pdf);
+        eval.dag.add_execution(comp_pdf_svg);
 
         let mut crop = Execution::new(
             format!("Crop of {name}"),
@@ -192,8 +135,8 @@ impl AsyFile {
             |status, booklet, name| UIMessage::IOIBookletDependency {
                 booklet,
                 name,
-                step: 2,
-                num_steps: 3,
+                step: 1,
+                num_steps: 2,
                 status
             },
             booklet,

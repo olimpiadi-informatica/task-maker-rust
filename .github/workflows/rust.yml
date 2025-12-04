@@ -26,15 +26,15 @@ jobs:
 
       - uses: taiki-e/install-action@nextest
 
-      # - uses: actions/cache@v4
-      #   with:
-      #     path: |
-      #       ~/.cargo/bin/
-      #       ~/.cargo/registry/index/
-      #       ~/.cargo/registry/cache/
-      #       ~/.cargo/git/db/
-      #       target/
-      #     key: ${{ runner.os }}-cargo-test-${{ steps.install-rust.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-test-${{ steps.install-rust.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: cargo nextest run (tests)
         env:

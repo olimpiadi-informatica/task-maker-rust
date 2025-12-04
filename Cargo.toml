@@ -147,6 +147,7 @@ ratatui = { workspace = true, features = ["termion"] }
 # Terry statements
 serde_yaml = { workspace = true }
 zip = { version = "5.1.1", default-features = false }
+typst-assets = { version = "0.14.1", features = ["fonts"] }
 
 [dev-dependencies]
 approx = { workspace = true }
