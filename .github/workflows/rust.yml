@@ -9,8 +9,6 @@ jobs:
       matrix:
         os: [ubuntu-22.04, macos-latest]
     runs-on: ${{ matrix.os }}
-    env:
-      CARGO_INCREMENTAL: 0
     steps:
       - uses: actions/checkout@v5
 
@@ -23,20 +21,8 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         id: install-rust
-        with:
-          components: clippy
 
       - uses: taiki-e/install-action@nextest
-
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-test-${{ steps.install-rust.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: cargo nextest run (tests)
         env:
@@ -45,10 +31,7 @@ jobs:
 
   clippy:
     name: Clippy
-    strategy:
-      matrix:
-        os: [ubuntu-22.04, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
 
@@ -61,20 +44,6 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         id: install-rust
-        with:
-          components: clippy
-
-      - uses: taiki-e/install-action@nextest
-
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-test-${{ steps.install-rust.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: cargo clippy
         run: tools/clippy.sh
