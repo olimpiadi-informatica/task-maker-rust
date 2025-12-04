@@ -11,8 +11,6 @@ use zune_inflate::DeflateDecoder;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::Arc;
 use std::time::Duration;
 use std::{env, fs};
 
@@ -22,7 +20,6 @@ use typst::syntax::{FileId, Source, VirtualPath};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
 use typst::{Library, World};
-use typst_kit::fonts::{FontSearcher, FontSlot};
 
 use crate::execution_unit::SandboxResult;
 
@@ -31,12 +28,26 @@ pub struct TypstCompiler {
     root: PathBuf,
     library: LazyHash<Library>,
     book: LazyHash<FontBook>,
-    fonts: Arc<Vec<FontSlot>>,
+    fonts: Vec<Font>,
     main: FileId,
     cache_dir: PathBuf,
     http_client: Client,
     files: HashMap<PathBuf, PathBuf>,
     outputs: HashMap<PathBuf, Vec<u8>>,
+}
+
+pub fn embedded_font_files() -> impl Iterator<Item = &'static [u8]> {
+    [
+        include_bytes!("../../fonts/lmmono-italic.ttf") as &[_],
+        include_bytes!("../../fonts/lmmono-regular.ttf"),
+        include_bytes!("../../fonts/lmroman-bolditalic.ttf"),
+        include_bytes!("../../fonts/lmroman-bold.ttf"),
+        include_bytes!("../../fonts/lmroman-italic.ttf"),
+        include_bytes!("../../fonts/lmroman-regular.ttf"),
+        include_bytes!("../../fonts/majalla.ttf"),
+        include_bytes!("../../fonts/majallab.ttf"),
+    ]
+    .into_iter()
 }
 
 impl TypstCompiler {
@@ -60,22 +71,10 @@ impl TypstCompiler {
             })
             .collect::<Result<HashMap<_, _>, _>>()?;
 
-        // Try adding tex directories to the font searcher
-        let tex_dir = Command::new("kpsewhich")
-            .arg("-var-value=TEXMFMAIN")
-            .output()
-            .ok()
-            .and_then(|output| {
-                str::from_utf8(&output.stdout[..output.stdout.len() - 1])
-                    .ok()
-                    .map(PathBuf::from)
-            })
-            .into_iter()
-            .collect::<Vec<_>>();
-
-        let fonts = FontSearcher::new()
-            .include_system_fonts(true)
-            .search_with(tex_dir);
+        let fonts: Vec<_> = embedded_font_files()
+            .chain(typst_assets::fonts())
+            .flat_map(|x| Font::iter(Bytes::new(x)))
+            .collect();
 
         let cache_dir = match env::var("XDG_CACHE_HOME") {
             Ok(cache) => Path::new(&cache).join("typst/packages"),
@@ -102,8 +101,8 @@ impl TypstCompiler {
         Ok(TypstCompiler {
             root: root.to_owned(),
             library: LazyHash::new(library),
-            book: LazyHash::new(fonts.book),
-            fonts: Arc::new(fonts.fonts),
+            book: LazyHash::new(FontBook::from_fonts(&fonts)),
+            fonts,
             main: FileId::new(None, VirtualPath::new("booklet.typ")),
             cache_dir,
             http_client,
@@ -198,7 +197,7 @@ impl World for TypstCompiler {
     }
 
     fn font(&self, index: usize) -> Option<Font> {
-        self.fonts[index].get()
+        Some(self.fonts[index].clone())
     }
 
     fn main(&self) -> FileId {

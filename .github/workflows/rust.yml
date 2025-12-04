@@ -3,8 +3,8 @@ name: Rust
 on: [push, pull_request]
 
 jobs:
-  clippy:
-    name: Test and Clippy
+  test:
+    name: Test
     strategy:
       matrix:
         os: [ubuntu-22.04, macos-latest]
@@ -21,25 +21,29 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         id: install-rust
-        with:
-          components: clippy
 
       - uses: taiki-e/install-action@nextest
-
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-test-${{ steps.install-rust.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: cargo nextest run (tests)
         env:
           RUST_BACKTRACE: 1
         run: cargo nextest run --workspace --no-fail-fast
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Deps
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt update
+          sudo apt install -yy libseccomp-dev libssl-dev build-essential fpc
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        id: install-rust
 
       - name: cargo clippy
         run: tools/clippy.sh
