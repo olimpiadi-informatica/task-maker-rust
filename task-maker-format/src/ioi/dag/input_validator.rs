@@ -59,8 +59,8 @@ impl InputValidator {
                 }
                 exec.limits_mut().allow_multiprocess();
 
-                // Add limiti.yaml and constraints.yaml file to the sandbox of the validator
-                for filename in &["limiti.yaml", "constraints.yaml"] {
+                // Add limiti.yaml, constraints.yaml and gen.toml to the sandbox of the validator
+                for filename in &["limiti.yaml", "constraints.yaml", "gen.toml"] {
                     let path = task_path.join("gen").join(filename);
 
                     if !path.is_file() {

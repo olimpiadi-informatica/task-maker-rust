@@ -334,7 +334,7 @@ where
 
 /// Deserialized data from the task.yaml of a IOI format task.
 #[derive(Debug, Serialize, Deserialize)]
-struct TaskYAML {
+pub(super) struct TaskYAML {
     /// The name of the task (the short one).
     #[serde(alias = "nome_breve")]
     pub name: String,
@@ -400,7 +400,7 @@ struct TaskYAML {
 
 /// Deserialized data from the task.yaml of a IOI format task.
 #[derive(Debug, Serialize, Deserialize)]
-struct TaskYAMLOrig {
+pub(super) struct TaskYAMLOrig {
     /// The name of the task (the short one).
     #[serde(default)]
     pub name: String,
@@ -446,7 +446,7 @@ struct TaskYAMLOrig {
 }
 
 impl TaskYAMLOrig {
-    fn into_task_yaml(self, task_dir: &Path) -> TaskYAML {
+    pub(super) fn into_task_yaml(self, task_dir: &Path) -> TaskYAML {
         TaskYAML {
             name: task_dir.file_name().unwrap().to_string_lossy().to_string(),
             title: self.title,
@@ -892,7 +892,7 @@ fn default_outfile() -> String {
 }
 
 /// Normalize and validate the content of the subtask name.
-fn cleanup_subtask_name(id: &str) -> Result<String, Error> {
+pub(super) fn cleanup_subtask_name(id: &str) -> Result<String, Error> {
     let id = id.trim();
 
     let fail = |err| Err(anyhow!("'{}' is not a valid identifier: {}", id, err));
