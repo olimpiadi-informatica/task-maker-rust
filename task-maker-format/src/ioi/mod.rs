@@ -201,7 +201,11 @@ impl IOITask {
     /// Try to make a `Task` from the specified path. Will return `Err` if the format of the task
     /// is not IOI or if the task is corrupted and cannot be parsed.
     pub fn new<P: AsRef<Path>>(path: P, eval_config: &EvaluationConfig) -> Result<IOITask, Error> {
-        format::italian_yaml::parse_task(path, eval_config)
+        if path.as_ref().join("task.toml").exists() {
+            format::italian_toml::parse_task(path, eval_config)
+        } else {
+            format::italian_yaml::parse_task(path, eval_config)
+        }
     }
 
     /// Create a "fake" `IOITask` that will not contain any data.
@@ -233,7 +237,9 @@ impl IOITask {
 
     /// Check if in the provided path there could be a IOI-like task.
     pub fn is_valid<P: AsRef<Path>>(path: P) -> bool {
-        path.as_ref().join("task.yaml").exists() || path.as_ref().join("task.yaml.orig").exists()
+        path.as_ref().join("task.yaml").exists()
+            || path.as_ref().join("task.yaml.orig").exists()
+            || path.as_ref().join("task.toml").exists()
     }
 
     /// Get the root directory of the task.
@@ -491,10 +497,11 @@ impl IOITask {
                 warn!("Won't remove gen/GEN since it doesn't contain {TM_ALLOW_DELETE_COOKIE}");
             }
         }
-        // remove task.yaml if there is task.yaml.orig
+        // remove task.yaml if there is task.yaml.orig or task.toml.
         let task_yaml_path = self.path.join("task.yaml");
         let task_yaml_orig_path = self.path.join("task.yaml.orig");
-        if task_yaml_orig_path.exists() && task_yaml_path.exists() {
+        let task_toml_path = self.path.join("task.toml");
+        if (task_yaml_orig_path.exists() || task_toml_path.exists()) && task_yaml_path.exists() {
             if is_tm_deletable(&task_yaml_path)? {
                 info!("Removing {}", task_yaml_path.display());
                 std::fs::remove_file(&task_yaml_path).with_context(|| {

@@ -62,6 +62,8 @@ paste = { workspace = true }
 # Hashing function
 blake3 = { workspace = true }
 locale-codes = "0.3.0"
+toml = { version = "0.9.11", features = ["preserve_order"] }
+indexmap = { version = "2.13.0", features = ["serde"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }
