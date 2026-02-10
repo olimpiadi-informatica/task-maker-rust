@@ -1,8 +1,8 @@
-use anyhow::{anyhow, Context, Error};
+use anyhow::{anyhow, bail, Context, Error};
 use itertools::Itertools;
 use reqwest::blocking::{Client, ClientBuilder};
 use tar::Archive;
-use task_maker_dag::{Execution, FileUuid};
+use task_maker_dag::{Execution, ExecutionCommand, FileUuid};
 use task_maker_store::FileStoreHandle;
 use typst::ecow::{eco_format, EcoVec};
 use typst::syntax::package::PackageSpec;
@@ -81,16 +81,19 @@ impl TypstCompiler {
             Err(_) => Path::new(&env::var("HOME")?).join(".cache/typst/packages"),
         };
 
-        let mut inputs = Dict::new();
-        inputs.insert(Str::from("gen_gen"), Value::Str(Str::from("GEN")));
-        inputs.insert(
-            Str::from("constraints_yaml"),
-            Value::Str(Str::from("constraints.yaml")),
-        );
-        inputs.insert(
-            Str::from("contest_yaml"),
-            Value::Str(Str::from("../../contest.yaml")),
-        );
+        let inputs = {
+            let mut inputs = Dict::new();
+            let ExecutionCommand::TypstCompilation { inputs: sys_inputs } = &execution.command
+            else {
+                bail!("building a typst compiler for a non-typst execution");
+            };
+
+            for (k, v) in sys_inputs {
+                inputs.insert(Str::from(k.as_str()), Value::Str(Str::from(v.as_str())));
+            }
+
+            inputs
+        };
 
         let library = Library::builder().with_inputs(inputs).build();
 

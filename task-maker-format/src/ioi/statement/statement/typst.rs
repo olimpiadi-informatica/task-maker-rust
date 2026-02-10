@@ -26,9 +26,21 @@ impl Language for Typst {
         booklet_name: String,
         eval: &mut EvaluationData,
     ) -> Result<(), Error> {
+        let mut inputs = vec![("contest_yaml".to_string(), "../../contest.yaml".to_string())];
+
+        if eval.task_root.join("task.toml").exists() {
+            inputs.push(("gen_toml".to_string(), "gen.toml".to_string()));
+        } else {
+            inputs.push(("gen_gen".to_string(), "GEN".to_string()));
+            inputs.push((
+                "constraints_yaml".to_string(),
+                "constraints.yaml".to_string(),
+            ));
+        };
+
         let mut exec = Execution::new(
             "Compilation of the booklet",
-            ExecutionCommand::TypstCompilation,
+            ExecutionCommand::TypstCompilation { inputs },
         );
 
         exec.tag(Tag::Booklet.into());

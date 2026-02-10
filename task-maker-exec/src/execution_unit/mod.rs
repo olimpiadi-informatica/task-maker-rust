@@ -78,7 +78,7 @@ impl ExecutionUnit {
         dep_keys: &HashMap<FileUuid, FileStoreHandle>,
         fifo_dir: Option<PathBuf>,
     ) -> Result<ExecutionUnit, Error> {
-        if execution.command == ExecutionCommand::TypstCompilation {
+        if matches!(execution.command, ExecutionCommand::TypstCompilation { .. }) {
             TypstCompiler::new(Path::new("."), execution, dep_keys)
                 .map(|typst_compiler| ExecutionUnit::TypstCompilation(Box::new(typst_compiler)))
         } else {
