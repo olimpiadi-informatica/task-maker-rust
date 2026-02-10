@@ -603,7 +603,8 @@ fn compute_execution_result(
             }
         }
         SandboxResult::Failed { error } => {
-            let status = if execution.command != ExecutionCommand::TypstCompilation {
+            let status = if !matches!(execution.command, ExecutionCommand::TypstCompilation { .. })
+            {
                 ExecutionStatus::InternalError(error.clone())
             } else {
                 ExecutionStatus::Failure(error)

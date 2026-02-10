@@ -136,6 +136,7 @@ impl Statement {
             Path::new("../gen/limiti.yaml"),
             Path::new("../gen/constraints.yaml"),
             Path::new("../gen/GEN"),
+            Path::new("../gen/gen.toml"),
         ] {
             let full_path = base_dir.join(path);
             if !full_path.is_file() {
