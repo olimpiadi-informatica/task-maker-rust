@@ -234,7 +234,26 @@ fn detect_validator(task_dir: &Path, validator: &str) -> Result<Arc<SourceFile>>
     Ok(validators.pop().map(Arc::new).unwrap())
 }
 
-pub fn parse(
+/// Finds a generator with the specified name.
+pub fn get_generator(generator: &str, task_dir: &Path) -> Result<Arc<SourceFile>> {
+    let mut generators = find_source_file(
+        task_dir,
+        vec![&format!("gen/{generator}.*")],
+        task_dir,
+        "Input file generator at",
+        None,
+        WriteBinTo::None,
+    );
+    if generators.len() > 1 {
+        let paths = generators.iter().map(|s| s.name()).collect::<Vec<_>>();
+        bail!("Multiple generators found: {:?}", paths);
+    } else if generators.is_empty() {
+        bail!("No generator `{generator}` found");
+    }
+    Ok(generators.pop().map(Arc::new).unwrap())
+}
+
+pub(super) fn parse(
     task_dir: &Path,
     config: &TaskYAML,
     grader_map: Arc<GraderMap>,
@@ -298,24 +317,6 @@ pub fn parse(
         }
     }
 
-    let get_generator = |generator: &str| {
-        let mut generators = find_source_file(
-            task_dir,
-            vec![&format!("gen/{generator}.*")],
-            task_dir,
-            "Input file generator at",
-            None,
-            WriteBinTo::None,
-        );
-        if generators.len() > 1 {
-            let paths = generators.iter().map(|s| s.name()).collect::<Vec<_>>();
-            bail!("Multiple generators found: {:?}", paths);
-        } else if generators.is_empty() {
-            bail!("No generator `{generator}` found");
-        }
-        Ok(generators.pop().map(Arc::new).unwrap())
-    };
-
     let mut process_group = |name: &str, group: &mut GroupConfig| -> Result<()> {
         group.resolve_repeats();
         let mut constants = constants.clone();
@@ -361,7 +362,7 @@ pub fn parse(
                     .push(id);
             }
             let generator = testcase.generator().unwrap_or(generator);
-            let generator = get_generator(generator)?;
+            let generator = get_generator(generator, task_dir)?;
             let input_generator =
                 InputGenerator::Custom(generator, testcase.args().instantiate(&constants)?);
             testcases.insert(
