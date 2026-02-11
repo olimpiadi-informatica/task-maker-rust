@@ -52,6 +52,8 @@ mod statement;
 pub(crate) mod task_info;
 pub(crate) mod ui_state;
 
+pub use format::italian_toml::gen_toml::get_generator;
+
 /// In IOI tasks the subtask numbers are non-negative 0-based integers.
 pub type SubtaskId = u32;
 /// In IOI tasks the testcase numbers are non-negative 0-based integers.

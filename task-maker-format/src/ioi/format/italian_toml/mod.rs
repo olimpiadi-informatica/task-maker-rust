@@ -16,7 +16,7 @@ use crate::ioi::{
 };
 use crate::{find_source_file, list_files, EvaluationConfig, WriteBinTo};
 
-mod gen_toml;
+pub(in crate::ioi) mod gen_toml;
 
 pub fn parse_task<P: AsRef<Path>>(
     task_dir: P,

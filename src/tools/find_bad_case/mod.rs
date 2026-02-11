@@ -7,6 +7,7 @@ use clap::{Parser, ValueHint};
 use task_maker_exec::ductile::ChannelSender;
 use task_maker_exec::proto::ExecutorClientMessage;
 use task_maker_exec::ExecutorClient;
+use task_maker_format::ioi::get_generator;
 use task_maker_format::ui::{CursesUI, StdoutPrinter, UIMessage, BLUE, BOLD, RED, UI, YELLOW};
 use task_maker_format::{cwrite, cwriteln, get_sanity_check_list, EvaluationConfig};
 
@@ -37,6 +38,10 @@ pub struct FindBadCaseOpt {
     /// Setting this to a small value may reduce the speed of this tool.
     #[clap(long, short, default_value = "100")]
     pub batch_size: usize,
+
+    /// Name of the generator to use.
+    #[clap(long, short)]
+    pub generator: Option<String>,
 
     /// Path to the solution to check against the official solution of the task.
     #[clap(value_hint = ValueHint::FilePath)]
@@ -81,6 +86,11 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
 
     let task = opt.find_task.find_task(&eval_config)?;
     let task_path = task.path().to_path_buf();
+    let generator = opt
+        .generator
+        .as_ref()
+        .map(|x| get_generator(&format!("gen_{x}"), &task_path))
+        .transpose()?;
 
     // Create a single UI for all the batches.
     let ui_state = UIState::new(&opt, stop_evaluation);
@@ -120,6 +130,7 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
         let mut task = opt.find_task.find_task(&eval_config)?;
         let batch = patch_task_for_batch(
             &mut task,
+            &generator,
             &opt.generator_args,
             opt.batch_size,
             batch_index,

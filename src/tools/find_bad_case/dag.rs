@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Error};
 
 use task_maker_format::ioi::{
     InputGenerator, SubtaskInfo, TestcaseId, TestcaseInfo, GENERATION_PRIORITY,
 };
-use task_maker_format::{EvaluationData, TaskFormat};
+use task_maker_format::{EvaluationData, SourceFile, TaskFormat};
 
 /// The information about a testcase to generate.
 #[derive(Debug, Clone, Default)]
@@ -33,6 +34,7 @@ pub struct Batch {
 /// testcases instead of the normal ones.
 pub fn patch_task_for_batch(
     task: &mut TaskFormat,
+    generator: &Option<Arc<SourceFile>>,
     generator_args: &[String],
     batch_size: usize,
     batch_index: usize,
@@ -66,8 +68,11 @@ pub fn patch_task_for_batch(
                     InputGenerator::StaticFile(_) => {
                         unreachable!("The generator cannot be StaticFile")
                     }
-                    InputGenerator::Custom(_, args) => {
+                    InputGenerator::Custom(g, args) => {
                         args.clone_from(&generator_args);
+                        if let Some(generator) = generator {
+                            *g = generator.clone();
+                        }
                     }
                 }
 
