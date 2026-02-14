@@ -1,7 +1,7 @@
 #set heading(numbering: "1.")
 #set par(justify: true)
-#set text(size: 11pt, font: ("Latin Modern Roman",))
-#show raw: set text(size: 1.25em, font: ("Latin Modern Mono"))
+#set text(size: 11pt, font: ("Latin Modern Roman 12",))
+#show raw: set text(size: 1.25em, font: "Latin Modern Mono 12")
 #show link: underline
 
 
@@ -14,10 +14,10 @@ practices.
 = General task folder structure
 
 A task's folder should contain the following:
-- A file named `task.yaml.orig`, containing various task settings.
+- A file named `task.toml`, containing various task settings.
 - A `statement` folder, containing the source files to produce the statement.
-- A `gen` folder, containing instruction to generate testcases and define
-  subtasks.
+- A `gen` folder, containing a `gen.toml` file to generate testcases and define
+  subtasks, as well as the source files for generators and validators.
 - A `sol` folder, containing the reference solution of the task as well as
   auxiliary source files to be used during evaluation of the contestants'
   solutions. This folder is optional for communication tasks.
@@ -30,23 +30,22 @@ A task's folder should contain the following:
   `check/checker`, and generate a `task.yaml` as well as PDF files for each
   statement.
 
-== `task.yaml.orig`
+== `task.toml`
 
-This file serves a similar role to CMS's `task.yaml` file. However, many keys
-can be omitted from the `task.yaml.orig` file, and they will set to good
-default values (or deduced from other files in the task folder) if omitted.
+This file serves a similar role to CMS's `task.yaml` file.
 
 The following are the most commonly set keys in this file:
 - `title`: the title of this task, as will be shown in CMS.
-  // TODO: allow overriding the title in the task statement template.
+// TODO: allow overriding the title in the task statement template.
 - `time_limit`: the maximum amount of time that a solution can run for, in
   seconds.
 - `memory_limit`: the maximum amount of memory that a solution can use, in
   mebibytes.
 - `score_precision`: the number of decimal digits to round scores for this task
-  to (defaults to no rounding).
+  to (defaults to 0, i.e. integers).
 - `user_io`: set this value to `fifo_io` to have solutions in communication
-  tasks communicate via FIFOs (by default they communicate via standard I/O).
+  tasks communicate via FIFOs (by default they communicate via standard I/O,
+  which is `std_io`).
   See #ref(<communication>) for further information on communication tasks.
 // TODO: change this to default to FIFOs with a stub and stdio otherwise?
 // TODO: IIRC stdio communication is broken, maybe fix it.
@@ -57,14 +56,14 @@ read; in particular, this file will contain scoring information, and will
 default to having solutions read from and write to standard I/O.
 
 #figure(
-  ```yaml
-title: Political Patricians
-memory_limit: 512
-time_limit: 2.0
-user_io: fifo_io
-score_precision: 2
-```,
-  caption: [The `task.yaml.orig` file for task "patricians" from WEOI 2025.],
+  ```toml
+  title = "Political Patricians"
+  memory_limit = 512
+  time_limit = 2.0
+  user_io = "fifo_io"
+  score_precision = 2
+  ```,
+  caption: [The `task.toml` file for task "patricians" from WEOI 2025.],
 )
 
 = Solution folder
@@ -127,7 +126,7 @@ define checks that require the solution to get a full score on subtasks named
   // @check-accepted: examples twosets
   // @check-partial-score: sizetwo nolimit
   ```,
-  caption: [Some subtask checks from "patricians" from WEOI 2025.]
+  caption: [Some subtask checks from "patricians" from WEOI 2025.],
 )
 
 `task-maker-rust` warns when solutions do not contain checks. The tool
@@ -136,18 +135,139 @@ match the behaviour of solutions on the current machine.
 
 = `gen` folder
 
-This folder should contain at least the following three files:
-- a `generator.<ext>` file, which is a program used to generate inputs for the
-  task.
-- a `GEN` file, which specifies the subtasks of this task (with their scores),
-  as well as the arguments to pass to the generator.
-- a `validator.<ext>` file, which is a program that verifies that the generated
-  input files satisfy their constraints.
+This folder should contain at least the following files:
+- a `gen.toml` file, which specifies how to generate testcases and define
+  subtasks.
+- one or more generator files (e.g., `generator.py`), used to produce
+  testcase inputs.
+- a `validator.py` file, which verifies that the generated input files satisfy
+  the task constraints.
 
-By convention, a file `constraints.yaml` is often also used, containing a
-declarative description of _some_ of the constraints of the problem. This file
-can be read by the validator and, if using the recommended way to produce the
-statements, is also read during statement compilation.
+== `gen.toml`
+<gen>
+
+The `gen.toml` file is the central configuration for testcase generation and
+subtask definition. It replaces both the `GEN` and `constraints.yaml` files used
+in older formats.
+
+The following global keys are supported:
+- `generator`: name of the default generator in the `gen` folder (defaults to
+  `"generator"`). `task-maker-rust` will look for a file named
+  `gen/<generator>.*`.
+- `validator`: name of the default validator in the `gen` folder (defaults to
+  `"validator"`).
+- `validator_args`: arguments to pass to the validator. Defaults to
+  `["$FILENAME#", "$SUBTASK_NAME#"]`.
+- `samples`: specifies the sample testcases. Defining this key automatically
+  creates a new group (defaulting to name `"samples"`) containing the sample
+  testcases. It can be:
+  - An integer: `samples = 2` (equivalent to the detailed table below with
+    defaults).
+  - A table for more control:
+    - `num`: the number of sample cases (required).
+    - `group_name`: the name of the group to create (defaults to `"samples"`).
+    - `pattern`: a pattern for the input file paths, where `$#` is replaced by
+      the 0-based index. Defaults to `"statement/<taskname>.input$#.txt"`.
+
+=== Constants and Variable Expansion
+
+Any other key at the top level of `gen.toml` defines a global constant. These
+constants can be used in testcase arguments by prefixing them with `$`.
+
+Special variables:
+- `$#`: the index of the testcase being generated (0-based). This variable can
+  only be used in testcase arguments.
+- `$FILENAME#`: the path of the file to validate. This variable can only be used
+  in `validator_args`.
+- `$SUBTASK_NAME#`: the name of the current subtask. This variable can only be
+  used in `validator_args`.
+
+=== Groups and Subtasks
+
+Testcases are organized into groups (`[group.<name>]`) and subtasks
+(`[subtask.<name>]`). A subtask is a group that also has a score.
+
+Groups support the following keys:
+- `testcases`: an array of testcase definitions (see #ref(<testcase-definitions>)).
+- `include`: a list of other group or subtask names to include in this one.
+  Using `["*"]` includes all previously defined groups and subtasks.
+- `repeat`: number of times to repeat the entire set of testcases in this group
+  (defaults to 1).
+- `generator`: overrides the default generator for this group.
+- `copy`: a list of paths to static input files (relative to the task root) to
+  copy as testcases.
+- Any other key defines a local constant for this group, which can
+  override global constants.
+
+Subtasks support all the keys of a group, plus:
+- `score`: the number of points for this subtask (required).
+- `validator`: overrides the default validator for this subtask.
+- `validator_args`: overrides the default validator arguments for this subtask.
+
+=== Testcase Definitions <testcase-definitions>
+
+A testcase in the `testcases` list can be:
+- A string: `"10 100 $#"` (interpreted as space-separated arguments).
+- A list of strings: `["10", "100", "$#"]`.
+- A table for more control:
+  - `args`: string or list of strings (required).
+  - `generator`: optional string to override the generator for this specific testcase.
+  - `repeat`: optional integer to repeat this testcase definition.
+  - `group_name`: optional string to add this testcase to an additional group.
+
+#figure(
+  ```toml
+  MAXN = 5000
+  MAXQ = 1000000
+  diag = false
+  peak = false
+
+  generator = "gen_smart"
+
+  samples = 1
+
+  [group.random]
+  generator = "gen_random"
+  repeat = 4
+  testcases = ["$MAXN $#"]
+
+  [subtask.esempi]
+  include = ["samples"]
+  score = 0
+
+  [subtask.small]
+  MAXN = 300
+  score = 10
+  repeat = 3
+  testcases = ["$MAXN $MAXQ $#"]
+
+  [subtask.diag]
+  generator = "gen_diag"
+  diag = true
+  score = 21
+  repeat = 3
+  testcases = ["$MAXN $MAXQ $#"]
+
+  [subtask.peak]
+  generator = "gen_peak"
+  peak = true
+  score = 28
+  repeat = 2
+  include = ["random"]
+  testcases = [
+    "$MAXN 0 0 0 $#",
+    "$MAXN 0 0 1 $#",
+    { args = ["$MAXN", "1", "1", "1", "$#"], repeat = 2 }
+  ]
+
+  [subtask.full]
+  include = ["*"]
+  score = 41
+  repeat = 4
+  testcases = ["$MAXN $MAXQ $#"]
+  ```,
+  caption: [An example `gen.toml` file.],
+)
 
 == `generator.<ext>`
 
@@ -162,188 +282,80 @@ objects.
 
 #figure(
   ```python
-#!/usr/bin/env python3
+  #!/usr/bin/env python3
 
-from sys import argv, exit, stderr
-from random import randint, seed
-from inspect import signature
-
-
-def run(N):
-    print(N)
-    print(" ".join(str(randint(0, 10)) for _ in range(N)))
+  from sys import argv, exit, stderr
+  from random import randint, seed
+  from inspect import signature
 
 
-if __name__ == "__main__":
-    num_args: int = len(signature(run).parameters) + 2
-    if len(argv) != num_args:
-        print(
-            f"Got {len(argv)} parameters, expecting {num_args}", file=stderr)
-        exit(1)
+  def run(N):
+      print(N)
+      print(" ".join(str(randint(0, 10)) for _ in range(N)))
 
-    def tryconv(x):
-        for t in [int, float, str]:
-            try:
-                return t(x)
-            except:
-                pass
 
-    *args, S = map(tryconv, argv[1:])
-    seed(S)
-    run(*args)
-```,
+  if __name__ == "__main__":
+      num_args: int = len(signature(run).parameters) + 2
+      if len(argv) != num_args:
+          print(
+              f"Got {len(argv)} parameters, expecting {num_args}", file=stderr)
+          exit(1)
+
+      def tryconv(x):
+          for t in [int, float, str]:
+              try:
+                  return t(x)
+              except:
+                  pass
+
+      *args, S = map(tryconv, argv[1:])
+      seed(S)
+      run(*args)
+  ```,
   caption: [Example of a very simple Python generator (`generator.py`). Note
-  that the code after the definition of the function `run` can be left
-  unmodified for any generator that uses a fixed number of parameters, of which
-  the last one is a RNG seed.]
+    that the code after the definition of the function `run` can be left
+    unmodified for any generator that uses a fixed number of parameters, of which
+    the last one is a RNG seed.],
 )
+
+The tool `find-bad-case` in `task-maker-tools` can run a specified generator
+with a template command line to search for test cases that make certain solutions
+fail.
 
 == `validator.<ext>`
 
-A validator takes on the command line the name of the file it should validate,
-followed by the index of the subtask (starting from `1`, except when validating
-samples from the `att` folder) that it should validate the testcase for.
-
-Any non-zero return value declares that the file fails to validate.
-
-It is recommended for the validator to read constraint values from the
-`constraints.yaml` file.
+The validator ensures that each generated testcase satisfies the constraints
+of its subtask. It is recommended for the validator to read the constraints
+directly from `gen.toml`.
 
 #figure(
   ```python
-#!/usr/bin/env python3
+  #!/usr/bin/env python3
+  import sys, toml
 
-import sys
-import yaml
+  def run(f, st_name):
+      # Constants from gen.toml (like MAXN) are available in globals()
+      # N = int(f.readline())
+      # assert 1 <= N <= MAXN
+      pass
 
+  if __name__ == "__main__":
+      with open("gen.toml", "r") as f_toml:
+          conf = toml.load(f_toml)
+          # Load global constants
+          globals().update({k: v for k, v in conf.items() if not isinstance(v, dict)})
+          # Determine subtask name (passed as second argument by default)
+          st_name = sys.argv[2] if len(sys.argv) > 2 else None
+          # Load subtask-specific constants
+          if st_name and st_name in conf.get("subtask", {}):
+              globals().update(conf["subtask"][st_name])
 
-def usage():
-    print("Usage: %s file_input.txt [subtask_number]" %
-          sys.argv[0], file=sys.stderr)
-    sys.exit(1)
-
-
-def run(f, st):
-    for k, v in subtask[st].items():
-        globals()[k] = v
-
-    N = int(f.readline())
-    assert 1 <= N <= MAXN
-
-    vals = list(map(int, f.readline().split()))
-    assert len(vals) == N
-
-
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        usage()
-
-    if len(sys.argv) == 3:
-        st = int(sys.argv[2])
-    else:
-        st = 0
-
-    with open("constraints.yaml", "r") as constraints:
-        constraints = yaml.safe_load(constraints)
-        global_variables = globals()
-        global_variables |= constraints
-
-    f = open(sys.argv[1])
-    sys.exit(run(f, st))
-```,
-  caption: [Example of a simple Python validator (`validator.py`) that reads
-  constraints from `constraints.yaml`.]
+      with open(sys.argv[1], "r") as f_in:
+          run(f_in, st_name)
+  ```,
+  caption: [A generic Python validator template that reads `gen.toml`.],
 )
 
-== `constraints.yaml`
-<constraints>
-
-The file `constraints.yaml` should be a single YAML object, with each key
-corresponding to the name of a constraint. It should also contain a sub-object
-`subtask`, which is an array of objects with a subset of the keys; specified
-keys have their limit replaced for that subtask, while omitted keys preserve
-their global values.
-
-The element of the array in position `i` corresponds to constraints for subtask
-`i`. Note that, since subtask numbering is `1`-based, this array needs a
-placeholder object in the beginning.
-
-#figure(
-  ```yaml
-MAXN: 1000000
-MAXM: 100000
-MAXA: 1000000
-
-subtask:
-  - {}                         # placeholder
-  - {}                         # Subtask 1: samples
-  - {MAXN:10}                  # Subtask 2
-  - {MAXA:100}                 # Subtask 3
-  - {MAXN:10000, MAXA:10000}   # Subtask 4
-  - {}                         # Subtask 5
-```,
-  caption: [Example `constraints.yaml` file.]
-)
-
-== `GEN`
-<gen>
-
-The `GEN` file specifies testcases and subtasks.
-It can contain three kinds of lines:
-- comment lines are empty lines, or lines that start with `# ` (with a space!)
-  followed by any text.
-- command lines are lines that start with `#` *not followed by a space*. A list
-  of commands is given below.
-- Any other line is interpreted as a testcase definition, and it is passed as
-  command line arguments to the generator.
-
-Supported commands:
-- `#ST: <score>`: defines a new subtask, worth a number of points given by
-  `<score>`.
-- `#STNAME: string-without-spaces`: defines the name of the current subtask.
-- `#STDEP: list-of-space-separated-strings`: declares the specified subtasks as
-  a *dependency* of the current subtask. This means that all testcases defined
-  in those subtasks will be included in the current subtask. Note that this
-  works even if the dependencies of a subtask are defined later in the `GEN`,
-  and even if the dependency graph contains cycles.
-- `#COPY: path-relative-to-task-directory`: declares a new testcase, obtained
-  by copying the specified file. It is recommended to use this command to
-  create a "examples" subtask.
-  // TODO: should we have a #SAMPLES command that copies *all* the samples?
-
-#figure(
-  ```python
-# N SEED
-
-#ST: 0
-#STNAME: examples
-#COPY: statement/problemname.input0.txt
-#COPY: statement/problemname.input1.txt
-
-#ST: 10
-#STNAME: N<=10
-10 0
-10 1
-10 2
-
-#ST: 20
-#STNAME: N<=100
-#STDEP: N<=10
-100 3
-100 4
-
-#ST: 20
-#STNAME: fancy-name
-100000 5
-100000 6
-
-#ST: 50
-#STNAME: nolimit
-#STDEP: fancy-name N<=100
-1000000 7
-```,
-  caption: [Example `GEN` file.]
-)
 
 = `statement` folder
 
@@ -371,7 +383,7 @@ Note that, while `task-maker-rust` will compile Typst statements as part of
 task preparation, you can compile a statement manually as follows:
 
 ```bash
-typst compile statement/<language>.typ --root .
+typst compile statement/<language>.typ --root . --input gen_toml=../gen/gen.toml
 ```
 
 Doing so will result in some missing information in the produced statement
@@ -412,53 +424,55 @@ should implement on problems that have a grader or a stub (see
 == `constraint`
 
 This object contains the global constraints of the task, as specified in
-`constraints.yaml` (see #ref(<constraints>)).
+`gen.toml` (see #ref(<gen>)).
 
 #figure(
   ```typst
-#constraints
-- $2 <= N <= constraint.MAXN$.
-- $1 <= M <= constraint.MAXM$.
-- $0 <= A_i <= constraint.MAXA$.
-- The sum of all the elements in the array is even.
-```,
-  caption: [Example of a "constraints" section]
+  #constraints
+  - $2 <= N <= constraint.MAXN$.
+  - $1 <= M <= constraint.MAXM$.
+  - $0 <= A_i <= constraint.MAXA$.
+  - The sum of all the elements in the array is even.
+  ```,
+  caption: [Example of a "constraints" section],
 )
 
 == `subtasks`
 
 The `subtasks` function takes as input an array of functions. Each of the
 functions takes as input the subtask-specific constraints obtained by
-`constraints.yaml` (see #ref(<constraints>)). Scoring information is extracted
-automatically from `GEN` (see #ref(<gen>)). The optional argument `index_start`
-specifies the number of the first subtask; this can be used to have the sample
-subtask be subtask $0$, as CMS and IOI do.
+`gen.toml` (see #ref(<gen>)). Scoring information is also extracted
+automatically from `gen.toml`. The optional argument `index_start`
+specifies the number of the first subtask (defaults to 0, as CMS and IOI do).
 
 #figure(
   ```typst
-#subtasks((
-  subtask => [Sample test cases.],
-  subtask => [$N <= subtask.MAXN$.],
-  subtask => [$A_i <= subtask.MAXA$ for $i = 0, .., N-1$.],
-  subtask => [$N<=subtask.MAXN$ and $A_i<=subtask.MAXA$ for $i=0,..,N-1$.],
-  subtask => [No additional constraint.],
-), index_start: 0)
-```,
-  caption: [Example of usage of the `subtasks` function.]
+  #subtasks((
+    subtask => [Sample test cases.],
+    subtask => [$N <= subtask.MAXN$.],
+    subtask => [$A_i <= subtask.MAXA$ for $i = 0, .., N-1$.],
+    subtask => [$N<=subtask.MAXN$ and $A_i<=subtask.MAXA$ for $i=0,..,N-1$.],
+    subtask => [No additional constraints.],
+  ))
+  ```,
+  caption: [Example of usage of the `subtasks` function.],
 )
 
 == `examples` and `examples-interactive`
 
-These functions will render the specified number of examples input/output pairs
-or example interactions.
+These functions automatically render the sample input/output pairs or
+interactions. The number of samples is automatically retrieved from the
+`samples` configuration in `gen.toml`. They do not require any arguments.
 
 For examples, a side-by-side table with the contents of each pair of
-input/output examples will be shown.
+input/output examples will be shown. The input files must be named
+`statement/<taskname>.input<i>.txt`, and the output files must be named
+`statement/<taskname>.output<i>.txt`.
 
-For example interactions, the interaction file will be read. Lines starting
-with `<` will be shown as function calls or input coming from the grader, while
-lines starting with `>` will be shown as function calls or output done by the
-solution.
+For example interactions, the interaction file `statement/<taskname>.interaction<i>.txt`
+will be read. Lines starting with `<` will be shown as function calls or input
+coming from the grader, while lines starting with `>` will be shown as function
+calls or output done by the solution.
 
 = `att` folder
 
@@ -503,24 +517,24 @@ state in the checker, so try to avoid global variables.
 
 #figure(
   ```cpp
-#include <iostream>
-#include <fstream>
-#include <vector>
+  #include <iostream>
+  #include <fstream>
+  #include <vector>
 
-[[noreturn]] void grade(float score, const char* msg) {
-    std::cout << score;
-    std::cerr << msg;
-    exit(0);
-}
+  [[noreturn]] void grade(float score, const char* msg) {
+      std::cout << score;
+      std::cerr << msg;
+      exit(0);
+  }
 
-int main(int argc, char* argv[]) {
-    std::ifstream input(argv[1]);
-    std::ifstream master_output(argv[2]);
-    std::ifstream contestant_output(argv[3]);
-    grade(0, "translate:wrong");
-}
-```,
-  caption: [A checker that always gives $0$ points.]
+  int main(int argc, char* argv[]) {
+      std::ifstream input(argv[1]);
+      std::ifstream master_output(argv[2]);
+      std::ifstream contestant_output(argv[3]);
+      grade(0, "translate:wrong");
+  }
+  ```,
+  caption: [A checker that always gives $0$ points.],
 )
 
 = Communication tasks
