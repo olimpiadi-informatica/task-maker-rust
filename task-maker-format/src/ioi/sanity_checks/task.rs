@@ -1,7 +1,5 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fs,
-};
+use std::collections::{HashMap, HashSet};
+use std::fs;
 
 use anyhow::Error;
 use regex::Regex;

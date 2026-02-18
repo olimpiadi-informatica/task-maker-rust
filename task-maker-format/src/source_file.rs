@@ -4,14 +4,12 @@ use std::sync::Arc;
 
 use anyhow::{Context, Error};
 use serde::{Deserialize, Serialize};
-
 use task_maker_dag::*;
 use task_maker_diagnostics::Diagnostic;
 use task_maker_lang::GraderMap;
 
 use crate::ui::*;
-use crate::EvaluationData;
-use crate::{bind_exec_callbacks, UISender};
+use crate::{bind_exec_callbacks, EvaluationData, UISender};
 
 /// Wrapper around [`task_maker_lang::SourceFile`](../task_maker_lang/struct.SourceFile.html) that
 /// also sends to the UI the messages about the compilation, making the compilation completely

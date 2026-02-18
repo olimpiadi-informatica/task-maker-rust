@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, ensure, Context, Error};
 use pest::Parser;
-
 use task_maker_diagnostics::CodeSpan;
 
 use crate::ioi::format::italian_yaml::TaskInputEntry;
@@ -228,7 +227,6 @@ mod tests {
     use anyhow::Error;
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
-
     use TaskInputEntry::*;
 
     use crate::ioi::format::italian_yaml::gen_gen::parse_gen_gen;

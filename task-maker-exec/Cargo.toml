@@ -40,7 +40,13 @@ crossbeam-channel = { workspace = true }
 typst = "0.14.2"
 time = "0.3.47"
 typst-pdf = "0.14.2"
-reqwest = { version = "0.13.2", default-features = false, features = ["blocking", "rustls-no-provider", "charset", "http2", "system-proxy"] }
+reqwest = { version = "0.13.2", default-features = false, features = [
+  "blocking",
+  "rustls-no-provider",
+  "charset",
+  "http2",
+  "system-proxy",
+] }
 rustls = { workspace = true }
 hyper-rustls = { workspace = true }
 tokio-rustls = { workspace = true }

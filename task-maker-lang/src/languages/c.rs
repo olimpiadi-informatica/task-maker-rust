@@ -107,9 +107,8 @@ impl Language for LanguageC {
 #[cfg(test)]
 mod tests {
     use speculoos::prelude::*;
-    use tempfile::TempDir;
-
     use task_maker_dag::ExecutionDAG;
+    use tempfile::TempDir;
 
     use super::*;
 

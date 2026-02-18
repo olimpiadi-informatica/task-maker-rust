@@ -3,7 +3,6 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
-
 use task_maker_format::ui::curses::{BLUE, BOLD, GREEN, RED};
 use task_maker_format::ui::{inner_block, render_block, render_server_status, CursesDrawer};
 

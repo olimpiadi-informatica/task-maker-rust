@@ -8,10 +8,9 @@ use tabox::configuration::SandboxConfiguration;
 use tabox::syscall_filter::SyscallFilter;
 use tabox::{Sandbox, SandboxImplementation};
 #[cfg(not(target_os = "macos"))]
-use tempfile::TempDir;
-
-#[cfg(not(target_os = "macos"))]
 use task_maker_exec::execution_unit::sandbox::READABLE_DIRS;
+#[cfg(not(target_os = "macos"))]
+use tempfile::TempDir;
 
 #[derive(Parser, Debug, Clone)]
 pub struct SandboxOpt {

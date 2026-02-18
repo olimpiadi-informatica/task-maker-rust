@@ -5,7 +5,6 @@ use std::thread;
 
 use anyhow::{bail, Context, Error};
 use ductile::ChannelSender;
-
 use task_maker_dag::{ExecutionGroupUuid, WorkerUuid};
 use task_maker_store::FileStore;
 

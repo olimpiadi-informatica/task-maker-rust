@@ -1,6 +1,5 @@
 mod common;
 use common::TestInterface;
-
 use task_maker_format::ioi::TestcaseEvaluationStatus::Skipped;
 use task_maker_format::ioi::TestcaseGenerationStatus::Failed;
 

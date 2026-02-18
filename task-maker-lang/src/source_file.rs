@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Error};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
 use task_maker_dag::{
     Execution, ExecutionDAG, ExecutionTag, ExecutionUuid, File, FileUuid, Priority,
 };
@@ -328,9 +327,8 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
-    use tempfile::TempDir;
-
     use task_maker_exec::{eval_dag_locally, SuccessSandboxRunner};
+    use tempfile::TempDir;
 
     use super::*;
 

@@ -2,7 +2,6 @@ use std::path::Path;
 
 use anyhow::Error;
 use serde::{Deserialize, Serialize};
-
 use task_maker_dag::ExecutionDAGConfig;
 
 use crate::{ui, EvaluationConfig, EvaluationData, IOITask, TaskInfo, TerryTask, UI};

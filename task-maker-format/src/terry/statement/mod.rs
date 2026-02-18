@@ -1,10 +1,11 @@
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
+use anyhow::Error;
+use serde::{Deserialize, Serialize};
 use task_maker_dag::{Execution, ExecutionCommand, File};
 use task_maker_diagnostics::Diagnostic;
 
 use crate::{EvaluationData, Tag, UISender};
-use anyhow::Error;
 
 /// A statement is a markdown template together with subtask data
 #[derive(Debug, Clone, Serialize, Deserialize)]

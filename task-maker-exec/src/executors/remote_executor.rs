@@ -1,17 +1,16 @@
 use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
 
+use anyhow::{anyhow, Context, Error};
 use ductile::{ChannelSender, ChannelServer};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-
 use task_maker_cache::Cache;
 use task_maker_store::FileStore;
+use uuid::Uuid;
 
 use crate::executor::{Executor, ExecutorInMessage};
 use crate::scheduler::ClientInfo;
 use crate::{derive_key_from_password, WorkerConn};
-use anyhow::{anyhow, Context, Error};
 
 /// Version of task-maker
 const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -86,13 +86,11 @@ mod tests {
     use std::fs;
 
     use tempfile::TempDir;
-
     use TaskInputEntry::*;
 
+    use super::*;
     use crate::ioi::format::italian_yaml::TaskInputEntry;
     use crate::ioi::{InputValidator, OutputGenerator, SubtaskId, TestcaseId};
-
-    use super::*;
 
     fn get_validator(_subtask: Option<SubtaskId>) -> InputValidator {
         InputValidator::AssumeValid

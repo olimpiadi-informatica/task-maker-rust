@@ -1,6 +1,7 @@
-use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
 use task_maker_dag::{
     Execution, ExecutionGroup, ExecutionLimits, ExecutionResult, ExecutionStatus, FileUuid,
 };
@@ -228,15 +229,17 @@ impl CacheEntry {
 
 #[cfg(test)]
 mod tests {
-    use crate::entry::{CacheEntry, CacheEntryItem};
     use std::collections::HashMap;
     use std::fs::File;
     use std::io::Write;
     use std::path::{Path, PathBuf};
+
     use task_maker_dag::{
         Execution, ExecutionCommand, ExecutionResourcesUsage, ExecutionResult, ExecutionStatus,
     };
     use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey, ReadFileIterator};
+
+    use crate::entry::{CacheEntry, CacheEntryItem};
 
     fn fake_file<P: AsRef<Path>>(path: P, content: &str, store: &FileStore) -> FileStoreHandle {
         File::create(path.as_ref())

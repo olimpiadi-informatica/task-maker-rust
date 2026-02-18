@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+
 use task_maker_dag::ExecutionCommand;
 
 use crate::language::{
@@ -110,12 +111,9 @@ mod tests {
     use task_maker_dag::ExecutionDAG;
     use tempfile::TempDir;
 
-    use crate::{
-        language::{CompilationSettings, Language},
-        GraderMap,
-    };
-
     use super::LanguageRust;
+    use crate::language::{CompilationSettings, Language};
+    use crate::GraderMap;
 
     fn setup() -> TempDir {
         let tempdir = TempDir::new().unwrap();

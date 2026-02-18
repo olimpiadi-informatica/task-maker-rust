@@ -1,10 +1,10 @@
 use anyhow::{Context, Error};
+use task_maker_dag::File;
 use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::IOITask;
 use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::UISender;
-use task_maker_dag::File;
 
 /// Run the custom checker with some nasty output files and expect the checker not to crash and to
 /// score 0 points.

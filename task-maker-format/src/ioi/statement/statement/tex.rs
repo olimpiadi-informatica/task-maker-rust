@@ -1,9 +1,3 @@
-use super::{Language, Statement};
-use crate::bind_exec_callbacks;
-use crate::ioi::{Booklet, BOOKLET_PRIORITY};
-use crate::ui::{UIMessage, UIMessageSender};
-use crate::{EvaluationData, Tag, UISender, DATA_DIR};
-
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -14,6 +8,11 @@ use itertools::Itertools;
 use regex::Regex;
 use task_maker_dag::{Execution, ExecutionCommand, File};
 use task_maker_diagnostics::Diagnostic;
+
+use super::{Language, Statement};
+use crate::ioi::{Booklet, BOOKLET_PRIORITY};
+use crate::ui::{UIMessage, UIMessageSender};
+use crate::{bind_exec_callbacks, EvaluationData, Tag, UISender, DATA_DIR};
 
 lazy_static! {
     /// This regex will match all the `\usepackage` inside a latex file.

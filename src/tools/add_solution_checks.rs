@@ -8,7 +8,6 @@ use std::sync::{Arc, Mutex};
 use anyhow::{bail, Context, Error};
 use clap::Parser;
 use itertools::Itertools;
-
 use task_maker_format::ioi::UIState;
 use task_maker_format::ui::{StdoutPrinter, UIStateT, BLUE, BOLD, YELLOW};
 use task_maker_format::{

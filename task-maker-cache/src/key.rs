@@ -1,7 +1,8 @@
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use task_maker_dag::{Execution, ExecutionCommand, ExecutionGroup, FileUuid};
 use task_maker_store::{FileStoreHandle, FileStoreKey};
 
@@ -95,14 +96,16 @@ impl CacheKey {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::borrow::Cow;
     use std::collections::hash_map::DefaultHasher;
     use std::fs::File;
     use std::hash::{Hash, Hasher};
     use std::io::Write;
     use std::path::Path;
+
     use task_maker_store::{FileStore, ReadFileIterator};
+
+    use super::*;
 
     fn fake_file<P: AsRef<Path>>(path: P, content: &str, store: &FileStore) -> FileStoreHandle {
         File::create(path.as_ref())

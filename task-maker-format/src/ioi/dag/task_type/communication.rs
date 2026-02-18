@@ -2,13 +2,11 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, Context, Error};
 use serde::{Deserialize, Serialize};
-
 use task_maker_dag::{ExecutionGroup, FileUuid, Priority};
 
 use crate::ioi::{Checker, IOITask, ScoreManager, SubtaskId, TestcaseId, EVALUATION_PRIORITY};
 use crate::ui::{UIMessage, UIMessageSender};
-use crate::{bind_exec_callbacks, bind_exec_io};
-use crate::{EvaluationData, SourceFile, Tag};
+use crate::{bind_exec_callbacks, bind_exec_io, EvaluationData, SourceFile, Tag};
 
 /// The type of communication for the solution in a communication task.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]

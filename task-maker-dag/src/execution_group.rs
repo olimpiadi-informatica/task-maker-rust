@@ -1,8 +1,9 @@
+use std::path::{Path, PathBuf};
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{Execution, ExecutionDAGConfig, ExecutionTag, Priority};
-use std::path::{Path, PathBuf};
 
 /// Directory inside the sandbox where to place all the pipes of the group. This is used to allow
 /// the sandbox bind-mount all the pipes with a single mount point, inside all the sandboxes of the

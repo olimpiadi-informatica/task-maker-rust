@@ -6,17 +6,15 @@ use std::sync::{Arc, Mutex};
 use anyhow::{anyhow, Context, Error};
 use itertools::Itertools;
 use regex::Regex;
-
 use task_maker_dag::File;
 use task_maker_diagnostics::Diagnostic;
 use task_maker_lang::GraderMap;
 
+use super::io::CheckEndWithNewLine;
 use crate::ioi::sanity_checks::check_missing_graders;
 use crate::ioi::{IOITask, InputGenerator, TaskType, TestcaseId};
 use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::{list_files, EvaluationData, SolutionCheck, SourceFile, UISender};
-
-use super::io::CheckEndWithNewLine;
 
 /// Check that all the graders are present inside att.
 #[derive(Debug, Default)]

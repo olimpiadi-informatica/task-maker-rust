@@ -1,9 +1,8 @@
-use serde::{Deserialize, Serialize};
-
 pub use checker::Checker;
 pub use input_generator::InputGenerator;
 pub use input_validator::{InputValidator, TM_VALIDATION_FILE_NAME};
 pub use output_generator::OutputGenerator;
+use serde::{Deserialize, Serialize};
 use task_maker_dag::Priority;
 pub use task_type::{BatchTypeData, CommunicationTypeData, TaskType, UserIo};
 
@@ -90,19 +89,18 @@ impl TestcaseScoreAggregator {
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
+    use itertools::Itertools;
     use task_maker_dag::{ExecutionResourcesUsage, ExecutionResult, ExecutionStatus, File};
     use task_maker_lang::GraderMap;
 
+    use super::*;
     use crate::ioi::IOITask;
     use crate::ui::UIMessage;
     use crate::{EvaluationData, SourceFile, Tag};
-
-    use super::*;
 
     fn make_task<P: Into<PathBuf>>(path: P) -> IOITask {
         IOITask {

@@ -1,9 +1,3 @@
-use super::{Language, Statement};
-use crate::ioi::{Booklet, BOOKLET_PRIORITY};
-use crate::ui::{UIMessage, UIMessageSender};
-use crate::{bind_exec_callbacks, UISender};
-use crate::{EvaluationData, Tag};
-
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -11,6 +5,11 @@ use anyhow::{Context, Error};
 use itertools::Itertools;
 use task_maker_dag::{Execution, ExecutionCommand, ExecutionStatus, File};
 use task_maker_diagnostics::Diagnostic;
+
+use super::{Language, Statement};
+use crate::ioi::{Booklet, BOOKLET_PRIORITY};
+use crate::ui::{UIMessage, UIMessageSender};
+use crate::{bind_exec_callbacks, EvaluationData, Tag, UISender};
 
 #[derive(Debug)]
 pub(super) struct Typst;

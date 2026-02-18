@@ -5,10 +5,9 @@ use std::thread::{self, JoinHandle};
 
 use anyhow::{anyhow, Context, Error};
 use ductile::{ChannelReceiver, ChannelSender};
-use uuid::Uuid;
-
 use task_maker_cache::Cache;
 use task_maker_store::FileStore;
+use uuid::Uuid;
 
 use crate::executor::{Executor, ExecutorInMessage};
 use crate::proto::{ExecutorClientMessage, ExecutorServerMessage};

@@ -211,9 +211,9 @@ mod tests {
     use std::fs::File;
     use std::io::Write;
     use std::path::Path;
+    use std::time::Duration;
 
     use pretty_assertions::{assert_eq, assert_ne};
-    use std::time::Duration;
     use tempfile::TempDir;
 
     use crate::{FileStore, FileStoreHandle, FileStoreKey, ReadFileIterator};

@@ -31,17 +31,19 @@
 //! - `B` sends raw data (`send_raw`) zero or more times
 //! - `B` sends empty raw data which triggers a protocol switch, back into normal mode
 
-use crate::executor::{ExecutionDAGWatchSet, ExecutorStatus, WorkerJob};
-use crate::*;
+use std::collections::HashMap;
+use std::path::Path;
+use std::time::Duration;
+
 use anyhow::Context;
 use ductile::{ChannelReceiver, ChannelSender};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::path::Path;
-use std::time::Duration;
 use task_maker_dag::*;
 use task_maker_store::*;
+
+use crate::executor::{ExecutionDAGWatchSet, ExecutorStatus, WorkerJob};
+use crate::*;
 
 /// Messages that the client sends to the server.
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,12 +1,12 @@
-use anyhow::{bail, Context, Error};
+use std::path::Path;
 
+use anyhow::{bail, Context, Error};
 use task_maker_dag::File;
+use task_maker_diagnostics::Diagnostic;
 
 use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
 use crate::terry::TerryTask;
 use crate::{list_files, EvaluationData, UISender, DATA_DIR};
-use std::path::Path;
-use task_maker_diagnostics::Diagnostic;
 
 /// Fuzz the checker with some nasty output files making sure it doesn't crash.
 ///

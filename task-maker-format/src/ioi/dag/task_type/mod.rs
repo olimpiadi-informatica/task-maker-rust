@@ -1,10 +1,9 @@
 use std::sync::{Arc, Mutex};
 
 use anyhow::Error;
-use serde::{Deserialize, Serialize};
-
 pub use batch::BatchTypeData;
 pub use communication::{CommunicationTypeData, UserIo};
+use serde::{Deserialize, Serialize};
 use task_maker_dag::FileUuid;
 
 use crate::ioi::{Checker, IOITask, ScoreManager, SubtaskId, TestcaseId};

@@ -9,7 +9,6 @@ use std::fmt::{Display, Formatter};
 
 use colored::{Color, Colorize};
 use serde::{Deserialize, Serialize};
-
 pub use span::CodeSpan;
 
 /// The level of the message.

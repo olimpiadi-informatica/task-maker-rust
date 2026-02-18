@@ -1,6 +1,5 @@
 mod common;
 use common::TestInterface;
-
 use task_maker_format::ioi::TestcaseGenerationStatus::Failed;
 
 fn with_bugged_gen(test: TestInterface) {

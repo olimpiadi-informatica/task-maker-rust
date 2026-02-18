@@ -1,6 +1,5 @@
 mod common;
 use common::TestInterface;
-
 use task_maker_format::ioi::TestcaseEvaluationStatus::*;
 
 fn without_st(test: TestInterface) {

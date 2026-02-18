@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Error};
 use clap::Parser;
-
 use task_maker_format::ioi::{make_contest_booklets, Booklet, BookletConfig, IOITask};
 use task_maker_format::{find_task, EvaluationConfig};
 

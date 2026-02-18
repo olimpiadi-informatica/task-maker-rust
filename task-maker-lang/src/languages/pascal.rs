@@ -5,8 +5,7 @@ use task_maker_dag::*;
 use crate::language::{
     CompilationSettings, CompiledLanguageBuilder, SimpleCompiledLanguageBuilder,
 };
-use crate::Dependency;
-use crate::Language;
+use crate::{Dependency, Language};
 
 /// The Pascal language.
 #[derive(Debug)]

@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Context, Error};
 use serde::{Deserialize, Serialize};
-
 use task_maker_store::*;
 
 use crate::file::*;
@@ -442,8 +441,9 @@ impl CacheMode {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::path::Path;
+
+    use super::*;
 
     #[test]
     fn test_provide_file() {
