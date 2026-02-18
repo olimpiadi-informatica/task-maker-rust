@@ -1,5 +1,4 @@
 use clap::Parser;
-
 use task_maker_rust::error::NiceError;
 use task_maker_rust::tools::add_solution_checks::main_add_solution_checks;
 use task_maker_rust::tools::booklet::main_booklet;
@@ -19,6 +18,10 @@ use task_maker_rust::tools::terry_statement::main_terry_statement;
 use task_maker_rust::tools::worker::main_worker;
 
 fn main() {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     let base_opt = Opt::parse();
     base_opt.logger.enable_log();
 
