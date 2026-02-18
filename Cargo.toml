@@ -122,6 +122,9 @@ pretty_assertions = "1.4"
 ratatui = { version = "0.30", default-features = false }
 regex = "1"
 rlimit = "0.11"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["ring", "http1", "http2", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 scopeguard = "1.2"
 serde = "1.0"
 serde_json = "1.0"
@@ -149,6 +152,9 @@ task-maker-cache = { path = "./task-maker-cache" }
 task-maker-exec = { path = "./task-maker-exec" }
 task-maker-lang = { path = "./task-maker-lang" }     # needed only by typescriptify
 task-maker-format = { path = "./task-maker-format" }
+
+# Crypto provider for rustls
+rustls = { workspace = true }
 
 # Logging and setting up the global logger
 log = { workspace = true }

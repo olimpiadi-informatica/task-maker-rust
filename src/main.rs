@@ -187,11 +187,13 @@
 #![allow(clippy::type_complexity)]
 
 use clap::Parser;
-
-use task_maker_rust::main_local;
-use task_maker_rust::opt;
+use task_maker_rust::{main_local, opt};
 
 fn main() {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls crypto provider");
+
     let mut opt = opt::Opt::parse();
     opt.enable_log();
     main_local(opt);
