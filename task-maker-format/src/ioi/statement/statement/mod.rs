@@ -3,17 +3,15 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Error};
 use serde::{Deserialize, Serialize};
-
 use task_maker_dag::File;
 use tex::Tex;
 use typst::Typst;
 
+use super::Booklet;
 use crate::ioi::statement::asy::AsyFile;
 use crate::ioi::{BookletConfig, IOITask};
 use crate::ui::UIMessageSender;
 use crate::EvaluationData;
-
-use super::Booklet;
 
 mod tex;
 mod typst;

@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-
 use task_maker_dag::File;
 
 use crate::language::Language;
@@ -108,11 +107,10 @@ impl GraderMap {
 mod tests {
     use speculoos::prelude::*;
 
+    use super::*;
     use crate::languages::c::{LanguageC, LanguageCConfiguration};
     use crate::languages::cpp::{LanguageCpp, LanguageCppConfiguration};
     use crate::languages::python::{LanguagePython, LanguagePythonVersion};
-
-    use super::*;
 
     #[test]
     fn test_new() {

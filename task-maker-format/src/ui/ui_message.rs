@@ -3,7 +3,6 @@ use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 use task_maker_diagnostics::Diagnostic;
-
 use task_maker_exec::ExecutorStatus;
 
 use crate::ioi::{SubtaskId, TestcaseId};

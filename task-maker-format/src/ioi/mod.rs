@@ -21,20 +21,19 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Error};
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-use unic::normal::StrNormalForm;
-use wildmatch::WildMatch;
-
 use curses_ui::CursesUI;
 pub use dag::*;
 pub use format::italian_yaml;
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 pub use statement::*;
 pub use task_info::*;
 use task_maker_dag::{ExecutionDAGConfig, FileUuid};
 use task_maker_diagnostics::CodeSpan;
 use task_maker_lang::GraderMap;
 pub use ui_state::*;
+use unic::normal::StrNormalForm;
+use wildmatch::WildMatch;
 
 use crate::ioi::format::italian_yaml::TM_ALLOW_DELETE_COOKIE;
 use crate::ioi::italian_yaml::is_tm_deletable;

@@ -1,13 +1,14 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-use crate::ioi::IOITask;
-use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
-use crate::EvaluationData;
 use anyhow::Error;
 use itertools::Itertools;
 use task_maker_dag::FileUuid;
 use task_maker_diagnostics::Diagnostic;
+
+use crate::ioi::IOITask;
+use crate::sanity_checks::{make_sanity_check, SanityCheck, SanityCheckCategory};
+use crate::EvaluationData;
 
 /// Check that the input and output files end with `\n`.
 #[derive(Debug, Default)]

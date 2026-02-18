@@ -4,11 +4,11 @@ use std::path::PathBuf;
 use anyhow::{Context, Error};
 use clap::{ArgAction, Parser};
 use itertools::Itertools;
-
 use task_maker_dag::DagPriority;
 use task_maker_format::terry::Seed;
-use task_maker_format::{find_task, get_sanity_check_list, TaskFormat};
-use task_maker_format::{EvaluationConfig, VALID_TAGS};
+use task_maker_format::{
+    find_task, get_sanity_check_list, EvaluationConfig, TaskFormat, VALID_TAGS,
+};
 
 #[derive(Parser, Debug)]
 #[clap(

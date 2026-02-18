@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Error};
-
 use task_maker_format::ioi::{
     InputGenerator, SubtaskInfo, TestcaseId, TestcaseInfo, GENERATION_PRIORITY,
 };

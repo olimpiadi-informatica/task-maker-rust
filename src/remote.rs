@@ -2,12 +2,11 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use anyhow::{bail, Context, Error};
+use task_maker_exec::derive_key_from_password;
 use task_maker_exec::ductile::{
     connect_channel, connect_channel_with_enc, connect_unix_channel, ChannelReceiver, ChannelSender,
 };
 use url::{ParseError, Url};
-
-use task_maker_exec::derive_key_from_password;
 
 /// Parse the server url address and try to connect to that host.
 pub fn connect_to_remote_server<S, R, Str: AsRef<str>>(

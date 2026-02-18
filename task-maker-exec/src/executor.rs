@@ -2,13 +2,11 @@ use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{anyhow, Context, Error};
 use ductile::{ChannelReceiver, ChannelSender};
 use serde::{Deserialize, Serialize};
-
 use task_maker_cache::Cache;
 use task_maker_dag::{ExecutionGroup, ExecutionUuid, FileUuid, ProvidedFile, WorkerUuid};
 use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey};

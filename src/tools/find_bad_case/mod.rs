@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{anyhow, bail, Context, Error};
 use clap::{Parser, ValueHint};
-
 use task_maker_exec::ductile::ChannelSender;
 use task_maker_exec::proto::ExecutorClientMessage;
 use task_maker_exec::ExecutorClient;

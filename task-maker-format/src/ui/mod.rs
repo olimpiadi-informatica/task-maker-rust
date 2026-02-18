@@ -5,18 +5,17 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 use anyhow::Error;
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-pub use termcolor::WriteColor;
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
-
 pub use curses::{inner_block, render_block, render_server_status, CursesDrawer, CursesUI};
+use itertools::Itertools;
 pub use json::JsonUI;
 pub use print::PrintUI;
 pub use raw::RawUI;
+use serde::{Deserialize, Serialize};
 pub use silent::SilentUI;
 use task_maker_dag::{ExecutionResourcesUsage, ExecutionResult, ExecutionStatus, WorkerUuid};
 use task_maker_diagnostics::DiagnosticContext;
+pub use termcolor::WriteColor;
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 pub use ui_message::UIMessage;
 
 use crate::{cwrite, cwriteln};

@@ -4,10 +4,10 @@ use std::path::PathBuf;
 use anyhow::{anyhow, Context, Error};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
-
-use crate::LoggerOpt;
 use task_maker_format::terry::TerryTask;
 use task_maker_format::{find_task, EvaluationConfig};
+
+use crate::LoggerOpt;
 
 #[derive(Parser, Debug, Clone)]
 pub struct TerryStatementOpt {

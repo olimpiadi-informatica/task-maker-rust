@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Error};
 use serde::{Deserialize, Serialize};
-
 use task_maker_dag::{Execution, ExecutionLimits, FileUuid};
 
 use crate::terry::{Seed, SolutionOutcome};

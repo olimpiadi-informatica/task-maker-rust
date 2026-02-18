@@ -3,14 +3,12 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Error};
 use serde::{Deserialize, Serialize};
-
 use task_maker_dag::{Execution, ExecutionCommand, ExecutionStatus, FileUuid, Priority};
 use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::{SubtaskId, TestcaseId, EVALUATION_PRIORITY, STDERR_CONTENT_LENGTH};
 use crate::ui::UIMessage;
-use crate::{bind_exec_callbacks, UISender};
-use crate::{EvaluationData, SourceFile, Tag};
+use crate::{bind_exec_callbacks, EvaluationData, SourceFile, Tag, UISender};
 
 /// Which tool to use to compute the score on a testcase given the input file, the _correct_ output
 /// file and the output file to evaluate.

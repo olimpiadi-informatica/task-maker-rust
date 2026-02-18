@@ -7,7 +7,6 @@ use anyhow::{anyhow, bail, Context, Error};
 use clap::Parser;
 use regex::Regex;
 use serde::Deserialize;
-
 use task_maker_format::ioi::{Checker, TaskType};
 use task_maker_format::ui::{StdoutPrinter, UIType, RED};
 use task_maker_format::{cwrite, EvaluationConfig, TaskFormat};

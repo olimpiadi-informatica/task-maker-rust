@@ -9,7 +9,6 @@ use anyhow::{bail, Context, Error};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use task_maker_diagnostics::{CodeSpan, Diagnostic};
-
 use task_maker_lang::GraderMap;
 
 use crate::{EvaluationData, SourceFile};
@@ -369,10 +368,10 @@ fn split_patterns(patterns: &str) -> Vec<&str> {
 
 #[cfg(test)]
 mod tests {
-    use crate::EvaluationData;
     use anyhow::Error;
 
     use crate::solution::{SolutionCheck, SolutionCheckResult};
+    use crate::EvaluationData;
 
     fn get_checks(source: &str) -> Result<Vec<SolutionCheck>, Error> {
         let tmpdir = tempfile::TempDir::new().unwrap();

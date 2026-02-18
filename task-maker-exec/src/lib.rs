@@ -77,11 +77,10 @@ use std::sync::Arc;
 use std::thread;
 
 use anyhow::Error;
+pub use client::ExecutorClient;
 /// Re-export `ductile` since it's sensible to any version change
 pub use ductile;
 use ductile::new_local_channel;
-
-pub use client::ExecutorClient;
 pub use execution_unit::RawSandboxResult;
 pub use executor::{ExecutorStatus, ExecutorWorkerStatus, WorkerCurrentJobStatus};
 pub use sandbox_runner::{ErrorSandboxRunner, SandboxRunner, SuccessSandboxRunner};
@@ -162,13 +161,11 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
 
+    use task_maker_dag::*;
     use tempfile::TempDir;
 
-    use task_maker_dag::*;
-
-    use crate::sandbox_runner::UnsafeSandboxRunner;
-
     use super::*;
+    use crate::sandbox_runner::UnsafeSandboxRunner;
 
     #[test]
     fn test_local_evaluation() {

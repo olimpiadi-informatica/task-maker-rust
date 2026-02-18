@@ -6,8 +6,7 @@ use task_maker_dag::{ExecutionResult, ExecutionStatus};
 use task_maker_diagnostics::DiagnosticContext;
 use task_maker_exec::ExecutorStatus;
 
-use crate::terry::finish_ui;
-use crate::terry::{Seed, SolutionOutcome, TerryTask};
+use crate::terry::{finish_ui, Seed, SolutionOutcome, TerryTask};
 use crate::ui::{CompilationStatus, FinishUI, UIExecutionStatus, UIMessage, UIStateT};
 
 /// The state of a Terry task, all the information for the UI are stored here.

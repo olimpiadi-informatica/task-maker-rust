@@ -1,7 +1,8 @@
-use anyhow::{Context, Error};
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
+
+use anyhow::{Context, Error};
 
 /// Buffer size when reading a file
 const READ_FILE_BUFFER_SIZE: usize = 8 * 1024;
@@ -61,10 +62,12 @@ impl Iterator for ReadFileIterator {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
     use std::io::Write;
+
+    use pretty_assertions::assert_eq;
     use tempfile::TempDir;
+
+    use super::*;
 
     fn get_cwd() -> TempDir {
         TempDir::new().unwrap()

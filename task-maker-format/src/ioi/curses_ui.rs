@@ -6,7 +6,6 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
-
 use task_maker_dag::ExecutionStatus;
 
 use crate::ioi::finish_ui::{FinishUI, YELLOW_RESOURCE_THRESHOLD};

@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, ensure, Context, Error};
 use pest::Parser;
-
 use task_maker_diagnostics::CodeSpan;
 
 use crate::ioi::italian_yaml::{is_tm_deletable, TaskInputEntry, TM_ALLOW_DELETE_COOKIE};

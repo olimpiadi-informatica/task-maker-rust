@@ -83,18 +83,16 @@ extern crate log;
 mod entry;
 mod key;
 mod storage;
-use entry::CacheEntry;
-use key::CacheKey;
-use storage::CacheFile;
-
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs::create_dir_all;
 use std::path::PathBuf;
 
 use anyhow::{Context, Error};
+use entry::CacheEntry;
 use itertools::Itertools;
-
+use key::CacheKey;
+use storage::CacheFile;
 use task_maker_dag::{ExecutionGroup, ExecutionResult, ExecutionStatus, FileUuid};
 use task_maker_store::{FileStore, FileStoreHandle};
 

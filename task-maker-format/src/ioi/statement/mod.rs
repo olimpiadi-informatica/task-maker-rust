@@ -2,10 +2,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail, Context, Error};
+pub use booklet::*;
 use itertools::Itertools;
 use locale_codes::{country, language};
-
-pub use booklet::*;
 pub use statement::*;
 
 use crate::ioi::IOITask;

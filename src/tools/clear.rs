@@ -1,6 +1,7 @@
-use crate::FindTaskOpt;
 use anyhow::{Context, Error};
 use clap::Parser;
+
+use crate::FindTaskOpt;
 
 #[derive(Parser, Debug)]
 pub struct ClearOpt {

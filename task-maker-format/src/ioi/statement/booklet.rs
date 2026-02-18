@@ -3,10 +3,9 @@ use std::path::PathBuf;
 use anyhow::{anyhow, bail, Context, Error};
 use serde::{Deserialize, Serialize};
 
+use super::get_language_from_extension;
 use crate::ioi::statement::Statement;
 use crate::EvaluationData;
-
-use super::get_language_from_extension;
 
 /// Configuration of a `Booklet`, including the setting from the contest configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -182,9 +181,8 @@ impl BookletConfig {
 mod tests {
     use std::path::Path;
 
-    use crate::ioi::StatementConfig;
-
     use super::*;
+    use crate::ioi::StatementConfig;
 
     fn get_outputs_with_logs(task_root: &Path, copy_logs: bool) -> Result<Vec<PathBuf>, Error> {
         let (mut eval, _recv) = EvaluationData::new(task_root);

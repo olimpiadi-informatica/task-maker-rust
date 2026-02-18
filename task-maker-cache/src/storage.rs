@@ -106,8 +106,9 @@ impl CacheFile {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::fs::File;
+
+    use super::*;
 
     #[test]
     fn test_load_reject_wrong_magic() {

@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Context, Error};
 use clap::Parser;
-
 use serde::{Deserialize, Serialize};
 use task_maker_format::ioi::IOITask;
 use task_maker_format::{

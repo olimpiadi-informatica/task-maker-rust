@@ -1,16 +1,15 @@
 //! Sanity checks for IOI-like tasks.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::Error;
-
+use task_maker_diagnostics::Diagnostic;
 use task_maker_lang::LanguageManager;
 
 use crate::ioi::IOITask;
 use crate::sanity_checks::{SanityCheck, SanityCheckBuilder, SanityChecks};
 use crate::{list_files, EvaluationData};
-use std::collections::HashMap;
-use task_maker_diagnostics::Diagnostic;
 
 mod att;
 mod checker;

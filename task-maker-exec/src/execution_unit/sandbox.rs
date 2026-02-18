@@ -14,10 +14,9 @@ use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use tabox::configuration::SandboxConfiguration;
 use tabox::syscall_filter::SyscallFilter;
-use tempfile::TempDir;
-
 use task_maker_dag::*;
 use task_maker_store::*;
+use tempfile::TempDir;
 
 use crate::detect_exe::detect_exe;
 use crate::execution_unit::{RawSandboxResult, SandboxResult};
@@ -579,7 +578,6 @@ mod tests {
     use tabox::configuration::{DirectoryMount, SandboxConfiguration};
     #[cfg(not(target_os = "macos"))]
     use tabox::syscall_filter::SyscallFilterAction;
-
     use task_maker_dag::{Execution, ExecutionCommand};
 
     use crate::execution_unit::Sandbox;

@@ -25,25 +25,23 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::Error;
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-
 pub use detect_format::find_task;
-pub use sanity_checks::get_sanity_check_list;
-pub use sanity_checks::SanityCheckCategory;
+use itertools::Itertools;
+pub use sanity_checks::{get_sanity_check_list, SanityCheckCategory};
+use serde::{Deserialize, Serialize};
 pub use source_file::SourceFile;
 pub use tag::{Tag, VALID_TAGS};
 pub use task_format::*;
 use task_maker_dag::ExecutionDAG;
 use task_maker_diagnostics::Diagnostic;
 use task_maker_lang::{GraderMap, LanguageManager};
+pub use testcase_score_status::ScoreStatus;
 
 use crate::ioi::task_info::IOITaskInfo;
 use crate::ioi::IOITask;
 pub use crate::solution::*;
 use crate::terry::{Seed, TerryTask};
 use crate::ui::UI;
-pub use testcase_score_status::ScoreStatus;
 
 mod detect_format;
 pub mod ioi;

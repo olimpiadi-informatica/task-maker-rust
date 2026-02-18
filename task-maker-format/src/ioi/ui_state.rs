@@ -6,9 +6,10 @@ use task_maker_dag::*;
 use task_maker_diagnostics::DiagnosticContext;
 use task_maker_exec::ExecutorStatus;
 
+use crate::ioi::*;
 use crate::solution::{SolutionCheck, SolutionInfo, TestcaseEvaluationResult};
 use crate::ui::{CompilationStatus, UIExecutionStatus, UIMessage, UIStateT};
-use crate::{ioi::*, ScoreStatus};
+use crate::ScoreStatus;
 
 /// Status of the generation of a testcase input and output.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -66,8 +67,7 @@ pub enum TestcaseEvaluationStatus {
 
 impl From<&TestcaseEvaluationStatus> for Option<TestcaseEvaluationResult> {
     fn from(status: &TestcaseEvaluationStatus) -> Self {
-        use TestcaseEvaluationResult as TER;
-        use TestcaseEvaluationStatus as TES;
+        use {TestcaseEvaluationResult as TER, TestcaseEvaluationStatus as TES};
         match status {
             TES::Accepted(_) => Some(TER::Accepted),
             TES::Partial(_) => Some(TER::Partial),

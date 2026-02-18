@@ -1,7 +1,6 @@
 use itertools::Itertools;
-use termcolor::{ColorChoice, ColorSpec, StandardStream};
-
 use task_maker_dag::ExecutionStatus;
+use termcolor::{ColorChoice, ColorSpec, StandardStream};
 
 use crate::cwrite;
 use crate::terry::CaseStatus;

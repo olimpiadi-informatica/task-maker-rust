@@ -4,22 +4,19 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::Error;
+use approx::abs_diff_eq;
 use clap::Parser;
 use itertools::Itertools;
-use tempfile::TempDir;
-
 use task_maker_dag::ExecutionStatus;
 use task_maker_format::ioi::{
     IOITask, SubtaskId, TestcaseEvaluationStatus, TestcaseGenerationStatus, UIState,
 };
-use task_maker_format::ui::CompilationStatus;
-use task_maker_format::ui::UIStateT;
+use task_maker_format::ui::{CompilationStatus, UIStateT};
 use task_maker_format::EvaluationConfig;
 use task_maker_rust::tools::server::{main_server, ServerOpt};
 use task_maker_rust::tools::worker::{main_worker, WorkerOpt};
 use task_maker_rust::{run_evaluation, Evaluation, Opt};
-
-use approx::abs_diff_eq;
+use tempfile::TempDir;
 
 /// Interface for testing a task.
 #[derive(Debug)]

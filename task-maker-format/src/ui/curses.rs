@@ -18,12 +18,11 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::{Frame, Terminal};
+use task_maker_exec::{ExecutorStatus, ExecutorWorkerStatus};
 use termion::event::{Event, Key};
 use termion::input::{MouseTerminal, TermRead};
 use termion::raw::IntoRawMode;
 use termion::screen::IntoAlternateScreen;
-
-use task_maker_exec::{ExecutorStatus, ExecutorWorkerStatus};
 
 use crate::ui::{CompilationStatus, FinishUI, UIMessage, UIStateT, UI};
 

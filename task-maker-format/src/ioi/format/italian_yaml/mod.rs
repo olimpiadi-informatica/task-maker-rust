@@ -264,18 +264,16 @@ use std::sync::Arc;
 use anyhow::{anyhow, bail, Context, Error};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize, Serializer};
+use task_maker_lang::GraderMap;
 use unic::normal::StrNormalForm;
 use unic::ucd::category::GeneralCategory;
 
-use task_maker_lang::GraderMap;
-
 use crate::ioi::sanity_checks::get_sanity_checks;
 use crate::ioi::{
-    make_task_booklets, Checker, IOITask, InputValidator, OutputGenerator, SubtaskId, SubtaskInfo,
-    TaskType, TestcaseId, TestcaseInfo, TestcaseScoreAggregator,
+    make_task_booklets, BatchTypeData, Checker, CommunicationTypeData, IOITask, InputValidator,
+    InputValidatorGenerator, OutputGenerator, SubtaskId, SubtaskInfo, TaskType, TestcaseId,
+    TestcaseInfo, TestcaseScoreAggregator, UserIo, TM_VALIDATION_FILE_NAME,
 };
-use crate::ioi::{BatchTypeData, CommunicationTypeData, UserIo};
-use crate::ioi::{InputValidatorGenerator, TM_VALIDATION_FILE_NAME};
 use crate::{find_source_file, list_files, EvaluationConfig, WriteBinTo};
 
 mod cases_gen;

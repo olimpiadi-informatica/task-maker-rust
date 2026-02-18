@@ -1,7 +1,9 @@
-use crate::executor::ExecutionDAGWatchSet;
 use std::collections::{HashMap, HashSet, VecDeque};
+
 use task_maker_dag::{ExecutionDAGData, ExecutionGroupUuid, ExecutionUuid, FifoUuid, FileUuid};
 use thiserror::Error;
+
+use crate::executor::ExecutionDAGWatchSet;
 
 /// An error in the DAG structure.
 #[derive(Debug, Error)]
@@ -203,8 +205,9 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use task_maker_dag::{Execution, ExecutionCommand, ExecutionDAG, File};
+
+    use super::*;
 
     #[test]
     fn test_missing_file() {

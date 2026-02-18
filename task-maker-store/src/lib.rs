@@ -51,10 +51,10 @@ use std::sync::{Arc, Mutex};
 use anyhow::{bail, Context, Error};
 use blake3::{hash, Hash, Hasher};
 use fslock::LockFile;
+pub use read_file_iterator::ReadFileIterator;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::index::FileStoreIndex;
-pub use read_file_iterator::ReadFileIterator;
 
 mod index;
 mod read_file_iterator;

@@ -9,7 +9,6 @@ use std::time::{Duration, SystemTime};
 
 use anyhow::{anyhow, Context, Error};
 use ductile::{ChannelReceiver, ChannelSender};
-
 use task_maker_dag::{ExecutionDAG, FileCallbacks, FileUuid, ProvidedFile, WriteToCallback};
 use task_maker_store::*;
 

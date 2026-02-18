@@ -3,14 +3,12 @@ use std::sync::Arc;
 
 use anyhow::{Context, Error};
 use serde::{Deserialize, Serialize};
-
 use task_maker_dag::{Execution, File, FileUuid, Priority};
 use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::{SubtaskId, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
 use crate::ui::UIMessage;
-use crate::{bind_exec_callbacks, UISender};
-use crate::{EvaluationData, SourceFile, Tag};
+use crate::{bind_exec_callbacks, EvaluationData, SourceFile, Tag, UISender};
 
 /// The file name of the input file that the `InputValidator` has to validate. This file will be
 /// placed in the current working directory of the validation sandbox.

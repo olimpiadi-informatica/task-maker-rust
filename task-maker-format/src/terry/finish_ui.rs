@@ -1,9 +1,8 @@
 use std::path::Path;
 
 use itertools::Itertools;
-use termcolor::{ColorChoice, StandardStream};
-
 use task_maker_dag::{ExecutionResult, ExecutionStatus};
+use termcolor::{ColorChoice, StandardStream};
 
 use crate::terry::ui_state::{SolutionState, SolutionStatus, UIState};
 use crate::terry::CaseStatus;

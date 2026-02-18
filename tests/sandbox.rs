@@ -1,6 +1,5 @@
 mod common;
 use common::{eval_dag, setup};
-
 use task_maker_dag::{Execution, ExecutionCommand, ExecutionDAG, ExecutionGroup};
 
 #[test]

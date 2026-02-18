@@ -3,14 +3,12 @@ use std::sync::Arc;
 
 use anyhow::{bail, Context, Error};
 use serde::{Deserialize, Serialize};
-
 use task_maker_dag::{Execution, File, FileUuid, Priority};
 use task_maker_diagnostics::Diagnostic;
 
 use crate::ioi::{SubtaskId, TestcaseId, GENERATION_PRIORITY, STDERR_CONTENT_LENGTH};
 use crate::ui::UIMessage;
-use crate::{bind_exec_callbacks, UISender};
-use crate::{EvaluationData, SourceFile, Tag};
+use crate::{bind_exec_callbacks, EvaluationData, SourceFile, Tag, UISender};
 
 /// The source of the input files. It can either be a statically provided input file or a custom
 /// command that will generate an input file.

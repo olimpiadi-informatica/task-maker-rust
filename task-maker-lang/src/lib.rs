@@ -32,9 +32,8 @@ extern crate lazy_static;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
-
 pub use grader_map::GraderMap;
+use serde::{Deserialize, Serialize};
 pub use source_file::SourceFile;
 use task_maker_dag::File;
 
@@ -140,9 +139,8 @@ lazy_static! {
 mod tests {
     use speculoos::prelude::*;
 
-    use crate::languages::cpp::{LanguageCpp, LanguageCppConfiguration};
-
     use super::*;
+    use crate::languages::cpp::{LanguageCpp, LanguageCppConfiguration};
 
     #[test]
     fn test_detect_language() {

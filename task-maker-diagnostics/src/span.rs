@@ -1,10 +1,10 @@
-use serde::{Deserialize, Serialize};
 use std::fmt::Write;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 use anyhow::{bail, Error};
 use colored::Colorize;
+use serde::{Deserialize, Serialize};
 
 use crate::DiagnosticLevel;
 

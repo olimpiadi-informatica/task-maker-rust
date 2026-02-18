@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::{Context, Error};
 use clap::Parser;
-
 use task_maker_cache::Cache;
 use task_maker_exec::executors::RemoteExecutor;
 use task_maker_store::FileStore;

@@ -6,7 +6,6 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 use anyhow::{anyhow, bail, Context, Error};
-
 use task_maker_cache::Cache;
 use task_maker_dag::CacheMode;
 use task_maker_exec::ductile::{new_local_channel, ChannelReceiver, ChannelSender};

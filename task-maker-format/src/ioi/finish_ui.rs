@@ -2,9 +2,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use itertools::Itertools;
-use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
-
 use task_maker_dag::ExecutionStatus;
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream};
 
 use crate::ioi::ui_state::{SolutionEvaluationState, TestcaseEvaluationStatus, UIState};
 use crate::ioi::{
