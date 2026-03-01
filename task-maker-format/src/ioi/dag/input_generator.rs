@@ -34,6 +34,7 @@ impl InputGenerator {
     ) -> Result<(FileUuid, Option<Execution>), Error> {
         match self {
             InputGenerator::StaticFile(path) => {
+                let path = &task_path.join(path);
                 if !path.exists() {
                     bail!("COPY from not existing file: {:?}", path);
                 }
