@@ -259,7 +259,7 @@ pub(super) fn parse(
     grader_map: Arc<GraderMap>,
 ) -> Result<(HashMap<u32, SubtaskInfo>, HashMap<u32, TestcaseInfo>)> {
     let gen_toml_path = task_dir.join("gen").join("gen.toml");
-    let gen_toml = std::fs::read_to_string(gen_toml_path)?;
+    let gen_toml = std::fs::read_to_string(gen_toml_path).context("Failed to open gen/gen.toml")?;
     let gen_toml: GenConfig =
         toml::from_str(&gen_toml).context("Failed to deserialize task.toml")?;
 
