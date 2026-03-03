@@ -331,7 +331,7 @@ directly from `gen.toml`.
 #figure(
   ```python
   #!/usr/bin/env python3
-  import sys, toml
+  import sys, tomllib
 
   def run(f, st_name):
       # Constants from gen.toml (like MAXN) are available in globals()
@@ -340,8 +340,8 @@ directly from `gen.toml`.
       pass
 
   if __name__ == "__main__":
-      with open("gen.toml", "r") as f_toml:
-          conf = toml.load(f_toml)
+      with open("gen.toml", "rb") as f_toml:
+          conf = tomllib.load(f_toml)
           # Load global constants
           globals().update({k: v for k, v in conf.items() if not isinstance(v, dict)})
           # Determine subtask name (passed as second argument by default)
