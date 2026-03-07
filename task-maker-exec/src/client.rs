@@ -137,7 +137,7 @@ impl ExecutorClient {
                     info!("Execution {uuid} completed with {result:?}");
                     if let Some(callbacks) = dag.execution_callbacks().get_mut(&uuid) {
                         for callback in callbacks.on_done.drain(..) {
-                            if let Err(e) = callback(result.clone()) {
+                            if let Err(e) = callback(&result) {
                                 warn!("Done callback for {uuid} failed: {e:?}");
                                 return Err(e);
                             }

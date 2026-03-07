@@ -65,8 +65,6 @@ impl OutputGenerator {
                 let mut exec = source_file
                     .execute(eval, description, args.clone())
                     .context("Failed to execute output generator source file")?;
-                exec.tag(Tag::Generation.into());
-                exec.priority(GENERATION_PRIORITY - testcase_id as Priority);
                 let output = bind_exec_io!(exec, task, input, validation_handle);
                 Ok((Some(output.uuid), Some(exec)))
             }
@@ -94,25 +92,29 @@ impl OutputGenerator {
             validation_handle,
         )?;
         if let Some(mut sol) = sol {
-            sol.capture_stderr(STDERR_CONTENT_LENGTH);
-            bind_exec_callbacks!(eval, sol.uuid, |status| UIMessage::IOISolution {
+            sol.capture_stderr(Some(STDERR_CONTENT_LENGTH));
+            let mut group = sol.into_group();
+            group.tag = Some(Tag::Generation.into());
+            group.priority = GENERATION_PRIORITY - testcase_id as Priority;
+            bind_exec_callbacks!(eval, group.uuid, |status| UIMessage::IOISolution {
                 subtask: subtask_id,
                 testcase: testcase_id,
                 status
             })?;
             let sender = eval.sender.clone();
-            eval.dag.on_execution_done(&sol.uuid, move |result| {
+            eval.dag.on_execution_done(&group.uuid, move |results| {
+                let result = &results[0];
                 if !result.status.is_success() {
                     let mut diagnostic =
                         Diagnostic::error(format!("Failed to generate output {testcase_id}"));
-                    if let Some(stderr) = result.stderr {
-                        diagnostic = diagnostic.with_help_attachment(stderr);
+                    if let Some(stderr) = &result.stderr {
+                        diagnostic = diagnostic.with_help_attachment(stderr.clone());
                     }
                     sender.add_diagnostic(diagnostic)?;
                 }
                 Ok(())
             });
-            eval.dag.add_execution(sol);
+            eval.dag.add_execution_group(group);
         }
         if let Some(output) = output {
             eval.dag.write_file_to(

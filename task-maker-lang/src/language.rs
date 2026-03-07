@@ -1,7 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Error};
-use task_maker_dag::{Execution, ExecutionCommand, ExecutionDAG, ExecutionLimits, File};
+use task_maker_dag::{
+    Execution, ExecutionCommand, ExecutionDAG, ExecutionGroup, ExecutionLimits, File,
+};
 
 use crate::{Dependency, GraderMap};
 
@@ -113,7 +115,7 @@ pub trait CompiledLanguageBuilder {
     ///
     /// After calling this method, the builder cannot be used anymore. This cannot be enforced by
     /// taking self because otherwise this trait is no longer object-safe.
-    fn finalize(&mut self, dag: &mut ExecutionDAG) -> Result<(Execution, File), Error>;
+    fn finalize(&mut self, dag: &mut ExecutionDAG) -> Result<(ExecutionGroup, File), Error>;
 }
 
 /// A simple `CompiledLanguageBuilder` that is able to compile file in most of the languages.
@@ -227,7 +229,7 @@ impl CompiledLanguageBuilder for SimpleCompiledLanguageBuilder<'_, '_> {
         }
     }
 
-    fn finalize(&mut self, dag: &mut ExecutionDAG) -> Result<(Execution, File), Error> {
+    fn finalize(&mut self, dag: &mut ExecutionDAG) -> Result<(ExecutionGroup, File), Error> {
         let name = self.source_path.file_name().unwrap().to_string_lossy();
         let mut comp = Execution::new(format!("Compilation of {name}"), self.compiler.clone());
         comp.args.clone_from(&self.args);
@@ -272,6 +274,6 @@ impl CompiledLanguageBuilder for SimpleCompiledLanguageBuilder<'_, '_> {
             callback(&mut comp);
         }
 
-        Ok((comp, exec))
+        Ok((comp.into(), exec))
     }
 }

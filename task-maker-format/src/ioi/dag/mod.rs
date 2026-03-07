@@ -60,7 +60,7 @@ macro_rules! bind_exec_io {
             }
         };
         match &$task.outfile {
-            None => $exec.stdout(),
+            None => $exec.capture_stdout(None),
             Some(outfile) => $exec.output(outfile),
         }
     }};
@@ -94,7 +94,9 @@ mod tests {
     use std::sync::Arc;
 
     use itertools::Itertools;
-    use task_maker_dag::{ExecutionResourcesUsage, ExecutionResult, ExecutionStatus, File};
+    use task_maker_dag::{
+        ExecutionOutputBehaviour, ExecutionResourcesUsage, ExecutionResult, ExecutionStatus, File,
+    };
     use task_maker_lang::GraderMap;
 
     use super::*;
@@ -203,8 +205,11 @@ mod tests {
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.execution_groups.len(), 1);
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        assert_eq!(group.tag().as_ref().unwrap(), &Tag::Generation.into());
-        assert_eq!(group.executions[0].stdout.as_ref().unwrap().uuid, out);
+        assert_eq!(group.tag.as_ref().unwrap(), &Tag::Generation.into());
+        match &group.executions[0].stdout {
+            ExecutionOutputBehaviour::Capture { file, .. } if file.uuid == out => {}
+            _ => panic!("invalid generation stdout"),
+        };
         assert!(eval
             .dag
             .file_callbacks()
@@ -242,11 +247,11 @@ mod tests {
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.execution_groups.len(), 1);
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        assert_eq!(group.tag().as_ref().unwrap(), &Tag::Generation.into());
-        assert_eq!(
-            group.executions[0].stdout.as_ref().unwrap().uuid,
-            out.unwrap()
-        );
+        assert_eq!(group.tag.as_ref().unwrap(), &Tag::Generation.into());
+        match &group.executions[0].stdout {
+            ExecutionOutputBehaviour::Capture { file, .. } if file.uuid == out.unwrap() => {}
+            _ => panic!("invalid validation stdout"),
+        };
         assert_eq!(group.executions[0].env["TM_SUBTASK"], "0");
         assert_eq!(group.executions[0].env["TM_TESTCASE"], "0");
     }
@@ -273,11 +278,11 @@ mod tests {
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.execution_groups.len(), 1);
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        assert_eq!(group.tag().as_ref().unwrap(), &Tag::Generation.into());
-        assert_eq!(
-            group.executions[0].stdout.as_ref().unwrap().uuid,
-            out.unwrap()
-        );
+        assert_eq!(group.tag.as_ref().unwrap(), &Tag::Generation.into());
+        match &group.executions[0].stdout {
+            ExecutionOutputBehaviour::Capture { file, .. } if file.uuid == out.unwrap() => {}
+            _ => panic!("invalid validation stdout"),
+        };
         assert_eq!(group.executions[0].env["TM_SUBTASK"], "0");
         assert_eq!(group.executions[0].env["TM_SUBTASK_NAME"], "name");
         assert_eq!(group.executions[0].env["TM_TESTCASE"], "0");
@@ -339,10 +344,13 @@ mod tests {
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.execution_groups.len(), 1);
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        assert_eq!(group.tag().as_ref().unwrap(), &Tag::Generation.into());
-        assert_eq!(group.executions[0].stdout.as_ref().unwrap().uuid, out);
-        assert!(group.executions[0].dependencies().contains(&file.uuid));
-        assert!(group.executions[0].dependencies().contains(&val.uuid));
+        assert_eq!(group.tag.as_ref().unwrap(), &Tag::Generation.into());
+        match &group.executions[0].stdout {
+            ExecutionOutputBehaviour::Capture { file, .. } if file.uuid == out => {}
+            _ => panic!("invalid output gen stdout"),
+        };
+        assert!(group.dependencies().contains(&file.uuid));
+        assert!(group.dependencies().contains(&val.uuid));
         assert!(eval
             .dag
             .file_callbacks()
@@ -367,15 +375,15 @@ mod tests {
         assert_eq!(eval.dag.data.provided_files.len(), 0);
         assert_eq!(eval.dag.data.execution_groups.len(), 1);
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        assert_eq!(group.tag().as_ref().unwrap(), &Tag::Checking.into());
+        assert_eq!(group.tag.as_ref().unwrap(), &Tag::Checking.into());
         assert!(group.executions[0]
             .args
             .contains(&"--ignore-blank-lines".into()));
         assert!(group.executions[0]
             .args
             .contains(&"--ignore-space-change".into()));
-        assert!(group.executions[0].dependencies().contains(&output));
-        assert!(group.executions[0].dependencies().contains(&test));
+        assert!(group.dependencies().contains(&output));
+        assert!(group.dependencies().contains(&test));
     }
 
     #[test]
@@ -398,7 +406,7 @@ mod tests {
             .unwrap();
         let callbacks = eval.dag.execution_callbacks().drain().next().unwrap().1;
         callbacks.on_done.into_iter().for_each(|cb| {
-            cb(ExecutionResult {
+            cb(&[ExecutionResult {
                 status: ExecutionStatus::Success,
                 was_killed: false,
                 was_cached: false,
@@ -410,7 +418,7 @@ mod tests {
                 },
                 stdout: None,
                 stderr: None,
-            })
+            }])
             .unwrap();
         });
         assert!(cb_called.load(Ordering::Relaxed));
@@ -436,7 +444,7 @@ mod tests {
             .unwrap();
         let callbacks = eval.dag.execution_callbacks().drain().next().unwrap().1;
         callbacks.on_done.into_iter().for_each(|cb| {
-            cb(ExecutionResult {
+            cb(&[ExecutionResult {
                 status: ExecutionStatus::ReturnCode(1),
                 was_killed: false,
                 was_cached: false,
@@ -448,7 +456,7 @@ mod tests {
                 },
                 stdout: None,
                 stderr: None,
-            })
+            }])
             .unwrap();
         });
         assert!(cb_called.load(Ordering::Relaxed));
@@ -473,10 +481,10 @@ mod tests {
         assert_eq!(eval.dag.data.provided_files.len(), 1);
         assert_eq!(eval.dag.data.execution_groups.len(), 1);
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        assert_eq!(group.tag().as_ref().unwrap(), &Tag::Checking.into());
-        assert!(group.executions[0].dependencies().contains(&input));
-        assert!(group.executions[0].dependencies().contains(&output));
-        assert!(group.executions[0].dependencies().contains(&test));
+        assert_eq!(group.tag.as_ref().unwrap(), &Tag::Checking.into());
+        assert!(group.dependencies().contains(&input));
+        assert!(group.dependencies().contains(&output));
+        assert!(group.dependencies().contains(&test));
     }
 
     #[test]
@@ -502,16 +510,16 @@ mod tests {
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        let exec = group.executions[0].uuid;
+        let exec = group.uuid;
         let on_done = eval.dag.execution_callbacks().get_mut(&exec).unwrap();
-        on_done.on_done.remove(0)(ExecutionResult {
+        on_done.on_done.remove(0)(&[ExecutionResult {
             status: ExecutionStatus::Success,
             was_killed: false,
             was_cached: false,
             resources: Default::default(),
             stdout: Some("1.0\n\n".into()),
             stderr: Some("Ok!\n\n".into()),
-        })
+        }])
         .unwrap();
 
         assert!(cb_called.load(Ordering::Relaxed));
@@ -540,16 +548,16 @@ mod tests {
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        let exec = group.executions[0].uuid;
+        let exec = group.uuid;
         let on_done = eval.dag.execution_callbacks().get_mut(&exec).unwrap();
-        on_done.on_done.remove(0)(ExecutionResult {
+        on_done.on_done.remove(0)(&[ExecutionResult {
             status: ExecutionStatus::Success,
             was_killed: false,
             was_cached: false,
             resources: Default::default(),
             stdout: Some("0.0\n\n".into()),
             stderr: Some("Ko!\n\n".into()),
-        })
+        }])
         .unwrap();
 
         assert!(cb_called.load(Ordering::Relaxed));
@@ -571,16 +579,16 @@ mod tests {
             .check_and_bind(&mut eval, 0, 0, "sol", input, output, test, cb)
             .unwrap();
         let group = eval.dag.data.execution_groups.values().next().unwrap();
-        let exec = group.executions[0].uuid;
+        let exec = group.uuid;
         let on_done = eval.dag.execution_callbacks().get_mut(&exec).unwrap();
-        on_done.on_done.remove(0)(ExecutionResult {
+        on_done.on_done.remove(0)(&[ExecutionResult {
             status: ExecutionStatus::Success,
             was_killed: false,
             was_cached: false,
             resources: Default::default(),
             stdout: Some(":<\n\n".into()),
             stderr: Some("Ko!\n\n".into()),
-        })
+        }])
         .unwrap();
         drop(eval);
 

@@ -20,9 +20,9 @@ fn test_fifo() {
     let src1 = File::new("source 1");
     exec1
         .args(vec![fifo1, fifo2])
-        .capture_stdout(1000)
-        .capture_stderr(1000)
         .input(src1.uuid, "script.sh", true);
+    exec1.capture_stdout(Some(1000));
+    exec1.capture_stderr(Some(1000));
     exec1.limits_mut().wall_time(3.0).allow_multiprocess();
     dag.provide_content(
         src1,
@@ -33,11 +33,6 @@ fn test_fifo() {
             .as_bytes()
             .to_owned(),
     );
-    dag.on_execution_done(&exec1.uuid, |res| {
-        assert!(res.status.is_success(), "Process 1 crashed: {res:?}");
-        Ok(())
-    });
-    dag.on_execution_skip(&exec1.uuid, || panic!("Process 1 has been skipped"));
     group.add_execution(exec1);
 
     // exec2 will read from fifo1
@@ -46,9 +41,9 @@ fn test_fifo() {
     let src2 = File::new("source 2");
     exec2
         .args(vec![fifo1, fifo2])
-        .capture_stdout(1000)
-        .capture_stderr(1000)
         .input(src2.uuid, "script.sh", true);
+    exec2.capture_stdout(Some(1000));
+    exec2.capture_stderr(Some(1000));
     exec2.limits_mut().wall_time(3.0).allow_multiprocess();
     dag.provide_content(
         src2,
@@ -58,12 +53,17 @@ fn test_fifo() {
             .as_bytes()
             .to_owned(),
     );
-    dag.on_execution_done(&exec2.uuid, |res| {
-        assert!(res.status.is_success(), "Process 2 crashed: {res:?}");
+    group.add_execution(exec2);
+
+    let group_uuid = group.uuid;
+    dag.on_execution_done(&group_uuid, |res| {
+        let res1 = &res[0];
+        let res2 = &res[1];
+        assert!(res1.status.is_success(), "Process 1 crashed: {res1:?}");
+        assert!(res2.status.is_success(), "Process 2 crashed: {res2:?}");
         Ok(())
     });
-    dag.on_execution_skip(&exec2.uuid, || panic!("Process 2 has been skipped"));
-    group.add_execution(exec2);
+    dag.on_execution_skip(&group_uuid, || panic!("Group has been skipped"));
 
     dag.add_execution_group(group);
     eval_dag(dag);

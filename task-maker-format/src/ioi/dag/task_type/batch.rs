@@ -47,8 +47,6 @@ pub fn evaluate(
             Vec::<String>::new(),
         )
         .context("Failed to execute solution source file")?;
-    exec.tag(Tag::Evaluation.into());
-    exec.priority(EVALUATION_PRIORITY - testcase_id as Priority);
     let output = bind_exec_io!(exec, task, input, validation_handle);
     let path = source_file.path.clone();
     let limits = exec.limits_mut();
@@ -59,23 +57,27 @@ pub fn evaluate(
     if let Some(memory_limit) = task.memory_limit {
         limits.memory(memory_limit * 1024); // MiB -> KiB
     }
+    let mut group = exec.into_group();
+    group.tag = Some(Tag::Evaluation.into());
+    group.priority = EVALUATION_PRIORITY - testcase_id as Priority;
     bind_exec_callbacks!(
         eval,
-        exec.uuid,
+        group.uuid,
         |status, solution| UIMessage::IOIEvaluation {
             subtask: subtask_id,
             testcase: testcase_id,
             solution,
             status,
-            part: 0,
-            num_parts: 1,
+            manager_index: None
         },
         path
     )?;
     let sender = eval.sender.clone();
     let score_manager_err = score_manager.clone();
-    eval.dag
-        .on_execution_done(&exec.uuid, move |result| match result.status {
+    eval.dag.on_execution_done(&group.uuid, move |results| {
+        assert_eq!(results.len(), 1);
+        let result = &results[0];
+        match result.status {
             ExecutionStatus::Success => Ok(()),
             _ => score_manager_err.lock().unwrap().score(
                 subtask_id,
@@ -84,8 +86,9 @@ pub fn evaluate(
                 format!("{:?}", result.status),
                 sender,
             ),
-        });
-    eval.dag.add_execution(exec);
+        }
+    });
+    eval.dag.add_execution_group(group);
 
     let sender = eval.sender.clone();
     data.checker.check_and_bind(

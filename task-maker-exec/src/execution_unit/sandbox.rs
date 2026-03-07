@@ -94,7 +94,11 @@ impl Sandbox {
     }
 
     /// Starts the sandbox and blocks the thread until the sandbox exits.
-    pub fn run(&self, runner: &dyn SandboxRunner) -> Result<SandboxResult, Error> {
+    pub fn run(
+        &self,
+        runner: &dyn SandboxRunner,
+        dag_config: &ExecutionDAGConfig,
+    ) -> Result<SandboxResult, Error> {
         let mut config = SandboxConfiguration::default();
         let (boxdir, pid, keep, cmd) = {
             let data = self.data.lock().unwrap();
@@ -106,6 +110,7 @@ impl Sandbox {
                     data.path(),
                     &data.execution,
                     &mut config,
+                    dag_config,
                     data.fifo_dir.clone(),
                 ),
             )
@@ -118,6 +123,26 @@ impl Sandbox {
             });
         }
         trace!("Sandbox configuration: {config:#?}");
+
+        'write_info: {
+            let data = self.data.lock().unwrap();
+            if !data.keep_sandbox {
+                break 'write_info;
+            }
+            let path = data
+                .boxdir
+                .as_ref()
+                .context("Box dir has gone")?
+                .path()
+                .to_owned();
+            debug!("Keeping sandbox at {path:?}");
+            let serialized = serde_json::to_string_pretty(&data.execution)
+                .context("Failed to serialize execution")?;
+            std::fs::write(path.join("info.json"), serialized)
+                .context("Cannot write execution info inside sandbox")?;
+            std::fs::write(path.join("tabox.txt"), format!("{config:#?}\n"))
+                .context("Cannot write command info inside sandbox")?;
+        }
 
         let raw_result = runner.run(config.build(), pid);
         if keep {
@@ -199,35 +224,15 @@ impl Sandbox {
     }
 
     /// Make the sandbox persistent, the sandbox directory won't be deleted after the execution.
-    pub fn keep(&mut self) -> Result<(), Error> {
-        let mut data = self.data.lock().unwrap();
-        let path = data
-            .boxdir
-            .as_ref()
-            .context("Box dir has gone")?
-            .path()
-            .to_owned();
-        debug!("Keeping sandbox at {path:?}");
-        data.keep_sandbox = true;
-        let serialized = serde_json::to_string_pretty(&data.execution)
-            .context("Failed to serialize execution")?;
-        std::fs::write(path.join("info.json"), serialized)
-            .context("Cannot write execution info inside sandbox")?;
-        let mut config = SandboxConfiguration::default();
-        if let Ok(()) =
-            self.build_command(&path, &data.execution, &mut config, data.fifo_dir.clone())
-        {
-            std::fs::write(path.join("tabox.txt"), format!("{config:#?}\n"))
-                .context("Cannot write command info inside sandbox")?;
-        }
-        Ok(())
+    pub fn keep(&mut self) {
+        self.data.lock().unwrap().keep_sandbox = true;
     }
 
     /// Path of the file where the standard output is written to (in the host).
     pub fn stdout_path(&self) -> PathBuf {
         let data = self.data.lock().unwrap();
         let sandbox_root = data.path();
-        if let Some(path) = &data.execution.stdout_redirect_path {
+        if let ExecutionOutputBehaviour::Path(path) = &data.execution.stdout {
             sandbox_root.join(path)
         } else {
             sandbox_root.join("stdout")
@@ -238,7 +243,7 @@ impl Sandbox {
     pub fn stderr_path(&self) -> PathBuf {
         let data = self.data.lock().unwrap();
         let sandbox_root = data.path();
-        if let Some(path) = &data.execution.stderr_redirect_path {
+        if let ExecutionOutputBehaviour::Path(path) = &data.execution.stderr {
             sandbox_root.join(path)
         } else {
             sandbox_root.join("stderr")
@@ -295,6 +300,7 @@ impl Sandbox {
         boxdir: &Path,
         execution: &Execution,
         config: &mut SandboxConfiguration,
+        dag_config: &ExecutionDAGConfig,
         fifo_dir: Option<PathBuf>,
     ) -> Result<(), Error> {
         let box_root = self.box_root(boxdir);
@@ -302,26 +308,38 @@ impl Sandbox {
         // the box directory must be writable otherwise the output files cannot be written
         config.mount(boxdir.join("box"), &box_root, true);
         config.env("PATH", std::env::var("PATH").unwrap_or_default());
-        if let Some(path) = &execution.stdin_redirect_path {
-            config.stdin(self.sandbox_to_host_path(path, boxdir, fifo_dir.as_deref()));
-        } else if execution.stdin.is_some() {
-            config.stdin(boxdir.join("stdin"));
-        } else {
-            config.stdin("/dev/null");
+        match &execution.stdin {
+            ExecutionInputBehaviour::Path(path) => {
+                config.stdin(self.sandbox_to_host_path(path, boxdir, fifo_dir.as_deref()));
+            }
+            ExecutionInputBehaviour::File(_) => {
+                config.stdin(boxdir.join("stdin"));
+            }
+            ExecutionInputBehaviour::Ignored => {
+                config.stdin("/dev/null");
+            }
         }
-        if let Some(path) = &execution.stdout_redirect_path {
-            config.stdout(self.sandbox_to_host_path(path, boxdir, fifo_dir.as_deref()));
-        } else if execution.stdout.is_some() {
-            config.stdout(boxdir.join("stdout"));
-        } else {
-            config.stdout("/dev/null");
+        match &execution.stdout {
+            ExecutionOutputBehaviour::Path(path) => {
+                config.stdout(self.sandbox_to_host_path(path, boxdir, fifo_dir.as_deref()));
+            }
+            ExecutionOutputBehaviour::Capture { .. } => {
+                config.stdout(boxdir.join("stdout"));
+            }
+            ExecutionOutputBehaviour::Ignored => {
+                config.stdout("/dev/null");
+            }
         }
-        if let Some(path) = &execution.stderr_redirect_path {
-            config.stderr(self.sandbox_to_host_path(path, boxdir, fifo_dir.as_deref()));
-        } else if execution.stderr.is_some() {
-            config.stderr(boxdir.join("stderr"));
-        } else {
-            config.stderr("/dev/null");
+        match &execution.stderr {
+            ExecutionOutputBehaviour::Path(path) => {
+                config.stderr(self.sandbox_to_host_path(path, boxdir, fifo_dir.as_deref()));
+            }
+            ExecutionOutputBehaviour::Capture { .. } => {
+                config.stderr(boxdir.join("stderr"));
+            }
+            ExecutionOutputBehaviour::Ignored => {
+                config.stderr("/dev/null");
+            }
         }
         for key in execution.copy_env.iter() {
             if let Ok(value) = std::env::var(key) {
@@ -339,15 +357,15 @@ impl Sandbox {
             (None, None) => None,
         };
         if let Some(cpu) = cpu_limit {
-            let cpu = cpu + execution.config().extra_time;
+            let cpu = cpu + dag_config.extra_time;
             config.time_limit(cpu.ceil() as u64);
         }
         if let Some(wall) = execution.limits.wall_time {
-            let wall = wall + execution.config().extra_time;
+            let wall = wall + dag_config.extra_time;
             config.wall_time_limit(wall.ceil() as u64);
         }
         if let Some(mem) = execution.limits.memory {
-            let mem = mem + execution.config().extra_memory;
+            let mem = mem + dag_config.extra_memory;
             config.memory_limit(mem * 1024);
         }
         if let Some(stack) = execution.limits.stack {
@@ -450,20 +468,20 @@ impl Sandbox {
             )
         })?;
 
-        if let Some(stdin) = execution.stdin {
+        if let ExecutionInputBehaviour::File(stdin) = execution.stdin {
             Sandbox::write_sandbox_file(
                 &box_dir.join("stdin"),
                 dep_keys.get(&stdin).context("stdin not provided")?.path(),
                 false,
             )?;
         }
-        if execution.stdout.is_some() {
+        if matches!(execution.stdout, ExecutionOutputBehaviour::Capture { .. }) {
             Sandbox::touch_file(&box_dir.join("stdout"), 0o600)?;
         }
-        if execution.stderr.is_some() {
+        if matches!(execution.stderr, ExecutionOutputBehaviour::Capture { .. }) {
             Sandbox::touch_file(&box_dir.join("stderr"), 0o600)?;
         }
-        for (path, input) in execution.inputs.iter() {
+        for (path, input) in execution.input_files.iter() {
             Sandbox::write_sandbox_file(
                 &box_dir.join("box").join(path),
                 dep_keys
@@ -473,7 +491,7 @@ impl Sandbox {
                 input.executable,
             )?;
         }
-        for path in execution.outputs.keys() {
+        for path in execution.output_files.keys() {
             Sandbox::touch_file(&box_dir.join("box").join(path), 0o600)?;
         }
         // remove the write bit on the box folder
@@ -578,7 +596,7 @@ mod tests {
     use tabox::configuration::{DirectoryMount, SandboxConfiguration};
     #[cfg(not(target_os = "macos"))]
     use tabox::syscall_filter::SyscallFilterAction;
-    use task_maker_dag::{Execution, ExecutionCommand};
+    use task_maker_dag::{Execution, ExecutionCommand, ExecutionDAGConfig};
 
     use crate::execution_unit::Sandbox;
     use crate::ErrorSandboxRunner;
@@ -591,7 +609,7 @@ mod tests {
         exec.limits_mut().read_only(true);
         let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new(), None).unwrap();
         let outfile = sandbox.output_path(Path::new("fooo"));
-        if let Err(e) = sandbox.run(&ErrorSandboxRunner) {
+        if let Err(e) = sandbox.run(&ErrorSandboxRunner, &ExecutionDAGConfig::new()) {
             assert!(e.to_string().contains("Nope"));
         } else {
             panic!("Sandbox not called");
@@ -605,6 +623,8 @@ mod tests {
     #[cfg(not(target_os = "macos"))]
     #[test]
     fn test_command_args() {
+        use task_maker_dag::ExecutionDAGConfig;
+
         let tmpdir = tempfile::TempDir::new().unwrap();
         let mut exec = Execution::new("test", ExecutionCommand::system("/bin/sh"));
         exec.args(vec!["bar", "baz"]);
@@ -619,16 +639,17 @@ mod tests {
         exec.env("foo", "bar");
         let sandbox = Sandbox::new(tmpdir.path(), &exec, &HashMap::new(), None).unwrap();
         let mut config = SandboxConfiguration::default();
+        let dag_config = ExecutionDAGConfig::new();
         sandbox
-            .build_command(tmpdir.path(), &exec, &mut config, None)
+            .build_command(tmpdir.path(), &exec, &mut config, &dag_config, None)
             .unwrap();
-        let extra_time = exec.config().extra_time;
+        let extra_time = dag_config.extra_time;
         let total_time = (1.0 + 2.6 + extra_time).ceil() as u64;
         let wall_time = (10.0 + extra_time).ceil() as u64;
         assert_eq!(config.working_directory, Path::new("/box"));
         assert_eq!(config.time_limit, Some(total_time));
         assert_eq!(config.wall_time_limit, Some(wall_time));
-        let extra_memory = exec.config().extra_memory;
+        let extra_memory = dag_config.extra_memory;
         assert_eq!(config.memory_limit, Some((1234 + extra_memory) * 1024));
         assert!(config.mount_paths.contains(&DirectoryMount {
             target: "/home".into(),

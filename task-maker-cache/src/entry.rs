@@ -3,7 +3,8 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use task_maker_dag::{
-    Execution, ExecutionGroup, ExecutionLimits, ExecutionResult, ExecutionStatus, FileUuid,
+    Execution, ExecutionGroup, ExecutionLimits, ExecutionOutputBehaviour, ExecutionResult,
+    ExecutionStatus, FileUuid,
 };
 use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey};
 
@@ -14,10 +15,6 @@ pub struct CacheEntryItem {
     pub result: ExecutionResult,
     /// The limits associated with this entry.
     pub limits: ExecutionLimits,
-    /// The extra time for this execution.
-    pub extra_time: f64,
-    /// The extra memory for this execution.
-    pub extra_memory: u64,
     /// The key (aka the hash) of the stdout, if any.
     pub stdout: Option<FileStoreKey>,
     /// The key (aka the hash) of the stderr, if any.
@@ -36,6 +33,10 @@ pub struct CacheEntryItem {
 pub struct CacheEntry {
     /// The items of the entry, one for each execution in the group, in the same order.
     pub items: Vec<CacheEntryItem>,
+    /// The extra time for this execution group.
+    pub extra_time: f64,
+    /// The extra memory for this execution group.
+    pub extra_memory: u64,
 }
 
 impl CacheEntryItem {
@@ -45,26 +46,26 @@ impl CacheEntryItem {
         file_keys: &HashMap<FileUuid, FileStoreHandle>,
         result: ExecutionResult,
     ) -> CacheEntryItem {
-        let stdout = execution
-            .stdout
-            .as_ref()
-            .and_then(|f| file_keys.get(&f.uuid))
-            .map(|hdl| hdl.key().clone());
-        let stderr = execution
-            .stderr
-            .as_ref()
-            .and_then(|f| file_keys.get(&f.uuid))
-            .map(|hdl| hdl.key().clone());
+        let stdout = match &execution.stdout {
+            ExecutionOutputBehaviour::Capture { file, .. } => Some(file),
+            _ => None,
+        }
+        .and_then(|f| file_keys.get(&f.uuid))
+        .map(|hdl| hdl.key().clone());
+        let stderr = match &execution.stderr {
+            ExecutionOutputBehaviour::Capture { file, .. } => Some(file),
+            _ => None,
+        }
+        .and_then(|f| file_keys.get(&f.uuid))
+        .map(|hdl| hdl.key().clone());
         let outputs = execution
-            .outputs
+            .output_files
             .iter()
             .map(|(path, file)| (path.clone(), file_keys[&file.uuid].key().clone()))
             .collect();
         CacheEntryItem {
             result,
             limits: execution.limits.clone(),
-            extra_time: execution.config().extra_time,
-            extra_memory: execution.config().extra_memory,
             stdout,
             stderr,
             outputs,
@@ -83,7 +84,11 @@ impl CacheEntry {
         for (exec, res) in group.executions.iter().zip(result.into_iter()) {
             items.push(CacheEntryItem::from_execution(exec, file_keys, res));
         }
-        CacheEntry { items }
+        CacheEntry {
+            items,
+            extra_time: group.config.extra_time,
+            extra_memory: group.config.extra_memory,
+        }
     }
 
     pub fn same_limits(&self, other: &CacheEntry) -> bool {
@@ -125,21 +130,21 @@ impl CacheEntry {
         let mut outputs = HashMap::new();
 
         for (exec, item) in group.executions.iter().zip(self.items.iter()) {
-            if let Some(stdout) = exec.stdout.as_ref() {
+            if let ExecutionOutputBehaviour::Capture { file, .. } = &exec.stdout {
                 if let Some(handle) = try_get!(item.stdout) {
-                    outputs.insert(stdout.uuid, handle);
+                    outputs.insert(file.uuid, handle);
                 } else {
                     return None;
                 }
             }
-            if let Some(stderr) = exec.stderr.as_ref() {
+            if let ExecutionOutputBehaviour::Capture { file, .. } = &exec.stderr {
                 if let Some(handle) = try_get!(item.stderr) {
-                    outputs.insert(stderr.uuid, handle);
+                    outputs.insert(file.uuid, handle);
                 } else {
                     return None;
                 }
             }
-            for (path, file) in exec.outputs.iter() {
+            for (path, file) in exec.output_files.iter() {
                 if let Some(handle) = try_get!(item.outputs.get(path)) {
                     outputs.insert(file.uuid, handle);
                 } else {
@@ -199,8 +204,8 @@ impl CacheEntry {
                 }
             };
         }
-        let extra_time = group.config().extra_time;
-        let extra_memory = group.config().extra_memory;
+        let extra_time = group.config.extra_time;
+        let extra_memory = group.config.extra_memory;
         for (exec, item) in group.executions.iter().zip(self.items.iter()) {
             match item.result.status {
                 ExecutionStatus::Success => {
@@ -208,8 +213,8 @@ impl CacheEntry {
                     check_limits!(
                         item.limits,
                         exec.limits,
-                        item.extra_time - extra_time,
-                        item.extra_memory - extra_memory
+                        self.extra_time - extra_time,
+                        self.extra_memory - extra_memory
                     );
                 }
                 _ => {
@@ -217,8 +222,8 @@ impl CacheEntry {
                     check_limits!(
                         exec.limits,
                         item.limits,
-                        extra_time - item.extra_time,
-                        extra_memory - item.extra_memory
+                        extra_time - self.extra_time,
+                        extra_memory - self.extra_memory
                     );
                 }
             }
@@ -235,7 +240,8 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use task_maker_dag::{
-        Execution, ExecutionCommand, ExecutionResourcesUsage, ExecutionResult, ExecutionStatus,
+        Execution, ExecutionCommand, ExecutionDAGConfig, ExecutionResourcesUsage, ExecutionResult,
+        ExecutionStatus,
     };
     use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey, ReadFileIterator};
 
@@ -253,6 +259,7 @@ mod tests {
 
     fn empty_entry() -> (CacheEntry, Execution) {
         let exec = Execution::new("exec", ExecutionCommand::local("foo"));
+        let default_config = ExecutionDAGConfig::new();
         (
             CacheEntry {
                 items: vec![CacheEntryItem {
@@ -270,12 +277,12 @@ mod tests {
                         stderr: None,
                     },
                     limits: Default::default(),
-                    extra_time: exec.config().extra_time,
-                    extra_memory: exec.config().extra_memory,
                     stdout: None,
                     stderr: None,
                     outputs: Default::default(),
                 }],
+                extra_time: default_config.extra_time,
+                extra_memory: default_config.extra_memory,
             },
             exec,
         )
@@ -295,7 +302,7 @@ mod tests {
         let store = FileStore::new(tmpdir.path(), 1000, 1000).unwrap();
 
         let (mut entry, mut exec) = empty_entry();
-        let file = exec.stdout();
+        let file = exec.capture_stdout(None);
         let hdl = fake_file(tmpdir.path().join("file"), "file", &store);
         entry.items[0].stdout = Some(hdl.key().clone());
 
@@ -311,7 +318,7 @@ mod tests {
         let store = FileStore::new(tmpdir.path(), 1000, 1000).unwrap();
 
         let (mut entry, mut exec) = empty_entry();
-        exec.stdout();
+        exec.capture_stdout(None);
         let key = FileStoreKey::from_content(&[1, 2, 3]);
         entry.items[0].stdout = Some(key);
 
@@ -324,7 +331,7 @@ mod tests {
         let store = FileStore::new(tmpdir.path(), 1000, 1000).unwrap();
 
         let (mut entry, mut exec) = empty_entry();
-        let file = exec.stderr();
+        let file = exec.capture_stderr(None);
         let hdl = fake_file(tmpdir.path().join("file"), "file", &store);
         entry.items[0].stderr = Some(hdl.key().clone());
 
@@ -340,7 +347,7 @@ mod tests {
         let store = FileStore::new(tmpdir.path(), 1000, 1000).unwrap();
 
         let (mut entry, mut exec) = empty_entry();
-        exec.stderr();
+        exec.capture_stderr(None);
         let key = FileStoreKey::from_content(&[1, 2, 3]);
         entry.items[0].stderr = Some(key);
 

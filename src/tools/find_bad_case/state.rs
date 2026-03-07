@@ -145,6 +145,8 @@ impl UIStateT for UIState {
             } => match status {
                 UIExecutionStatus::Started { .. } => set(testcase, TestcaseStatus::Generating),
                 UIExecutionStatus::Done { result } => {
+                    assert_eq!(result.len(), 1);
+                    let result = result[0].clone();
                     self.progress.inputs_generated += 1;
                     self.progress.generator_time_sum += result.resources.cpu_time;
                     if result.status.is_success() {
@@ -170,6 +172,8 @@ impl UIStateT for UIState {
             } => match status {
                 UIExecutionStatus::Started { .. } => set(testcase, TestcaseStatus::Validating),
                 UIExecutionStatus::Done { result } => {
+                    assert_eq!(result.len(), 1);
+                    let result = result[0].clone();
                     if result.status.is_success() {
                         set(testcase, TestcaseStatus::Validated);
                     } else {
@@ -193,11 +197,13 @@ impl UIStateT for UIState {
             } => match status {
                 UIExecutionStatus::Started { .. } => set(testcase, TestcaseStatus::Solving),
                 UIExecutionStatus::Done { result } => {
-                    if result.status.is_success() {
-                        set(testcase, TestcaseStatus::Solved);
+                    for r in result {
+                        if r.status.is_success() {
+                            set(testcase, TestcaseStatus::Solved);
+                        }
+                        self.progress.inputs_solved += 1;
+                        self.progress.solution_time_sum += r.resources.cpu_time;
                     }
-                    self.progress.inputs_solved += 1;
-                    self.progress.solution_time_sum += result.resources.cpu_time;
                 }
                 _ => {}
             },

@@ -57,7 +57,7 @@ impl TypstCompiler {
         dep_keys: &HashMap<FileUuid, FileStoreHandle>,
     ) -> anyhow::Result<TypstCompiler> {
         let files = execution
-            .inputs
+            .input_files
             .iter()
             .map(|(path, input)| {
                 Ok::<_, anyhow::Error>((

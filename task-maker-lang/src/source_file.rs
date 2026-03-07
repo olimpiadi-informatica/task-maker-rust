@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Context, Error};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use task_maker_dag::{
-    Execution, ExecutionDAG, ExecutionTag, ExecutionUuid, File, FileUuid, Priority,
+    Execution, ExecutionDAG, ExecutionGroupUuid, ExecutionTag, File, FileUuid, Priority,
 };
 
 use crate::language::{CompilationSettings, Language};
@@ -140,7 +140,7 @@ impl SourceFile {
         dag: &mut ExecutionDAG,
         description: S,
         args: Vec<String>,
-    ) -> Result<(Option<ExecutionUuid>, Execution), Error> {
+    ) -> Result<(Option<ExecutionGroupUuid>, Execution), Error> {
         let comp = self.prepare(dag).context("Failed to prepare source file")?;
         let write_to = self.write_bin_to.as_deref();
         let mut exec = Execution::new(
@@ -203,7 +203,7 @@ impl SourceFile {
     pub fn executable(
         &self,
         dag: &mut ExecutionDAG,
-    ) -> Result<(FileUuid, Option<ExecutionUuid>), Error> {
+    ) -> Result<(FileUuid, Option<ExecutionGroupUuid>), Error> {
         let comp = self.prepare(dag).context("Failed to prepare source file")?;
         let exe = self.executable.lock().unwrap().as_ref().unwrap().uuid;
         Ok((exe, comp))
@@ -251,7 +251,7 @@ impl SourceFile {
     }
 
     /// Prepare the source file setting the `executable` and eventually compiling the source file.
-    pub fn prepare(&self, dag: &mut ExecutionDAG) -> Result<Option<ExecutionUuid>, Error> {
+    pub fn prepare(&self, dag: &mut ExecutionDAG) -> Result<Option<ExecutionGroupUuid>, Error> {
         if self.executable.lock().unwrap().is_some() {
             return Ok(None);
         }
@@ -266,19 +266,21 @@ impl SourceFile {
                 metadata.use_grader(grader_map.as_ref());
             }
             let (mut comp, exec) = metadata.finalize(dag)?;
-            comp.tag(ExecutionTag::from("compilation"))
-                .priority(COMPILATION_PRIORITY)
-                .capture_stdout(COMPILATION_CONTENT_LENGTH)
-                .capture_stderr(COMPILATION_CONTENT_LENGTH);
-            comp.limits
-                .allow_multiprocess()
-                // the compilers may need to store some temp files
-                .read_only(false)
-                .mount_tmpfs(true)
-                .mount_proc(true);
+            comp.priority = COMPILATION_PRIORITY;
+            comp.tag = Some(ExecutionTag::from("compilation"));
+            for exec in &mut comp.executions {
+                exec.limits
+                    .allow_multiprocess()
+                    // the compilers may need to store some temp files
+                    .read_only(false)
+                    .mount_tmpfs(true)
+                    .mount_proc(true);
+                exec.capture_stdout(Some(COMPILATION_CONTENT_LENGTH));
+                exec.capture_stderr(Some(COMPILATION_CONTENT_LENGTH));
+            }
 
             let comp_uuid = comp.uuid;
-            dag.add_execution(comp);
+            dag.add_execution_group(comp);
             *self.executable.lock().unwrap() = Some(exec);
             Ok(Some(comp_uuid))
         } else {
@@ -355,6 +357,7 @@ mod tests {
         let exec_done2 = exec_done.clone();
         let exec_skipped = Arc::new(AtomicBool::new(false));
         let exec_skipped2 = exec_skipped.clone();
+        let exec = exec.into_group();
         dag.on_execution_start(&exec.uuid, move |_w| {
             exec_start2.store(true, Ordering::Relaxed);
             Ok(())
@@ -367,7 +370,7 @@ mod tests {
             exec_skipped2.store(true, Ordering::Relaxed);
             Ok(())
         });
-        dag.add_execution(exec);
+        dag.add_execution_group(exec);
 
         eval_dag_locally(
             dag,

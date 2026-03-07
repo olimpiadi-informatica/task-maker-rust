@@ -80,11 +80,11 @@ pub enum ExecutorServerMessage {
     /// successful.
     ProvideFile(FileUuid, bool),
     /// The execution has started on a worker.
-    NotifyStart(ExecutionUuid, WorkerUuid),
+    NotifyStart(ExecutionGroupUuid, WorkerUuid),
     /// The execution has completed with that result.
-    NotifyDone(ExecutionUuid, ExecutionResult),
+    NotifyDone(ExecutionGroupUuid, Vec<ExecutionResult>),
     /// The execution has been skipped.
-    NotifySkip(ExecutionUuid),
+    NotifySkip(ExecutionGroupUuid),
     /// There was an error during the evaluation.
     Error(String),
     /// The server status as asked by the client.

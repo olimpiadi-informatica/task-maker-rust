@@ -337,7 +337,7 @@ macro_rules! bind_exec_callbacks {
                     $(let $extra = $extra.clone();)*
                     let sender = $eval.sender.clone();
                     $eval.dag.on_execution_done(&$exec_uuid, move |result| {
-                        let status = UIExecutionStatus::Done { result };
+                        let status = UIExecutionStatus::Done { result: result.to_vec() };
                         sender.send(($enum)(status, $($extra,)*))
                     });
                 }

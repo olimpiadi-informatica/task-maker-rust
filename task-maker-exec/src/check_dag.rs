@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use task_maker_dag::{ExecutionDAGData, ExecutionGroupUuid, ExecutionUuid, FifoUuid, FileUuid};
+use task_maker_dag::{ExecutionDAGData, ExecutionGroupUuid, FifoUuid, FileUuid};
 use thiserror::Error;
 
 use crate::executor::ExecutionDAGWatchSet;
@@ -17,21 +17,11 @@ pub enum DAGError {
         /// The description of the missing file.
         description: String,
     },
-    /// Stdout/Stderr capture is requested, but a UUID for them is missing.
-    #[error("missing UUID for captured {stream} on execution {uuid} ({description})")]
-    InvalidCapture {
-        /// Either "stdout" or "stderr".
-        stream: String,
-        /// The UUID of the missing file.
-        uuid: ExecutionUuid,
-        /// The description of the missing file.
-        description: String,
-    },
     /// A callback is registered on an execution but it's missing.
     #[error("missing execution {uuid}")]
     MissingExecution {
         /// The UUID of the missing execution.
-        uuid: ExecutionUuid,
+        uuid: ExecutionGroupUuid,
     },
     /// There is a dependency cycle in the DAG.
     #[error("detected dependency cycle, '{description}' is in the cycle")]
@@ -72,7 +62,7 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
     let mut dependencies: HashMap<FileUuid, Vec<ExecutionGroupUuid>> = HashMap::new();
     let mut num_dependencies: HashMap<ExecutionGroupUuid, usize> = HashMap::new();
     let mut known_files: HashSet<FileUuid> = HashSet::new();
-    let mut known_execs: HashSet<ExecutionUuid> = HashSet::new();
+    let mut known_execs: HashSet<ExecutionGroupUuid> = HashSet::new();
     let mut ready_groups: VecDeque<ExecutionGroupUuid> = VecDeque::new();
     let mut ready_files: VecDeque<FileUuid> = VecDeque::new();
 
@@ -92,33 +82,17 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
             }
         }
         let mut count = 0;
-        for exec in &group.executions {
-            let deps = exec.dependencies();
-            if !known_execs.insert(exec.uuid) {
-                return Err(DAGError::DuplicateExecutionUUID { uuid: exec.uuid });
-            }
-            count += deps.len();
-            for dep in deps.into_iter() {
-                add_dependency(dep, *group_uuid);
-            }
-            if exec.capture_stdout.is_some() && exec.stdout.is_none() {
-                return Err(DAGError::InvalidCapture {
-                    stream: "stdout".to_string(),
-                    uuid: exec.uuid,
-                    description: exec.description.clone(),
-                });
-            }
-            if exec.capture_stderr.is_some() && exec.stderr.is_none() {
-                return Err(DAGError::InvalidCapture {
-                    stream: "stderr".to_string(),
-                    uuid: exec.uuid,
-                    description: exec.description.clone(),
-                });
-            }
-            for out in exec.outputs().into_iter() {
-                if !known_files.insert(out) {
-                    return Err(DAGError::DuplicateFileUUID { uuid: out });
-                }
+        if !known_execs.insert(group.uuid) {
+            return Err(DAGError::DuplicateExecutionUUID { uuid: group.uuid });
+        }
+        let deps = group.dependencies();
+        count += deps.len();
+        for dep in deps.into_iter() {
+            add_dependency(dep, *group_uuid);
+        }
+        for out in group.outputs().into_iter() {
+            if !known_files.insert(out) {
+                return Err(DAGError::DuplicateFileUUID { uuid: out });
             }
         }
         num_dependencies.insert(*group_uuid, count);
@@ -158,10 +132,8 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
                 .execution_groups
                 .get(&group_uuid)
                 .expect("No such exec group");
-            for exec in &group.executions {
-                for file in exec.outputs().into_iter() {
-                    ready_files.push_back(file);
-                }
+            for file in group.outputs() {
+                ready_files.push_back(file);
             }
         }
     }
@@ -171,14 +143,12 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
             continue;
         }
         let group = &dag.execution_groups[group_uuid];
-        for exec in &group.executions {
-            for dep in exec.dependencies().iter() {
-                if !known_files.contains(dep) {
-                    return Err(DAGError::MissingFile {
-                        uuid: *dep,
-                        description: format!("Dependency of '{}'", exec.description),
-                    });
-                }
+        for dep in group.dependencies() {
+            if !known_files.contains(&dep) {
+                return Err(DAGError::MissingFile {
+                    uuid: dep,
+                    description: format!("Dependency of '{}'", group.description),
+                });
             }
         }
         return Err(DAGError::CycleDetected {
@@ -205,7 +175,9 @@ pub fn check_dag(dag: &ExecutionDAGData, callbacks: &ExecutionDAGWatchSet) -> Re
 
 #[cfg(test)]
 mod tests {
-    use task_maker_dag::{Execution, ExecutionCommand, ExecutionDAG, File};
+    use task_maker_dag::{
+        Execution, ExecutionCommand, ExecutionDAG, ExecutionGroup, ExecutionOutputBehaviour, File,
+    };
 
     use super::*;
 
@@ -235,8 +207,9 @@ mod tests {
     fn test_missing_execution_callback() {
         let dag = ExecutionDAG::new();
         let exec = Execution::new("exec", ExecutionCommand::local("foo"));
+        let group: ExecutionGroup = exec.into();
         let watch = ExecutionDAGWatchSet {
-            executions: [exec.uuid].iter().cloned().collect(),
+            executions: [group.uuid].iter().cloned().collect(),
             files: Default::default(),
             urgent_files: Default::default(),
         };
@@ -247,7 +220,7 @@ mod tests {
     fn test_cycle_self() {
         let mut dag = ExecutionDAG::new();
         let mut exec = Execution::new("exec", ExecutionCommand::local("foo"));
-        let stdout = exec.stdout();
+        let stdout = exec.capture_stdout(None);
         exec.stdin(stdout);
         dag.add_execution(exec);
         assert!(check_dag(&dag.data, &ExecutionDAGWatchSet::default()).is_err());
@@ -258,8 +231,8 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         let mut exec1 = Execution::new("exec", ExecutionCommand::local("foo"));
         let mut exec2 = Execution::new("exec", ExecutionCommand::local("foo"));
-        exec1.stdin(exec2.stdout());
-        exec2.stdin(exec1.stdout());
+        exec1.stdin(exec2.capture_stdout(None));
+        exec2.stdin(exec1.capture_stdout(None));
         dag.add_execution(exec1);
         dag.add_execution(exec2);
         assert!(check_dag(&dag.data, &ExecutionDAGWatchSet::default()).is_err());
@@ -270,9 +243,12 @@ mod tests {
         let mut dag = ExecutionDAG::new();
         let mut exec1 = Execution::new("exec", ExecutionCommand::local("foo"));
         let mut exec2 = Execution::new("exec", ExecutionCommand::local("foo"));
-        let file = File::new("file");
-        exec1.stdout = Some(file.clone());
-        exec2.stdout = Some(file);
+        let behaviour = ExecutionOutputBehaviour::Capture {
+            file: File::new("file"),
+            size_limit: None,
+        };
+        exec1.stdout = behaviour.clone();
+        exec2.stdout = behaviour;
         dag.add_execution(exec1);
         dag.add_execution(exec2);
         assert!(check_dag(&dag.data, &ExecutionDAGWatchSet::default()).is_err());
@@ -282,7 +258,7 @@ mod tests {
     fn test_duplicate_file_provided() {
         let mut dag = ExecutionDAG::new();
         let mut exec = Execution::new("exec", ExecutionCommand::local("foo"));
-        let file = exec.stdout();
+        let file = exec.capture_stdout(None);
         dag.add_execution(exec);
         dag.provide_file(file, "/dev/null").unwrap();
         assert!(check_dag(&dag.data, &ExecutionDAGWatchSet::default()).is_err());

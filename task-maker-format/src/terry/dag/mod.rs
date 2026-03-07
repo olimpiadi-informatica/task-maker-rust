@@ -54,15 +54,17 @@ impl InputGenerator {
         description: String,
         seed: Seed,
         official_solution: Option<Arc<SourceFile>>,
-    ) -> Result<(FileUuid, Execution), Error> {
+    ) -> Result<(FileUuid, task_maker_dag::ExecutionGroup), Error> {
         let mut exec =
             self.source
                 .execute(eval, description, vec![seed.to_string(), "0".to_string()])?;
         include_official_solution(eval, &mut exec, official_solution)?;
         exec.limits_mut().allow_multiprocess();
-        exec.tag(Tag::Generation.into());
-        let input_file = exec.stdout();
-        Ok((input_file.uuid, exec))
+        let input_file = exec.capture_stdout(None);
+        exec.capture_stderr(Some(STDERR_SIZE_LIMIT));
+        let mut group = exec.into_group();
+        group.tag = Some(Tag::Generation.into());
+        Ok((input_file.uuid, group))
     }
 
     /// Build the execution for the generation of the input file, and bind the execution callbacks.
@@ -73,7 +75,7 @@ impl InputGenerator {
         seed: Seed,
         official_solution: Option<Arc<SourceFile>>,
     ) -> Result<FileUuid, Error> {
-        let (input, mut gen) = self.generate(
+        let (input, gen) = self.generate(
             eval,
             format!(
                 "Generation of input file for {} with seed {}",
@@ -103,8 +105,7 @@ impl InputGenerator {
             path,
             seed
         )?;
-        gen.capture_stderr(STDERR_SIZE_LIMIT);
-        eval.dag.add_execution(gen);
+        eval.dag.add_execution_group(gen);
         Ok(input)
     }
 }
@@ -123,13 +124,16 @@ impl InputValidator {
         description: String,
         input: FileUuid,
         official_solution: Option<Arc<SourceFile>>,
-    ) -> Result<(FileUuid, Execution), Error> {
+    ) -> Result<(FileUuid, task_maker_dag::ExecutionGroup), Error> {
         let mut exec = self.source.execute(eval, description, Vec::<&str>::new())?;
         include_official_solution(eval, &mut exec, official_solution)?;
         exec.limits_mut().allow_multiprocess();
-        exec.stdin(input).tag(Tag::Generation.into());
-        let stdout = exec.stdout();
-        Ok((stdout.uuid, exec))
+        exec.stdin(input);
+        let stdout = exec.capture_stdout(None);
+        exec.capture_stderr(Some(STDERR_SIZE_LIMIT));
+        let mut group = exec.into_group();
+        group.tag = Some(Tag::Generation.into());
+        Ok((stdout.uuid, group))
     }
 
     /// Build the execution for the validation of the input file, and bind the execution callbacks.
@@ -140,7 +144,7 @@ impl InputValidator {
         input: FileUuid,
         official_solution: Option<Arc<SourceFile>>,
     ) -> Result<FileUuid, Error> {
-        let (handle, mut val) = self.validate(
+        let (handle, val) = self.validate(
             eval,
             format!("Validation of input file for {}", solution.name()),
             input,
@@ -153,8 +157,7 @@ impl InputValidator {
             |status, solution| UIMessage::TerryValidation { solution, status },
             path
         )?;
-        val.capture_stderr(STDERR_SIZE_LIMIT);
-        eval.dag.add_execution(val);
+        eval.dag.add_execution_group(val);
         Ok(handle)
     }
 }
@@ -168,22 +171,24 @@ impl Solution {
         solution: &SourceFile,
         input: FileUuid,
         validation_handle: Option<FileUuid>,
-    ) -> Result<(FileUuid, Execution), Error> {
+    ) -> Result<(FileUuid, task_maker_dag::ExecutionGroup), Error> {
         let mut exec = solution.execute(
             eval,
             format!("Evaluation of solution {}", solution.name()),
             Vec::<&str>::new(),
         )?;
         exec.stdin(input);
-        exec.tag(Tag::Evaluation.into());
         if let Some(validation) = validation_handle {
             exec.input(validation, "wait_for_validation", false);
         }
-        let output = exec.stdout();
+        let output = exec.capture_stdout(None);
+        exec.capture_stderr(Some(STDERR_SIZE_LIMIT));
         exec.limits_mut()
             .cpu_time(SOLUTION_TIME_LIMIT)
             .wall_time(SOLUTION_TIME_LIMIT * 1.25);
-        Ok((output.uuid, exec))
+        let mut group = exec.into_group();
+        group.tag = Some(Tag::Evaluation.into());
+        Ok((output.uuid, group))
     }
 
     /// Same as `Solution::solve` but also binding the execution callbacks.
@@ -193,7 +198,7 @@ impl Solution {
         input: FileUuid,
         validation_handle: Option<FileUuid>,
     ) -> Result<FileUuid, Error> {
-        let (output, mut sol) = Solution::solve(eval, solution, input, validation_handle)?;
+        let (output, sol) = Solution::solve(eval, solution, input, validation_handle)?;
         if eval.dag.config_mut().copy_exe {
             eval.dag.write_file_to(
                 output,
@@ -209,8 +214,7 @@ impl Solution {
             |status, solution| UIMessage::TerrySolution { solution, status },
             path
         )?;
-        sol.capture_stderr(STDERR_SIZE_LIMIT);
-        eval.dag.add_execution(sol);
+        eval.dag.add_execution_group(sol);
         Ok(output)
     }
 }
@@ -230,7 +234,7 @@ impl Checker {
         output: FileUuid,
         official_solution: Option<Arc<SourceFile>>,
         callback: F,
-    ) -> Result<Execution, Error>
+    ) -> Result<task_maker_dag::ExecutionGroup, Error>
     where
         F: FnOnce(Result<SolutionOutcome, Error>) -> Result<(), Error> + 'static,
     {
@@ -241,14 +245,18 @@ impl Checker {
         *exec.limits_mut() = ExecutionLimits::unrestricted();
         exec.input(input, "input.txt", false)
             .input(output, "output.txt", false)
-            .capture_stdout(OUTCOME_SIZE_LIMIT);
-        eval.dag.on_execution_done(&exec.uuid, move |res| {
+            .capture_stdout(Some(OUTCOME_SIZE_LIMIT));
+        exec.capture_stderr(Some(STDERR_SIZE_LIMIT));
+        let group = exec.into_group();
+        eval.dag.on_execution_done(&group.uuid, move |results| {
+            let res = &results[0];
             let stdout = res
                 .stdout
+                .as_ref()
                 .ok_or_else(|| anyhow!("Checker stdout not captured"))?;
-            callback(serde_json::from_slice(&stdout).map_err(|e| e.into()))
+            callback(serde_json::from_slice(stdout).map_err(|e| e.into()))
         });
-        Ok(exec)
+        Ok(group)
     }
 
     /// Build the execution for the checking of the output file, and bind the execution callbacks.
@@ -264,7 +272,7 @@ impl Checker {
     where
         F: FnOnce(Result<SolutionOutcome, Error>) -> Result<(), Error> + 'static,
     {
-        let mut exec = self.check(
+        let exec = self.check(
             eval,
             format!("Checking output of {}", solution.name()),
             input,
@@ -279,8 +287,7 @@ impl Checker {
             |status, solution| UIMessage::TerryChecker { solution, status },
             path
         )?;
-        exec.capture_stderr(STDERR_SIZE_LIMIT);
-        eval.dag.add_execution(exec);
+        eval.dag.add_execution_group(exec);
         Ok(())
     }
 }

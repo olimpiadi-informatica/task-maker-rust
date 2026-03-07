@@ -33,10 +33,13 @@ impl<State: UIStateT> PrintUI<State> {
         match status {
             UIExecutionStatus::Pending => print!("[PENDING] "),
             UIExecutionStatus::Started { .. } => print!("[STARTED] "),
-            UIExecutionStatus::Done { result } => match result.status {
-                ExecutionStatus::Success => cwrite!(self, SUCCESS, "[DONE]    "),
-                _ => cwrite!(self, WARNING, "[DONE]    "),
-            },
+            UIExecutionStatus::Done { result } => {
+                if result.iter().all(|x| x.status == ExecutionStatus::Success) {
+                    cwrite!(self, SUCCESS, "[DONE]    ")
+                } else {
+                    cwrite!(self, WARNING, "[DONE]    ")
+                }
+            }
             UIExecutionStatus::Skipped => cwrite!(self, WARNING, "[SKIPPED] "),
         };
     }
@@ -49,7 +52,9 @@ impl<State: UIStateT> PrintUI<State> {
                 print!("Worker: {worker:?}");
             }
             UIExecutionStatus::Done { result } => {
-                self.write_execution_status(&result.status);
+                for r in result {
+                    self.write_execution_status(&r.status);
+                }
             }
             UIExecutionStatus::Skipped => {}
         }
@@ -100,13 +105,13 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
                 self.write_message(format!("Compilation of {file:?} "));
                 self.write_status_details(&status);
                 if let UIExecutionStatus::Done { result } = status {
-                    if let Some(stderr) = result.stderr {
-                        let stderr = String::from_utf8_lossy(&stderr);
+                    if let Some(stderr) = &result[0].stderr {
+                        let stderr = String::from_utf8_lossy(stderr);
                         println!("\n[STDERR]  Compilation stderr of {file:?}");
                         print!("{}", stderr.trim());
                     }
-                    if let Some(stdout) = result.stdout {
-                        let stdout = String::from_utf8_lossy(&stdout);
+                    if let Some(stdout) = &result[0].stdout {
+                        let stdout = String::from_utf8_lossy(stdout);
                         println!("\n[STDOUT]  Compilation stdout of {file:?}");
                         print!("{}", stdout.trim());
                     }
@@ -136,8 +141,8 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
                 ));
                 self.write_status_details(&status);
                 if let UIExecutionStatus::Done { result } = status {
-                    if let Some(stderr) = result.stderr {
-                        let stderr = String::from_utf8_lossy(&stderr);
+                    if let Some(stderr) = &result[0].stderr {
+                        let stderr = String::from_utf8_lossy(stderr);
                         println!(
                             "\n[STDERR]  Generation stderr of testcase {testcase} of subtask {subtask}"
                         );
@@ -156,8 +161,8 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
                 ));
                 self.write_status_details(&status);
                 if let UIExecutionStatus::Done { result } = status {
-                    if let Some(stderr) = result.stderr {
-                        let stderr = String::from_utf8_lossy(&stderr);
+                    if let Some(stderr) = &result[0].stderr {
+                        let stderr = String::from_utf8_lossy(stderr);
                         println!(
                             "\n[STDERR]  Validation stderr of testcase {testcase} of subtask {subtask}"
                         );
@@ -181,17 +186,12 @@ impl<State: UIStateT + Send> UI for PrintUI<State> {
                 testcase,
                 solution,
                 status,
-                part,
-                num_parts,
+                manager_index: _,
             } => {
                 self.write_status(&status);
                 self.write_message(format!(
-                    "Evaluation of {:?} of testcase {} of subtask {} (part {} of {}) ",
-                    solution,
-                    testcase,
-                    subtask,
-                    part + 1,
-                    num_parts
+                    "Evaluation of {:?} of testcase {} of subtask {} ",
+                    solution, testcase, subtask,
                 ));
                 self.write_status_details(&status);
             }

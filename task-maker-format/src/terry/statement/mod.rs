@@ -29,7 +29,6 @@ impl Statement {
             .read_only(false)
             .allow_multiprocess()
             .mount_tmpfs(true);
-        exec.tag(Tag::Booklet.into());
 
         let output = exec.output("output.md");
 
@@ -63,18 +62,23 @@ impl Statement {
 
         let sender = eval.sender.clone();
 
-        exec.capture_stderr(1024);
-        eval.dag.on_execution_done(&exec.uuid, move |res| {
+        exec.capture_stderr(Some(1024));
+
+        let mut group = exec.into_group();
+        group.tag = Some(Tag::Booklet.into());
+
+        eval.dag.on_execution_done(&group.uuid, move |results| {
+            let res = &results[0];
             if !res.status.is_success() {
                 sender.add_diagnostic(Diagnostic::error(format!(
                     "Failed to generate statement.md. Generation stderr: {}",
-                    String::from_utf8_lossy(&res.stderr.expect("Failed to capture stderr"))
+                    String::from_utf8_lossy(res.stderr.as_ref().expect("Failed to capture stderr"))
                 )))?;
             }
             Ok(())
         });
 
-        eval.dag.add_execution(exec);
+        eval.dag.add_execution_group(group);
         eval.dag.write_file_to(output, &self.output, false);
 
         Ok(())

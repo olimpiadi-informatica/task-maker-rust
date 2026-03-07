@@ -83,7 +83,7 @@ pub struct ExecutionDAGData {
 #[derive(Debug)]
 pub struct ExecutionDAGCallbacks {
     /// The callbacks of the executions.
-    pub execution_callbacks: HashMap<ExecutionUuid, ExecutionCallbacks>,
+    pub execution_callbacks: HashMap<ExecutionGroupUuid, ExecutionCallbacks>,
     /// The callbacks of the files.
     pub file_callbacks: HashMap<FileUuid, FileCallbacks>,
     /// Set of the handles of the files that should be sent to the client as soon as possible. The
@@ -149,18 +149,16 @@ impl ExecutionDAG {
     }
 
     /// Add an execution to the DAG.
-    pub fn add_execution(&mut self, mut execution: Execution) {
-        execution.config = self.data.config.clone();
+    pub fn add_execution(&mut self, execution: Execution) {
         let mut group = ExecutionGroup::new(execution.description.clone());
         group.add_execution(execution);
+        group.config = self.data.config.clone();
         self.data.execution_groups.insert(group.uuid, group);
     }
 
     /// Add an execution group to the DAG.
     pub fn add_execution_group(&mut self, mut group: ExecutionGroup) {
-        for exec in group.executions.iter_mut() {
-            exec.config = self.data.config.clone();
-        }
+        group.config = self.data.config.clone();
         self.data.execution_groups.insert(group.uuid, group);
     }
 
@@ -242,7 +240,7 @@ impl ExecutionDAG {
     }
 
     /// Add a callback that will be called when the execution starts.
-    pub fn on_execution_start<F>(&mut self, execution: &ExecutionUuid, callback: F)
+    pub fn on_execution_start<F>(&mut self, execution: &ExecutionGroupUuid, callback: F)
     where
         F: (FnOnce(WorkerUuid) -> Result<(), Error>) + 'static,
     {
@@ -252,9 +250,9 @@ impl ExecutionDAG {
     }
 
     /// Add a callback that will be called when the execution ends.
-    pub fn on_execution_done<F>(&mut self, execution: &ExecutionUuid, callback: F)
+    pub fn on_execution_done<F>(&mut self, execution: &ExecutionGroupUuid, callback: F)
     where
-        F: (FnOnce(ExecutionResult) -> Result<(), Error>) + 'static,
+        F: (FnOnce(&[ExecutionResult]) -> Result<(), Error>) + 'static,
     {
         self.execution_callback(execution)
             .on_done
@@ -262,7 +260,7 @@ impl ExecutionDAG {
     }
 
     /// Add a callback that will be called when the execution is skipped.
-    pub fn on_execution_skip<F>(&mut self, execution: &ExecutionUuid, callback: F)
+    pub fn on_execution_skip<F>(&mut self, execution: &ExecutionGroupUuid, callback: F)
     where
         F: (FnOnce() -> Result<(), Error>) + 'static,
     {
@@ -292,7 +290,7 @@ impl ExecutionDAG {
     }
 
     /// Makes sure that a callback item exists for that execution and returns a &mut to it.
-    fn execution_callback(&mut self, execution: &ExecutionUuid) -> &mut ExecutionCallbacks {
+    fn execution_callback(&mut self, execution: &ExecutionGroupUuid) -> &mut ExecutionCallbacks {
         self.callbacks
             .as_mut()
             .expect("Cannot change callbacks after cloning")
@@ -302,7 +300,7 @@ impl ExecutionDAG {
     }
 
     /// Get the list of registered execution callbacks.
-    pub fn execution_callbacks(&mut self) -> &mut HashMap<ExecutionUuid, ExecutionCallbacks> {
+    pub fn execution_callbacks(&mut self) -> &mut HashMap<ExecutionGroupUuid, ExecutionCallbacks> {
         &mut self.callbacks.as_mut().unwrap().execution_callbacks
     }
 
@@ -495,7 +493,7 @@ mod tests {
         assert_eq!("exec", &dag.data.execution_groups[group_uuid].description);
         assert_abs_diff_eq!(
             &42.0,
-            &dag.data.execution_groups[group_uuid].config().extra_time
+            &dag.data.execution_groups[group_uuid].config.extra_time
         );
     }
 
@@ -571,6 +569,7 @@ mod tests {
     fn test_on_execution_start() {
         let mut dag = ExecutionDAG::new();
         let exec = Execution::new("exec", ExecutionCommand::local("foo"));
+        let exec = exec.into_group();
         dag.on_execution_start(&exec.uuid, |_| Ok(()));
         assert_eq!(
             1,
@@ -584,6 +583,7 @@ mod tests {
     fn test_on_execution_done() {
         let mut dag = ExecutionDAG::new();
         let exec = Execution::new("exec", ExecutionCommand::local("foo"));
+        let exec = exec.into_group();
         dag.on_execution_done(&exec.uuid, |_| Ok(()));
         assert_eq!(
             1,
@@ -597,6 +597,7 @@ mod tests {
     fn test_on_execution_skip() {
         let mut dag = ExecutionDAG::new();
         let exec = Execution::new("exec", ExecutionCommand::local("foo"));
+        let exec = exec.into_group();
         dag.on_execution_skip(&exec.uuid, || Ok(()));
         assert_eq!(
             1,

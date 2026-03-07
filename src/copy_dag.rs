@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use task_maker_dag::{Execution, ExecutionDAG, File, ProvidedFile};
+use task_maker_dag::{ExecutionDAG, ExecutionGroup, ExecutionOutputBehaviour, File, ProvidedFile};
 
 /// A node in the printed graph.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 enum Node {
-    /// The node is an Execution.
-    Execution(Execution),
+    /// The node is an ExecutionGroup.
+    ExecutionGroup(ExecutionGroup),
     /// The node is a File.
     File(File),
 }
@@ -29,31 +29,32 @@ pub fn render_dag(dag: &ExecutionDAG) -> String {
         }
     }
     for group in dag.data.execution_groups.values() {
+        nodes.push(Node::ExecutionGroup(group.clone()));
         for exec in &group.executions {
-            nodes.push(Node::Execution(exec.clone()));
-            for out in exec.outputs.values() {
-                edges.push((Node::Execution(exec.clone()), Node::File(out.clone())));
+            for out in exec.output_files.values() {
+                edges.push((Node::ExecutionGroup(group.clone()), Node::File(out.clone())));
                 files.insert(out.uuid, out.clone());
             }
-            if let Some(out) = &exec.stdout {
-                edges.push((Node::Execution(exec.clone()), Node::File(out.clone())));
+            if let ExecutionOutputBehaviour::Capture { file: out, .. } = &exec.stdout {
+                edges.push((Node::ExecutionGroup(group.clone()), Node::File(out.clone())));
                 files.insert(out.uuid, out.clone());
             }
-            if let Some(out) = &exec.stderr {
-                edges.push((Node::Execution(exec.clone()), Node::File(out.clone())));
+            if let ExecutionOutputBehaviour::Capture { file: out, .. } = &exec.stderr {
+                edges.push((Node::ExecutionGroup(group.clone()), Node::File(out.clone())));
                 files.insert(out.uuid, out.clone());
             }
         }
     }
     for group in dag.data.execution_groups.values() {
-        for exec in &group.executions {
-            for dep in exec.dependencies() {
-                if !files.contains_key(&dep) {
-                    panic!("Nope: {exec:#?} does not contain {dep:?}");
-                }
-                let file = &files[&dep];
-                edges.push((Node::File(file.clone()), Node::Execution(exec.clone())));
+        for dep in group.dependencies() {
+            if !files.contains_key(&dep) {
+                panic!("Nope: {group:#?} does not contain {dep:?}");
             }
+            let file = &files[&dep];
+            edges.push((
+                Node::File(file.clone()),
+                Node::ExecutionGroup(group.clone()),
+            ));
         }
     }
     for (_, file) in files {
@@ -66,7 +67,7 @@ pub fn render_dag(dag: &ExecutionDAG) -> String {
 /// Obtain the identifier of the node for the DOT file.
 fn node_id(n: &Node) -> String {
     let uuid = match n {
-        Node::Execution(exec) => exec.uuid.to_string(),
+        Node::ExecutionGroup(group) => group.uuid.to_string(),
         Node::File(file) => file.uuid.to_string(),
     };
     "uuid".to_string() + &uuid.replace('-', "")
@@ -75,12 +76,7 @@ fn node_id(n: &Node) -> String {
 /// Obtain the label of the node for the DOT format.
 fn node_label(n: &Node) -> String {
     match n {
-        Node::Execution(e) => format!(
-            "{} | {:?} {}",
-            e.description.clone(),
-            e.command,
-            e.args.join(" ")
-        ),
+        Node::ExecutionGroup(g) => g.description.clone().to_string(),
         Node::File(f) => f.description.clone(),
     }
 }
@@ -93,7 +89,7 @@ fn render_graph(nodes: Vec<Node>, edges: Vec<Edge>) -> String {
     res += "    rankdir=\"LR\";\n";
     for node in nodes {
         let style = match &node {
-            Node::Execution(_) => "style=rounded shape=record",
+            Node::ExecutionGroup(_) => "style=rounded shape=record",
             Node::File(_) => "style=dashed shape=box",
         };
         let _ = writeln!(

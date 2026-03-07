@@ -8,16 +8,18 @@ fn test_remove_output_file() {
 
     let mut dag = ExecutionDAG::new();
     let mut exec = Execution::new("exec", ExecutionCommand::system("rm"));
-    exec.args(vec!["file1"])
-        .capture_stdout(1000)
-        .capture_stderr(1000)
-        .output("file1");
+    exec.args(vec!["file1"]).output("file1");
+    exec.capture_stdout(Some(1000));
+    exec.capture_stderr(Some(1000));
 
-    dag.on_execution_done(&exec.uuid, |res| {
+    let group = exec.into_group();
+
+    dag.on_execution_done(&group.uuid, |res| {
+        let res = &res[0];
         assert!(!res.status.is_success(), "rm didn't fail: {res:?}");
         Ok(())
     });
-    dag.add_execution(exec);
+    dag.add_execution_group(group);
     eval_dag(dag);
 }
 
@@ -28,16 +30,18 @@ fn test_chmod_dir() {
 
     let mut dag = ExecutionDAG::new();
     let mut exec = Execution::new("exec", ExecutionCommand::system("chmod"));
-    exec.args(vec!["777", "."])
-        .capture_stdout(1000)
-        .capture_stderr(1000)
-        .output("file1");
+    exec.args(vec!["777", "."]).output("file1");
+    exec.capture_stdout(Some(1000));
+    exec.capture_stderr(Some(1000));
 
-    dag.on_execution_done(&exec.uuid, |res| {
+    let group = exec.into_group();
+
+    dag.on_execution_done(&group.uuid, |res| {
+        let res = &res[0];
         assert!(!res.status.is_success(), "chmod didn't fail: {res:?}");
         Ok(())
     });
-    dag.add_execution(exec);
+    dag.add_execution_group(group);
     eval_dag(dag);
 }
 
@@ -47,15 +51,18 @@ fn test_create_files() {
 
     let mut dag = ExecutionDAG::new();
     let mut exec = Execution::new("exec", ExecutionCommand::system("touch"));
-    exec.args(vec!["lolnope"])
-        .capture_stdout(1000)
-        .capture_stderr(1000);
+    exec.args(vec!["lolnope"]);
+    exec.capture_stdout(Some(1000));
+    exec.capture_stderr(Some(1000));
 
-    dag.on_execution_done(&exec.uuid, |res| {
+    let group = exec.into_group();
+
+    dag.on_execution_done(&group.uuid, |res| {
+        let res = &res[0];
         assert!(!res.status.is_success(), "touch didn't fail: {res:?}");
         Ok(())
     });
-    dag.add_execution(exec);
+    dag.add_execution_group(group);
     eval_dag(dag);
 }
 
@@ -69,15 +76,18 @@ fn test_list_fifo() {
     let fifo_dir = fifo.sandbox_path().parent().unwrap().to_owned();
     group.new_fifo();
     let mut exec = Execution::new("exec", ExecutionCommand::system("ls"));
-    exec.args(vec![fifo_dir.to_str().unwrap()])
-        .capture_stdout(1000)
-        .capture_stderr(1000)
-        .output("file1");
+    exec.args(vec![fifo_dir.to_str().unwrap()]).output("file1");
+    exec.capture_stdout(Some(1000));
+    exec.capture_stderr(Some(1000));
 
-    dag.on_execution_done(&exec.uuid, |res| {
+    let uuid = group.uuid;
+    group.add_execution(exec);
+
+    dag.on_execution_done(&uuid, |res| {
+        let res = &res[0];
         assert!(!res.status.is_success(), "ls didn't fail: {res:?}");
         Ok(())
     });
-    dag.add_execution(exec);
+    dag.add_execution_group(group);
     eval_dag(dag);
 }

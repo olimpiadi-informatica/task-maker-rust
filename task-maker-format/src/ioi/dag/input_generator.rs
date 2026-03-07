@@ -56,8 +56,6 @@ impl InputGenerator {
                     .context("Failed to execute generator source file")?;
 
                 exec.limits_mut().allow_multiprocess();
-                exec.tag(Tag::Generation.into());
-                exec.priority(GENERATION_PRIORITY - testcase_id as Priority);
 
                 // Add limiti.yaml and constraints.yaml file to the sandbox of the generator
                 for filename in &["limiti.yaml", "constraints.yaml"] {
@@ -72,7 +70,7 @@ impl InputGenerator {
                     eval.dag.provide_file(file, path)?;
                 }
 
-                let stdout = exec.stdout();
+                let stdout = exec.capture_stdout(None);
                 Ok((stdout.uuid, Some(exec)))
             }
         }
@@ -103,27 +101,31 @@ impl InputGenerator {
         );
         // If there is an execution, bind its callbacks and store the input file.
         if let Some(mut gen) = gen {
-            gen.capture_stderr(STDERR_CONTENT_LENGTH);
-            bind_exec_callbacks!(eval, gen.uuid, |status| UIMessage::IOIGeneration {
+            gen.capture_stderr(Some(STDERR_CONTENT_LENGTH));
+            let args = gen.args.join(" ");
+            let mut group = gen.into_group();
+            group.tag = Some(Tag::Generation.into());
+            group.priority = GENERATION_PRIORITY - testcase_id as Priority;
+            bind_exec_callbacks!(eval, group.uuid, |status| UIMessage::IOIGeneration {
                 subtask: subtask_id,
                 testcase: testcase_id,
                 status
             })?;
             let sender = eval.sender.clone();
-            let args = gen.args.join(" ");
-            eval.dag.on_execution_done(&gen.uuid, move |result| {
+            eval.dag.on_execution_done(&group.uuid, move |results| {
+                let result = &results[0];
                 if !result.status.is_success() {
                     let mut diagnostic =
                         Diagnostic::error(format!("Failed to generate input {testcase_id}"))
                             .with_note(format!("Generator arguments are: {args}"));
-                    if let Some(stderr) = result.stderr {
-                        diagnostic = diagnostic.with_help_attachment(stderr);
+                    if let Some(stderr) = &result.stderr {
+                        diagnostic = diagnostic.with_help_attachment(stderr.clone());
                     }
                     sender.add_diagnostic(diagnostic)?;
                 }
                 Ok(())
             });
-            eval.dag.add_execution(gen);
+            eval.dag.add_execution_group(group);
         }
         Ok(input)
     }

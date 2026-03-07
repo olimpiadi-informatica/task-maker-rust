@@ -176,11 +176,11 @@ mod tests {
 
         let mut exec = Execution::new("An execution", ExecutionCommand::system("true"));
         exec.stdin(&file);
-        let stdout = exec.stdout();
+        let stdout = exec.capture_stdout(None);
 
         let mut exec2 = Execution::new("Nope!", ExecutionCommand::system("false"));
         exec2.stdin(&stdout);
-        let stdout2 = exec2.stdout();
+        let stdout2 = exec2.capture_stdout(None);
 
         let mut exec3 = Execution::new("Skippp", ExecutionCommand::system("true"));
         exec3.stdin(&stdout2);
@@ -197,6 +197,7 @@ mod tests {
         let exec3_skipped = Arc::new(AtomicBool::new(false));
         let exec3_skipped2 = exec3_skipped.clone();
         dag.provide_file(file, Path::new("/dev/null")).unwrap();
+        let exec = exec.into_group();
         dag.on_execution_done(&exec.uuid, move |_res| {
             exec_done.store(true, Ordering::Relaxed);
             Ok(())
@@ -206,7 +207,8 @@ mod tests {
             exec_start.store(true, Ordering::Relaxed);
             Ok(())
         });
-        dag.add_execution(exec);
+        dag.add_execution_group(exec);
+        let exec2 = exec2.into_group();
         dag.on_execution_done(&exec2.uuid, move |_res| {
             exec2_done.store(true, Ordering::Relaxed);
             Ok(())
@@ -216,14 +218,15 @@ mod tests {
             exec2_start.store(true, Ordering::Relaxed);
             Ok(())
         });
-        dag.add_execution(exec2);
+        dag.add_execution_group(exec2);
+        let exec3 = exec3.into_group();
         dag.on_execution_done(&exec3.uuid, |_res| panic!("exec3 has not been skipped"));
         dag.on_execution_skip(&exec3.uuid, move || {
             exec3_skipped.store(true, Ordering::Relaxed);
             Ok(())
         });
         dag.on_execution_start(&exec3.uuid, |_w| panic!("exec3 has not been skipped"));
-        dag.add_execution(exec3);
+        dag.add_execution_group(exec3);
         dag.write_file_to(&stdout, cwd.path().join("stdout"), false);
         dag.write_file_to(&stdout2, cwd.path().join("stdout2"), false);
         dag.write_file_to(&output3, cwd.path().join("output3"), false);

@@ -47,24 +47,10 @@ impl AsyFile {
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true)
             .mount_proc(true);
-        comp_pdf_svg.tag(Tag::Booklet.into());
         comp_pdf_svg.input(&source_file, "tm-compilation.asy", false);
         eval.dag
             .provide_file(source_file, &source_path)
             .context("Failed to provide any source file")?;
-        bind_exec_callbacks!(
-            eval,
-            comp_pdf_svg.uuid,
-            |status, booklet, name| UIMessage::IOIBookletDependency {
-                booklet,
-                name,
-                step: 0,
-                num_steps: 2,
-                status
-            },
-            booklet,
-            name
-        )?;
         let deps = AsyFile::find_asy_deps(&source_path).with_context(|| {
             format!(
                 "Failed to find asy dependencies of {}",
@@ -88,31 +74,56 @@ impl AsyFile {
             let log_dir = eval.task_root.join("bin/logs/asy");
             let stderr_dest = log_dir.join(format!("{name}.stderr.log"));
             let stdout_dest = log_dir.join(format!("{name}.stdout.log"));
-            eval.dag
-                .write_file_to_allow_fail(comp_pdf_svg.stderr(), stderr_dest, false);
-            eval.dag
-                .write_file_to_allow_fail(comp_pdf_svg.stdout(), stdout_dest, false);
+            eval.dag.write_file_to_allow_fail(
+                comp_pdf_svg.capture_stderr(None),
+                stderr_dest,
+                false,
+            );
+            eval.dag.write_file_to_allow_fail(
+                comp_pdf_svg.capture_stdout(None),
+                stdout_dest,
+                false,
+            );
         }
 
-        comp_pdf_svg.capture_stderr(1024);
-        eval.dag.on_execution_done(&comp_pdf_svg.uuid, {
+        comp_pdf_svg.capture_stderr(Some(1024));
+
+        let mut comp_pdf_svg_group = comp_pdf_svg.into_group();
+        comp_pdf_svg_group.tag = Some(Tag::Booklet.into());
+
+        bind_exec_callbacks!(
+            eval,
+            comp_pdf_svg_group.uuid,
+            |status, booklet, name| UIMessage::IOIBookletDependency {
+                booklet,
+                name,
+                step: 0,
+                num_steps: 2,
+                status
+            },
+            booklet,
+            name
+        )?;
+
+        eval.dag.on_execution_done(&comp_pdf_svg_group.uuid, {
             let sender = eval.sender.clone();
             let name = name.clone();
-            move |result| {
+            move |results| {
+                let result = &results[0];
                 if !result.status.is_success() {
                     let mut diagnostic = Diagnostic::error(format!("Failed to compile {name}"));
                     if result.status.is_internal_error() {
                         diagnostic = diagnostic.with_help("Is 'asymptote' installed?");
                     }
-                    if let Some(stderr) = result.stderr {
-                        diagnostic = diagnostic.with_help_attachment(stderr);
+                    if let Some(stderr) = result.stderr.as_ref() {
+                        diagnostic = diagnostic.with_help_attachment(stderr.clone());
                     }
                     sender.add_diagnostic(diagnostic)?;
                 }
                 Ok(())
             }
         });
-        eval.dag.add_execution(comp_pdf_svg);
+        eval.dag.add_execution_group(comp_pdf_svg_group);
 
         let mut crop = Execution::new(
             format!("Crop of {name}"),
@@ -124,12 +135,17 @@ impl AsyFile {
             .allow_multiprocess()
             .add_extra_readable_dir("/etc")
             .mount_tmpfs(true);
-        crop.tag(Tag::Booklet.into());
         crop.args(vec!["source.pdf"]);
         crop.input(compiled, "source.pdf", false);
+        let cropped = crop.output("source-crop.pdf");
+        crop.capture_stderr(Some(1024));
+
+        let mut crop_group = crop.into_group();
+        crop_group.tag = Some(Tag::Booklet.into());
+
         bind_exec_callbacks!(
             eval,
-            crop.uuid,
+            crop_group.uuid,
             |status, booklet, name| UIMessage::IOIBookletDependency {
                 booklet,
                 name,
@@ -140,25 +156,24 @@ impl AsyFile {
             booklet,
             name
         )?;
-        let cropped = crop.output("source-crop.pdf");
-        crop.capture_stderr(1024);
-        eval.dag.on_execution_done(&crop.uuid, {
+        eval.dag.on_execution_done(&crop_group.uuid, {
             let sender = eval.sender.clone();
-            move |result| {
+            move |results| {
+                let result = &results[0];
                 if !result.status.is_success() {
                     let mut diagnostic = Diagnostic::error(format!("Failed to crop pdf of {name}"));
                     if result.status.is_internal_error() {
                         diagnostic = diagnostic.with_help("Is 'pdfcrop' installed?");
                     }
-                    if let Some(stderr) = result.stderr {
-                        diagnostic = diagnostic.with_help_attachment(stderr);
+                    if let Some(stderr) = result.stderr.as_ref() {
+                        diagnostic = diagnostic.with_help_attachment(stderr.clone());
                     }
                     sender.add_diagnostic(diagnostic)?;
                 }
                 Ok(())
             }
         });
-        eval.dag.add_execution(crop);
+        eval.dag.add_execution_group(crop_group);
 
         Ok((cropped, vector))
     }

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use task_maker_dag::ExecutionStatus;
+use task_maker_dag::{ExecutionResult, ExecutionStatus};
 use task_maker_exec::ExecutorStatus;
 use task_maker_format::ioi::{TestcaseEvaluationStatus, TestcaseGenerationStatus, UIState};
 use task_maker_format::ui::{CompilationStatus, UIExecutionStatus, UIMessage, UIStateT};
@@ -44,7 +44,7 @@ fn test_ui_state_compilation_success() {
     ui.apply(UIMessage::Compilation {
         file: file.clone(),
         status: UIExecutionStatus::Done {
-            result: result.clone(),
+            result: vec![result.clone()],
         },
     });
     assert_eq!(
@@ -66,7 +66,7 @@ fn test_ui_state_compilation_failure() {
     ui.apply(UIMessage::Compilation {
         file: file.clone(),
         status: UIExecutionStatus::Done {
-            result: result.clone(),
+            result: vec![result.clone()],
         },
     });
     assert_eq!(
@@ -90,7 +90,7 @@ fn test_ui_state_compilation_stdout() {
     ui.apply(UIMessage::Compilation {
         file: file.clone(),
         status: UIExecutionStatus::Done {
-            result: result.clone(),
+            result: vec![result.clone()],
         },
     });
     assert_eq!(
@@ -114,7 +114,7 @@ fn test_ui_state_compilation_stderr() {
     ui.apply(UIMessage::Compilation {
         file: file.clone(),
         status: UIExecutionStatus::Done {
-            result: result.clone(),
+            result: vec![result.clone()],
         },
     });
     assert_eq!(
@@ -167,7 +167,7 @@ fn test_ui_state_generation_generated() {
         subtask: 0,
         testcase: 0,
         status: UIExecutionStatus::Done {
-            result: utils::good_result(),
+            result: vec![utils::good_result()],
         },
     });
     assert_eq!(
@@ -184,7 +184,7 @@ fn test_ui_state_generation_failed() {
         subtask: 0,
         testcase: 0,
         status: UIExecutionStatus::Done {
-            result: utils::bad_result(),
+            result: vec![utils::bad_result()],
         },
     });
     assert_eq!(
@@ -233,7 +233,7 @@ fn test_ui_state_validation_validated() {
         subtask: 0,
         testcase: 0,
         status: UIExecutionStatus::Done {
-            result: utils::good_result(),
+            result: vec![utils::good_result()],
         },
     });
     assert_eq!(
@@ -250,7 +250,7 @@ fn test_ui_state_validation_failed() {
         subtask: 0,
         testcase: 0,
         status: UIExecutionStatus::Done {
-            result: utils::bad_result(),
+            result: vec![utils::bad_result()],
         },
     });
     assert_eq!(
@@ -299,7 +299,7 @@ fn test_ui_state_solution_validated() {
         subtask: 0,
         testcase: 0,
         status: UIExecutionStatus::Done {
-            result: utils::good_result(),
+            result: vec![utils::good_result()],
         },
     });
     assert_eq!(
@@ -316,7 +316,7 @@ fn test_ui_state_solution_failed() {
         subtask: 0,
         testcase: 0,
         status: UIExecutionStatus::Done {
-            result: utils::bad_result(),
+            result: vec![utils::bad_result()],
         },
     });
     assert_eq!(
@@ -335,8 +335,7 @@ fn test_ui_state_evaluation_skipped() {
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Skipped,
-        part: 0,
-        num_parts: 1,
+        manager_index: None,
     });
     assert_eq!(
         ui.evaluations[&file].testcases[&0].status,
@@ -356,8 +355,7 @@ fn test_ui_state_evaluation_started() {
         status: UIExecutionStatus::Started {
             worker: Default::default(),
         },
-        part: 0,
-        num_parts: 1,
+        manager_index: None,
     });
     assert_eq!(
         ui.evaluations[&file].testcases[&0].status,
@@ -375,10 +373,9 @@ fn test_ui_state_evaluation_solved() {
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done {
-            result: utils::good_result(),
+            result: vec![utils::good_result()],
         },
-        part: 0,
-        num_parts: 1,
+        manager_index: None,
     });
     assert_eq!(
         ui.evaluations[&file].testcases[&0].status,
@@ -391,15 +388,16 @@ fn test_ui_state_evaluation_return_code() {
     let task = utils::new_task();
     let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
-    let mut result = utils::bad_result();
-    result.status = ExecutionStatus::ReturnCode(123);
+    let result = vec![ExecutionResult {
+        status: ExecutionStatus::ReturnCode(123),
+        ..utils::bad_result()
+    }];
     ui.apply(UIMessage::IOIEvaluation {
         subtask: 0,
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
-        part: 0,
-        num_parts: 1,
+        manager_index: None,
     });
     assert_eq!(
         ui.evaluations[&file].testcases[&0].status,
@@ -412,15 +410,16 @@ fn test_ui_state_evaluation_signal() {
     let task = utils::new_task();
     let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
-    let mut result = utils::bad_result();
-    result.status = ExecutionStatus::Signal(1, "BOH".to_string());
+    let result = vec![ExecutionResult {
+        status: ExecutionStatus::Signal(1, "BOH".to_string()),
+        ..utils::bad_result()
+    }];
     ui.apply(UIMessage::IOIEvaluation {
         subtask: 0,
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
-        part: 0,
-        num_parts: 1,
+        manager_index: None,
     });
     assert_eq!(
         ui.evaluations[&file].testcases[&0].status,
@@ -433,15 +432,16 @@ fn test_ui_state_evaluation_time_limit() {
     let task = utils::new_task();
     let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
-    let mut result = utils::bad_result();
-    result.status = ExecutionStatus::TimeLimitExceeded;
+    let result = vec![ExecutionResult {
+        status: ExecutionStatus::TimeLimitExceeded,
+        ..utils::bad_result()
+    }];
     ui.apply(UIMessage::IOIEvaluation {
         subtask: 0,
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
-        part: 0,
-        num_parts: 1,
+        manager_index: None,
     });
     assert_eq!(
         ui.evaluations[&file].testcases[&0].status,
@@ -454,15 +454,16 @@ fn test_ui_state_evaluation_sys_limit() {
     let task = utils::new_task();
     let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
-    let mut result = utils::bad_result();
-    result.status = ExecutionStatus::SysTimeLimitExceeded;
+    let result = vec![ExecutionResult {
+        status: ExecutionStatus::SysTimeLimitExceeded,
+        ..utils::bad_result()
+    }];
     ui.apply(UIMessage::IOIEvaluation {
         subtask: 0,
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
-        part: 0,
-        num_parts: 1,
+        manager_index: None,
     });
     assert_eq!(
         ui.evaluations[&file].testcases[&0].status,
@@ -475,15 +476,16 @@ fn test_ui_state_evaluation_wall_limit() {
     let task = utils::new_task();
     let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
-    let mut result = utils::bad_result();
-    result.status = ExecutionStatus::WallTimeLimitExceeded;
+    let result = vec![ExecutionResult {
+        status: ExecutionStatus::WallTimeLimitExceeded,
+        ..utils::bad_result()
+    }];
     ui.apply(UIMessage::IOIEvaluation {
         subtask: 0,
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
-        part: 0,
-        num_parts: 1,
+        manager_index: None,
     });
     assert_eq!(
         ui.evaluations[&file].testcases[&0].status,
@@ -496,15 +498,16 @@ fn test_ui_state_evaluation_memory_limit() {
     let task = utils::new_task();
     let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
-    let mut result = utils::bad_result();
-    result.status = ExecutionStatus::MemoryLimitExceeded;
+    let result = vec![ExecutionResult {
+        status: ExecutionStatus::MemoryLimitExceeded,
+        ..utils::bad_result()
+    }];
     ui.apply(UIMessage::IOIEvaluation {
         subtask: 0,
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
-        part: 0,
-        num_parts: 1,
+        manager_index: None,
     });
     assert_eq!(
         ui.evaluations[&file].testcases[&0].status,
@@ -517,15 +520,16 @@ fn test_ui_state_evaluation_internal_error() {
     let task = utils::new_task();
     let mut ui = UIState::new(&task, Default::default());
     let file = PathBuf::from("file");
-    let mut result = utils::bad_result();
-    result.status = ExecutionStatus::InternalError("foo".into());
+    let result = vec![ExecutionResult {
+        status: ExecutionStatus::InternalError("foo".into()),
+        ..utils::bad_result()
+    }];
     ui.apply(UIMessage::IOIEvaluation {
         subtask: 0,
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done { result },
-        part: 0,
-        num_parts: 1,
+        manager_index: None,
     });
     assert_eq!(
         ui.evaluations[&file].testcases[&0].status,
@@ -545,8 +549,7 @@ fn test_ui_state_checker_skipped() {
         status: UIExecutionStatus::Started {
             worker: Default::default(),
         },
-        part: 0,
-        num_parts: 1,
+        manager_index: None,
     });
     ui.apply(UIMessage::IOIChecker {
         subtask: 0,
@@ -590,7 +593,7 @@ fn test_ui_state_checker_done() {
         testcase: 0,
         solution: file.clone(),
         status: UIExecutionStatus::Done {
-            result: result.clone(),
+            result: vec![result.clone()],
         },
     });
     assert_eq!(ui.evaluations[&file].testcases[&0].checker, Some(result));
