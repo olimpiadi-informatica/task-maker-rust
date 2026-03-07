@@ -186,14 +186,16 @@ pub fn patch_dag(eval: &mut EvaluationData, batch_size: usize, batch: &Batch) ->
 
     let mut new_file_callbacks = vec![];
     for group in eval.dag.data.execution_groups.values_mut() {
-        for exec in group.executions.iter_mut() {
-            if let Some(tag) = &mut exec.tag {
-                if tag.name == "evaluation" {
-                    // The priority of generation is GENERATION_PRIORITY - testcase id.
-                    exec.priority = GENERATION_PRIORITY + 1;
-                    processed += 1;
-                    let stdout = exec.stdout.as_ref();
-                    if let Some(stdout) = stdout {
+        if let Some(tag) = &mut group.tag {
+            if tag.name == "evaluation" {
+                // The priority of generation is GENERATION_PRIORITY - testcase id.
+                group.priority = GENERATION_PRIORITY + 1;
+                processed += 1;
+                for exec in &group.executions {
+                    if let task_maker_dag::ExecutionOutputBehaviour::Capture {
+                        file: stdout, ..
+                    } = &exec.stdout
+                    {
                         let testcase_id = get_testcase_id(&exec.description).ok_or_else(|| {
                             anyhow!("Failed to find testcase id from '{}'", exec.description)
                         })?;
@@ -209,11 +211,11 @@ pub fn patch_dag(eval: &mut EvaluationData, batch_size: usize, batch: &Batch) ->
                         warn!("Execution '{}' doesn't capture stdout", exec.description);
                     }
                 }
-                if tag.name == "checking" {
-                    // The priority of the checker is GENERATION_PRIORITY - testcase id.
-                    exec.priority = GENERATION_PRIORITY + 1;
-                    processed += 1;
-                }
+            }
+            if tag.name == "checking" {
+                // The priority of the checker is GENERATION_PRIORITY - testcase id.
+                group.priority = GENERATION_PRIORITY + 1;
+                processed += 1;
             }
         }
     }

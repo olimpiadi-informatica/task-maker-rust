@@ -39,7 +39,7 @@ impl Checker {
         correct_output: FileUuid,
         test_output: FileUuid,
         callback: F,
-    ) -> Result<Execution, Error>
+    ) -> Result<task_maker_dag::ExecutionGroup, Error>
     where
         F: FnOnce(f64, String) -> Result<(), Error> + Send + Sync + 'static,
     {
@@ -55,11 +55,13 @@ impl Checker {
                     "test",
                 ])
                 .input(correct_output, "correct", false)
-                .input(test_output, "test", false)
-                .tag(Tag::Checking.into())
-                .priority(EVALUATION_PRIORITY - testcase_id.unwrap_or_default() as Priority);
+                .input(test_output, "test", false);
+                let mut group = exec.into_group();
+                group.tag = Some(Tag::Checking.into());
+                group.priority = EVALUATION_PRIORITY - testcase_id.unwrap_or_default() as Priority;
 
-                eval.dag.on_execution_done(&exec.uuid, move |result| {
+                eval.dag.on_execution_done(&group.uuid, move |results| {
+                    let result = &results[0];
                     match result.status {
                         // diff exits with 0 if the files are equal
                         ExecutionStatus::Success => callback(1.0, "Output is correct".into())
@@ -73,7 +75,7 @@ impl Checker {
                     };
                     Ok(())
                 });
-                Ok(exec)
+                Ok(group)
             }
             Checker::Custom(source_file) => {
                 let mut exec = source_file
@@ -85,21 +87,25 @@ impl Checker {
                     .context("Failed to execute checker source file")?;
                 exec.input(input, "input", false)
                     .input(correct_output, "correct_output", false)
-                    .input(test_output, "test_output", false)
-                    .tag(Tag::Checking.into())
-                    .capture_stdout(128)
-                    .capture_stderr(STDERR_CONTENT_LENGTH)
-                    .priority(EVALUATION_PRIORITY - testcase_id.unwrap_or_default() as Priority);
+                    .input(test_output, "test_output", false);
+                exec.capture_stdout(Some(128));
+                exec.capture_stderr(Some(STDERR_CONTENT_LENGTH));
                 exec.limits_mut().allow_multiprocess();
+                let mut group = exec.into_group();
+                group.tag = Some(Tag::Checking.into());
+                group.priority = EVALUATION_PRIORITY - testcase_id.unwrap_or_default() as Priority;
                 let sender = eval.sender.clone();
-                eval.dag.on_execution_done(&exec.uuid, move |res| {
+                eval.dag.on_execution_done(&group.uuid, move |results| {
+            let res = &results[0];
                     let stdout = res
                         .stdout
+                        .as_ref()
                         .ok_or_else(|| anyhow!("Checker stdout not captured"))?;
                     let stderr = res
                         .stderr
+                        .as_ref()
                         .ok_or_else(|| anyhow!("Checker stderr not captured"))?;
-                    let message = String::from_utf8_lossy(&stderr).trim().to_string();
+                    let message = String::from_utf8_lossy(stderr).trim().to_string();
                     let message = Self::translate_checker_message(message);
                     if !res.status.is_success() {
                         let message = if let Some(testcase_id) = testcase_id {
@@ -112,11 +118,11 @@ impl Checker {
                         let diagnostic = Diagnostic::error(message)
                             .with_note(description)
                             .with_help(format!("The checker crashed with: {:?}", res.status))
-                            .with_help_attachment(stderr);
+                            .with_help_attachment(stderr.clone());
                         sender.add_diagnostic(diagnostic)?;
                         return Ok(());
                     }
-                    let score = String::from_utf8_lossy(&stdout);
+                    let score = String::from_utf8_lossy(stdout);
                     let score: f64 = match score.trim().parse() {
                         Ok(score) => score,
                         Err(e) => {
@@ -130,14 +136,14 @@ impl Checker {
                             let diagnostic = Diagnostic::error(message)
                                 .with_note(description)
                                 .with_help(format!("The parse error is: {e:?}"))
-                                .with_help_attachment(stdout);
+                                .with_help_attachment(stdout.clone());
                             sender.add_diagnostic(diagnostic)?;
                             return Ok(());
                         }
                     };
                     callback(score, message)
                 });
-                Ok(exec)
+                Ok(group)
             }
         }
     }
@@ -185,7 +191,7 @@ impl Checker {
             },
             solution
         )?;
-        eval.dag.add_execution(exec);
+        eval.dag.add_execution_group(exec);
         Ok(())
     }
 

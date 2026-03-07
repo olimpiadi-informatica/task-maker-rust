@@ -110,18 +110,18 @@ lazy_static! {
 /// The status of an execution.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum UIExecutionStatus {
-    /// The `Execution` is known to the DAG and when all its dependencies are ready it will
-    /// started.
+    /// The `ExecutionGroup` is known to the DAG and when all its dependencies
+    /// are ready it will started.
     Pending,
-    /// The `Execution` has been started on a worker.
+    /// The `ExecutionGroup` has been started on a worker.
     Started {
         /// The UUID of the worker.
         worker: WorkerUuid,
     },
-    /// The `Execution` has been completed.
+    /// The `ExecutionGroup` has been completed.
     Done {
-        /// The result of the execution.
-        result: ExecutionResult,
+        /// The result of the execution group.
+        result: Vec<ExecutionResult>,
     },
     /// At least one of its dependencies have failed, the `Execution` has been skipped.
     Skipped,
@@ -163,6 +163,8 @@ impl CompilationStatus {
             UIExecutionStatus::Pending => *self = CompilationStatus::Pending,
             UIExecutionStatus::Started { .. } => *self = CompilationStatus::Running,
             UIExecutionStatus::Done { result } => {
+                assert_eq!(result.len(), 1);
+                let result = result.into_iter().next().unwrap();
                 let stdout = result
                     .stdout
                     .as_ref()

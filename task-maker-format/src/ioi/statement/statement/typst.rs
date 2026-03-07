@@ -42,8 +42,6 @@ impl Language for Typst {
             ExecutionCommand::TypstCompilation { inputs },
         );
 
-        exec.tag(Tag::Booklet.into());
-        exec.priority(BOOKLET_PRIORITY);
         let output = exec.output("booklet.pdf");
 
         let source = File::new("Source of the booklet");
@@ -99,27 +97,33 @@ impl Language for Typst {
             eval.dag.provide_file(intro, intro_page)?;
         }
 
-        bind_exec_callbacks!(
-            eval,
-            exec.uuid,
-            |status, name| UIMessage::IOIBooklet { name, status },
-            booklet_name
-        )?;
         if eval.dag.data.config.copy_logs {
             let log_dir = eval.task_root.join("bin/logs/booklets");
             let stderr_dest = log_dir.join(format!("{booklet_name}.stderr.log"));
             let stdout_dest = log_dir.join(format!("{booklet_name}.stdout.log"));
             eval.dag
-                .write_file_to_allow_fail(exec.stderr(), stderr_dest, false);
+                .write_file_to_allow_fail(exec.capture_stderr(None), stderr_dest, false);
             eval.dag
-                .write_file_to_allow_fail(exec.stdout(), stdout_dest, false);
+                .write_file_to_allow_fail(exec.capture_stdout(None), stdout_dest, false);
         }
         let sender = eval.sender.clone();
-        exec.capture_stderr(1024 * 1024 * 1024);
+        exec.capture_stderr(Some(1024 * 1024 * 1024));
+
+        let mut group = exec.into_group();
+        group.tag = Some(Tag::Booklet.into());
+        group.priority = BOOKLET_PRIORITY;
+
+        bind_exec_callbacks!(
+            eval,
+            group.uuid,
+            |status, name| UIMessage::IOIBooklet { name, status },
+            booklet_name
+        )?;
 
         let dest = booklet.dest.file_name().unwrap().to_owned();
-        eval.dag.on_execution_done(&exec.uuid, move |res| {
-            if let ExecutionStatus::Failure(error) = res.status {
+        eval.dag.on_execution_done(&group.uuid, move |results| {
+            let res = &results[0];
+            if let ExecutionStatus::Failure(error) = res.status.clone() {
                 sender.add_diagnostic(
                     Diagnostic::error(format!(
                         "The compilation of the booklet at {} failed with the following errors:\n{}",
@@ -131,7 +135,7 @@ impl Language for Typst {
             }
             Ok(())
         });
-        eval.dag.add_execution(exec);
+        eval.dag.add_execution_group(group);
 
         eval.dag.write_file_to(output, &booklet.dest, false);
 

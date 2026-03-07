@@ -94,7 +94,7 @@ impl SanityCheck for FuzzCheckerWithJunkOutput {
                     )
                 })?;
 
-            eval.dag.add_execution(exec);
+            eval.dag.add_execution_group(exec);
         }
 
         Ok(())

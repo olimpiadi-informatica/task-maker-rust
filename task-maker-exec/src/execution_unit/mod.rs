@@ -94,17 +94,21 @@ impl ExecutionUnit {
     }
 
     /// Keeps the sandbox if one exists
-    pub fn keep(&mut self) -> Result<(), Error> {
+    pub fn keep(&mut self) {
         match self {
             ExecutionUnit::Sandbox(sandbox) => sandbox.keep(),
-            ExecutionUnit::TypstCompilation(_) => Ok(()),
+            ExecutionUnit::TypstCompilation(_) => (),
         }
     }
 
     /// Runs the execution
-    pub fn run(&mut self, runner: &dyn SandboxRunner) -> Result<SandboxResult, Error> {
+    pub fn run(
+        &mut self,
+        runner: &dyn SandboxRunner,
+        dag_config: &ExecutionDAGConfig,
+    ) -> Result<SandboxResult, Error> {
         match self {
-            ExecutionUnit::Sandbox(sandbox) => sandbox.run(runner),
+            ExecutionUnit::Sandbox(sandbox) => sandbox.run(runner, dag_config),
             ExecutionUnit::TypstCompilation(typst_compiler) => typst_compiler.run(),
         }
     }

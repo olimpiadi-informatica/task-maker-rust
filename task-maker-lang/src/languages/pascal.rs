@@ -123,7 +123,6 @@ mod tests {
             .unwrap();
         let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
 
-        let args = comp.args;
-        assert_that(&args).contains("foo.pas".to_string());
+        assert_that(&comp.executions[0].args).contains("foo.pas".to_string());
     }
 }

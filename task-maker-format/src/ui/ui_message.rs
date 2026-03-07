@@ -83,10 +83,9 @@ pub enum UIMessage {
         solution: PathBuf,
         /// The status of the solution.
         status: UIExecutionStatus,
-        /// The index of the piece of evaluation of this solution.
-        part: usize,
-        /// The number of the parts the evaluation of this solution is split into.
-        num_parts: usize,
+        /// Index of the manager in the array of results.
+        /// Used for communication-style tasks.
+        manager_index: Option<usize>,
     },
 
     /// The checking of a solution in a IOI task.

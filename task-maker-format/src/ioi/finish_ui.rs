@@ -154,10 +154,11 @@ impl FinishUI {
                     if !first {
                         print!(" | ");
                     }
-                    if let ExecutionStatus::Success = sol.status {
-                        cwrite!(self, GREEN, "Solved");
+                    let first_failure = sol.iter().find(|x| x.status != ExecutionStatus::Success);
+                    if let Some(f) = first_failure {
+                        cwrite!(self, YELLOW, "Solution failed: {:?}", f);
                     } else {
-                        cwrite!(self, YELLOW, "Solution failed: {:?}", sol.status);
+                        cwrite!(self, GREEN, "Solved");
                     }
                 }
                 println!();
@@ -497,15 +498,23 @@ impl FinishUI {
             UIExecutionStatus::Pending => print!("..."),
             UIExecutionStatus::Skipped => print!("skipped"),
             UIExecutionStatus::Started { .. } => cwrite!(self, YELLOW, "started"),
-            UIExecutionStatus::Done { result } => match &result.status {
-                ExecutionStatus::Success => cwrite!(self, GREEN, "Success"),
-                _ => cwrite!(
-                    self,
-                    RED,
-                    "{}",
-                    FinishUIUtils::display_fail_execution_status(&result.status)
-                ),
-            },
+            UIExecutionStatus::Done { result } => {
+                for res in result {
+                    match &res.status {
+                        ExecutionStatus::Success => {}
+                        _ => {
+                            return cwrite!(
+                                self,
+                                RED,
+                                "{}",
+                                FinishUIUtils::display_fail_execution_status(&res.status)
+                            );
+                        }
+                    }
+                }
+
+                cwrite!(self, GREEN, "Success");
+            }
         }
     }
 

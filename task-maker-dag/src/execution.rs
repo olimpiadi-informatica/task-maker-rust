@@ -5,12 +5,7 @@ use anyhow::Error;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::file::*;
-use crate::ExecutionDAGConfig;
-
-/// The identifier of an execution, it's globally unique and it identifies an execution only during
-/// a single evaluation.
-pub type ExecutionUuid = Uuid;
+use crate::{file::*, ExecutionGroup};
 
 /// The identifier of a worker, it's globally unique and identifies the worker during a single
 /// connection. It is used to associate the jobs to the workers which runs the executions. The
@@ -20,8 +15,8 @@ pub type WorkerUuid = Uuid;
 /// Type of the callback called when an [`Execution`](struct.Execution.html) starts.
 pub type OnStartCallback = Box<dyn FnOnce(WorkerUuid) -> Result<(), Error> + 'static>;
 
-/// Type of the callback called when an [`Execution`](struct.Execution.html) ends.
-pub type OnDoneCallback = Box<dyn FnOnce(ExecutionResult) -> Result<(), Error> + 'static>;
+/// Type of the callback called when an [`ExecutionGroup`](struct.Execution.html) ends.
+pub type OnDoneCallback = Box<dyn FnOnce(&[ExecutionResult]) -> Result<(), Error> + 'static>;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) is skipped.
 pub type OnSkipCallback = Box<dyn FnOnce() -> Result<(), Error> + 'static>;
@@ -91,6 +86,51 @@ pub struct ExecutionCallbacks {
     pub on_skip: Vec<OnSkipCallback>,
 }
 
+/// Specifies the behaviour of an execution wrt stdout/stderr.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ExecutionOutputBehaviour {
+    /// Capture the output.
+    Capture {
+        /// File the output is captured to.
+        file: File,
+        /// Maximum size of the output.
+        size_limit: Option<usize>,
+    },
+    /// Redirect output to a path.
+    Path(PathBuf),
+    /// Ignore the output.
+    Ignored,
+}
+
+/// Specifies the behaviour of an execution wrt stdin.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ExecutionInputBehaviour {
+    /// Pass input from a file.
+    File(FileUuid),
+    /// Redirect input from a path.
+    Path(PathBuf),
+    /// Ignore the output.
+    Ignored,
+}
+
+impl From<FileUuid> for ExecutionInputBehaviour {
+    fn from(val: FileUuid) -> Self {
+        ExecutionInputBehaviour::File(val)
+    }
+}
+
+impl From<File> for ExecutionInputBehaviour {
+    fn from(val: File) -> Self {
+        ExecutionInputBehaviour::File(val.uuid)
+    }
+}
+
+impl From<&'_ File> for ExecutionInputBehaviour {
+    fn from(val: &'_ File) -> Self {
+        ExecutionInputBehaviour::File(val.uuid)
+    }
+}
+
 /// An [`Execution`](struct.Execution.html) is a process that will be executed by a worker inside a
 /// sandbox. The sandbox will limit the execution of the process (e.g. killing it after a time limit
 /// occurs, or preventing it from reading/writing files).
@@ -130,41 +170,25 @@ pub struct ExecutionCallbacks {
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Execution {
-    /// Uuid of the execution.
-    pub uuid: ExecutionUuid,
-    /// Description of the execution.
+    /// A textual description of the group.
     pub description: String,
+
     /// Which command to execute.
     pub command: ExecutionCommand,
     /// The list of command line arguments.
     pub args: Vec<String>,
 
-    /// Optional standard input to pass to the program.
-    pub stdin: Option<FileUuid>,
-    /// Optional standard output to capture.
-    pub stdout: Option<File>,
-    /// Optional standard error to capture.
-    pub stderr: Option<File>,
-    /// When not `None`, ask the sandbox to capture that many bytes from the standard output.
-    pub capture_stdout: Option<usize>,
-    /// When not `None`, ask the sandbox to capture that many bytes from the standard error.
-    pub capture_stderr: Option<usize>,
+    /// Behaviour for standard output.
+    pub stdin: ExecutionInputBehaviour,
+    /// Behaviour for standard output.
+    pub stdout: ExecutionOutputBehaviour,
+    /// Behaviour for standard error..
+    pub stderr: ExecutionOutputBehaviour,
+
     /// List of input files that should be put inside the sandbox.
-    pub inputs: HashMap<PathBuf, ExecutionInput>,
+    pub input_files: HashMap<PathBuf, ExecutionInput>,
     /// List of the output files that should be capture from the sandbox.
-    pub outputs: HashMap<PathBuf, File>,
-    /// When set, the standard input is redirected from this file. The path is relative to the
-    /// sandbox root.
-    ///
-    /// This is incompatible with `stdin`. Dependencies can still be achieved by providing the file
-    /// as an "input".
-    pub stdin_redirect_path: Option<PathBuf>,
-    /// When set, the standard output is redirected to this file. The path is relative to the
-    /// sandbox root.
-    pub stdout_redirect_path: Option<PathBuf>,
-    /// When set, the standard error is redirected to this file. The path is relative to the
-    /// sandbox root.
-    pub stderr_redirect_path: Option<PathBuf>,
+    pub output_files: HashMap<PathBuf, File>,
 
     /// Environment variables to set.
     pub env: HashMap<String, String>,
@@ -173,17 +197,6 @@ pub struct Execution {
 
     /// Limits on the execution.
     pub limits: ExecutionLimits,
-
-    /// The configuration of the underlying DAG. Will be overwritten by
-    /// `ExecutionDAG.add_execution`.
-    pub(crate) config: ExecutionDAGConfig,
-
-    /// The tag associated with this execution.
-    pub tag: Option<ExecutionTag>,
-    /// A priority index for this execution. Higher values correspond to higher priorities. The
-    /// priority order is followed only between ready executions, i.e. a lower priority one can be
-    /// executed before if its dependencies are ready earlier.
-    pub priority: Priority,
 }
 
 /// Limits on an [`Execution`](struct.Execution.html). On some worker platforms some of the fields
@@ -442,80 +455,21 @@ impl Execution {
     /// ```
     pub fn new<S: Into<String>>(description: S, command: ExecutionCommand) -> Execution {
         Execution {
-            uuid: Uuid::new_v4(),
-
             description: description.into(),
             command,
             args: vec![],
 
-            stdin: None,
-            stdout: None,
-            stderr: None,
-            capture_stdout: None,
-            capture_stderr: None,
-            inputs: HashMap::new(),
-            outputs: HashMap::new(),
-            stdin_redirect_path: None,
-            stdout_redirect_path: None,
-            stderr_redirect_path: None,
+            stdin: ExecutionInputBehaviour::Ignored,
+            stdout: ExecutionOutputBehaviour::Ignored,
+            stderr: ExecutionOutputBehaviour::Ignored,
+            input_files: HashMap::new(),
+            output_files: HashMap::new(),
 
             env: HashMap::new(),
             copy_env: Vec::new(),
 
             limits: ExecutionLimits::default(),
-
-            config: ExecutionDAGConfig::new(),
-
-            tag: None,
-            priority: Priority::default(),
         }
-    }
-
-    /// List of all the [File](struct.File.html) dependencies of the execution, including `stdin`.
-    ///
-    /// ```
-    /// use task_maker_dag::{Execution, ExecutionCommand, File};
-    ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
-    /// let file = File::new("random file");
-    /// let uuid = file.uuid;
-    /// exec.stdin(file);
-    /// assert_eq!(exec.dependencies(), vec![uuid]);
-    /// ```
-    pub fn dependencies(&self) -> Vec<FileUuid> {
-        let mut deps = vec![];
-        if let Some(stdin) = self.stdin {
-            deps.push(stdin);
-        }
-        for input in self.inputs.values() {
-            deps.push(input.file);
-        }
-        deps
-    }
-
-    /// List of all the [File](struct.File.html) produced by the execution, including `stdout` and
-    /// `stderr`.
-    ///
-    /// ```
-    /// use task_maker_dag::{Execution, ExecutionCommand};
-    ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
-    /// let file = exec.stdout();
-    /// let uuid = file.uuid;
-    /// assert_eq!(exec.outputs(), vec![uuid]);
-    /// ```
-    pub fn outputs(&self) -> Vec<FileUuid> {
-        let mut outs = vec![];
-        if let Some(stdout) = &self.stdout {
-            outs.push(stdout.uuid);
-        }
-        if let Some(stderr) = &self.stderr {
-            outs.push(stderr.uuid);
-        }
-        for output in self.outputs.values() {
-            outs.push(output.uuid);
-        }
-        outs
     }
 
     /// Sets the command line arguments of the execution. Calling again this method will overwrite
@@ -532,135 +486,63 @@ impl Execution {
         self
     }
 
-    /// Bind the standard input to the specified file. Calling again this method will overwrite the
-    /// previous value.
-    ///
-    /// ```
-    /// use task_maker_dag::{Execution, ExecutionCommand, File};
-    ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
-    /// let file = File::new("random file");
-    /// let uuid = file.uuid;
-    /// exec.stdin(file);
-    /// assert_eq!(exec.stdin, Some(uuid));
-    /// ```
-    pub fn stdin<F: Into<FileUuid>>(&mut self, stdin: F) -> &mut Self {
-        assert!(self.stdin_redirect_path.is_none());
-        self.stdin = Some(stdin.into());
+    /// Specifies stdin behaviour.
+    pub fn stdin<F: Into<ExecutionInputBehaviour>>(&mut self, stdin: F) -> &mut Self {
+        self.stdin = stdin.into();
         self
     }
 
-    /// Set the stdin redirection path.
-    ///
-    /// ```
-    /// use task_maker_dag::{Execution, ExecutionCommand, File};
-    /// use std::path::PathBuf;
-    ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
-    /// exec.stdin_redirect_path("/dev/urandom");
-    /// assert_eq!(exec.stdin_redirect_path.unwrap(), PathBuf::from("/dev/urandom"));
-    /// ```
-    pub fn stdin_redirect_path<P: Into<PathBuf>>(&mut self, path: P) -> &mut Self {
-        assert!(self.stdin.is_none());
-        self.stdin_redirect_path = Some(path.into());
-        self
-    }
-
-    /// Handle to the standard output of the execution. This should be called at least once before
-    /// the evaluation starts in order to track the file. Calling this method more than once will
-    /// return the same value.
-    ///
-    /// ```
-    /// use task_maker_dag::{Execution, ExecutionCommand};
-    ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
-    /// let file = exec.stdout();
-    /// assert_eq!(exec.stdout, Some(file));
-    /// ```
-    pub fn stdout(&mut self) -> File {
-        if self.stdout.is_none() {
-            let file = File::new(format!("Stdout of '{}'", self.description));
-            self.stdout = Some(file);
+    /// Specifies to capture stdout of this solution, returning the file handle.
+    pub fn capture_stdout(&mut self, size_limit: Option<usize>) -> File {
+        match &mut self.stdout {
+            ExecutionOutputBehaviour::Capture {
+                file,
+                size_limit: osl,
+            } => {
+                *osl = size_limit;
+                file.clone()
+            }
+            out => {
+                let file = File::new(format!("Stdout of '{}'", self.description));
+                *out = ExecutionOutputBehaviour::Capture {
+                    file: file.clone(),
+                    size_limit,
+                };
+                file
+            }
         }
-        self.stdout.clone().unwrap()
     }
 
     /// Set the stdout redirection path.
-    ///
-    /// ```
-    /// use task_maker_dag::{Execution, ExecutionCommand, File};
-    /// use std::path::PathBuf;
-    ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
-    /// exec.stdout_redirect_path("output.txt");
-    /// assert_eq!(exec.stdout_redirect_path.unwrap(), PathBuf::from("output.txt"));
-    /// ```
     pub fn stdout_redirect_path<P: Into<PathBuf>>(&mut self, path: P) -> &mut Self {
-        self.stdout_redirect_path = Some(path.into());
+        self.stdout = ExecutionOutputBehaviour::Path(path.into());
         self
     }
 
-    /// Handle to the standard error of the execution. This should be called at least once before
-    /// the evaluation starts in order to track the file. Calling this method more than once will
-    /// return the same value.
-    ///
-    /// ```
-    /// use task_maker_dag::{Execution, ExecutionCommand};
-    ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
-    /// let file = exec.stderr();
-    /// assert_eq!(exec.stderr, Some(file));
-    /// ```
-    pub fn stderr(&mut self) -> File {
-        if self.stderr.is_none() {
-            let file = File::new(format!("Stderr of '{}'", self.description));
-            self.stderr = Some(file);
+    /// Specifies to capture stdout of this solution, returning the file handle.
+    pub fn capture_stderr(&mut self, size_limit: Option<usize>) -> File {
+        match &mut self.stderr {
+            ExecutionOutputBehaviour::Capture {
+                file,
+                size_limit: osl,
+            } => {
+                *osl = size_limit;
+                file.clone()
+            }
+            out => {
+                let file = File::new(format!("Stderr of '{}'", self.description));
+                *out = ExecutionOutputBehaviour::Capture {
+                    file: file.clone(),
+                    size_limit,
+                };
+                file
+            }
         }
-        self.stderr.clone().unwrap()
     }
 
     /// Set the stderr redirection path.
-    ///
-    /// ```
-    /// use task_maker_dag::{Execution, ExecutionCommand, File};
-    /// use std::path::PathBuf;
-    ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
-    /// exec.stderr_redirect_path("error.txt");
-    /// assert_eq!(exec.stderr_redirect_path.unwrap(), PathBuf::from("error.txt"));
-    /// ```
     pub fn stderr_redirect_path<P: Into<PathBuf>>(&mut self, path: P) -> &mut Self {
-        self.stderr_redirect_path = Some(path.into());
-        self
-    }
-
-    /// Tell the executor to include the first `count` bytes of the standard output in the result.
-    ///
-    /// ```
-    /// use task_maker_dag::{Execution, ExecutionCommand};
-    ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
-    /// exec.capture_stdout(1234);
-    /// assert_eq!(exec.capture_stdout, Some(1234));
-    /// ```
-    pub fn capture_stdout(&mut self, count: usize) -> &mut Self {
-        self.stdout(); // make sure stdout is captured
-        self.capture_stdout = Some(count);
-        self
-    }
-
-    /// Tell the executor to include the first `count` bytes of the standard error in the result.
-    ///
-    /// ```
-    /// use task_maker_dag::{Execution, ExecutionCommand};
-    ///
-    /// let mut exec = Execution::new("generator of prime numbers", ExecutionCommand::local("foo"));
-    /// exec.capture_stderr(1234);
-    /// assert_eq!(exec.capture_stderr, Some(1234));
-    /// ```
-    pub fn capture_stderr(&mut self, count: usize) -> &mut Self {
-        self.stderr(); // make sure stderr is captured
-        self.capture_stderr = Some(count);
+        self.stderr = ExecutionOutputBehaviour::Path(path.into());
         self
     }
 
@@ -683,7 +565,7 @@ impl Execution {
         path: P,
         executable: bool,
     ) -> &mut Self {
-        self.inputs.insert(
+        self.input_files.insert(
             path.into(),
             ExecutionInput {
                 file: file.into(),
@@ -707,7 +589,7 @@ impl Execution {
     /// ```
     pub fn output<P: Into<PathBuf> + std::fmt::Debug>(&mut self, path: P) -> File {
         let file = File::new(format!("Output of '{}' at {:?}", self.description, path));
-        self.outputs.entry(path.into()).or_insert(file).clone()
+        self.output_files.entry(path.into()).or_insert(file).clone()
     }
 
     /// Add an environment variable to the execution.
@@ -755,23 +637,6 @@ impl Execution {
         &mut self.limits
     }
 
-    /// A reference to the configuration of the underlying DAG.
-    pub fn config(&self) -> &ExecutionDAGConfig {
-        &self.config
-    }
-
-    /// Set the tag of this `Execution`.
-    pub fn tag(&mut self, tag: ExecutionTag) -> &mut Self {
-        self.tag = Some(tag);
-        self
-    }
-
-    /// Set the priority of this `Execution`.
-    pub fn priority(&mut self, priority: Priority) -> &mut Self {
-        self.priority = priority;
-        self
-    }
-
     /// Compute the [`ExecutionStatus`](struct.ExecutionStatus.html) based on the result of the
     /// execution, checking the signals, the return code and the time/memory constraints.
     pub fn status(
@@ -802,6 +667,11 @@ impl Execution {
             }
         }
         status.clone()
+    }
+
+    /// Converts this execution into an execution group.
+    pub fn into_group(self) -> ExecutionGroup {
+        self.into()
     }
 }
 

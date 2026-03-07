@@ -80,7 +80,7 @@ pub fn main_export_booklet(opt: ExportBookletOpt) -> Result<(), Error> {
                 "{task_name}_booklet_export_{execution_count:0>2}.zip",
             ))?);
 
-            for (name, file) in execution.inputs {
+            for (name, file) in execution.input_files {
                 let file = dag_files
                     .get(&file.file)
                     .ok_or_else(|| anyhow!("File dependency not found."))?;

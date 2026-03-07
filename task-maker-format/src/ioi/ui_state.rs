@@ -91,7 +91,7 @@ pub struct TestcaseGenerationState {
     /// Result of the validation.
     pub validation: Option<ExecutionResult>,
     /// Result of the solution.
-    pub solution: Option<ExecutionResult>,
+    pub solution: Option<Vec<ExecutionResult>>,
 }
 
 /// State of the generation of a subtask.
@@ -450,12 +450,14 @@ impl UIStateT for UIState {
                         gen.status = TestcaseGenerationStatus::Generating
                     }
                     UIExecutionStatus::Done { result } => {
-                        if let ExecutionStatus::Success = result.status {
+                        // Generation always has only a single process.
+                        assert_eq!(result.len(), 1);
+                        if let ExecutionStatus::Success = result[0].status {
                             gen.status = TestcaseGenerationStatus::Generated;
                         } else {
                             gen.status = TestcaseGenerationStatus::Failed;
                         }
-                        gen.generation = Some(result);
+                        gen.generation = Some(result[0].clone());
                     }
                     UIExecutionStatus::Skipped => gen.status = TestcaseGenerationStatus::Skipped,
                 }
@@ -481,12 +483,14 @@ impl UIStateT for UIState {
                         gen.status = TestcaseGenerationStatus::Validating
                     }
                     UIExecutionStatus::Done { result } => {
-                        if let ExecutionStatus::Success = result.status {
+                        // Validation always has only a single process.
+                        assert_eq!(result.len(), 1);
+                        if let ExecutionStatus::Success = result[0].status {
                             gen.status = TestcaseGenerationStatus::Validated;
                         } else {
                             gen.status = TestcaseGenerationStatus::Failed;
                         }
-                        gen.validation = Some(result);
+                        gen.validation = Some(result[0].clone());
                     }
                     UIExecutionStatus::Skipped => {
                         if let TestcaseGenerationStatus::Failed = gen.status {
@@ -514,7 +518,7 @@ impl UIStateT for UIState {
                         gen.status = TestcaseGenerationStatus::Solving
                     }
                     UIExecutionStatus::Done { result } => {
-                        if let ExecutionStatus::Success = result.status {
+                        if result.iter().all(|x| x.status == ExecutionStatus::Success) {
                             gen.status = TestcaseGenerationStatus::Solved;
                         } else {
                             gen.status = TestcaseGenerationStatus::Failed;
@@ -533,8 +537,6 @@ impl UIStateT for UIState {
                 testcase,
                 solution,
                 status,
-                part,
-                num_parts,
                 ..
             } => {
                 let task = &self.task;
@@ -543,45 +545,47 @@ impl UIStateT for UIState {
                     .entry(solution)
                     .or_insert_with(|| SolutionEvaluationState::new(task));
                 let testcase = eval.testcases.get_mut(&testcase).expect("Missing testcase");
-                if testcase.results.len() != num_parts {
-                    testcase.results = vec![None; num_parts];
-                }
                 match status {
                     UIExecutionStatus::Pending => {}
                     UIExecutionStatus::Started { .. } => {
                         testcase.status = TestcaseEvaluationStatus::Solving
                     }
                     UIExecutionStatus::Done { result } => {
-                        match result.status {
-                            ExecutionStatus::Success => {
-                                testcase.status = TestcaseEvaluationStatus::Solved
-                            }
-                            ExecutionStatus::Failure(_) => {
-                                testcase.status = TestcaseEvaluationStatus::RuntimeError
-                            }
-                            ExecutionStatus::ReturnCode(_) => {
-                                testcase.status = TestcaseEvaluationStatus::RuntimeError
-                            }
-                            ExecutionStatus::Signal(_, _) => {
-                                testcase.status = TestcaseEvaluationStatus::RuntimeError
-                            }
-                            ExecutionStatus::TimeLimitExceeded => {
-                                testcase.status = TestcaseEvaluationStatus::TimeLimitExceeded
-                            }
-                            ExecutionStatus::SysTimeLimitExceeded => {
-                                testcase.status = TestcaseEvaluationStatus::TimeLimitExceeded
-                            }
-                            ExecutionStatus::WallTimeLimitExceeded => {
-                                testcase.status = TestcaseEvaluationStatus::WallTimeLimitExceeded
-                            }
-                            ExecutionStatus::MemoryLimitExceeded => {
-                                testcase.status = TestcaseEvaluationStatus::MemoryLimitExceeded
-                            }
-                            ExecutionStatus::InternalError(_) => {
-                                testcase.status = TestcaseEvaluationStatus::Failed
-                            }
-                        }
-                        testcase.results[part] = Some(result);
+                        testcase.status = result
+                            .iter()
+                            .map(|x| &x.status)
+                            .find(|x| **x != ExecutionStatus::Success)
+                            .map(|s| match s {
+                                ExecutionStatus::Success => {
+                                    unreachable!()
+                                }
+                                ExecutionStatus::Failure(_) => {
+                                    TestcaseEvaluationStatus::RuntimeError
+                                }
+                                ExecutionStatus::ReturnCode(_) => {
+                                    TestcaseEvaluationStatus::RuntimeError
+                                }
+                                ExecutionStatus::Signal(_, _) => {
+                                    TestcaseEvaluationStatus::RuntimeError
+                                }
+                                ExecutionStatus::TimeLimitExceeded => {
+                                    TestcaseEvaluationStatus::TimeLimitExceeded
+                                }
+                                ExecutionStatus::SysTimeLimitExceeded => {
+                                    TestcaseEvaluationStatus::TimeLimitExceeded
+                                }
+                                ExecutionStatus::WallTimeLimitExceeded => {
+                                    TestcaseEvaluationStatus::WallTimeLimitExceeded
+                                }
+                                ExecutionStatus::MemoryLimitExceeded => {
+                                    TestcaseEvaluationStatus::MemoryLimitExceeded
+                                }
+                                ExecutionStatus::InternalError(_) => {
+                                    TestcaseEvaluationStatus::Failed
+                                }
+                            })
+                            .unwrap_or(TestcaseEvaluationStatus::Solved);
+                        testcase.results = result.into_iter().map(Some).collect();
                     }
                     UIExecutionStatus::Skipped => {
                         testcase.status = TestcaseEvaluationStatus::Skipped
@@ -605,7 +609,7 @@ impl UIStateT for UIState {
                         testcase.status = TestcaseEvaluationStatus::Checking;
                     }
                     UIExecutionStatus::Done { result } => {
-                        testcase.checker = Some(result);
+                        testcase.checker = Some(result[0].clone());
                     }
                     _ => {}
                 }

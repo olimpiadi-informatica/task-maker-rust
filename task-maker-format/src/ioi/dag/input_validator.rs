@@ -48,8 +48,6 @@ impl InputValidator {
                     .execute(eval, description, args.clone())
                     .context("Failed to execute validator source file")?;
                 exec.input(input, TM_VALIDATION_FILE_NAME, false)
-                    .tag(Tag::Generation.into())
-                    .priority(GENERATION_PRIORITY - testcase_id as Priority)
                     .env("TM_SUBTASK", subtask_id.to_string())
                     .env("TM_TESTCASE", testcase_id.to_string());
                 if let Some(name) = subtask_name {
@@ -70,7 +68,7 @@ impl InputValidator {
                     eval.dag.provide_file(file, path)?;
                 }
 
-                let stdout = exec.stdout();
+                let stdout = exec.capture_stdout(None);
 
                 Ok((Some(stdout.uuid), Some(exec)))
             }
@@ -99,26 +97,30 @@ impl InputValidator {
             input,
         )?;
         if let Some(mut val) = val {
-            val.capture_stderr(STDERR_CONTENT_LENGTH);
-            bind_exec_callbacks!(eval, val.uuid, |status| UIMessage::IOIValidation {
+            val.capture_stderr(Some(STDERR_CONTENT_LENGTH));
+            let mut group = val.into_group();
+            group.tag = Some(Tag::Generation.into());
+            group.priority = GENERATION_PRIORITY - testcase_id as Priority;
+            bind_exec_callbacks!(eval, group.uuid, |status| UIMessage::IOIValidation {
                 subtask: subtask_id,
                 testcase: testcase_id,
                 status
             })?;
             let sender = eval.sender.clone();
-            eval.dag.on_execution_done(&val.uuid, move |result| {
+            eval.dag.on_execution_done(&group.uuid, move |results| {
+                let result = &results[0];
                 if !result.status.is_success() {
                     let mut diagnostic = Diagnostic::error(format!(
                         "Failed to validate input {testcase_id} for subtask {subtask_id}"
                     ));
-                    if let Some(stderr) = result.stderr {
-                        diagnostic = diagnostic.with_help_attachment(stderr);
+                    if let Some(stderr) = &result.stderr {
+                        diagnostic = diagnostic.with_help_attachment(stderr.clone());
                     }
                     sender.add_diagnostic(diagnostic)?;
                 }
                 Ok(())
             });
-            eval.dag.add_execution(val);
+            eval.dag.add_execution_group(group);
         }
         Ok(handle)
     }

@@ -3,7 +3,9 @@ use std::path::PathBuf;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use task_maker_dag::{Execution, ExecutionCommand, ExecutionGroup, FileUuid};
+use task_maker_dag::{
+    Execution, ExecutionCommand, ExecutionGroup, ExecutionInputBehaviour, FileUuid,
+};
 use task_maker_store::{FileStoreHandle, FileStoreKey};
 
 /// The cache key of a single execution of a group.
@@ -40,9 +42,12 @@ impl CacheKeyItem {
         file_keys: &HashMap<FileUuid, FileStoreHandle>,
         group: Option<&ExecutionGroup>,
     ) -> CacheKeyItem {
-        let stdin = execution.stdin.as_ref().map(|f| file_keys[f].key().clone());
+        let stdin = match &execution.stdin {
+            ExecutionInputBehaviour::File(file) => Some(file_keys[file].key().clone()),
+            _ => None,
+        };
         let inputs = execution
-            .inputs
+            .input_files
             .clone()
             .into_iter()
             .map(|(p, f)| (p, file_keys[&f.file].key().clone(), f.executable))

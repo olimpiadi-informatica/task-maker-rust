@@ -111,6 +111,8 @@ impl UIStateT for UIState {
                     UIExecutionStatus::Pending => sol.status = SolutionStatus::Pending,
                     UIExecutionStatus::Started { .. } => sol.status = SolutionStatus::$start_status,
                     UIExecutionStatus::Done { result } => {
+                        assert_eq!(result.len(), 1);
+                        let result = result.into_iter().next().unwrap();
                         if let ExecutionStatus::Success = result.status {
                             sol.status = SolutionStatus::$ok_status;
                         } else {

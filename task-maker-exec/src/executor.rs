@@ -8,7 +8,7 @@ use anyhow::{anyhow, Context, Error};
 use ductile::{ChannelReceiver, ChannelSender};
 use serde::{Deserialize, Serialize};
 use task_maker_cache::Cache;
-use task_maker_dag::{ExecutionGroup, ExecutionUuid, FileUuid, ProvidedFile, WorkerUuid};
+use task_maker_dag::{ExecutionGroup, ExecutionGroupUuid, FileUuid, ProvidedFile, WorkerUuid};
 use task_maker_store::{FileStore, FileStoreHandle, FileStoreKey};
 
 use crate::check_dag::check_dag;
@@ -27,7 +27,7 @@ use crate::WorkerConn;
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ExecutionDAGWatchSet {
     /// Set of the handles of the executions that have at least a callback bound.
-    pub executions: HashSet<ExecutionUuid>,
+    pub executions: HashSet<ExecutionGroupUuid>,
     /// Set of the handles of the files that have at least a callback bound.
     pub files: HashSet<FileUuid>,
     /// Set of the handles of the files that should be sent to the client as soon as possible. The

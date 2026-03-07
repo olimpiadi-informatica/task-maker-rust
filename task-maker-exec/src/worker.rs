@@ -194,25 +194,23 @@ impl Worker {
                     self.wait_sandbox()?;
                     let mut missing_deps: HashMap<FileStoreKey, Vec<FileUuid>> = HashMap::new();
                     let mut handles = HashMap::new();
-                    for exec in &job.group.executions {
-                        for input in exec.dependencies().iter() {
-                            let key = job
-                                .dep_keys
-                                .get(input)
-                                .ok_or(WorkerError::MissingDependencyKey { uuid: *input })?;
-                            match self.file_store.get(key) {
-                                None => {
-                                    // ask the file only once
-                                    if !missing_deps.contains_key(key) {
-                                        self.sender
-                                            .send(WorkerClientMessage::AskFile(key.clone()))
-                                            .context("Failed to send AskFile to server")?;
-                                    }
-                                    missing_deps.entry(key.clone()).or_default().push(*input);
+                    for input in &job.group.dependencies() {
+                        let key = job
+                            .dep_keys
+                            .get(input)
+                            .ok_or(WorkerError::MissingDependencyKey { uuid: *input })?;
+                        match self.file_store.get(key) {
+                            None => {
+                                // ask the file only once
+                                if !missing_deps.contains_key(key) {
+                                    self.sender
+                                        .send(WorkerClientMessage::AskFile(key.clone()))
+                                        .context("Failed to send AskFile to server")?;
                                 }
-                                Some(handle) => {
-                                    handles.insert(*input, handle);
-                                }
+                                missing_deps.entry(key.clone()).or_default().push(*input);
+                            }
+                            Some(handle) => {
+                                handles.insert(*input, handle);
                             }
                         }
                     }
@@ -341,7 +339,7 @@ fn execute_job(
             }
             Some(fifo_dir)
         };
-        let keep_sandboxes = group.config().keep_sandboxes;
+        let keep_sandboxes = group.config.keep_sandboxes;
         for exec in &group.executions {
             let mut sandbox = ExecutionUnit::new(
                 sandbox_path,
@@ -350,7 +348,7 @@ fn execute_job(
                 fifo_dir.as_ref().map(|d| d.path().to_owned()),
             )?;
             if keep_sandboxes {
-                sandbox.keep()?;
+                sandbox.keep();
             }
             boxes.push(sandbox);
         }
@@ -405,7 +403,7 @@ fn sandbox_group_manager(
     // then join from here
     if job.group.executions.len() == 1 {
         let mut sandbox = sandboxes.pop().unwrap();
-        let result = match sandbox.run(runner.as_ref()) {
+        let result = match sandbox.run(runner.as_ref(), &job.group.config) {
             Ok(res) => res,
             Err(e) => SandboxResult::Failed {
                 error: e.to_string(),
@@ -438,6 +436,7 @@ fn sandbox_group_manager(
                     runner.clone(),
                     index,
                     group_sender.clone(),
+                    job.group.config.clone(),
                 )
                 .context("Failed to spawn sandbox thread")?,
             );
@@ -545,11 +544,12 @@ fn spawn_sandbox(
     runner: Arc<dyn SandboxRunner>,
     index: usize,
     group_sender: Sender<(usize, SandboxResult)>,
+    dag_config: ExecutionDAGConfig,
 ) -> Result<JoinHandle<Result<(), Error>>, Error> {
     Ok(thread::Builder::new()
         .name(format!("Sandbox of {description}"))
         .spawn(move || {
-            let res = match sandbox.run(runner.as_ref()) {
+            let res = match sandbox.run(runner.as_ref(), &dag_config) {
                 Ok(res) => res,
                 Err(e) => SandboxResult::Failed {
                     error: e.to_string(),
@@ -574,8 +574,8 @@ fn compute_execution_result(
             resources,
             was_killed,
         } => {
-            let stdout = capture_stream(&sandbox.stdout_path(), execution.capture_stdout);
-            let stderr = capture_stream(&sandbox.stderr_path(), execution.capture_stderr);
+            let stdout = capture_stream(&sandbox.stdout_path(), &execution.stdout);
+            let stderr = capture_stream(&sandbox.stderr_path(), &execution.stderr);
             let execution_status = if exit_status != 0 {
                 ExecutionStatus::ReturnCode(exit_status)
             } else if let Some((code, name)) = signal {
@@ -659,45 +659,47 @@ fn get_result_outputs(
         }
     };
 
-    if let Some(stdout) = &exec.stdout {
+    if let ExecutionOutputBehaviour::Capture { file: stdout, .. } = &exec.stdout {
         add_file(stdout.uuid, sandbox.stdout_path());
     }
-    if let Some(stderr) = &exec.stderr {
+    if let ExecutionOutputBehaviour::Capture { file: stderr, .. } = &exec.stderr {
         add_file(stderr.uuid, sandbox.stderr_path());
     }
-    for (path, file) in exec.outputs.iter() {
+    for (path, file) in exec.output_files.iter() {
         add_file(file.uuid, sandbox.output_path(path));
     }
 }
 
-/// If `count` is `None` do not read anything, otherwise read at most that number of bytes from the
-/// `path`.
-fn capture_stream(file: &OutputFile, count: Option<usize>) -> Result<Option<Vec<u8>>, Error> {
-    if let Some(count) = count {
-        match file {
-            OutputFile::OnDisk(path) => {
-                let mut file = std::fs::File::open(path)?;
-                let mut result = Vec::new();
-                let mut buffer = vec![0; 1024];
-                let mut read = 0;
-                while read < count {
-                    let n = file.read(&mut buffer)?;
-                    // EOF
-                    if n == 0 {
-                        break;
-                    } else {
-                        result.extend_from_slice(&buffer[0..n]);
-                        read += n;
+fn capture_stream(
+    file: &OutputFile,
+    behaviour: &ExecutionOutputBehaviour,
+) -> Result<Option<Vec<u8>>, Error> {
+    match behaviour {
+        ExecutionOutputBehaviour::Capture { size_limit, .. } => {
+            match file {
+                OutputFile::OnDisk(path) => {
+                    let mut file = std::fs::File::open(path)?;
+                    let mut result = Vec::new();
+                    let mut buffer = vec![0; 1024];
+                    let mut read = 0;
+                    while read < size_limit.unwrap_or(usize::MAX) {
+                        let n = file.read(&mut buffer)?;
+                        // EOF
+                        if n == 0 {
+                            break;
+                        } else {
+                            result.extend_from_slice(&buffer[0..n]);
+                            read += n;
+                        }
                     }
+                    Ok(Some(result))
                 }
-                Ok(Some(result))
-            }
-            OutputFile::InMemory(content) => {
-                Ok(Some(content[..cmp::min(count, content.len())].to_owned()))
+                OutputFile::InMemory(content) => Ok(Some(
+                    content[..cmp::min(size_limit.unwrap_or(usize::MAX), content.len())].to_owned(),
+                )),
             }
         }
-    } else {
-        Ok(None)
+        _ => Ok(None),
     }
 }
 
@@ -722,7 +724,7 @@ fn check_sandbox_is_supported(
         ExecutionCommand::system("true"),
     );
     let mut sandbox = ExecutionUnit::new(sandbox_path, &execution, &Default::default(), None)?;
-    let result = sandbox.run(runner.as_ref())?;
+    let result = sandbox.run(runner.as_ref(), &ExecutionDAGConfig::new())?;
     match result {
         SandboxResult::Failed { error } => bail!("Sandbox failed: {}", error),
         SandboxResult::Success {

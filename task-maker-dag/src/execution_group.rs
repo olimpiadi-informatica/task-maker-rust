@@ -3,7 +3,10 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Execution, ExecutionDAGConfig, ExecutionTag, Priority};
+use crate::{
+    Execution, ExecutionDAGConfig, ExecutionInputBehaviour, ExecutionOutputBehaviour, ExecutionTag,
+    FileUuid, Priority,
+};
 
 /// Directory inside the sandbox where to place all the pipes of the group. This is used to allow
 /// the sandbox bind-mount all the pipes with a single mount point, inside all the sandboxes of the
@@ -37,6 +40,15 @@ pub struct ExecutionGroup {
     pub executions: Vec<Execution>,
     /// The list of FIFO pipes to create for this group.
     pub fifo: Vec<Fifo>,
+    /// The configuration of the underlying DAG. Will be overwritten by
+    /// `ExecutionDAG.add_execution`.
+    pub config: ExecutionDAGConfig,
+    /// The tag associated with this execution.
+    pub tag: Option<ExecutionTag>,
+    /// A priority index for this execution. Higher values correspond to higher priorities. The
+    /// priority order is followed only between ready executions, i.e. a lower priority one can be
+    /// executed before if its dependencies are ready earlier.
+    pub priority: Priority,
 }
 
 impl Fifo {
@@ -61,6 +73,9 @@ impl ExecutionGroup {
             description: descr.into(),
             executions: vec![],
             fifo: vec![],
+            config: ExecutionDAGConfig::new(),
+            priority: Priority::default(),
+            tag: None,
         }
     }
 
@@ -77,31 +92,37 @@ impl ExecutionGroup {
         fifo
     }
 
-    /// Priority of this execution group. The actual value is computed based on the executions
-    /// contained in this group.
-    pub fn priority(&self) -> Priority {
-        self.executions
-            .iter()
-            .map(|e| e.priority)
-            .max()
-            .unwrap_or(0)
+    /// List of all the [File](struct.File.html) dependencies of the execution
+    /// group, including `stdin`.
+    pub fn dependencies(&self) -> Vec<FileUuid> {
+        let mut deps = vec![];
+        for exec in &self.executions {
+            if let ExecutionInputBehaviour::File(stdin) = exec.stdin {
+                deps.push(stdin);
+            }
+            for input in exec.input_files.values() {
+                deps.push(input.file);
+            }
+        }
+        deps
     }
 
-    /// A reference to the configuration of the underlying DAG.
-    pub fn config(&self) -> &ExecutionDAGConfig {
-        self.executions
-            .first()
-            .expect("Invalid group with zero executions")
-            .config()
-    }
-
-    /// The tag of one of the executions in this group.
-    pub fn tag(&self) -> Option<ExecutionTag> {
-        self.executions
-            .first()
-            .expect("Invalid group with zero executions")
-            .tag
-            .clone()
+    /// List of all the [File](struct.File.html) produced by the execution
+    /// group, including `stdout` and `stderr`.
+    pub fn outputs(&self) -> Vec<FileUuid> {
+        let mut outs = vec![];
+        for exec in &self.executions {
+            if let ExecutionOutputBehaviour::Capture { file: stdout, .. } = &exec.stdout {
+                outs.push(stdout.uuid);
+            }
+            if let ExecutionOutputBehaviour::Capture { file: stderr, .. } = &exec.stderr {
+                outs.push(stderr.uuid);
+            }
+            for output in exec.output_files.values() {
+                outs.push(output.uuid);
+            }
+        }
+        outs
     }
 }
 

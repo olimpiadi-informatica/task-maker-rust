@@ -132,9 +132,7 @@ mod tests {
             .unwrap();
         let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
 
-        let args = comp.args;
-
-        assert_that(&args).contains("source.rs".to_string());
+        assert_that(&comp.executions[0].args).contains("source.rs".to_string());
     }
 
     #[test]
@@ -154,9 +152,9 @@ mod tests {
 
         let (comp, _exec) = builder.finalize(&mut ExecutionDAG::new()).unwrap();
 
-        let args = comp.args;
+        let args = &comp.executions[0].args;
 
-        assert_that(&args).contains("grader.rs".to_string());
-        assert_that(&args).does_not_contain("source.rs".to_string());
+        assert_that(args).contains("grader.rs".to_string());
+        assert_that(args).does_not_contain("source.rs".to_string());
     }
 }

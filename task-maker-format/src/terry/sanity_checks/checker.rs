@@ -37,30 +37,30 @@ impl SanityCheck for FuzzChecker {
         }
         // keep the seed fixed for the cache
         let seed = 42;
-        let (input, mut gen) = task.generator.generate(
+        let (input, gen) = task.generator.generate(
             eval,
             "Generation of input for FuzzChecker".into(),
             seed,
             task.official_solution.clone(),
         )?;
-        gen.capture_stderr(1024);
         let sender = eval.sender.clone();
-        eval.dag.on_execution_done(&gen.uuid, move |res| {
+        eval.dag.on_execution_done(&gen.uuid, move |results| {
+            let res = &results[0];
             if !res.status.is_success() {
                 let mut diagnostic = Diagnostic::error(format!(
                     "Failed to generate input for FuzzChecker with seed {seed}"
                 ))
                 .with_note(format!("The generator failed with: {:?}", res.status));
-                if let Some(stderr) = res.stderr {
+                if let Some(stderr) = res.stderr.as_ref() {
                     diagnostic = diagnostic
                         .with_help("The generator stderr is:")
-                        .with_help_attachment(stderr);
+                        .with_help_attachment(stderr.clone());
                 }
                 sender.add_diagnostic(diagnostic)?;
             }
             Ok(())
         });
-        eval.dag.add_execution(gen);
+        eval.dag.add_execution_group(gen);
         for output in outputs {
             let name = Path::new(output.file_name().context("invalid file name")?);
             let output_file = File::new(format!("Bad output {}", name.display()));
@@ -68,7 +68,7 @@ impl SanityCheck for FuzzChecker {
             eval.dag.provide_file(output_file, &output)?;
             let sender = eval.sender.clone();
             let name2 = name.to_owned();
-            let mut check = task.checker.check(
+            let check = task.checker.check(
                 eval,
                 format!("Checking bad input {}", name.display()),
                 input,
@@ -85,10 +85,10 @@ impl SanityCheck for FuzzChecker {
                     Ok(())
                 },
             )?;
-            check.capture_stderr(1024);
             let sender = eval.sender.clone();
             let name2 = name.to_owned();
-            eval.dag.on_execution_done(&check.uuid, move |res| {
+            eval.dag.on_execution_done(&check.uuid, move |results| {
+                let res = &results[0];
                 if !res.status.is_success() {
                     let mut diagnostic = Diagnostic::error(format!(
                         "Checker failed on bad output {}: {:?}",
@@ -96,16 +96,16 @@ impl SanityCheck for FuzzChecker {
                         res.status
                     ))
                     .with_note(format!("The checker failed with: {:?}", res.status));
-                    if let Some(stderr) = res.stderr {
+                    if let Some(stderr) = res.stderr.as_ref() {
                         diagnostic = diagnostic
                             .with_help("The checker's stderr is:")
-                            .with_help_attachment(stderr);
+                            .with_help_attachment(stderr.clone());
                     }
                     sender.add_diagnostic(diagnostic)?;
                 }
                 Ok(())
             });
-            eval.dag.add_execution(check);
+            eval.dag.add_execution_group(check);
         }
         Ok(())
     }

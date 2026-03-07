@@ -176,11 +176,20 @@ fn ui_execution_status_text(status: &UIExecutionStatus, loading: char) -> Span<'
         UIExecutionStatus::Pending => Span::raw("."),
         UIExecutionStatus::Started { .. } => Span::raw(format!("{loading}")),
         UIExecutionStatus::Skipped => Span::raw("S"),
-        UIExecutionStatus::Done { result } => match &result.status {
-            ExecutionStatus::Success => Span::styled("S", *GREEN),
-            ExecutionStatus::InternalError(_) => Span::raw("I"),
-            _ => Span::styled("F", *RED),
-        },
+        UIExecutionStatus::Done { result } => {
+            for res in result {
+                match &res.status {
+                    ExecutionStatus::Success => {}
+                    ExecutionStatus::InternalError(_) => {
+                        return Span::raw("I");
+                    }
+                    _ => {
+                        return Span::styled("F", *RED);
+                    }
+                }
+            }
+            Span::styled("S", *GREEN)
+        }
     }
 }
 

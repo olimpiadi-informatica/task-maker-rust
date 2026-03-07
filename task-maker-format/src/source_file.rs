@@ -62,7 +62,7 @@ impl SourceFile {
 
     /// Prepare an execution of the source file, eventually adding the compilation to the DAG.
     /// The compilation messages are sent to the UI.
-    pub fn prepare(&self, eval: &mut EvaluationData) -> Result<Option<ExecutionUuid>, Error> {
+    pub fn prepare(&self, eval: &mut EvaluationData) -> Result<Option<ExecutionGroupUuid>, Error> {
         let comp = self.base.prepare(&mut eval.dag)?;
         self.bind_compilation_exe(eval, comp)?;
         Ok(comp)
@@ -79,7 +79,7 @@ impl SourceFile {
     fn bind_compilation_exe(
         &self,
         eval: &mut EvaluationData,
-        comp: Option<ExecutionUuid>,
+        comp: Option<ExecutionGroupUuid>,
     ) -> Result<(), Error> {
         // if there is the compilation, send to the UI the messages
         if let Some(comp_uuid) = comp {
@@ -98,13 +98,14 @@ impl SourceFile {
                 .to_owned();
             let sender = eval.sender.clone();
             let description = self.description.clone();
-            eval.dag.on_execution_done(&comp_uuid, move |result| {
+            eval.dag.on_execution_done(&comp_uuid, move |results| {
+                let result = &results[0];
                 if !result.status.is_success() {
                     let mut diagnostic =
                         Diagnostic::error(format!("Failed to compile {}", path.display()))
                             .with_note(description);
-                    if let Some(stderr) = result.stderr {
-                        diagnostic = diagnostic.with_help_attachment(stderr);
+                    if let Some(stderr) = result.stderr.as_ref() {
+                        diagnostic = diagnostic.with_help_attachment(stderr.clone());
                     }
                     sender.add_diagnostic(diagnostic)?;
                 }

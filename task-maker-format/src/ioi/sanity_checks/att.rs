@@ -227,24 +227,26 @@ impl SanityCheck for AttSampleFilesValid {
             if let Some(mut val) = val {
                 let input_name = input_name.clone();
                 let sender = eval.sender.clone();
-                val.capture_stderr(1024);
-                eval.dag.on_execution_done(&val.uuid, move |res| {
+                val.capture_stderr(Some(1024));
+                let val_group = val.into_group();
+                eval.dag.on_execution_done(&val_group.uuid, move |results| {
+                    let res = &results[0];
                     if !res.status.is_success() {
                         let mut diagnostic = Diagnostic::error(format!(
                             "Sample input file {} is not valid",
                             input_name.display()
                         ))
                         .with_note(format!("The validator failed with: {:?}", res.status));
-                        if let Some(stderr) = res.stderr {
+                        if let Some(stderr) = res.stderr.as_ref() {
                             diagnostic = diagnostic
                                 .with_help("The validator stderr is:")
-                                .with_help_attachment(stderr);
+                                .with_help_attachment(stderr.clone());
                         }
                         sender.add_diagnostic(diagnostic)?;
                     }
                     Ok(())
                 });
-                eval.dag.add_execution(val);
+                eval.dag.add_execution_group(val_group);
             }
 
             if let Some(solution) = &official_solution {
@@ -274,25 +276,27 @@ impl SanityCheck for AttSampleFilesValid {
                 let correct_output =
                     correct_output.ok_or_else(|| anyhow!("Missing official solution"))?;
                 if let Some(mut sol) = sol {
-                    sol.capture_stderr(1024);
+                    sol.capture_stderr(Some(1024));
+                    let sol_group = sol.into_group();
                     let sender = eval.sender.clone();
-                    eval.dag.on_execution_done(&sol.uuid, move |res| {
+                    eval.dag.on_execution_done(&sol_group.uuid, move |results| {
+                        let res = &results[0];
                         if !res.status.is_success() {
                             let mut diagnostic = Diagnostic::error(format!(
                                 "Solution failed on sample input file {}",
                                 input_name.display()
                             ))
                             .with_note(format!("The solution failed with: {:?}", res.status));
-                            if let Some(stderr) = res.stderr {
+                            if let Some(stderr) = res.stderr.as_ref() {
                                 diagnostic = diagnostic
                                     .with_help("The solution stderr is:")
-                                    .with_help_attachment(stderr);
+                                    .with_help_attachment(stderr.clone());
                             }
                             sender.add_diagnostic(diagnostic)?;
                         }
                         Ok(())
                     });
-                    eval.dag.add_execution(sol);
+                    eval.dag.add_execution_group(sol_group);
                 }
 
                 // validate the output with the correct one
@@ -319,7 +323,7 @@ impl SanityCheck for AttSampleFilesValid {
                         },
                     )
                     .context("Failed to check sample files")?;
-                eval.dag.add_execution(chk);
+                eval.dag.add_execution_group(chk);
             }
         }
         Ok(())
