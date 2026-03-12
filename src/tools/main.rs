@@ -4,6 +4,7 @@ use task_maker_rust::tools::add_solution_checks::main_add_solution_checks;
 use task_maker_rust::tools::booklet::main_booklet;
 use task_maker_rust::tools::clear::main_clear;
 use task_maker_rust::tools::copy_competition_files::copy_competition_files_main;
+use task_maker_rust::tools::eval_server::main_eval_server;
 use task_maker_rust::tools::export_booklet::main_export_booklet;
 use task_maker_rust::tools::export_solution_checks::main_export_solution_checks;
 use task_maker_rust::tools::find_bad_case::main_find_bad_case;
@@ -41,6 +42,7 @@ fn main() {
         Tool::AddSolutionChecks(opt) => main_add_solution_checks(opt, base_opt.logger),
         Tool::ExportSolutionChecks(opt) => main_export_solution_checks(opt),
         Tool::ExportBooklet(opt) => main_export_booklet(opt),
+        Tool::EvalServer(opt) => main_eval_server(opt),
         Tool::InternalSandbox => return task_maker_rust::main_sandbox(),
     }
     .nice_unwrap()

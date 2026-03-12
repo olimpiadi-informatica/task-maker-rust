@@ -9,9 +9,9 @@ use uuid::Uuid;
 pub type FileUuid = Uuid;
 
 /// Type of the callback called when a file is returned to the client.
-pub type GetContentCallback = Box<dyn FnOnce(Vec<u8>) -> Result<(), Error> + 'static>;
+pub type GetContentCallback = Box<dyn FnOnce(Vec<u8>) -> Result<(), Error> + Send + 'static>;
 /// Type of the callback called with the chunks of a file when it's ready.
-pub type GetContentChunkedCallback = Box<dyn FnMut(&[u8]) -> Result<(), Error> + 'static>;
+pub type GetContentChunkedCallback = Box<dyn FnMut(&[u8]) -> Result<(), Error> + Send + 'static>;
 
 /// Where to write the file to with some other information.
 #[derive(Debug, Clone)]

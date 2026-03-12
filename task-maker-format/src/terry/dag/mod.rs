@@ -236,7 +236,7 @@ impl Checker {
         callback: F,
     ) -> Result<task_maker_dag::ExecutionGroup, Error>
     where
-        F: FnOnce(Result<SolutionOutcome, Error>) -> Result<(), Error> + 'static,
+        F: FnOnce(Result<SolutionOutcome, Error>) -> Result<(), Error> + Send + 'static,
     {
         let mut exec = self
             .source
@@ -270,7 +270,7 @@ impl Checker {
         callback: F,
     ) -> Result<(), Error>
     where
-        F: FnOnce(Result<SolutionOutcome, Error>) -> Result<(), Error> + 'static,
+        F: FnOnce(Result<SolutionOutcome, Error>) -> Result<(), Error> + Send + 'static,
     {
         let exec = self.check(
             eval,

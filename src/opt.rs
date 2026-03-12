@@ -276,15 +276,17 @@ impl StorageOpt {
 impl LoggerOpt {
     /// Enable the logs according to the specified configuration.
     pub fn enable_log(&self) {
-        if self.verbose > 0 {
-            std::env::set_var("RUST_BACKTRACE", "1");
-        }
-        match self.verbose {
-            0 => std::env::set_var("RUST_LOG", "error,tabox=error"),
-            1 => std::env::set_var("RUST_LOG", "warn,tabox=warn"),
-            2 => std::env::set_var("RUST_LOG", "info,tabox=info"),
-            3 => std::env::set_var("RUST_LOG", "debug,tabox=debug"),
-            _ => std::env::set_var("RUST_LOG", "trace,tabox=trace"),
+        if self.verbose > 0 || std::env::var("RUST_LOG").is_err() {
+            if self.verbose > 0 {
+                std::env::set_var("RUST_BACKTRACE", "1");
+            }
+            match self.verbose {
+                0 => std::env::set_var("RUST_LOG", "error,tabox=error"),
+                1 => std::env::set_var("RUST_LOG", "warn,tabox=warn"),
+                2 => std::env::set_var("RUST_LOG", "info,tabox=info"),
+                3 => std::env::set_var("RUST_LOG", "debug,tabox=debug"),
+                _ => std::env::set_var("RUST_LOG", "trace,tabox=trace"),
+            }
         }
 
         env_logger::Builder::from_default_env()

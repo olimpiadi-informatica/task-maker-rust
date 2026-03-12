@@ -28,7 +28,7 @@ pub struct SourceFile {
     /// Language of the source file.
     #[serde(serialize_with = "language_serializer")]
     #[serde(deserialize_with = "language_deserializer")]
-    pub language: Arc<dyn Language>,
+    pub language: Arc<dyn Language + Send + Sync>,
     /// Handle to the executable after the compilation/provided file.
     pub executable: Arc<Mutex<Option<File>>>,
     /// An optional handler to the map of the graders.
@@ -305,7 +305,7 @@ impl SourceFile {
 
 /// Serializer for `Arc<dyn Language>`. It serializes just the name of the language, expecting the
 /// deserializer to know how to deserialize it.
-fn language_serializer<S>(lang: &Arc<dyn Language>, ser: S) -> Result<S::Ok, S::Error>
+fn language_serializer<S>(lang: &Arc<dyn Language + Send + Sync>, ser: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -314,7 +314,7 @@ where
 
 /// Deserializer for `Arc<dyn Language>`. It expects a `String` to be deserialized, searching in the
 /// `LanguageManager` know languages the instance of that language.
-fn language_deserializer<'de, D>(deser: D) -> Result<Arc<dyn Language>, D::Error>
+fn language_deserializer<'de, D>(deser: D) -> Result<Arc<dyn Language + Send + Sync>, D::Error>
 where
     D: Deserializer<'de>,
 {

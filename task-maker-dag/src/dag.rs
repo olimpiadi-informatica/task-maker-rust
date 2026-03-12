@@ -149,17 +149,21 @@ impl ExecutionDAG {
     }
 
     /// Add an execution to the DAG.
-    pub fn add_execution(&mut self, execution: Execution) {
+    pub fn add_execution(&mut self, execution: Execution) -> ExecutionGroupUuid {
         let mut group = ExecutionGroup::new(execution.description.clone());
+        let uuid = group.uuid;
         group.add_execution(execution);
         group.config = self.data.config.clone();
         self.data.execution_groups.insert(group.uuid, group);
+        uuid
     }
 
     /// Add an execution group to the DAG.
-    pub fn add_execution_group(&mut self, mut group: ExecutionGroup) {
+    pub fn add_execution_group(&mut self, mut group: ExecutionGroup) -> ExecutionGroupUuid {
+        let uuid = group.uuid;
         group.config = self.data.config.clone();
         self.data.execution_groups.insert(group.uuid, group);
+        uuid
     }
 
     /// When `file` is ready it will be written to `path`. The file must be present in the dag
@@ -210,7 +214,7 @@ impl ExecutionDAG {
     /// future).
     pub fn get_file_content<G: Into<FileUuid>, F>(&mut self, file: G, limit: usize, callback: F)
     where
-        F: (FnOnce(Vec<u8>) -> Result<(), Error>) + 'static,
+        F: (FnOnce(Vec<u8>) -> Result<(), Error>) + Send + 'static,
     {
         let file = file.into();
         // FIXME: add support for multiple get_content file callbacks on the same file. This may be
@@ -231,7 +235,7 @@ impl ExecutionDAG {
     /// unsuccessful) the callback **is called** anyways with the content of the file, if any.
     pub fn get_file_content_chunked<G: Into<FileUuid>, F>(&mut self, file: G, callback: F)
     where
-        F: (FnMut(&[u8]) -> Result<(), Error>) + 'static,
+        F: (FnMut(&[u8]) -> Result<(), Error>) + Send + 'static,
     {
         let file = file.into();
         self.file_callback(file)
@@ -242,7 +246,7 @@ impl ExecutionDAG {
     /// Add a callback that will be called when the execution starts.
     pub fn on_execution_start<F>(&mut self, execution: &ExecutionGroupUuid, callback: F)
     where
-        F: (FnOnce(WorkerUuid) -> Result<(), Error>) + 'static,
+        F: (FnOnce(WorkerUuid) -> Result<(), Error>) + Send + 'static,
     {
         self.execution_callback(execution)
             .on_start
@@ -252,7 +256,7 @@ impl ExecutionDAG {
     /// Add a callback that will be called when the execution ends.
     pub fn on_execution_done<F>(&mut self, execution: &ExecutionGroupUuid, callback: F)
     where
-        F: (FnOnce(&[ExecutionResult]) -> Result<(), Error>) + 'static,
+        F: (FnOnce(&[ExecutionResult]) -> Result<(), Error>) + Send + 'static,
     {
         self.execution_callback(execution)
             .on_done
@@ -262,7 +266,7 @@ impl ExecutionDAG {
     /// Add a callback that will be called when the execution is skipped.
     pub fn on_execution_skip<F>(&mut self, execution: &ExecutionGroupUuid, callback: F)
     where
-        F: (FnOnce() -> Result<(), Error>) + 'static,
+        F: (FnOnce() -> Result<(), Error>) + Send + 'static,
     {
         self.execution_callback(execution)
             .on_skip

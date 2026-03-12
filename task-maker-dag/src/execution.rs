@@ -13,13 +13,13 @@ use crate::{file::*, ExecutionGroup};
 pub type WorkerUuid = Uuid;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) starts.
-pub type OnStartCallback = Box<dyn FnOnce(WorkerUuid) -> Result<(), Error> + 'static>;
+pub type OnStartCallback = Box<dyn FnOnce(WorkerUuid) -> Result<(), Error> + Send + 'static>;
 
 /// Type of the callback called when an [`ExecutionGroup`](struct.Execution.html) ends.
-pub type OnDoneCallback = Box<dyn FnOnce(&[ExecutionResult]) -> Result<(), Error> + 'static>;
+pub type OnDoneCallback = Box<dyn FnOnce(&[ExecutionResult]) -> Result<(), Error> + Send + 'static>;
 
 /// Type of the callback called when an [`Execution`](struct.Execution.html) is skipped.
-pub type OnSkipCallback = Box<dyn FnOnce() -> Result<(), Error> + 'static>;
+pub type OnSkipCallback = Box<dyn FnOnce() -> Result<(), Error> + Send + 'static>;
 
 /// Type of the priority value of an `Execution`.
 pub type Priority = i64;

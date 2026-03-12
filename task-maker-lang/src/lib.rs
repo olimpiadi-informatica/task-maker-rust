@@ -119,7 +119,7 @@ impl LanguageManager {
     }
 
     /// Search between the known languages the one with the specified name and return it if found.
-    pub(crate) fn from_name<S: AsRef<str>>(name: S) -> Option<Arc<dyn Language>> {
+    pub fn from_name<S: AsRef<str>>(name: S) -> Option<Arc<dyn Language + Send + Sync>> {
         let manager = &LANGUAGE_MANAGER_SINGL;
         for lang in manager.known_languages.iter() {
             if lang.name() == name.as_ref() {
@@ -127,6 +127,12 @@ impl LanguageManager {
             }
         }
         None
+    }
+
+    /// Return the list of all the known languages.
+    pub fn languages() -> &'static [Arc<dyn Language + Send + Sync>] {
+        let manager = &LANGUAGE_MANAGER_SINGL;
+        &manager.known_languages
     }
 }
 
