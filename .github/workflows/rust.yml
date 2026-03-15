@@ -22,6 +22,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         id: install-rust
 
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
       - uses: taiki-e/install-action@nextest
 
       - name: cargo nextest run (tests)
@@ -44,6 +49,11 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         id: install-rust
+
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
 
       - name: cargo clippy
         run: tools/clippy.sh

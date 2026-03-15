@@ -8,6 +8,7 @@ use crate::Dependency;
 pub(crate) mod c;
 pub(crate) mod cpp;
 pub(crate) mod csharp;
+pub(crate) mod go;
 pub(crate) mod javascript;
 pub(crate) mod pascal;
 pub(crate) mod python;

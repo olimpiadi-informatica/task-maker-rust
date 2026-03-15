@@ -4,7 +4,7 @@ mod common;
 use common::TestInterface;
 
 fn classic(test: TestInterface) {
-    let test = test
+    let mut test = test
         .success()
         .time_limit(1.0)
         .memory_limit(64)
@@ -58,10 +58,20 @@ fn classic(test: TestInterface) {
         );
 
     if which::which("fpc").is_ok() {
-        test.must_compile("pascal.pas")
+        test = test
+            .must_compile("pascal.pas")
             .solution_score("pascal.pas", vec![5.0, 45.0, 50.0])
             .solution_statuses("pascal.pas", vec![Accepted("Output is correct".into())]);
     }
+
+    if which::which("go").is_ok() {
+        test = test
+            .must_compile("go.go")
+            .solution_score("go.go", vec![5.0, 45.0, 50.0])
+            .solution_statuses("go.go", vec![Accepted("Output is correct".into())]);
+    }
+
+    drop(test);
 }
 
 #[test]
