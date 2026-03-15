@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use task_maker_format::ioi::TestcaseEvaluationStatus::*;
 
 mod common;
@@ -70,6 +72,13 @@ fn classic(test: TestInterface) {
             .solution_score("go.go", vec![5.0, 45.0, 50.0])
             .solution_statuses("go.go", vec![Accepted("Output is correct".into())]);
     }
+
+    if which::which("javac").is_ok() && !Path::new("/tmp/disable_java_test").exists() {
+        test = test
+            .must_compile("java.java")
+            .solution_score("java.java", vec![5.0, 45.0, 50.0])
+            .solution_statuses("java.java", vec![Accepted("Output is correct".into())]);
+    };
 
     drop(test);
 }

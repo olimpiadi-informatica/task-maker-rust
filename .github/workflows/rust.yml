@@ -18,6 +18,10 @@ jobs:
           sudo apt update
           sudo apt install -yy libseccomp-dev libssl-dev build-essential fpc
 
+      - name: Disable testing Java
+        if: startsWith(matrix.os, 'ubuntu')
+        run: touch /tmp/disable_java_test
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         id: install-rust
@@ -36,7 +40,7 @@ jobs:
 
   clippy:
     name: Clippy
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
 
@@ -54,6 +58,12 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 'stable'
+
+      - name: Install JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '25'
 
       - name: cargo clippy
         run: tools/clippy.sh
