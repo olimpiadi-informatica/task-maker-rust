@@ -231,6 +231,9 @@ pub struct ExecutionLimits {
     pub mount_proc: bool,
     /// Extra directory that can be read inside the sandbox.
     pub extra_readable_dirs: Vec<PathBuf>,
+    /// Do not filter syscalls. This is necessary for running 32-bit executables on 64-bit systems
+    /// and implies allow_multiprocess and !read_only.
+    pub permissive: bool,
 }
 
 /// Status of a completed [`Execution`](struct.Execution.html).
@@ -305,6 +308,7 @@ impl ExecutionLimits {
             mount_tmpfs: true,
             mount_proc: true,
             extra_readable_dirs: Vec::new(),
+            permissive: true,
         }
     }
 
@@ -412,6 +416,7 @@ impl Default for ExecutionLimits {
             mount_tmpfs: false,
             mount_proc: false,
             extra_readable_dirs: Vec::new(),
+            permissive: false,
         }
     }
 }

@@ -371,10 +371,12 @@ impl Sandbox {
         if let Some(stack) = execution.limits.stack {
             config.stack_limit(stack * 1024);
         }
-        config.syscall_filter(SyscallFilter::build(
-            execution.limits.allow_multiprocess,
-            !execution.limits.read_only,
-        ));
+        if !execution.limits.permissive {
+            config.syscall_filter(SyscallFilter::build(
+                execution.limits.allow_multiprocess,
+                !execution.limits.read_only,
+            ));
+        }
         // has to be writable for mounting stuff in it
         config.mount(boxdir.join("etc"), "/etc", true);
         if let Some(path) = fifo_dir {
