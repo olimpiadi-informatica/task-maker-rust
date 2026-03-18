@@ -59,7 +59,7 @@ pub fn parse_task<P: AsRef<Path>>(
         parse_batch_task_data(task_dir, grader_map.clone())?
     };
 
-    let (subtasks, testcases) = gen_toml::parse(task_dir, &config, grader_map.clone())?;
+    let (subtasks, testcases) = gen_toml::parse(task_dir, &config, &task_type, grader_map.clone())?;
 
     let mut config = config;
     let testcase_score_aggregator = config.score_type.unwrap_or(TestcaseScoreAggregator::Min);

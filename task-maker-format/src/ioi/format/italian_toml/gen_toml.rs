@@ -11,7 +11,8 @@ use toml::Value;
 
 use crate::ioi::italian_yaml::{cleanup_subtask_name, TaskYAML};
 use crate::ioi::{
-    InputGenerator, InputValidator, SubtaskInfo, TestcaseInfo, TM_VALIDATION_FILE_NAME,
+    InputGenerator, InputValidator, OutputGenerator, SubtaskInfo, TaskType, TestcaseInfo,
+    TM_VALIDATION_FILE_NAME,
 };
 use crate::{find_source_file, SourceFile, WriteBinTo};
 
@@ -256,6 +257,7 @@ pub fn get_generator(generator: &str, task_dir: &Path) -> Result<Arc<SourceFile>
 pub(super) fn parse(
     task_dir: &Path,
     config: &TaskYAML,
+    task_type: &TaskType,
     grader_map: Arc<GraderMap>,
 ) -> Result<(HashMap<u32, SubtaskInfo>, HashMap<u32, TestcaseInfo>)> {
     let gen_toml_path = task_dir.join("gen").join("gen.toml");
@@ -294,7 +296,11 @@ pub(super) fn parse(
 
     // First, generate all the testcases, and all the groups.
 
-    let output_generator = super::detect_output_generator(task_dir, grader_map)?;
+    let output_generator = if let TaskType::Batch(_) = task_type {
+        super::detect_output_generator(task_dir, grader_map)?
+    } else {
+        OutputGenerator::NotAvailable
+    };
 
     {
         let name = samples.group_name();
