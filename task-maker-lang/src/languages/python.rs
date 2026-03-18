@@ -8,38 +8,20 @@ use crate::language::Language;
 use crate::languages::find_dependencies;
 use crate::Dependency;
 
-/// Version of the Python interpreter to use.
-#[allow(dead_code)]
-#[derive(Debug)]
-pub enum LanguagePythonVersion {
-    /// Use the shebang written as the first line of the source.
-    Autodetect,
-    /// Force `python2`
-    Python2,
-    /// Force `python3`
-    Python3,
-}
-
 /// The Python language
 #[derive(Debug)]
-pub struct LanguagePython {
-    version: LanguagePythonVersion,
-}
+pub struct LanguagePython;
 
 impl LanguagePython {
     /// Make a new LanguagePython using the specified version.
-    pub fn new(version: LanguagePythonVersion) -> LanguagePython {
-        LanguagePython { version }
+    pub fn new() -> LanguagePython {
+        LanguagePython
     }
 }
 
 impl Language for LanguagePython {
     fn name(&self) -> &'static str {
-        match self.version {
-            LanguagePythonVersion::Autodetect => "Python / Autodetect",
-            LanguagePythonVersion::Python2 => "Python2",
-            LanguagePythonVersion::Python3 => "Python3",
-        }
+        "Python3"
     }
 
     fn extensions(&self) -> Vec<&'static str> {
@@ -54,14 +36,8 @@ impl Language for LanguagePython {
         Some("#")
     }
 
-    fn runtime_command(&self, path: &Path, write_to: Option<&Path>) -> ExecutionCommand {
-        match self.version {
-            LanguagePythonVersion::Autodetect => {
-                ExecutionCommand::local(self.executable_name(path, write_to))
-            }
-            LanguagePythonVersion::Python2 => ExecutionCommand::system("python2"),
-            LanguagePythonVersion::Python3 => ExecutionCommand::system("python3"),
-        }
+    fn runtime_command(&self, _path: &Path, _write_to: Option<&Path>) -> ExecutionCommand {
+        ExecutionCommand::system("python3")
     }
 
     fn runtime_args(
@@ -70,19 +46,14 @@ impl Language for LanguagePython {
         write_to: Option<&Path>,
         mut args: Vec<String>,
     ) -> Vec<String> {
-        match self.version {
-            LanguagePythonVersion::Autodetect => args,
-            _ => {
-                // will run for example: python3 program.py args...
-                args.insert(
-                    0,
-                    self.executable_name(path, write_to)
-                        .to_string_lossy()
-                        .to_string(),
-                );
-                args
-            }
-        }
+        // will run for example: python3 program.py args...
+        args.insert(
+            0,
+            self.executable_name(path, write_to)
+                .to_string_lossy()
+                .to_string(),
+        );
+        args
     }
 
     fn runtime_dependencies(&self, path: &Path) -> Vec<Dependency> {
@@ -137,19 +108,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_runtime_args_autodetect() {
-        let lang = LanguagePython::new(LanguagePythonVersion::Autodetect);
-        let path = Path::new("script.py");
-        let write_to = Path::new("script.boh");
-        assert_that(&lang.runtime_command(path, Some(write_to)))
-            .is_equal_to(ExecutionCommand::local(write_to));
-        let args = lang.runtime_args(path, None, vec!["arg".to_string()]);
-        assert_that(&args).is_equal_to(vec!["arg".to_string()]);
-    }
-
-    #[test]
-    fn test_runtime_args_py3() {
-        let lang = LanguagePython::new(LanguagePythonVersion::Python3);
+    fn test_runtime_args() {
+        let lang = LanguagePython::new();
         let path = Path::new("script.py");
         let write_to = Path::new("script.boh");
         assert_that(&lang.runtime_command(path, Some(write_to)))
