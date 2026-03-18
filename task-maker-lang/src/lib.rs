@@ -76,9 +76,7 @@ impl LanguageManager {
                     cpp::LanguageCppConfiguration::from_env(),
                 )),
                 Arc::new(c::LanguageC::new(c::LanguageCConfiguration::from_env())),
-                Arc::new(python::LanguagePython::new(
-                    python::LanguagePythonVersion::Autodetect,
-                )),
+                Arc::new(python::LanguagePython::new()),
                 Arc::new(shell::LanguageShell::new()),
                 Arc::new(pascal::LanguagePascal::new()),
                 Arc::new(rust::LanguageRust::new()),

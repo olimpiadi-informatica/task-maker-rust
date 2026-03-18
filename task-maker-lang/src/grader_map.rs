@@ -110,7 +110,7 @@ mod tests {
     use super::*;
     use crate::languages::c::{LanguageC, LanguageCConfiguration};
     use crate::languages::cpp::{LanguageCpp, LanguageCppConfiguration};
-    use crate::languages::python::{LanguagePython, LanguagePythonVersion};
+    use crate::languages::python::LanguagePython;
 
     #[test]
     fn test_new() {
@@ -131,7 +131,7 @@ mod tests {
         let deps = grader_map.get_compilation_deps(&lang);
         assert_that(&deps).is_none();
 
-        let lang = LanguagePython::new(LanguagePythonVersion::Autodetect);
+        let lang = LanguagePython::new();
         let deps = grader_map.get_compilation_deps(&lang);
         assert_that(&deps).is_none();
     }
@@ -148,7 +148,7 @@ mod tests {
         let deps = grader_map.get_runtime_deps(&lang);
         assert_that(&deps).is_empty();
 
-        let lang = LanguagePython::new(LanguagePythonVersion::Autodetect);
+        let lang = LanguagePython::new();
         let deps = grader_map.get_runtime_deps(&lang);
         assert_that(&deps).has_length(1);
         assert_that(&deps[0].sandbox_path).is_equal_to(PathBuf::from("grader.py"));
