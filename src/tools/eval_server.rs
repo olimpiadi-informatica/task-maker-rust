@@ -77,8 +77,8 @@ struct EvalRequest {
     #[serde(deserialize_with = "validate_filename")]
     main_filename: String,
     input: Content,
-    time_limit: f64,
-    memory_limit: u64,
+    time_limit: Option<f64>,
+    memory_limit: Option<u64>,
     language: Option<String>,
 }
 
@@ -279,27 +279,33 @@ async fn evaluate(
     }
 
     // Set limits
-    if payload.time_limit > state.opt.max_time_limit {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            format!(
-                "Time limit {:.2}s exceeds maximum allowed ({:.2}s)",
-                payload.time_limit, state.opt.max_time_limit
-            ),
-        ));
+    if let Some(tl) = payload.time_limit {
+        if tl > state.opt.max_time_limit {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "Time limit {:.2}s exceeds maximum allowed ({:.2}s)",
+                    tl, state.opt.max_time_limit
+                ),
+            ));
+        }
     }
-    if payload.memory_limit > state.opt.max_memory_limit {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            format!(
-                "Memory limit {}MB exceeds maximum allowed ({}MB)",
-                payload.memory_limit, state.opt.max_memory_limit
-            ),
-        ));
+    if let Some(ml) = payload.memory_limit {
+        if ml > state.opt.max_memory_limit {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!(
+                    "Memory limit {}MB exceeds maximum allowed ({}MB)",
+                    ml, state.opt.max_memory_limit
+                ),
+            ));
+        }
     }
 
-    exec.limits.cpu_time(payload.time_limit);
-    exec.limits.memory(payload.memory_limit * 1024);
+    exec.limits
+        .cpu_time(payload.time_limit.unwrap_or(state.opt.max_time_limit));
+    exec.limits
+        .memory(payload.memory_limit.unwrap_or(state.opt.max_memory_limit) * 1024);
 
     // Input file
     let input_file = File::new("input.txt");
