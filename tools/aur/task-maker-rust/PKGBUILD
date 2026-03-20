@@ -16,6 +16,7 @@ optdepends=('texlive-core: for compiling tex statements'
             'python: for running Python solutions'
             'cargo: for running Rust solutions'
             'bash: for running Bash solutions')
+options=('!lto')
 source=("https://github.com/olimpiadi-informatica/task-maker-rust/archive/v${pkgver}.tar.gz")
 sha256sums=('@@SHA256@@')
 
