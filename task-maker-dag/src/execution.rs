@@ -100,6 +100,8 @@ pub enum ExecutionOutputBehaviour {
     Path(PathBuf),
     /// Ignore the output.
     Ignored,
+    /// Inherit the file descriptor from the caller.
+    Inherit,
 }
 
 /// Specifies the behaviour of an execution wrt stdin.
@@ -111,6 +113,8 @@ pub enum ExecutionInputBehaviour {
     Path(PathBuf),
     /// Ignore the output.
     Ignored,
+    /// Inherit the file descriptor from the caller.
+    Inherit,
 }
 
 impl From<FileUuid> for ExecutionInputBehaviour {
@@ -237,9 +241,10 @@ pub struct ExecutionLimits {
 }
 
 /// Status of a completed [`Execution`](struct.Execution.html).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub enum ExecutionStatus {
     /// The program exited with status 0 within the limits.
+    #[default]
     Success,
     /// The task-maker-executed execution returned an Error
     Failure(String),
@@ -274,7 +279,7 @@ pub struct ExecutionResourcesUsage {
 }
 
 /// The result of an [`Execution`](struct.Execution.html).
-#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct ExecutionResult {
     /// Status of the completed execution.
     pub status: ExecutionStatus,

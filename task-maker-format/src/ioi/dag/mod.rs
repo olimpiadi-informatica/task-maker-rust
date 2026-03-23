@@ -4,7 +4,7 @@ pub use input_validator::{InputValidator, TM_VALIDATION_FILE_NAME};
 pub use output_generator::OutputGenerator;
 use serde::{Deserialize, Serialize};
 use task_maker_dag::Priority;
-pub use task_type::{BatchTypeData, CommunicationTypeData, TaskType, UserIo};
+pub use task_type::{BatchTypeData, CommunicationTypeData, InteractiveTypeData, TaskType, UserIo};
 
 mod checker;
 mod input_generator;

@@ -60,6 +60,15 @@ pub enum RawSandboxResult {
     Error(String),
 }
 
+impl From<Result<RawSandboxResult, anyhow::Error>> for RawSandboxResult {
+    fn from(value: Result<RawSandboxResult, anyhow::Error>) -> Self {
+        match value {
+            Ok(res) => res,
+            Err(e) => RawSandboxResult::Error(e.to_string()),
+        }
+    }
+}
+
 /// A singular execution, which can either be performed in a sandbox or be a Typst compilation
 #[derive(Debug, Clone)]
 pub enum ExecutionUnit {

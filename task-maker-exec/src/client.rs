@@ -163,7 +163,7 @@ impl ExecutorClient {
                     break;
                 }
                 Ok(ExecutorServerMessage::Status(status)) => {
-                    info!("Server status: {status:#?}");
+                    info!("Server status: {status:?}");
                     handle_server_status(status, &mut status_callback)
                         .context("Failed to process Status() from the server")?;
                 }

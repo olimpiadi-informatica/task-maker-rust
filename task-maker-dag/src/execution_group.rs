@@ -27,6 +27,15 @@ pub struct Fifo {
     pub uuid: FifoUuid,
 }
 
+/// Settings for execution groups that use a controller.
+#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
+pub struct ControllerSettings {
+    /// Upper bound on the number of processes that the controller can ask to spawn.
+    pub process_limit: usize,
+    /// Whether to assume that the solutions were spawned concurrently or not.
+    pub concurrent: bool,
+}
+
 /// A group of executions that have to be executed concurrently in the same worker. If any of the
 /// executions crash, all the group is stopped. The executions inside the group can communicate
 /// using FIFO pipes provided by the OS.
@@ -49,6 +58,15 @@ pub struct ExecutionGroup {
     /// priority order is followed only between ready executions, i.e. a lower priority one can be
     /// executed before if its dependencies are ready earlier.
     pub priority: Priority,
+    /// If `Some`, this execution group uses a controller. In that case, the
+    /// first element of `executions` will represent the command to launch the
+    /// controller, and the second element will represent the *prefix* of the
+    /// command to launch solutions (that is, the controller can append extra
+    /// command line arguments).
+    /// If using a controller, `fifo`s are ignored, executions cannot be typst
+    /// compilations, and stdin/stdout behaviour must be set to "Ignored"
+    /// for all executions.
+    pub controller_settings: Option<ControllerSettings>,
 }
 
 impl Fifo {
@@ -76,6 +94,7 @@ impl ExecutionGroup {
             config: ExecutionDAGConfig::new(),
             priority: Priority::default(),
             tag: None,
+            controller_settings: None,
         }
     }
 

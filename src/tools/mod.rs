@@ -12,6 +12,7 @@ pub mod opt;
 pub mod reset;
 pub mod sandbox;
 pub mod server;
+pub mod task_controller;
 pub mod task_info;
 pub mod terry_statement;
 pub mod worker;

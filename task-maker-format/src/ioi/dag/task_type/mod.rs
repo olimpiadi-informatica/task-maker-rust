@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::Error;
 pub use batch::BatchTypeData;
 pub use communication::{CommunicationTypeData, UserIo};
+pub use interactive::InteractiveTypeData;
 use serde::{Deserialize, Serialize};
 use task_maker_dag::FileUuid;
 
@@ -11,6 +12,7 @@ use crate::{EvaluationData, SourceFile};
 
 mod batch;
 mod communication;
+mod interactive;
 
 /// The type of the task. This changes the behavior of the solutions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,6 +24,8 @@ pub enum TaskType {
     /// The solution is executed in parallel with a manager and communicate using FIFO pipes. There
     /// are only input files since the manager computes the score of the solution.
     Communication(CommunicationTypeData),
+    /// The solution is executed under the control of a controller process.
+    Interactive(InteractiveTypeData),
     /// Not an actual task.
     None,
 }
@@ -67,6 +71,18 @@ impl TaskType {
                 score_manager,
                 data,
             ),
+            TaskType::Interactive(data) => interactive::evaluate(
+                task,
+                eval,
+                subtask_id,
+                testcase_id,
+                source_file,
+                input,
+                validation_handle,
+                correct_output,
+                score_manager,
+                data,
+            ),
             TaskType::None => Ok(()),
         }
     }
@@ -84,6 +100,9 @@ impl TaskType {
             },
             TaskType::Communication(communication) => {
                 communication.manager.prepare(eval)?;
+            }
+            TaskType::Interactive(interactive) => {
+                interactive.controller.prepare(eval)?;
             }
             TaskType::None => {}
         }

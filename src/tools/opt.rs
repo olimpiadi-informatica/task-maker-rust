@@ -13,6 +13,7 @@ use crate::tools::gen_autocompletion::GenAutocompletionOpt;
 use crate::tools::reset::ResetOpt;
 use crate::tools::sandbox::SandboxOpt;
 use crate::tools::server::ServerOpt;
+use crate::tools::task_controller::TaskControllerOpt;
 use crate::tools::task_info::TaskInfoOpt;
 use crate::tools::terry_statement::TerryStatementOpt;
 use crate::tools::worker::WorkerOpt;
@@ -65,4 +66,6 @@ pub enum Tool {
     ExportBooklet(ExportBookletOpt),
     /// Start a web server for evaluating arbitrary code.
     EvalServer(EvalServerOpt),
+    /// Run a solution with an interactor.
+    TaskController(TaskControllerOpt),
 }

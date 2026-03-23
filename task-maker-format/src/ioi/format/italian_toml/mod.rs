@@ -11,8 +11,8 @@ use super::italian_yaml::TaskYAML;
 use crate::ioi::italian_yaml::{TaskYAMLOrig, TM_ALLOW_DELETE_COOKIE};
 use crate::ioi::sanity_checks::get_sanity_checks;
 use crate::ioi::{
-    make_task_booklets, BatchTypeData, Checker, CommunicationTypeData, IOITask, OutputGenerator,
-    TaskType, TestcaseScoreAggregator,
+    make_task_booklets, BatchTypeData, Checker, CommunicationTypeData, IOITask,
+    InteractiveTypeData, OutputGenerator, TaskType, TestcaseScoreAggregator,
 };
 use crate::{find_source_file, list_files, EvaluationConfig, WriteBinTo};
 
@@ -53,7 +53,16 @@ pub fn parse_task<P: AsRef<Path>>(
     let grader_map = Arc::new(GraderMap::new(graders));
     debug!("The graders are: {grader_map:#?}");
 
-    let task_type = if let Some(comm) = parse_communication_task_data(task_dir, &config)? {
+    let interactive = parse_interactive_task_data(task_dir, &config)?;
+    let communication = parse_communication_task_data(task_dir, &config)?;
+
+    if interactive.is_some() && communication.is_some() {
+        bail!("A task cannot be both interactive (has a controller) and communication (has a manager).");
+    }
+
+    let task_type = if let Some(inter) = interactive {
+        inter
+    } else if let Some(comm) = communication {
         comm
     } else {
         parse_batch_task_data(task_dir, grader_map.clone())?
@@ -190,6 +199,45 @@ fn parse_batch_task_data(task_dir: &Path, grader_map: Arc<GraderMap>) -> Result<
         output_generator: Some(official_solution),
         checker,
     }))
+}
+
+/// Parse the task components relative to the interactive task type.
+fn parse_interactive_task_data(
+    task_dir: &Path,
+    yaml: &TaskYAML,
+) -> Result<Option<TaskType>, Error> {
+    let mut controllers = find_source_file(
+        task_dir,
+        vec!["check/controller.*"],
+        task_dir,
+        "Interactive controller at",
+        None,
+        WriteBinTo::WithoutExtension,
+    );
+    if controllers.len() > 1 {
+        let paths = controllers.iter().map(|s| s.name()).collect::<Vec<_>>();
+        bail!("Multiple controllers found: {:?}", paths);
+    }
+    let mut controller = if let Some(controller) = controllers.pop() {
+        controller
+    } else {
+        return Ok(None);
+    };
+
+    // Always copy the controller.
+    controller.copy_exe();
+
+    // Link the controller statically. This makes sure that it will work also outside this machine.
+    controller.link_static();
+
+    Ok(Some(TaskType::Interactive(InteractiveTypeData {
+        controller: Arc::new(controller),
+        controller_time_limit: yaml.controller_time_limit,
+        controller_wall_time_limit: yaml.controller_wall_time_limit,
+        controller_memory_limit: yaml.controller_memory_limit,
+        controller_process_limit: yaml.controller_process_limit,
+        concurrent: yaml.interactive_concurrent,
+    })))
 }
 
 /// Parse the task components relative to the communication task type.

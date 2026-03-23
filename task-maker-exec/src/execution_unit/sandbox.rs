@@ -50,6 +50,8 @@ struct SandboxData {
     fifo_dir: Option<PathBuf>,
     /// The PID of the sandbox process, zero if not available or not spawned yet.
     box_pid: Arc<AtomicU32>,
+    /// Whether we tried to kill the sandbox.
+    tried_to_kill: bool,
 }
 
 /// Wrapper around the sandbox. Cloning this struct will keep the reference of the same sandbox,
@@ -89,6 +91,7 @@ impl Sandbox {
                 keep_sandbox: false,
                 fifo_dir,
                 box_pid: Arc::new(AtomicU32::new(0)),
+                tried_to_kill: false,
             })),
         })
     }
@@ -179,7 +182,7 @@ impl Sandbox {
                     res.status.signal_name().unwrap_or_else(|| "unknown".into()),
                 )),
                 resources,
-                was_killed: false,
+                was_killed: s == 9 && self.data.lock().unwrap().tried_to_kill,
             }),
             Killed => Ok(SandboxResult::Success {
                 exit_status: 1,
@@ -194,7 +197,8 @@ impl Sandbox {
     /// quickly.
     pub fn kill(&self) {
         let (path, box_pid) = {
-            let data = self.data.lock().unwrap();
+            let mut data = self.data.lock().unwrap();
+            data.tried_to_kill = true;
             (data.path().to_path_buf(), data.box_pid.clone())
         };
         let path = path.display();
@@ -318,6 +322,7 @@ impl Sandbox {
             ExecutionInputBehaviour::Ignored => {
                 config.stdin("/dev/null");
             }
+            ExecutionInputBehaviour::Inherit => {}
         }
         match &execution.stdout {
             ExecutionOutputBehaviour::Path(path) => {
@@ -329,6 +334,7 @@ impl Sandbox {
             ExecutionOutputBehaviour::Ignored => {
                 config.stdout("/dev/null");
             }
+            ExecutionOutputBehaviour::Inherit => {}
         }
         match &execution.stderr {
             ExecutionOutputBehaviour::Path(path) => {
@@ -340,6 +346,7 @@ impl Sandbox {
             ExecutionOutputBehaviour::Ignored => {
                 config.stderr("/dev/null");
             }
+            ExecutionOutputBehaviour::Inherit => {}
         }
         for key in execution.copy_env.iter() {
             if let Ok(value) = std::env::var(key) {

@@ -16,7 +16,7 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt update
-          sudo apt install -yy libseccomp-dev libssl-dev build-essential fpc
+          sudo apt install -yy libseccomp-dev libssl-dev build-essential fpc lld
 
       - name: Disable testing Java
         if: startsWith(matrix.os, 'ubuntu')
@@ -33,9 +33,14 @@ jobs:
 
       - uses: taiki-e/install-action@nextest
 
+      - name: Set RUSTFLAGS for Linux
+        if: runner.os == 'Linux'
+        run: echo "RUSTFLAGS=-C linker=clang -C link-arg=-fuse-ld=lld" >> $GITHUB_ENV
+
       - name: cargo nextest run (tests)
         env:
           RUST_BACKTRACE: 1
+          RUST_LOG: info
         run: cargo nextest run --workspace --no-fail-fast
 
   clippy:
