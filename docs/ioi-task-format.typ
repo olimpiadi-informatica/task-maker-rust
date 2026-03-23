@@ -41,6 +41,17 @@ The following are the most commonly set keys in this file:
   seconds.
 - `memory_limit`: the maximum amount of memory that a solution can use, in
   mebibytes.
+- `controller_time_limit`: the maximum amount of time that the controller can run
+  for, in seconds (defaults to `time_limit + 1.0`).
+- `controller_wall_time_limit`: the maximum amount of wall time that the
+  controller can run for, in seconds (defaults to `controller_time_limit * 3 + 1.0`).
+- `controller_memory_limit`: the maximum amount of memory that the controller can
+  use, in mebibytes (defaults to `memory_limit`).
+- `controller_process_limit`: the maximum number of processes the controller can
+  spawn (defaults to 200).
+- `interactive_concurrent`: whether the solution processes are assumed to be
+  concurrent (wall time max-ed, memory summed) or sequential (wall time sum-ed,
+  memory max-ed). Defaults to `true`.
 - `score_precision`: the number of decimal digits to round scores for this task
   to (defaults to 0, i.e. integers).
 - `user_io`: set this value to `fifo_io` to have solutions in communication
@@ -490,10 +501,13 @@ we suggest including at least the following:
 = `check` folder
 
 The `check` folder can contain either a `checker.<ext>` file, or a
-`manager.<ext>` file, or be empty.
+`manager.<ext>` file, or a `controller.<ext>` file, or be empty.
 
 If it contains `manager.<ext>`, the task is interpreted as a communication
 task, for which details are given in #ref(<communication>).
+
+If it contains `controller.<ext>`, the task is interpreted as an interactive
+task, for which details are given in #ref(<interactive>).
 
 The `checker.<ext>` file will be compiled by `task-maker-rust` (if necessary),
 and gets executed both by `task-maker-rust` and by CMS with three command line
@@ -608,6 +622,112 @@ static FILE *to_manager, *from_manager;
 int main(int argc, char **argv) {
   from_manager = fopen(argv[2], "r");
   to_manager = fopen(argv[1], "w");
-  // Call into the contestant's solution here.
+  // call into the contestant's solution here.
+  }
+```
+
+= Interactive tasks
+<interactive>
+
+An interactive task is identified by the presence of a `check/controller.<ext>`
+file (or `cor/controller.<ext>`). This type of task is similar to a communication task, but the controller
+has full control over the execution of one or more solution processes.
+
+The controller communicates with `task-maker-rust` via standard output and standard input,
+and reports the score and messages via standard error.
+
+== Controller protocol
+
+When the controller starts, it should print `START_SOLUTION` followed by a newline
+to standard output for each solution process it wants to start.
+
+After each `START_SOLUTION`, it should read two integers from standard input,
+representing the file descriptors (fds) for writing to and reading from the
+solution, respectively.
+
+The controller then communicates with the solution(s) using these fds (e.g.,
+using `fdopen`).
+
+To report the score and messages, the controller must print to standard error
+using the following prefixes:
+- `SCORE: <score>`: the score of the testcase, as a float between `0.0` and `1.0`.
+- `USER_MESSAGE: <message>`: a message for the contestant.
+- `ADMIN_MESSAGE: <message>`: an optional message for the administrators.
+
+Like checkers and managers, the special messages `translate:success`,
+`translate:wrong` and `translate:partial` are supported.
+
+== Example controller (`controller.cpp`)
+
+```cpp
+#include "controller_lib.h"
+
+int handler(FILE *to_sol, FILE *from_sol) {
+  // Interaction logic here...
+  grade(1.0, "translate:success", nullptr);
+  return 0;
+}
+
+int main() {
+  return start_one_solution(handler);
 }
 ```
+
+== `controller_lib.h`
+
+```cpp
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+__attribute__((noreturn)) void grade(double score, const char *msg,
+                                     const char *admin_msg) {
+  fprintf(stderr, "SCORE: %f\n", score);
+  fprintf(stderr, "USER_MESSAGE: %s\n", msg);
+  if (admin_msg) {
+    fprintf(stderr, "ADMIN_MESSAGE: %s\n", admin_msg);
+  }
+  exit(0);
+}
+
+int start_one_solution(int (*handler)(FILE *to_solution, FILE *from_solution)) {
+  printf("START_SOLUTION\n");
+  fflush(stdout);
+  int fdin, fdout;
+  if (scanf("%d %d", &fdin, &fdout) != 2) return 1;
+  FILE *to_solution = fdopen(fdin, "w");
+  FILE *from_solution = fdopen(fdout, "r");
+  assert(to_solution);
+  assert(from_solution);
+  int ret = handler(to_solution, from_solution);
+  fclose(to_solution);
+  fclose(from_solution);
+  return ret;
+}
+
+int start_many_solutions(int (*handler)(FILE **to_solution,
+                                        FILE **from_solution, int num),
+                         int num) {
+  FILE **to_solution = (FILE **)malloc(sizeof(FILE *) * num);
+  FILE **from_solution = (FILE **)malloc(sizeof(FILE *) * num);
+  for (int i = 0; i < num; i++) {
+    printf("START_SOLUTION\n");
+    fflush(stdout);
+    int fdin, fdout;
+    if (scanf("%d %d", &fdin, &fdout) != 2) return 1;
+    to_solution[i] = fdopen(fdin, "w");
+    from_solution[i] = fdopen(fdout, "r");
+    assert(to_solution[i]);
+    assert(from_solution[i]);
+  }
+  int ret = handler(to_solution, from_solution, num);
+  for (int i = 0; i < num; i++) {
+    fclose(to_solution[i]);
+    fclose(from_solution[i]);
+  }
+  free(to_solution);
+  free(from_solution);
+  return ret;
+}
+```
+

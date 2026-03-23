@@ -1,4 +1,5 @@
 use std::env;
+use std::path::PathBuf;
 
 use clap::Parser;
 use task_maker_rust::error::NiceError;
@@ -16,6 +17,7 @@ use task_maker_rust::tools::opt::{Opt, Tool};
 use task_maker_rust::tools::reset::main_reset;
 use task_maker_rust::tools::sandbox::main_sandbox;
 use task_maker_rust::tools::server::main_server;
+use task_maker_rust::tools::task_controller::main_task_controller;
 use task_maker_rust::tools::task_info::main_task_info;
 use task_maker_rust::tools::terry_statement::main_terry_statement;
 use task_maker_rust::tools::worker::main_worker;
@@ -24,6 +26,11 @@ fn main() {
     // We run before any other initialization, to avoid polluting stderr.
     if env::args().nth(1).as_deref() == Some("internal-sandbox") {
         return task_maker_rust::sandbox::main_sandbox();
+    }
+    if env::args().nth(1).as_deref() == Some("internal-controller") {
+        let process_limit = env::args().nth(2).unwrap().parse().unwrap();
+        let result_dir = PathBuf::from(env::args().nth(3).unwrap());
+        return task_maker_exec::controller_keeper(process_limit, &result_dir);
     }
 
     rustls::crypto::ring::default_provider()
@@ -50,6 +57,7 @@ fn main() {
         Tool::ExportSolutionChecks(opt) => main_export_solution_checks(opt),
         Tool::ExportBooklet(opt) => main_export_booklet(opt),
         Tool::EvalServer(opt) => main_eval_server(opt),
+        Tool::TaskController(opt) => main_task_controller(opt),
     }
     .nice_unwrap()
 }

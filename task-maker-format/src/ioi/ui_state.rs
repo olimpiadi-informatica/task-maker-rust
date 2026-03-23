@@ -553,6 +553,7 @@ impl UIStateT for UIState {
                     UIExecutionStatus::Done { result } => {
                         testcase.status = result
                             .iter()
+                            .rev() // prioritize _solution_ failures
                             .map(|x| &x.status)
                             .find(|x| **x != ExecutionStatus::Success)
                             .map(|s| match s {
@@ -634,6 +635,18 @@ impl UIStateT for UIState {
                         ScoreStatus::Accepted => TestcaseEvaluationStatus::Accepted(message),
                         ScoreStatus::PartialScore => TestcaseEvaluationStatus::Partial(message),
                     };
+                } else if testcase.status == TestcaseEvaluationStatus::RuntimeError
+                    && score <= 1e-8
+                    && (testcase.results.len() > 1
+                        && testcase.results[0]
+                            .as_ref()
+                            .is_some_and(|x| x.status == ExecutionStatus::Success))
+                {
+                    // If we have a controller/manager and we scored 0, and the controller/manager
+                    // exited successfully.
+                    testcase.status = TestcaseEvaluationStatus::WrongAnswer(format!(
+                        "{message} maybe caused by runtime error"
+                    ));
                 }
             }
             UIMessage::IOISubtaskScore {

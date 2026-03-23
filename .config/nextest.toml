@@ -6,5 +6,9 @@ platform = 'cfg(target_os = "macos")'
 retries = 3
 
 [[profile.default.overrides]]
-filter = 'test(classic) or test(communication)'
+filter = 'test(classic) or test(communication) or test(interactive)'
 slow-timeout = { period = "20s", terminate-after = 20 }
+
+[[profile.default.overrides]]
+filter = 'test(interactive_many)'
+threads-required = "num-test-threads"

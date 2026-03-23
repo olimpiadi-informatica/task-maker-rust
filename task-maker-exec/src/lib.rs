@@ -103,6 +103,8 @@ mod scheduler;
 mod worker;
 mod worker_manager;
 
+pub use worker::controller::controller_keeper;
+
 const KEY_MATERIAL: &str = "task-maker-rust 99e4e7117fbf4ed6f8f1850c6acb61b6";
 
 /// Derive the encryption key from a password string.

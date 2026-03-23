@@ -1,0 +1,8 @@
+name: interactive_many
+title: Interactive Many Solutions test
+time_limit: 1.0
+memory_limit: 64
+
+controller_time_limit: 2.0
+controller_memory_limit: 128
+controller_process_limit: 200

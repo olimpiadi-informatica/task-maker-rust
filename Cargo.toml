@@ -115,7 +115,7 @@ itertools = "0.14"
 lazy_static = "1.5"
 log = "0.4"
 mime_guess = "2.0"
-nix = "0.29"
+nix = { version = "0.29", features = ["poll"] }
 num_cpus = "1.17"
 paste = "1.0.15"
 pest = "2.8"
@@ -218,6 +218,8 @@ ratatui = { workspace = true, features = ["termion"] }
 serde_yaml = { workspace = true }
 zip = { version = "7.4.0", default-features = false }
 typst-assets = { version = "0.14.2", features = ["fonts"] }
+
+nix = { workspace = true }
 
 axum = { workspace = true }
 bytes = { workspace = true }

@@ -57,10 +57,7 @@ impl Default for ToolsSandboxRunner {
 
 impl SandboxRunner for ToolsSandboxRunner {
     fn run(&self, config: SandboxConfiguration, pid: Arc<AtomicU32>) -> RawSandboxResult {
-        match tools_sandbox_internal(&self.tools_path, config, pid) {
-            Ok(res) => res,
-            Err(e) => RawSandboxResult::Error(e.to_string()),
-        }
+        tools_sandbox_internal(&self.tools_path, config, pid).into()
     }
 }
 

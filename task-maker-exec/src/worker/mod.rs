@@ -20,6 +20,8 @@ use crate::executor::WorkerJob;
 use crate::proto::*;
 use crate::sandbox_runner::SandboxRunner;
 
+pub mod controller;
+
 /// The information about the current job the worker is doing.
 struct WorkerCurrentJob {
     /// Job currently waiting for, when there is a job running this should be `None`
@@ -30,6 +32,8 @@ struct WorkerCurrentJob {
     missing_deps: HashMap<FileStoreKey, Vec<FileUuid>>,
     /// Send to the sandbox_manager the list of files the server is missing.
     server_asked_files: Option<Sender<Vec<FileUuid>>>,
+    /// State of the controller if this is a controlled execution.
+    controller_state: Option<controller::State>,
 }
 
 /// The worker is the component that receives the work from the server and sends the results back.
@@ -89,6 +93,7 @@ impl WorkerCurrentJob {
             current_sandboxes: None,
             missing_deps: HashMap::new(),
             server_asked_files: None,
+            controller_state: None,
         }
     }
 }
@@ -306,6 +311,61 @@ impl Worker {
     }
 }
 
+fn finalize_job(
+    current_job: Arc<Mutex<WorkerCurrentJob>>,
+    server_asked_files_receiver: Receiver<Vec<FileUuid>>,
+    outputs: HashMap<FileUuid, FileStoreKey>,
+    output_paths: HashMap<FileUuid, OutputFile>,
+    sender: &ChannelSender<WorkerClientMessage>,
+    fifo_dir: Option<TempDir>,
+) -> Result<(), Error> {
+    // wait for the list of files to send
+    match server_asked_files_receiver.recv() {
+        Ok(missing_files) => {
+            for uuid in missing_files {
+                if let Some(key) = outputs.get(&uuid) {
+                    sender
+                        .send(WorkerClientMessage::ProvideFile(uuid, key.clone()))
+                        .context("Failed to send ProvideFile")?;
+                    match &output_paths[&uuid] {
+                        OutputFile::OnDisk(path) => {
+                            ChannelFileSender::send(path, sender)
+                                .context("Failed to send missing file")?;
+                        }
+                        OutputFile::InMemory(content) => {
+                            ChannelFileSender::send_data(content.clone(), sender)
+                                .context("Failed to sent in-memory file")?;
+                        }
+                    }
+                } else {
+                    error!("Server asked for file {uuid}, which is not known to the worker");
+                }
+            }
+        }
+        Err(e) => {
+            // not receiving the list from the server means that the server is going down and does
+            // not bother of responding, letting the worker crash will crash the local executor.
+            // So just cleanup and exit without asking for more jobs.
+            warn!("List of missing files not received from the server: {e:?}");
+            let mut job = current_job.lock().unwrap();
+            job.current_job = None;
+            job.current_sandboxes = None;
+            return Ok(());
+        }
+    }
+    // this job is completed, reset the worker and ask for more work
+    let mut job = current_job.lock().unwrap();
+    job.current_job = None;
+    job.current_sandboxes = None;
+    job.controller_state = None;
+    let _ = sender.send(WorkerClientMessage::GetWork);
+    // The sandbox may chmod -r the directory, revert it to allow deletion on drop
+    if let Some(fifo_dir) = fifo_dir {
+        let _ = std::fs::set_permissions(fifo_dir.path(), Permissions::from_mode(0o755));
+    }
+    Ok(())
+}
+
 /// Spawn a new thread that will start the sandbox and will send the results back to the server.
 fn execute_job(
     current_job: Arc<Mutex<WorkerCurrentJob>>,
@@ -313,6 +373,25 @@ fn execute_job(
     sandbox_path: &Path,
     runner: Arc<dyn SandboxRunner>,
 ) -> Result<JoinHandle<()>, Error> {
+    let controller_settings = current_job
+        .lock()
+        .unwrap()
+        .current_job
+        .as_ref()
+        .ok_or_else(|| anyhow!("Worker job is gone"))?
+        .0
+        .group
+        .controller_settings;
+    if let Some(settings) = controller_settings {
+        return controller::execute_controlled_job(
+            settings,
+            current_job,
+            sender,
+            sandbox_path,
+            runner,
+        );
+    }
+
     let (job, sandboxes, fifo_dir, server_asked_files) = {
         let mut current_job = current_job.lock().unwrap();
         let job = current_job
@@ -490,50 +569,15 @@ fn sandbox_group_manager(
             outputs.clone(),
         ))
         .context("Failed to send WorkerDone")?;
-    // wait for the list of files to send
-    match server_asked_files_receiver.recv() {
-        Ok(missing_files) => {
-            for uuid in missing_files {
-                if let Some(key) = outputs.get(&uuid) {
-                    sender
-                        .send(WorkerClientMessage::ProvideFile(uuid, key.clone()))
-                        .context("Failed to send ProvideFile")?;
-                    match &output_paths[&uuid] {
-                        OutputFile::OnDisk(path) => {
-                            ChannelFileSender::send(path, &sender)
-                                .context("Failed to send missing file")?;
-                        }
-                        OutputFile::InMemory(content) => {
-                            ChannelFileSender::send_data(content.clone(), &sender)
-                                .context("Failed to sent in-memory file")?;
-                        }
-                    }
-                } else {
-                    error!("Server asked for file {uuid}, which is not known to the worker");
-                }
-            }
-        }
-        Err(e) => {
-            // not receiving the list from the server means that the server is going down and does
-            // not bother of responding, letting the worker crash will crash the local executor.
-            // So just cleanup and exit without asking for more jobs.
-            warn!("List of missing files not received from the server: {e:?}");
-            let mut job = current_job.lock().unwrap();
-            job.current_job = None;
-            job.current_sandboxes = None;
-            return Ok(());
-        }
-    }
-    // this job is completed, reset the worker and ask for more work
-    let mut job = current_job.lock().unwrap();
-    job.current_job = None;
-    job.current_sandboxes = None;
-    let _ = sender.send(WorkerClientMessage::GetWork);
-    // The sandbox may chmod -r the directory, revert it to allow deletion on drop
-    if let Some(fifo_dir) = fifo_dir {
-        let _ = std::fs::set_permissions(fifo_dir.path(), Permissions::from_mode(0o755));
-    }
-    Ok(())
+
+    finalize_job(
+        current_job,
+        server_asked_files_receiver,
+        outputs,
+        output_paths,
+        &sender,
+        fifo_dir,
+    )
 }
 
 /// Spawn the sandbox of an execution in a different thread and send to the group manager the
