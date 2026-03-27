@@ -12,6 +12,7 @@ use axum::{
     Json, Router,
 };
 use bytes::Bytes;
+use clap::Parser;
 use serde::{Deserialize, Serialize};
 use task_maker_dag::{ExecutionDAG, ExecutionStatus, File};
 use task_maker_lang::{LanguageManager, SourceFile};
@@ -20,15 +21,47 @@ use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
 use crate::sandbox::ToolsSandboxRunner;
-use crate::tools::opt::EvalServerOpt;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct TokenList {
-    tokens: Vec<String>,
+#[derive(Parser, Debug, Clone)]
+pub struct EvalServerOpt {
+    /// Address to bind the server on
+    #[clap(long, default_value = "127.0.0.1:3000")]
+    pub addr: String,
+
+    /// Require authentication for the API endpoints.
+    /// If true, the server will expect an "X-OII-AUTH" header with a token for each request.
+    ///
+    /// The token is meaningless and is only used to prevent unauthorized access. You can set it to
+    /// any value you want.
+    #[clap(long)]
+    pub require_header: bool,
+
+    /// List of allowed languages (names). If empty, all languages are allowed.
+    #[clap(long)]
+    pub allowed_languages: Vec<String>,
+
+    /// Maximum CPU time limit (seconds)
+    #[clap(long, default_value = "10.0")]
+    pub max_time_limit: f64,
+
+    /// Maximum memory limit (MB)
+    #[clap(long, default_value = "512")]
+    pub max_memory_limit: u64,
+
+    /// Compilation CPU time limit (seconds)
+    #[clap(long, default_value = "60.0")]
+    pub compilation_time_limit: f64,
+
+    /// Compilation memory limit (MB)
+    #[clap(long, default_value = "1024")]
+    pub compilation_memory_limit: u64,
+
+    #[clap(flatten, next_help_heading = Some("STORAGE"))]
+    pub storage: crate::StorageOpt,
 }
 
 struct AppState {
-    tokens: Option<HashSet<String>>,
+    require_header: bool,
     allowed_languages: HashSet<String>,
     opt: EvalServerOpt,
 }
@@ -106,18 +139,9 @@ struct LanguageInfo {
 
 #[tokio::main]
 pub async fn main_eval_server(opt: EvalServerOpt) -> Result<(), Error> {
-    let tokens = if let Some(path) = &opt.tokens_file {
-        let content = std::fs::read_to_string(path).context("Failed to read tokens file")?;
-        let list: TokenList =
-            serde_json::from_str(&content).context("Failed to parse tokens file")?;
-        Some(list.tokens.into_iter().collect::<HashSet<_>>())
-    } else {
-        None
-    };
-
     let allowed_languages = opt.allowed_languages.iter().cloned().collect();
     let state = Arc::new(AppState {
-        tokens,
+        require_header: opt.require_header,
         allowed_languages,
         opt,
     });
@@ -145,15 +169,14 @@ async fn auth_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    if let Some(tokens) = &state.tokens {
+    if state.require_header {
         let auth_header = req
             .headers()
-            .get("Authorization")
-            .and_then(|h| h.to_str().ok())
-            .and_then(|s| s.strip_prefix("Bearer "));
+            .get("X-OII-AUTH")
+            .and_then(|h| h.to_str().ok());
 
         match auth_header {
-            Some(token) if tokens.contains(token) => {
+            Some(token) => {
                 // Token is valid, continue to the next handler
                 let token_str = token.to_string();
                 req.extensions_mut().insert(token_str);
