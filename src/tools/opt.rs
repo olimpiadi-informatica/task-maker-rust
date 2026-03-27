@@ -1,11 +1,10 @@
-use std::path::PathBuf;
-
 use clap::Parser;
 
 use crate::tools::add_solution_checks::AddSolutionChecksOpt;
 use crate::tools::booklet::BookletOpt;
 use crate::tools::clear::ClearOpt;
 use crate::tools::copy_competition_files::CopyCompetitionFilesOpt;
+use crate::tools::eval_server::EvalServerOpt;
 use crate::tools::export_booklet::ExportBookletOpt;
 use crate::tools::export_solution_checks::ExportSolutionChecksOpt;
 use crate::tools::find_bad_case::FindBadCaseOpt;
@@ -71,38 +70,4 @@ pub enum Tool {
     /// This option is left as undocumented as it's not part of the public API.
     #[clap(hide = true)]
     InternalSandbox,
-}
-
-#[derive(Parser, Debug, Clone)]
-pub struct EvalServerOpt {
-    /// Address to bind the server on
-    #[clap(long, default_value = "127.0.0.1:3000")]
-    pub addr: String,
-
-    /// Path to a JSON file containing the allowed tokens
-    #[clap(long)]
-    pub tokens_file: Option<PathBuf>,
-
-    /// List of allowed languages (names). If empty, all languages are allowed.
-    #[clap(long)]
-    pub allowed_languages: Vec<String>,
-
-    /// Maximum CPU time limit (seconds)
-    #[clap(long, default_value = "10.0")]
-    pub max_time_limit: f64,
-
-    /// Maximum memory limit (MB)
-    #[clap(long, default_value = "512")]
-    pub max_memory_limit: u64,
-
-    /// Compilation CPU time limit (seconds)
-    #[clap(long, default_value = "60.0")]
-    pub compilation_time_limit: f64,
-
-    /// Compilation memory limit (MB)
-    #[clap(long, default_value = "1024")]
-    pub compilation_memory_limit: u64,
-
-    #[clap(flatten, next_help_heading = Some("STORAGE"))]
-    pub storage: crate::StorageOpt,
 }
