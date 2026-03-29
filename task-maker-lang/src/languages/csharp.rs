@@ -43,7 +43,7 @@ impl Language for LanguageCSharp {
             self,
             source,
             settings,
-            ExecutionCommand::system("mcs"),
+            ExecutionCommand::system("csc"),
         );
         let binary_name = metadata.binary_name.clone();
         metadata
