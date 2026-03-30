@@ -20,7 +20,7 @@ impl LanguagePascal {
 
 impl Language for LanguagePascal {
     fn name(&self) -> &'static str {
-        "Pascal / fpc"
+        "Pascal"
     }
 
     fn extensions(&self) -> Vec<&'static str> {
