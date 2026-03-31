@@ -1,3 +1,5 @@
+use std::env;
+
 use clap::Parser;
 use task_maker_rust::error::NiceError;
 use task_maker_rust::tools::add_solution_checks::main_add_solution_checks;
@@ -19,6 +21,11 @@ use task_maker_rust::tools::terry_statement::main_terry_statement;
 use task_maker_rust::tools::worker::main_worker;
 
 fn main() {
+    // We run before any other initialization, to avoid polluting stderr.
+    if env::args().nth(1).as_deref() == Some("internal-sandbox") {
+        return task_maker_rust::sandbox::main_sandbox();
+    }
+
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("Failed to install rustls crypto provider");
@@ -43,7 +50,6 @@ fn main() {
         Tool::ExportSolutionChecks(opt) => main_export_solution_checks(opt),
         Tool::ExportBooklet(opt) => main_export_booklet(opt),
         Tool::EvalServer(opt) => main_eval_server(opt),
-        Tool::InternalSandbox => return task_maker_rust::main_sandbox(),
     }
     .nice_unwrap()
 }
