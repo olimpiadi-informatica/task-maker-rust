@@ -86,6 +86,9 @@ impl Language for LanguageJava {
     }
 
     fn custom_limits(&self, limits: &mut ExecutionLimits) {
-        limits.mount_proc(true).allow_multiprocess();
+        limits
+            .mount_proc(true)
+            .allow_multiprocess()
+            .add_extra_readable_dir("/etc");
     }
 }
