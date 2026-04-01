@@ -275,6 +275,7 @@ impl SourceFile {
                     .read_only(false)
                     .mount_tmpfs(true)
                     .mount_proc(true);
+                self.language.custom_limits(exec.limits_mut());
                 exec.capture_stdout(Some(COMPILATION_CONTENT_LENGTH));
                 exec.capture_stderr(Some(COMPILATION_CONTENT_LENGTH));
             }
