@@ -65,9 +65,4 @@ pub enum Tool {
     ExportBooklet(ExportBookletOpt),
     /// Start a web server for evaluating arbitrary code.
     EvalServer(EvalServerOpt),
-    /// Run the sandbox instead of the normal task-maker.
-    ///
-    /// This option is left as undocumented as it's not part of the public API.
-    #[clap(hide = true)]
-    InternalSandbox,
 }
