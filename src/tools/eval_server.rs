@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Error};
 use axum::{
-    extract::{Request, State},
+    extract::{DefaultBodyLimit, Request, State},
     http::StatusCode,
     middleware::{self, Next},
     response::Response,
@@ -55,6 +55,10 @@ pub struct EvalServerOpt {
     /// Compilation memory limit (MB)
     #[clap(long, default_value = "1024")]
     pub compilation_memory_limit: u64,
+
+    /// Maximum allowed client body size (MB)
+    #[clap(long, default_value = "2")]
+    pub client_max_body_size: usize,
 
     #[clap(flatten, next_help_heading = Some("STORAGE"))]
     pub storage: crate::StorageOpt,
@@ -154,6 +158,7 @@ pub async fn main_eval_server(opt: EvalServerOpt) -> Result<(), Error> {
         ))
         .route("/languages", get(list_languages))
         .layer(TraceLayer::new_for_http())
+        .layer(DefaultBodyLimit::max(state.opt.client_max_body_size << 20))
         .with_state(state.clone());
 
     let addr = &state.opt.addr;
