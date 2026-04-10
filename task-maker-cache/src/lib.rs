@@ -177,25 +177,24 @@ impl Cache {
                 None => {
                     // TODO: remove the entry because it's not valid anymore
                 }
-                Some(outputs) => {
-                    if entry.is_compatible(group) {
-                        let mut results = Vec::new();
-                        for (exec, item) in group.executions.iter().zip(entry.items.iter()) {
-                            results.push(ExecutionResult {
-                                status: exec.status(&item.result.status, &item.result.resources),
-                                was_killed: item.result.was_killed,
-                                was_cached: true,
-                                resources: item.result.resources.clone(),
-                                stdout: item.result.stdout.clone(),
-                                stderr: item.result.stderr.clone(),
-                            });
-                        }
-                        return CacheResult::Hit {
-                            result: results,
-                            outputs,
-                        };
+                Some(outputs) if entry.is_compatible(group) => {
+                    let mut results = Vec::new();
+                    for (exec, item) in group.executions.iter().zip(entry.items.iter()) {
+                        results.push(ExecutionResult {
+                            status: exec.status(&item.result.status, &item.result.resources),
+                            was_killed: item.result.was_killed,
+                            was_cached: true,
+                            resources: item.result.resources.clone(),
+                            stdout: item.result.stdout.clone(),
+                            stderr: item.result.stderr.clone(),
+                        });
                     }
+                    return CacheResult::Hit {
+                        result: results,
+                        outputs,
+                    };
                 }
+                _ => {}
             }
         }
         CacheResult::Miss

@@ -172,6 +172,9 @@ impl GroupConfig {
 struct SubtaskConfig {
     score: f64,
 
+    #[serde(default)]
+    always_show_testcases: bool,
+
     #[serde(flatten)]
     group: GroupConfig,
 
@@ -473,6 +476,7 @@ pub(super) fn parse(
                 testcases,
                 testcases_owned,
                 input_validator,
+                always_show_testcases: subtask.always_show_testcases,
                 ..Default::default()
             },
         );

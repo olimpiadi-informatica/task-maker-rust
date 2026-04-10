@@ -57,8 +57,8 @@ pub fn main_export_solution_checks(opt: ExportSolutionChecksOpt) -> Result<(), E
 
     let subtasks = task
         .subtasks
-        .iter()
-        .filter_map(|(_, info)| info.name.clone().map(|name| (name, info.id)))
+        .values()
+        .filter_map(|info| info.name.clone().map(|name| (name, info.id)))
         .collect::<HashMap<_, _>>();
 
     let checks = solutions
