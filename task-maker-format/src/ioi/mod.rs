@@ -178,6 +178,8 @@ pub struct SubtaskInfo {
     pub is_default: bool,
     /// The list of the dependencies of this subtask.
     pub dependencies: Vec<SubtaskId>,
+    /// Whether we should ask CMS to always show testcase information for this subtask.
+    pub always_show_testcases: bool,
 }
 
 /// A testcase of a IOI task.

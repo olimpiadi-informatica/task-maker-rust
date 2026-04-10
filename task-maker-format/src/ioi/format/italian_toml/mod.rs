@@ -8,7 +8,7 @@ use itertools::Itertools;
 use task_maker_lang::GraderMap;
 
 use super::italian_yaml::TaskYAML;
-use crate::ioi::italian_yaml::{TaskYAMLOrig, TM_ALLOW_DELETE_COOKIE};
+use crate::ioi::italian_yaml::{ScoreTypeGroupParameters, TaskYAMLOrig, TM_ALLOW_DELETE_COOKIE};
 use crate::ioi::sanity_checks::get_sanity_checks;
 use crate::ioi::{
     make_task_booklets, BatchTypeData, Checker, CommunicationTypeData, IOITask,
@@ -85,15 +85,19 @@ pub fn parse_task<P: AsRef<Path>>(
                         .testcases
                         .iter()
                         .map(|tc_num| format!("{tc_num:03}"))
-                        .join("|");
-                    (st.max_score, testcases)
+                        .collect();
+                    ScoreTypeGroupParameters::Dict {
+                        max_score: st.max_score,
+                        testcases,
+                        always_show_testcases: st.always_show_testcases,
+                    }
                 })
                 .collect(),
         );
 
         let n_input = subtasks
-            .iter()
-            .flat_map(|(_, st)| st.testcases.clone())
+            .values()
+            .flat_map(|st| st.testcases.clone())
             .unique()
             .count();
         config.n_input = Some(n_input);

@@ -58,6 +58,8 @@ The following are the most commonly set keys in this file:
   tasks communicate via FIFOs (by default they communicate via standard I/O,
   which is `std_io`).
   See #ref(<communication>) for further information on communication tasks.
+- `feedback_level`: set this to `oi_restricted` to instruct CMS to use IOI
+  rules for showing feedback for this task. Defaults to `full`.
 // TODO: change this to default to FIFOs with a stub and stdio otherwise?
 // TODO: IIRC stdio communication is broken, maybe fix it.
 // TODO: what about TwoStep / OutputOnly / BatchAndOutput?
@@ -214,6 +216,8 @@ Subtasks support all the keys of a group, plus:
 - `score`: the number of points for this subtask (required).
 - `validator`: overrides the default validator for this subtask.
 - `validator_args`: overrides the default validator arguments for this subtask.
+- `always_show_testcases`: whether CMS should always show feedback for all
+  testcases for this subtask, even if the subtask is not fully solved.
 
 === Testcase Definitions <testcase-definitions>
 

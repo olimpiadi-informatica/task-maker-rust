@@ -81,7 +81,7 @@ impl CacheEntry {
         result: Vec<ExecutionResult>,
     ) -> CacheEntry {
         let mut items = Vec::new();
-        for (exec, res) in group.executions.iter().zip(result.into_iter()) {
+        for (exec, res) in group.executions.iter().zip(result) {
             items.push(CacheEntryItem::from_execution(exec, file_keys, res));
         }
         CacheEntry {
@@ -163,10 +163,8 @@ impl CacheEntry {
         macro_rules! check_limit {
             ($left:expr, $right:expr, $extra_time:expr) => {
                 match ($left, $right) {
-                    (Some(left), Some(right)) => {
-                        if left + $extra_time > right {
-                            return false;
-                        }
+                    (Some(left), Some(right)) if left + $extra_time > right => {
+                        return false;
                     }
                     (None, Some(_)) => return false,
                     _ => {}

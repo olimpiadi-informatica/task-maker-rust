@@ -330,6 +330,17 @@ where
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub(super) enum ScoreTypeGroupParameters {
+    List((f64, String)),
+    Dict {
+        max_score: f64,
+        testcases: Vec<String>,
+        always_show_testcases: bool,
+    },
+}
+
 /// Deserialized data from the task.yaml of a IOI format task.
 #[derive(Debug, Serialize, Deserialize)]
 pub(super) struct TaskYAML {
@@ -344,7 +355,7 @@ pub(super) struct TaskYAML {
     pub score_type: Option<TestcaseScoreAggregator>,
     /// The parameters of the score type.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub score_type_parameters: Option<Vec<(f64, String)>>,
+    pub score_type_parameters: Option<Vec<ScoreTypeGroupParameters>>,
     /// The number of inputs of the task
     #[serde(skip_serializing_if = "Option::is_none")]
     pub n_input: Option<usize>,
@@ -404,7 +415,7 @@ pub(super) struct TaskYAML {
     pub token_mode: Option<String>,
     /// Compatibility with cms, unused.
     pub public_testcases: Option<String>,
-    /// Compatibility with cms, unused.
+    /// Compatibility with cms, not directly used.
     pub feedback_level: Option<String>,
 }
 
@@ -465,6 +476,9 @@ pub(super) struct TaskYAMLOrig {
     /// Whether the solution processes are assumed to be concurrent (wall time max-ed, memory summed)
     /// or sequential (wall time sum-ed, memory max-ed).
     pub interactive_concurrent: Option<bool>,
+
+    /// Compatibility with cms, not directly used.
+    pub feedback_level: Option<String>,
 }
 
 impl TaskYAMLOrig {
@@ -501,7 +515,7 @@ impl TaskYAMLOrig {
             score_mode: Some("max_subtask".into()),
             token_mode: Some("disabled".into()),
             public_testcases: Some("all".into()),
-            feedback_level: Some("full".into()),
+            feedback_level: Some(self.feedback_level.clone().unwrap_or("full".to_string())),
         }
     }
 }
@@ -697,14 +711,14 @@ pub fn parse_task<P: AsRef<Path>>(
                                 .iter()
                                 .map(|tc_num| format!("{tc_num:03}"))
                                 .join("|");
-                            (st.max_score, testcases)
+                            ScoreTypeGroupParameters::List((st.max_score, testcases))
                         })
                         .collect(),
                 );
 
                 let n_input = subtasks
-                    .iter()
-                    .flat_map(|(_, st)| st.testcases.clone())
+                    .values()
+                    .flat_map(|st| st.testcases.clone())
                     .unique()
                     .count();
                 yaml.n_input = Some(n_input);
