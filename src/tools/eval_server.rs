@@ -301,6 +301,8 @@ async fn evaluate(
             for exec in &mut comp_group.executions {
                 exec.limits.cpu_time(state.opt.compilation_time_limit);
                 exec.limits
+                    .wall_time(state.opt.compilation_time_limit * 2.0);
+                exec.limits
                     .memory(state.opt.compilation_memory_limit * 1024);
             }
         }
@@ -332,6 +334,8 @@ async fn evaluate(
 
     exec.limits
         .cpu_time(payload.time_limit.unwrap_or(state.opt.max_time_limit));
+    exec.limits
+        .wall_time(payload.time_limit.unwrap_or(state.opt.max_time_limit) * 2.0);
     exec.limits
         .memory(payload.memory_limit.unwrap_or(state.opt.max_memory_limit) * 1024);
 
