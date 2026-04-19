@@ -20,6 +20,7 @@ bincode = { workspace = true }
 log = { workspace = true }
 # UUID generation
 uuid = { workspace = true, features = ["v4", "fast-rng", "serde"] }
+fontdb = "0.23.0"
 # Temporary directory for sandboxes and FIFO directory
 tempfile = { workspace = true }
 # Resolve executable names in $PATH
