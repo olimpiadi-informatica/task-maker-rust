@@ -115,7 +115,10 @@ pub fn evaluate(
     let sol_limits = sol_exec.limits_mut();
     if let Some(time_limit) = task.time_limit {
         sol_limits.cpu_time(time_limit);
-        sol_limits.wall_time(time_limit * 1.5 + 1.0); // some margin
+        sol_limits.wall_time(
+            data.controller_wall_time_limit
+                .unwrap_or(time_limit * 1.5 + 1.0),
+        );
     }
     if let Some(memory_limit) = task.memory_limit {
         sol_limits.memory(memory_limit * 1024); // MiB -> KiB
