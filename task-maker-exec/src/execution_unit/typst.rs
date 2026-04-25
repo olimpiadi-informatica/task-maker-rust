@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::Duration;
 use std::{env, fs};
 
@@ -46,8 +47,72 @@ pub fn embedded_font_files() -> impl Iterator<Item = &'static [u8]> {
         include_bytes!("../../fonts/NotoSansSymbols2-Regular.ttf"),
         include_bytes!("../../fonts/majalla.ttf"),
         include_bytes!("../../fonts/majallab.ttf"),
+        include_bytes!("../../fonts/NotoSerifArmenian-Regular.ttf"),
+        include_bytes!("../../fonts/NotoSerifArmenian-Bold.ttf"),
+        include_bytes!("../../fonts/NotoSerifBengali-Regular.ttf"),
+        include_bytes!("../../fonts/NotoSerifBengali-Bold.ttf"),
+        include_bytes!("../../fonts/NotoSerifDevanagari-Regular.ttf"),
+        include_bytes!("../../fonts/NotoSerifDevanagari-Bold.ttf"),
+        include_bytes!("../../fonts/NotoSerifGeorgian-Regular.ttf"),
+        include_bytes!("../../fonts/NotoSerifGeorgian-Bold.ttf"),
+        include_bytes!("../../fonts/NotoSerifHebrew-Regular.ttf"),
+        include_bytes!("../../fonts/NotoSerifHebrew-Bold.ttf"),
+        include_bytes!("../../fonts/NotoSerifSinhala-Regular.ttf"),
+        include_bytes!("../../fonts/NotoSerifSinhala-Bold.ttf"),
+        include_bytes!("../../fonts/NotoSerifTamil-Regular.ttf"),
+        include_bytes!("../../fonts/NotoSerifTamil-Bold.ttf"),
+        include_bytes!("../../fonts/NotoSerifThai-Regular.ttf"),
+        include_bytes!("../../fonts/NotoSerifThai-Bold.ttf"),
     ]
     .into_iter()
+}
+
+static CJK_FONTS: OnceLock<Vec<Font>> = OnceLock::new();
+
+/// Try to detect the Noto Serif CJK fonts from the system.
+pub fn detect_system_cjk_fonts() -> &'static [Font] {
+    CJK_FONTS.get_or_init(|| {
+        let mut db = fontdb::Database::new();
+        db.load_system_fonts();
+
+        let mut fonts = Vec::new();
+        let mut loaded_files: HashMap<PathBuf, Bytes> = HashMap::new();
+
+        for face in db.faces() {
+            let is_cjk = face.families.iter().any(|(name, _)| {
+                name.contains("Noto Serif CJK SC")
+                    || name.contains("Noto Serif CJK TC")
+                    || name.contains("Noto Serif CJK JP")
+                    || name.contains("Noto Serif CJK KR")
+            });
+
+            if is_cjk {
+                // Check if it's regular or bold
+                if face.weight != fontdb::Weight::NORMAL && face.weight != fontdb::Weight::BOLD {
+                    continue;
+                }
+
+                let path = match &face.source {
+                    fontdb::Source::File(path) | fontdb::Source::SharedFile(path, _) => Some(path),
+                    _ => None,
+                };
+
+                if let Some(path) = path {
+                    let bytes = loaded_files.entry(path.clone()).or_insert_with(|| {
+                        fs::read(path)
+                            .map(Bytes::new)
+                            .unwrap_or_else(|_| Bytes::new(vec![]))
+                    });
+                    if !bytes.is_empty() {
+                        if let Some(font) = Font::new(bytes.clone(), face.index) {
+                            fonts.push(font);
+                        }
+                    }
+                }
+            }
+        }
+        fonts
+    })
 }
 
 impl TypstCompiler {
@@ -71,10 +136,12 @@ impl TypstCompiler {
             })
             .collect::<Result<HashMap<_, _>, _>>()?;
 
-        let fonts: Vec<_> = embedded_font_files()
+        let mut fonts: Vec<_> = embedded_font_files()
             .chain(typst_assets::fonts())
             .flat_map(|x| Font::iter(Bytes::new(x)))
             .collect();
+
+        fonts.extend(detect_system_cjk_fonts().iter().cloned());
 
         let cache_dir = match env::var("XDG_CACHE_HOME") {
             Ok(cache) => Path::new(&cache).join("typst/packages"),
