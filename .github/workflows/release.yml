@@ -29,7 +29,7 @@ jobs:
       - name: Install Deps
         run: |
           apt update
-          apt install -yy libseccomp-dev libssl-dev build-essential fpc lld
+          apt install -yy libseccomp-dev libssl-dev build-essential fpc lld clang
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         id: install-rust
@@ -84,7 +84,7 @@ jobs:
         run: ./gen.sh > ../../../PKGBUILD
       - name: Publish PKGBUILD
         if: ${{ github.event_name == 'release' }} # skip on manual runs.
-        uses: KSXGitHub/github-actions-deploy-aur@v4.1.1
+        uses: KSXGitHub/github-actions-deploy-aur@v4.1.3
         with:
           pkgname: task-maker-rust
           pkgbuild: ./PKGBUILD
