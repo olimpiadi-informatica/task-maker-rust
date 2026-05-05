@@ -517,3 +517,95 @@ fn check_known_to_git(task: &IOITask, path: &Path) -> Result<bool, Error> {
 
     Ok(known)
 }
+
+/// Check that the Noto Serif CJK fonts are present on the system if there are Typst statements.
+#[derive(Debug, Default)]
+pub struct StatementFonts;
+make_sanity_check!(StatementFonts);
+
+impl SanityCheck for StatementFonts {
+    type Task = IOITask;
+
+    fn name(&self) -> &'static str {
+        "StatementFonts"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Statement
+    }
+
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        let is_cjk_lang = |lang: &str| {
+            lang == "chinese"
+                || lang == "japanese"
+                || lang == "korean"
+                || lang.starts_with("zh")
+                || lang.starts_with("ja")
+                || lang.starts_with("ko")
+        };
+
+        let has_cjk_typst = task.booklets.iter().any(|b| {
+            let is_typst = b
+                .statements
+                .iter()
+                .any(|s| s.path.extension().map(|e| e == "typ").unwrap_or(false));
+            is_typst && is_cjk_lang(&b.config.language)
+        });
+
+        if !has_cjk_typst {
+            return Ok(());
+        }
+
+        let mut db = fontdb::Database::new();
+        db.load_system_fonts();
+
+        let mut found_sc = false;
+        let mut found_tc = false;
+        let mut found_jp = false;
+        let mut found_kr = false;
+
+        for face in db.faces() {
+            for (family, _) in &face.families {
+                if family.contains("Noto Serif CJK SC") {
+                    found_sc = true;
+                }
+                if family.contains("Noto Serif CJK TC") {
+                    found_tc = true;
+                }
+                if family.contains("Noto Serif CJK JP") {
+                    found_jp = true;
+                }
+                if family.contains("Noto Serif CJK KR") {
+                    found_kr = true;
+                }
+            }
+        }
+
+        let mut missing = Vec::new();
+        if !found_sc {
+            missing.push("SC");
+        }
+        if !found_tc {
+            missing.push("TC");
+        }
+        if !found_jp {
+            missing.push("JP");
+        }
+        if !found_kr {
+            missing.push("KR");
+        }
+
+        if !missing.is_empty() {
+            eval.add_diagnostic(
+                Diagnostic::warning(format!(
+                    "The following Noto Serif CJK variants are missing from the system: {}. \
+                     Chinese, Japanese, and Korean characters might not be rendered correctly.",
+                    missing.join(", ")
+                ))
+                .with_help("Please install the Noto Serif CJK fonts for your system"),
+            )?;
+        }
+
+        Ok(())
+    }
+}
