@@ -553,11 +553,7 @@ impl SanityCheck for AttTemplatesShouldCompile {
             let att_name = format!("att/{}.{}", task.name, ext);
             let template = task.path.join(&att_name);
 
-            let grader_ext= grader
-                .extension()
-                .map(OsStr::to_str)
-                .flatten()
-                .unwrap_or("");
+            let grader_ext = grader.extension().and_then(OsStr::to_str).unwrap_or("");
             let att_grader_name = format!("att/grader.{grader_ext}",);
             let att_grader = task.path.join(&att_grader_name);
 

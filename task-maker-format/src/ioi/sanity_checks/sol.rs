@@ -104,12 +104,10 @@ impl SanityCheck for SolutionsWithNoChecks {
             ))
         }
         if !solutions.is_empty() {
-            eval.add_diagnostic(
-                Diagnostic::warning(format!(
-                    "The following solutions are missing the subtask checks: {}",
-                    solutions.join(", ")
-                ))
-            )?;
+            eval.add_diagnostic(Diagnostic::warning(format!(
+                "The following solutions are missing the subtask checks: {}",
+                solutions.join(", ")
+            )))?;
         }
         Ok(())
     }
@@ -139,7 +137,10 @@ impl SanityCheck for SolutionsWithSamplesCheck {
 
         let mut solutions = vec![];
         for solution in eval.solutions.iter() {
-            let samples_checked = solution.checks.iter().any(|check| check.subtask_name_pattern == samples);
+            let samples_checked = solution
+                .checks
+                .iter()
+                .any(|check| check.subtask_name_pattern == samples);
             if samples_checked {
                 solutions.push(format!(
                     "{}",
@@ -152,9 +153,8 @@ impl SanityCheck for SolutionsWithSamplesCheck {
                 Diagnostic::warning(format!(
                     "The following solutions have solution checks for the samples: {}",
                     solutions.join(", ")
-                )).with_note(
-                    "Subtask checks on samples are rarely useful."
-                )
+                ))
+                .with_note("Subtask checks on samples are rarely useful."),
             )?;
         }
         Ok(())
