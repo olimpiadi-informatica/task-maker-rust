@@ -1,4 +1,5 @@
 use std::collections::{BTreeSet, HashMap};
+use std::ffi::OsStr;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -552,11 +553,12 @@ impl SanityCheck for AttTemplatesShouldCompile {
             let att_name = format!("att/{}.{}", task.name, ext);
             let template = task.path.join(&att_name);
 
-            let grader_name = grader
-                .file_name()
-                .ok_or_else(|| anyhow!("Grader has no file name"))?
-                .to_string_lossy();
-            let att_grader_name = format!("att/{grader_name}");
+            let grader_ext= grader
+                .extension()
+                .map(OsStr::to_str)
+                .flatten()
+                .unwrap_or("");
+            let att_grader_name = format!("att/grader.{grader_ext}",);
             let att_grader = task.path.join(&att_grader_name);
 
             // Only run the check if the grader is not a symlink, as otherwise we are already
