@@ -96,7 +96,7 @@ impl Checker {
                 group.priority = EVALUATION_PRIORITY - testcase_id.unwrap_or_default() as Priority;
                 let sender = eval.sender.clone();
                 eval.dag.on_execution_done(&group.uuid, move |results| {
-            let res = &results[0];
+                    let res = &results[0];
                     let stdout = res
                         .stdout
                         .as_ref()
@@ -105,8 +105,6 @@ impl Checker {
                         .stderr
                         .as_ref()
                         .ok_or_else(|| anyhow!("Checker stderr not captured"))?;
-                    let message = String::from_utf8_lossy(stderr).trim().to_string();
-                    let message = Self::translate_checker_message(message);
                     if !res.status.is_success() {
                         let message = if let Some(testcase_id) = testcase_id {
                             format!(
@@ -122,9 +120,30 @@ impl Checker {
                         sender.add_diagnostic(diagnostic)?;
                         return Ok(());
                     }
-                    let score = String::from_utf8_lossy(stdout);
-                    let score: f64 = match score.trim().parse() {
-                        Ok(score) => score,
+                    let message = str::from_utf8(stderr)
+                        .map(|s| Self::translate_checker_message(s.trim().to_string()));
+                    let score = str::from_utf8(stdout)
+                        .map(|s| s.trim().parse::<f64>());
+
+                    let Ok(score) = score else {
+                        let message = "The checked return a non UTF-8 score".to_string();
+                        let diagnostic = Diagnostic::error(message)
+                            .with_note(description)
+                            .with_help_attachment(stdout.clone());
+                        sender.add_diagnostic(diagnostic)?;
+                        return Ok(());
+                    };
+                    let Ok(message) = message else {
+                        let message = "The checked return a non UTF-8 message".to_string();
+                        let diagnostic = Diagnostic::error(message)
+                            .with_note(description)
+                            .with_help_attachment(stdout.clone());
+                        sender.add_diagnostic(diagnostic)?;
+                        return Ok(());
+                    };
+
+                    let score: f64 = match &score {
+                        Ok(score) => *score,
                         Err(e) => {
                             let message = if let Some(testcase_id) = testcase_id {
                                 format!(
@@ -141,6 +160,16 @@ impl Checker {
                             return Ok(());
                         }
                     };
+
+                    if !Self::is_unicode_printable(&message) {
+                        let message = format!("The checked return a non printable message ({message})");
+                        let diagnostic = Diagnostic::error(message)
+                            .with_note(description)
+                            .with_help_attachment(stdout.clone());
+                        sender.add_diagnostic(diagnostic)?;
+                        return Ok(());
+                    }
+
                     callback(score, message)
                 });
                 Ok(group)
@@ -193,6 +222,11 @@ impl Checker {
         )?;
         eval.dag.add_execution_group(exec);
         Ok(())
+    }
+
+    /// Checks that a string is a printable message without control characters.
+    fn is_unicode_printable(s: &str) -> bool {
+        s.chars().all(|c| !c.is_control() || c.is_whitespace())
     }
 
     /// The checker may return a message to be translated. This function maps the message
