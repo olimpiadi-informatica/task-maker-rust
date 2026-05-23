@@ -81,12 +81,10 @@ impl SanityCheck for SolutionsWithNoChecks {
     }
 
     fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
-        for subtask in task.subtasks.values() {
-            if subtask.name.is_none() {
-                // If not all the subtasks have a name, do not bother with the solutions, it's much
-                // more important to give everything a name before.
-                return Ok(());
-            }
+        // If not all the subtasks have a name, do not bother with the solutions, it's much
+        // more important to give everything a name before.
+        if task.subtasks.values().any(|st| st.name.is_none()) {
+            return Ok(());
         }
 
         let mut solutions = vec![];
@@ -106,12 +104,57 @@ impl SanityCheck for SolutionsWithNoChecks {
             ))
         }
         if !solutions.is_empty() {
+            eval.add_diagnostic(Diagnostic::warning(format!(
+                "The following solutions are missing the subtask checks: {}",
+                solutions.join(", ")
+            )))?;
+        }
+        Ok(())
+    }
+}
+
+/// Check that all the solutions (that are not symlinks) contain at least one check.
+#[derive(Debug, Default)]
+pub struct SolutionsWithSamplesCheck;
+make_sanity_check!(SolutionsWithSamplesCheck);
+
+impl SanityCheck for SolutionsWithSamplesCheck {
+    type Task = IOITask;
+
+    fn name(&self) -> &'static str {
+        "SolutionsWithSamplesChecks"
+    }
+
+    fn category(&self) -> SanityCheckCategory {
+        SanityCheckCategory::Solutions
+    }
+
+    fn pre_hook(&self, task: &IOITask, eval: &mut EvaluationData) -> Result<(), Error> {
+        // If no first subtask exists, or it has no name, skip this check.
+        let Some(Some(samples)) = task.subtasks.get(&0).map(|st| st.name.clone()) else {
+            return Ok(());
+        };
+
+        let mut solutions = vec![];
+        for solution in eval.solutions.iter() {
+            let samples_checked = solution
+                .checks
+                .iter()
+                .any(|check| check.subtask_name_pattern == samples);
+            if samples_checked {
+                solutions.push(format!(
+                    "{}",
+                    solution.source_file.relative_path().display()
+                ))
+            }
+        }
+        if !solutions.is_empty() {
             eval.add_diagnostic(
                 Diagnostic::warning(format!(
-                    "The following solutions are missing the subtask checks: {}",
+                    "The following solutions have solution checks for the samples: {}",
                     solutions.join(", ")
                 ))
-                .with_help("Try running task-maker-tools add-solution-checks"),
+                .with_note("Subtask checks on samples are rarely useful."),
             )?;
         }
         Ok(())

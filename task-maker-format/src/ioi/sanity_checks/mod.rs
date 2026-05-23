@@ -45,27 +45,20 @@ fn check_missing_graders<P: AsRef<Path>>(
     if !has_grader(task) {
         return Ok(());
     }
-    // some task formats use stub.* others use grader.*
-    // To avoid confusion emit warnings only either for stubs or graders.
-    let is_stub = task
-        .grader_map
-        .all_paths()
-        .filter_map(|p| p.file_stem())
-        .any(|p| p == "stub");
     let mut by_ext = HashMap::new();
     for file in list_files(task.path.join(folder.as_ref()), vec!["*.*"]) {
         let file = task.path_of(&file);
-        let stem = match file.file_stem() {
-            Some(stem) => stem,
-            None => continue,
+        let Some(stem) = file.file_stem() else {
+            continue;
         };
-        // do not check the graders
-        if stem == "grader" || stem == "stub" {
+        // Only check if the file name is that of a template
+        if *stem != *task.name {
             continue;
         }
         if let Some(lang) = LanguageManager::detect_language(file) {
             let ext = lang.extensions()[0];
-            let name = format!("{}.{}", if is_stub { "stub" } else { "grader" }, ext);
+            // Even if some tasks want `stubs`, we always check for `grader`s.
+            let name = format!("grader.{ext}");
             let grader_name = file.with_file_name(name);
             let grader_path = task.path.join(&grader_name);
             by_ext.insert(ext, (grader_path, grader_name, file.to_owned()));

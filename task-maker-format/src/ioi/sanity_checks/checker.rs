@@ -81,9 +81,13 @@ impl SanityCheck for FuzzCheckerWithJunkOutput {
                     test_output_uuid,
                     move |score, outcome| {
                         if score != 0.0 {
-                            sender.add_diagnostic(Diagnostic::error(format!(
-                                "Junk file '{description}' scored {score} (with message '{outcome}')"
-                            )))?;
+                            sender.add_diagnostic(
+                                Diagnostic::warning(format!(
+                                    "Junk file '{description}' scored {score} (with message '{outcome}')"
+                                )).with_note(
+                                    "This almost certainly indicates a bug in the checker, unless it's intended that such a file scores points."
+                                )
+                            )?;
                         }
                         Ok(())
                     },

@@ -64,7 +64,7 @@ fn test_sanity_checks_att_graders() {
     std::fs::create_dir(tmpdir.path().join("sol")).unwrap();
     std::fs::create_dir(tmpdir.path().join("att")).unwrap();
     std::fs::write(tmpdir.path().join("sol/grader.cpp"), "x").unwrap();
-    std::fs::write(tmpdir.path().join("att/template.cpp"), "x").unwrap();
+    std::fs::write(tmpdir.path().join("att/task.cpp"), "x").unwrap();
     task.grader_map = Arc::new(GraderMap::new(vec![tmpdir.path().join("sol/grader.cpp")]));
 
     let warnings = get_warnings(&task);
@@ -185,8 +185,8 @@ fn test_sanity_checks_sol_graders() {
     let mut task = utils::new_task_with_context(tmpdir.path());
     std::fs::create_dir(tmpdir.path().join("sol")).unwrap();
     std::fs::write(tmpdir.path().join("sol/grader.cpp"), "x").unwrap();
-    std::fs::write(tmpdir.path().join("sol/template.cpp"), "x").unwrap();
-    std::fs::write(tmpdir.path().join("sol/template.c"), "x").unwrap();
+    std::fs::write(tmpdir.path().join("sol/task.cpp"), "x").unwrap();
+    std::fs::write(tmpdir.path().join("sol/task.c"), "x").unwrap();
     task.grader_map = Arc::new(GraderMap::new(vec![tmpdir.path().join("sol/grader.cpp")]));
 
     let warnings = get_warnings(&task);
