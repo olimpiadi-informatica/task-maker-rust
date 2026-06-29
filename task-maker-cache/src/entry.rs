@@ -64,7 +64,11 @@ impl CacheEntryItem {
             .map(|(path, file)| (path.clone(), file_keys[&file.uuid].key().clone()))
             .collect();
         CacheEntryItem {
-            result,
+            result: ExecutionResult {
+                stdout: None,
+                stderr: None,
+                ..result
+            },
             limits: execution.limits.clone(),
             stdout,
             stderr,
