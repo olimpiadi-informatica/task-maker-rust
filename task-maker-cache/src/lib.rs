@@ -180,13 +180,25 @@ impl Cache {
                 Some(outputs) if entry.is_compatible(group) => {
                     let mut results = Vec::new();
                     for (exec, item) in group.executions.iter().zip(entry.items.iter()) {
+                        let stdout = item.stdout.as_ref().and_then(|key| {
+                            file_store
+                                .get(key)
+                                .and_then(|handle| std::fs::read(handle.path()).ok())
+                        });
+
+                        let stderr = item.stderr.as_ref().and_then(|key| {
+                            file_store
+                                .get(key)
+                                .and_then(|handle| std::fs::read(handle.path()).ok())
+                        });
+
                         results.push(ExecutionResult {
                             status: exec.status(&item.result.status, &item.result.resources),
                             was_killed: item.result.was_killed,
                             was_cached: true,
                             resources: item.result.resources.clone(),
-                            stdout: item.result.stdout.clone(),
-                            stderr: item.result.stderr.clone(),
+                            stdout,
+                            stderr,
                         });
                     }
                     return CacheResult::Hit {
