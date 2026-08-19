@@ -69,7 +69,7 @@ impl LocalExecutor {
                     .name(worker_name.clone())
                     .spawn(move || worker.work())
                     .with_context(|| {
-                        format!("Failed to start worker thread named '{}'", &worker_name)
+                        format!("Failed to start worker thread named '{}'", worker_name)
                     })?,
             );
         }

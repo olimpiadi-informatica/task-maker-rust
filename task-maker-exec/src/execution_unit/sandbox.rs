@@ -434,7 +434,7 @@ impl Sandbox {
                 self.validate_local_executable(&host_cmd).with_context(|| {
                     format!(
                         "Local sandbox executable validation failed: {}",
-                        &host_cmd.display()
+                        host_cmd.display()
                     )
                 })?;
                 config.executable(box_root.join(cmd));

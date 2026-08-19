@@ -135,25 +135,13 @@ impl CacheEntry {
 
         for (exec, item) in group.executions.iter().zip(self.items.iter()) {
             if let ExecutionOutputBehaviour::Capture { file, .. } = &exec.stdout {
-                if let Some(handle) = try_get!(item.stdout) {
-                    outputs.insert(file.uuid, handle);
-                } else {
-                    return None;
-                }
+                outputs.insert(file.uuid, try_get!(item.stdout)?);
             }
             if let ExecutionOutputBehaviour::Capture { file, .. } = &exec.stderr {
-                if let Some(handle) = try_get!(item.stderr) {
-                    outputs.insert(file.uuid, handle);
-                } else {
-                    return None;
-                }
+                outputs.insert(file.uuid, try_get!(item.stderr)?);
             }
             for (path, file) in exec.output_files.iter() {
-                if let Some(handle) = try_get!(item.outputs.get(path)) {
-                    outputs.insert(file.uuid, handle);
-                } else {
-                    return None;
-                }
+                outputs.insert(file.uuid, try_get!(item.outputs.get(path))?);
             }
         }
         Some(outputs)
