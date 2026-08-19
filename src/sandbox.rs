@@ -79,7 +79,7 @@ fn tools_sandbox_internal(
     pid.store(cmd.id(), Ordering::SeqCst);
     let status = cmd.wait().context("Failed to wait for the process")?;
     if !status.success() {
-        bail!("Sandbox process failed: {}", status.to_string());
+        bail!("Sandbox process failed: {}", status);
     }
     serde_json::from_reader(outfile).context("Invalid output from sandbox")
 }

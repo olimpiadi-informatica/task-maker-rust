@@ -45,8 +45,8 @@ pub fn main_worker(opt: WorkerOpt) -> Result<(), Error> {
     let name = opt.name.unwrap_or_else(|| {
         format!(
             "{}@{}",
-            whoami::username(),
-            whoami::fallible::hostname().unwrap()
+            whoami::username().unwrap(),
+            whoami::hostname().unwrap()
         )
     });
     let (executor_tx, executor_rx) = connect_to_remote_server(&opt.server_addr, 27183)

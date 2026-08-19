@@ -146,8 +146,8 @@ impl RuntimeContext {
             let name = opt.name.clone().unwrap_or_else(|| {
                 format!(
                     "{}@{}",
-                    whoami::username(),
-                    whoami::fallible::hostname().unwrap()
+                    whoami::username().unwrap(),
+                    whoami::hostname().unwrap()
                 )
             });
             tx.send(RemoteEntityMessage::Welcome {
