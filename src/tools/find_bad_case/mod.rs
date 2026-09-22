@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -88,7 +89,7 @@ pub fn main_find_bad_case(opt: FindBadCaseOpt) -> Result<(), Error> {
     let generator = opt
         .generator
         .as_ref()
-        .map(|x| get_generator(&format!("gen_{x}"), &task_path))
+        .map(|x| get_generator(&format!("gen_{x}"), &task_path, &mut HashMap::new()))
         .transpose()?;
 
     // Create a single UI for all the batches.

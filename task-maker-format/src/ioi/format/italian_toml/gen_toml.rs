@@ -220,7 +220,11 @@ fn default_validator_args() -> CommandLineArguments {
     CommandLineArguments::List(vec!["$FILENAME#".to_string(), "$SUBTASK_NAME#".to_string()])
 }
 
-fn detect_validator(task_dir: &Path, validator: &str) -> Result<Arc<SourceFile>> {
+fn detect_validator(
+    task_dir: &Path,
+    validator: &str,
+    known_vals: &mut HashMap<String, Arc<SourceFile>>,
+) -> Result<Arc<SourceFile>> {
     let mut validators = find_source_file(
         task_dir,
         vec![&format!("gen/{validator}.*")],
@@ -235,11 +239,19 @@ fn detect_validator(task_dir: &Path, validator: &str) -> Result<Arc<SourceFile>>
     } else if validators.is_empty() {
         bail!("No validator `{validator}` found");
     }
-    Ok(validators.pop().map(Arc::new).unwrap())
+
+    Ok(known_vals
+        .entry(validator.to_string())
+        .or_insert(Arc::new(validators.pop().unwrap()))
+        .clone())
 }
 
 /// Finds a generator with the specified name.
-pub fn get_generator(generator: &str, task_dir: &Path) -> Result<Arc<SourceFile>> {
+pub fn get_generator(
+    generator: &str,
+    task_dir: &Path,
+    known_gens: &mut HashMap<String, Arc<SourceFile>>,
+) -> Result<Arc<SourceFile>> {
     let mut generators = find_source_file(
         task_dir,
         vec![&format!("gen/{generator}.*")],
@@ -254,7 +266,11 @@ pub fn get_generator(generator: &str, task_dir: &Path) -> Result<Arc<SourceFile>
     } else if generators.is_empty() {
         bail!("No generator `{generator}` found");
     }
-    Ok(generators.pop().map(Arc::new).unwrap())
+
+    Ok(known_gens
+        .entry(generator.to_string())
+        .or_insert(Arc::new(generators.pop().unwrap()))
+        .clone())
 }
 
 pub(super) fn parse(
@@ -328,6 +344,9 @@ pub(super) fn parse(
         }
     }
 
+    let mut known_gens = HashMap::new();
+    let mut known_vals = HashMap::new();
+
     let mut process_group = |name: &str, group: &mut GroupConfig| -> Result<()> {
         group.resolve_repeats();
         let mut constants = constants.clone();
@@ -373,7 +392,7 @@ pub(super) fn parse(
                     .push(id);
             }
             let generator = testcase.generator().unwrap_or(generator);
-            let generator = get_generator(generator, task_dir)?;
+            let generator = get_generator(generator, task_dir, &mut known_gens)?;
             let input_generator =
                 InputGenerator::Custom(generator, testcase.args().instantiate(&constants)?);
             testcases.insert(
@@ -430,7 +449,7 @@ pub(super) fn parse(
         })?;
 
         let validator = subtask.validator.as_ref().unwrap_or(&validator);
-        let validator = detect_validator(task_dir, validator)
+        let validator = detect_validator(task_dir, validator, &mut known_vals)
             .with_context(|| format!("when finding validator of subtask {name}"))?;
 
         let input_validator = InputValidator::Custom(validator, validator_args);
