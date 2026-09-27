@@ -394,27 +394,31 @@ impl FinishUI {
                 let normalized_score = subtask.normalized_score.unwrap_or(0.0);
                 let color = self.score_color(normalized_score);
                 cwrite!(self, color, "[");
-                let time_limit = state.task.time_limit;
-                let memory_limit = state.task.memory_limit;
-                let extra_time = state.config.extra_time;
                 for tc_num in &state.task.subtasks[st_num].testcases_owned {
+                    // Logic duplicated at ui_state.rs
                     let testcase = &eval.testcases[tc_num];
-                    let close_color = if testcase.is_close_to_limits(
-                        time_limit,
-                        extra_time,
-                        memory_limit,
+                    let is_close_to_tl = testcase.is_close_to_time_limit(
+                        state.task.time_limit,
+                        state.config.extra_time,
                         YELLOW_RESOURCE_THRESHOLD,
-                    ) {
-                        Some(ORANGE)
-                    } else {
-                        None
-                    };
+                    );
+                    let is_close_to_ml = testcase.is_close_to_memory_limit(
+                        state.task.memory_limit,
+                        YELLOW_RESOURCE_THRESHOLD,
+                    );
+                    let is_close_to_limits = is_close_to_tl || is_close_to_ml;
                     use TestcaseEvaluationStatus::*;
                     match testcase.status {
-                        Accepted(_) => cwrite!(self, close_color.unwrap_or(GREEN), "A"),
+                        Accepted(_) => {
+                            cwrite!(self, if is_close_to_limits { ORANGE } else { GREEN }, "A")
+                        }
                         WrongAnswer(_) => cwrite!(self, RED, "W"),
-                        Partial(_) => cwrite!(self, close_color.unwrap_or(YELLOW), "P"),
-                        TimeLimitExceeded => cwrite!(self, RED, "T"),
+                        Partial(_) => {
+                            cwrite!(self, if is_close_to_limits { ORANGE } else { YELLOW }, "P")
+                        }
+                        TimeLimitExceeded => {
+                            cwrite!(self, if is_close_to_tl { ORANGE } else { RED }, "T")
+                        }
                         WallTimeLimitExceeded => cwrite!(self, RED, "T"),
                         MemoryLimitExceeded => cwrite!(self, RED, "M"),
                         RuntimeError => cwrite!(self, RED, "R"),
