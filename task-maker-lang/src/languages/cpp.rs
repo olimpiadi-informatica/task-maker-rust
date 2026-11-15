@@ -32,7 +32,7 @@ impl LanguageCppConfiguration {
         let compiler = std::env::var_os("TM_CXX")
             .or_else(|| std::env::var_os("CXX"))
             .unwrap_or_else(|| "g++".into());
-        let std_version = std::env::var("TM_CXX_STD_VERSION").unwrap_or_else(|_| "c++17".into());
+        let std_version = std::env::var("TM_CXX_STD_VERSION").unwrap_or_else(|_| "c++20".into());
         let extra_flags = std::env::var("TM_CXXFLAGS")
             .or_else(|_| std::env::var("CXXFLAGS"))
             .unwrap_or_else(|_| String::new());
