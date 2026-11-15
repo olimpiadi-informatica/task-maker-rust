@@ -68,11 +68,10 @@ jobs:
           compression-level: 0
 
       - name: Upload the artifacts
-        uses: skx/github-action-publish-binaries@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ github.event_name == 'release' }} # skip on manual runs.
+        uses: softprops/action-gh-release@v3
         with:
-          args: "target/debian/*.deb"
+          files: "target/debian/*.deb"
 
   aur:
     name: AUR
