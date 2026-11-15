@@ -19,6 +19,27 @@ lazy_static! {
     static ref USE_PACKAGE_REGEX: Regex = Regex::new(r"\\usepackage.+").expect("Invalid regex");
 }
 
+/// Escape characters that have special meaning in LaTeX text mode.
+fn escape_tex(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '\\' => out.push_str(r"\textbackslash{}"),
+            '{' => out.push_str(r"\{"),
+            '}' => out.push_str(r"\}"),
+            '$' => out.push_str(r"\$"),
+            '&' => out.push_str(r"\&"),
+            '#' => out.push_str(r"\#"),
+            '^' => out.push_str(r"\textasciicircum{}"),
+            '_' => out.push_str(r"\_"),
+            '~' => out.push_str(r"\textasciitilde{}"),
+            '%' => out.push_str(r"\%"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
 /// Template to use to render the `statement.tex` file.
 #[derive(Template)]
 #[template(path = "task.tex", escape = "none", syntax = "tex")]
@@ -188,10 +209,10 @@ impl Language for Tex {
 
     fn build_statement_source(&self, statement: &Statement) -> String {
         let template = TaskTemplate {
-            name: statement.config.name.clone(),
+            name: escape_tex(&statement.config.name),
             title: statement.config.title.clone(),
-            infile: statement.config.infile.clone(),
-            outfile: statement.config.outfile.clone(),
+            infile: escape_tex(&statement.config.infile),
+            outfile: escape_tex(&statement.config.outfile),
             time_limit: statement
                 .config
                 .time_limit
