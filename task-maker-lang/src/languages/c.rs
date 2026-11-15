@@ -38,7 +38,7 @@ impl LanguageCConfiguration {
         let compiler = std::env::var_os("TM_CC")
             .or_else(|| std::env::var_os("CC"))
             .unwrap_or_else(|| "gcc".into());
-        let std_version = std::env::var("TM_CC_STD_VERSION").unwrap_or_else(|_| "c11".into());
+        let std_version = std::env::var("TM_CC_STD_VERSION").unwrap_or_else(|_| "c17".into());
         let extra_flags = std::env::var("TM_CFLAGS")
             .or_else(|_| std::env::var("CFLAGS"))
             .unwrap_or_else(|_| String::new());
