@@ -343,42 +343,35 @@ fn testcase_evaluation_status_text<'a>(
     loading: char,
     state: &'a UIState,
 ) -> Span<'a> {
-    let time_limit = state.task.time_limit;
-    let memory_limit = state.task.memory_limit;
-    let extra_time = state.config.extra_time;
-    let close_color = if testcase.is_close_to_limits(
-        time_limit,
-        extra_time,
-        memory_limit,
+    // Logic duplicated at finish_ui.rs
+    let is_close_to_tl = testcase.is_close_to_time_limit(
+        state.task.time_limit,
+        state.config.extra_time,
         YELLOW_RESOURCE_THRESHOLD,
-    ) {
-        Some(ORANGE)
-    } else {
-        None
-    };
+    );
+    let is_close_to_ml =
+        testcase.is_close_to_memory_limit(state.task.memory_limit, YELLOW_RESOURCE_THRESHOLD);
+    let is_close_to_limits = is_close_to_tl || is_close_to_ml;
+    use TestcaseEvaluationStatus::*;
     match &testcase.status {
-        TestcaseEvaluationStatus::Pending => Span::raw("."),
-        TestcaseEvaluationStatus::Solving => Span::raw(format!("{loading}")),
-        TestcaseEvaluationStatus::Solved => Span::raw("s"),
-        TestcaseEvaluationStatus::Checking => Span::raw(format!("{loading}")),
-        TestcaseEvaluationStatus::Accepted(_) => Span::styled("A", close_color.unwrap_or(GREEN)),
-        TestcaseEvaluationStatus::WrongAnswer(_) => Span::styled("W", RED),
-        TestcaseEvaluationStatus::Partial(_) => Span::styled("P", YELLOW),
-        TestcaseEvaluationStatus::TimeLimitExceeded => {
-            Span::styled("T", close_color.unwrap_or(RED))
-        }
-        TestcaseEvaluationStatus::WallTimeLimitExceeded => Span::styled("T", RED),
-        TestcaseEvaluationStatus::MemoryLimitExceeded => {
-            Span::styled("M", close_color.unwrap_or(RED))
-        }
-        TestcaseEvaluationStatus::RuntimeError => Span::styled("R", RED),
-        TestcaseEvaluationStatus::Failed => Span::styled(
+        Pending => Span::raw("."),
+        Solving => Span::raw(format!("{loading}")),
+        Solved => Span::raw("s"),
+        Checking => Span::raw(format!("{loading}")),
+        Accepted(_) => Span::styled("A", if is_close_to_limits { ORANGE } else { GREEN }),
+        WrongAnswer(_) => Span::styled("W", RED),
+        Partial(_) => Span::styled("P", if is_close_to_limits { ORANGE } else { YELLOW }),
+        TimeLimitExceeded => Span::styled("T", if is_close_to_tl { ORANGE } else { RED }),
+        WallTimeLimitExceeded => Span::styled("T", RED),
+        MemoryLimitExceeded => Span::styled("M", RED),
+        RuntimeError => Span::styled("R", RED),
+        Failed => Span::styled(
             "F",
             Style::default()
                 .fg(Color::Black)
                 .bg(Color::Red)
                 .add_modifier(Modifier::BOLD),
         ),
-        TestcaseEvaluationStatus::Skipped => Span::raw("X"),
+        Skipped => Span::raw("X"),
     }
 }
