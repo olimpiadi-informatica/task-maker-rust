@@ -4103,7 +4103,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-cache"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4118,7 +4118,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-dag"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "anyhow",
  "approx",
@@ -4130,7 +4130,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-diagnostics"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "anyhow",
  "colored",
@@ -4139,7 +4139,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-exec"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "anyhow",
  "bincode",
@@ -4177,7 +4177,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-format"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "anstream",
  "anyhow",
@@ -4223,7 +4223,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-lang"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -4240,7 +4240,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-rust"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "anyhow",
  "approx",
@@ -4286,7 +4286,7 @@ dependencies = [
 
 [[package]]
 name = "task-maker-store"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "anyhow",
  "bincode",
@@ -6127,14 +6127,13 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "9.0.5"
+version = "8.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e04976da629d3b04204ba8105b396a193af8ad2583b2c79bfb3ab8af580a11e"
+checksum = "2d04a6b5381502aa6087c94c669499eb1602eb9c5e8198e534de571f7154809b"
 dependencies = [
  "crc32fast",
  "indexmap",
  "memchr",
- "nix 0.31.3",
  "typed-path",
 ]
 
