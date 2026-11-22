@@ -4151,7 +4151,7 @@ dependencies = [
  "hyper-rustls",
  "itertools 0.14.0",
  "log",
- "nix 0.29.0",
+ "nix 0.31.3",
  "pretty_assertions",
  "reqwest",
  "rustls",
@@ -4196,7 +4196,7 @@ dependencies = [
  "locale-codes",
  "log",
  "mime_guess",
- "nix 0.29.0",
+ "nix 0.31.3",
  "owo-colors",
  "paste",
  "pest",
@@ -4256,7 +4256,7 @@ dependencies = [
  "itertools 0.14.0",
  "lazy_static",
  "log",
- "nix 0.29.0",
+ "nix 0.31.3",
  "num_cpus",
  "ratatui",
  "regex",
@@ -6127,14 +6127,13 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "9.0.5"
+version = "8.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e04976da629d3b04204ba8105b396a193af8ad2583b2c79bfb3ab8af580a11e"
+checksum = "2d04a6b5381502aa6087c94c669499eb1602eb9c5e8198e534de571f7154809b"
 dependencies = [
  "crc32fast",
  "indexmap",
  "memchr",
- "nix 0.31.3",
  "typed-path",
 ]
 
