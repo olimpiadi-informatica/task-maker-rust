@@ -62,7 +62,7 @@ fn controller_keeper_inner(process_limit: usize, result_dir: &Path) -> Result<()
                 &write_controller_to_sol,
                 &read_controller_to_sol,
             ] {
-                fcntl(f.as_raw_fd(), FcntlArg::F_SETFD(FdFlag::FD_CLOEXEC))?;
+                fcntl(f, FcntlArg::F_SETFD(FdFlag::FD_CLOEXEC))?;
             }
             Ok(Pipes {
                 read_controller_to_sol: Some(read_controller_to_sol),
@@ -158,11 +158,11 @@ fn controller_keeper_inner(process_limit: usize, result_dir: &Path) -> Result<()
             // so clear CLOEXEC for those.
             for p in pipes.iter() {
                 fcntl(
-                    p.write_controller_to_sol.as_ref().unwrap().as_raw_fd(),
+                    p.write_controller_to_sol.as_ref().unwrap(),
                     FcntlArg::F_SETFD(FdFlag::empty()),
                 )?;
                 fcntl(
-                    p.read_sol_to_controller.as_ref().unwrap().as_raw_fd(),
+                    p.read_sol_to_controller.as_ref().unwrap(),
                     FcntlArg::F_SETFD(FdFlag::empty()),
                 )?;
             }
