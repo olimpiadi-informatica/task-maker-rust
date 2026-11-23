@@ -2072,6 +2072,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b4baf93f58d4425749ca49a51c50ebab072c5df6994d08fed93541c331481dc"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4108,7 +4117,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "const_format",
- "itertools 0.14.0",
+ "itertools 0.15.0",
  "log",
  "serde",
  "task-maker-dag",
@@ -4149,7 +4158,7 @@ dependencies = [
  "env_logger",
  "fontdb",
  "hyper-rustls",
- "itertools 0.14.0",
+ "itertools 0.15.0",
  "log",
  "nix 0.31.3",
  "pretty_assertions",
@@ -4191,7 +4200,7 @@ dependencies = [
  "glob",
  "indexmap",
  "inventory",
- "itertools 0.14.0",
+ "itertools 0.15.0",
  "lazy_static",
  "locale-codes",
  "log",
@@ -4253,7 +4262,7 @@ dependencies = [
  "directories",
  "env_logger",
  "fastrand",
- "itertools 0.14.0",
+ "itertools 0.15.0",
  "lazy_static",
  "log",
  "nix 0.31.3",
