@@ -28,7 +28,7 @@ jobs:
       - name: Install Deps
         run: |
           apt update
-          apt install -yy libseccomp-dev libssl-dev build-essential fpc lld clang
+          apt install -yy libseccomp-dev libssl-dev build-essential fpc lld clang curl
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         id: install-rust
