@@ -115,21 +115,17 @@ pub struct SolutionTestcaseEvaluationState {
 }
 
 impl SolutionTestcaseEvaluationState {
-    /// Checks whether the resources used by a solution on a testcase are close to the limits of
-    /// time or memory.
+    /// Checks whether the time used by a solution on a testcase are close to the limits.
     ///
     /// The time 't' is close to the limit TL if:
     ///   TL * threshold <= t <= TL / threshold  &&  t <= ceil(TL + extra time) - 0.1s
     ///
     /// The second condition guards against a value of extra time too small, which would mark every
     /// TLE as "close to the limits".
-    ///
-    /// Memory limit is in MiB.
-    pub fn is_close_to_limits(
+    pub fn is_close_to_time_limit(
         &self,
         time_limit: Option<f64>,
         extra_time: f64,
-        memory_limit: Option<u64>,
         threshold: f64,
     ) -> bool {
         for result in self.results.iter().flatten() {
@@ -144,6 +140,16 @@ impl SolutionTestcaseEvaluationState {
                     return true;
                 }
             }
+        }
+
+        false
+    }
+
+    /// Checks whether the memory used by a solution on a testcase are close to the limits.
+    pub fn is_close_to_memory_limit(&self, memory_limit: Option<u64>, threshold: f64) -> bool {
+        for result in self.results.iter().flatten() {
+            let resources = &result.resources;
+
             if let Some(memory_limit) = memory_limit {
                 if resources.memory as f64 >= memory_limit as f64 * 1024.0 * threshold {
                     return true;
